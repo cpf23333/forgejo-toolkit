@@ -35,8 +35,9 @@ export interface AgentsWindowMcpConfig {
  * Builds the snippet pointing at the shim (`mcp-server.js` in the
  * extension's globalStorage) rather than the versioned install directory,
  * so the configuration survives extension upgrades. No `env` block: the
- * server discovers the instance registry on its own (mcp/autoConfig.ts) and
- * reads anonymously without a `FORGEJO_MCP_TOKEN`.
+ * server discovers the instance registry on its own (mcp/autoConfig.ts) and,
+ * while an extension window is running, authenticates by forwarding into that
+ * host's broker; with no broker live it reads anonymously (public data only).
  */
 export function buildAgentsWindowMcpConfig(shimPath: string): AgentsWindowMcpConfig {
   return { servers: { forgejo: { command: 'node', args: [shimPath] } } };

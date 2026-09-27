@@ -7,9 +7,13 @@ import { BROKER_HANDSHAKE_OK_LINE } from './brokerServer';
  * mcp/brokerServer.ts, driven by src/mcpBroker.ts inside the extension host).
  *
  * An MCP server launched from a static `mcp.json` has no token; the broker in
- * the extension host does. This module connects to the broker's local
+ * the extension host does. The same is true of a definition the extension
+ * itself provided: since stage 2 it deliberately carries no token either (the
+ * editor persists definitions in cleartext workspace storage), so it forwards
+ * for the same reason. This module connects to the broker's local
  * endpoint, proves "same local user" with the per-launch handshake secret
- * from `mcp-broker.json`, and then bridges byte streams: stdin → socket →
+ * from `mcp-broker.json`, states which instance and workspace the session is
+ * for when the launch knows, and then bridges byte streams: stdin → socket →
  * stdout. Because MCP's stdio framing is NDJSON and the broker uses the same
  * framing on the socket, the bridge is a verbatim pipe — no JSON is parsed or
  * re-encoded here after the handshake, so the forwarder stays a dumb relay
@@ -38,6 +42,29 @@ export interface ForwardToBrokerOptions {
   endpoint: string;
   authToken: string;
   cwd: string;
+  /**
+   * The instance this session is for, when the launch knows it. A launch the
+   * extension provided always does (its definition names one instance); a
+   * static `mcp.json` launch does not, and the broker then resolves the
+   * instance from the session's working directory as before. Not a secret:
+   * the broker has the instance list and the token, the forwarder merely says
+   * which entry it was asked for.
+   */
+  instanceId?: string | undefined;
+  /**
+   * The workspace → repository state file the extension host computed for the
+   * window that provided this definition. Forwarded so `get_workspace_repository`
+   * answers for that window even when a different window owns the broker.
+   * Absent for a static launch, where the broker's own window file is right.
+   */
+  stateFile?: string | undefined;
+  /**
+   * The per-instance "rewrite API URLs to the instance URL" flag. The broker
+   * cannot read the extension's settings, so a definition's flag has to travel
+   * with the session; a static launch leaves it unset and the broker's default
+   * applies.
+   */
+  syncApiUrls?: boolean | undefined;
   /** Defaults to process.stdin / process.stdout; injectable for tests. */
   input?: Readable;
   output?: Writable;
@@ -143,7 +170,19 @@ export function forwardToBroker(options: ForwardToBrokerOptions): Promise<Forwar
 
     socket.on('data', onHandshakeData);
     socket.once('connect', () => {
-      socket.write(`${JSON.stringify({ authToken: options.authToken, cwd: options.cwd })}\n`);
+      // Identity fields are omitted rather than sent as undefined: the broker
+      // treats "absent" and "empty" the same way, but a payload that only ever
+      // carries real values is easier to reason about on the wire, and the
+      // handshake line is logged nowhere.
+      socket.write(
+        `${JSON.stringify({
+          authToken: options.authToken,
+          cwd: options.cwd,
+          ...(options.instanceId ? { instanceId: options.instanceId } : {}),
+          ...(options.stateFile ? { stateFile: options.stateFile } : {}),
+          ...(options.syncApiUrls === undefined ? {} : { syncApiUrls: options.syncApiUrls }),
+        })}\n`,
+      );
     });
     socket.on('error', (error) => {
       const code = (error as NodeJS.ErrnoException).code;

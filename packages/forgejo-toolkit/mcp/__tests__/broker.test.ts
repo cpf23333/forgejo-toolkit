@@ -177,8 +177,8 @@ describe('MCP broker over real sockets', () => {
     broker = await startMcpBroker({
       endpoint,
       authToken: TEST_TOKEN,
-      createServer: (cwd) => {
-        created.push(cwd);
+      createServer: (session) => {
+        created.push(session.cwd);
         return createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
       },
     });
@@ -236,6 +236,78 @@ describe('MCP broker over real sockets', () => {
     expect(logs.some((message) => message.includes('never completed its handshake'))).toBe(false);
   });
 
+  it('passes the launch identity fields on to the session factory', async () => {
+    // This is the wire the extension-provided route depends on: the definition
+    // carries no token, so *which* instance the session is for has to survive
+    // the handshake (state file and URL-sync flag likewise). The static route
+    // sends only authToken + cwd, which must keep working as before.
+    const requests: unknown[] = [];
+    endpoint = testEndpoint();
+    broker = await startMcpBroker({
+      endpoint,
+      authToken: TEST_TOKEN,
+      createServer: (request) => {
+        requests.push(request);
+        return createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+      },
+    });
+
+    const socket = net.connect(endpoint);
+    await new Promise<void>((resolve) => socket.once('connect', resolve));
+    socket.write(
+      `${JSON.stringify({
+        authToken: TEST_TOKEN,
+        cwd: 'C:\\proj',
+        instanceId: 'instance-7',
+        stateFile: 'C:\\state\\mcp-workspace-1-abc.json',
+        syncApiUrls: false,
+      })}\n`,
+    );
+    let ack = Buffer.alloc(0);
+    while (!ack.includes(0x0a)) {
+      ack = Buffer.concat([ack, await new Promise<Buffer>((resolve) => socket.once('data', resolve))]);
+    }
+    expect(ack.subarray(0, ack.indexOf(0x0a)).toString('utf8')).toBe('{"ok":true}');
+    expect(requests).toEqual([
+      {
+        cwd: 'C:\\proj',
+        instanceId: 'instance-7',
+        stateFile: 'C:\\state\\mcp-workspace-1-abc.json',
+        syncApiUrls: false,
+      },
+    ]);
+    socket.destroy();
+  });
+
+  it('treats a malformed identity field as absent instead of failing the session', async () => {
+    const requests: unknown[] = [];
+    endpoint = testEndpoint();
+    broker = await startMcpBroker({
+      endpoint,
+      authToken: TEST_TOKEN,
+      createServer: (request) => {
+        requests.push(request);
+        return createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+      },
+    });
+
+    const socket = net.connect(endpoint);
+    await new Promise<void>((resolve) => socket.once('connect', resolve));
+    // A different extension version, or a hand-crafted line: the handshake has
+    // already authorized the peer, so the wrong type must mean "not provided"
+    // rather than an exception inside the extension host.
+    socket.write(`${JSON.stringify({ authToken: TEST_TOKEN, cwd: '', instanceId: 7, syncApiUrls: 'no' })}\n`);
+    let ack = Buffer.alloc(0);
+    while (!ack.includes(0x0a)) {
+      ack = Buffer.concat([ack, await new Promise<Buffer>((resolve) => socket.once('data', resolve))]);
+    }
+    expect(ack.subarray(0, ack.indexOf(0x0a)).toString('utf8')).toBe('{"ok":true}');
+    expect(requests).toEqual([
+      { cwd: process.cwd(), instanceId: undefined, stateFile: undefined, syncApiUrls: undefined },
+    ]);
+    socket.destroy();
+  });
+
   it('accepts a handshake whose multi-byte cwd arrives split across chunks', async () => {
     // Node's read boundaries are byte offsets: the 3-byte characters of a
     // non-ASCII cwd (an ordinary Windows user profile path) land in two
@@ -247,8 +319,8 @@ describe('MCP broker over real sockets', () => {
     broker = await startMcpBroker({
       endpoint,
       authToken: TEST_TOKEN,
-      createServer: (sessionCwd) => {
-        seen.push(sessionCwd);
+      createServer: (session) => {
+        seen.push(session.cwd);
         return createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
       },
     });

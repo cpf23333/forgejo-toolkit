@@ -69,8 +69,9 @@ export interface McpInstanceRegistryEntry {
   /**
    * Instance URL with credential userinfo removed entirely
    * (`stripUrlUserinfo`): the file must never carry credentials, and a token
-   * never appears here — the consumer authenticates anonymously or through its
-   * own `FORGEJO_MCP_TOKEN`.
+   * never appears here — the consumer either forwards into the extension host's
+   * broker (the normal case, where the host holds the token) or, with no broker
+   * running, authenticates anonymously or through its own `FORGEJO_MCP_TOKEN`.
    */
   url: string;
   /** Display name of the instance, for messages that name the match. */

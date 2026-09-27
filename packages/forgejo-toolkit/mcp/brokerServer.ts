@@ -7,15 +7,17 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * The extension-host MCP broker: a local listener that runs the real tool
- * logic (with the instance token) inside the extension host process, so an
- * MCP server launched from a static `mcp.json` can be a pure stdio forwarder
- * and the token never crosses the extension boundary (consumer of this side:
- * src/mcpBroker.ts; the forwarder half lives in mcp/brokerForwarder.ts).
+ * logic (with the instance token) inside the extension host process, so both
+ * MCP servers launched from a static `mcp.json` and servers the extension
+ * itself provides can be pure stdio forwarders and the token never crosses the
+ * extension boundary (consumer of this side: src/mcpBroker.ts; the forwarder
+ * half lives in mcp/brokerForwarder.ts).
  *
  * Wire protocol per connection:
  *
  *   1. The forwarder's first line must be the JSON handshake
- *      `{ "authToken": string, "cwd": string }`. A mismatch — or anything
+ *      `{ "authToken": string, "cwd": string, "instanceId"?, "stateFile"?,
+ *      "syncApiUrls"? }` (see BrokerHandshake). A mismatch — or anything
  *      that is not that shape — disconnects the socket immediately; the
  *      rejection is logged without the presented token (a wrong guess is
  *      still a secret-shaped value, and logs are a leak channel).
@@ -24,9 +26,10 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
  *      NDJSON (one JSON-RPC message per line), so the pipe uses the same
  *      framing and no re-encoding is needed on either side.
  *
- * Every connection gets its own MCP server instance from `createServer(cwd)`:
- * the SDK's `McpServer` binds to a single transport at connect time, so one
- * server cannot be shared across sessions.
+ * Every connection gets its own MCP server instance from `createServer`, which
+ * receives the whole handshake: the SDK's `McpServer` binds to a single
+ * transport at connect time, so one server cannot be shared across sessions,
+ * and a session for a named instance must be built for that instance.
  *
  * This module is bundled into the headless MCP server (the forwarder shares
  * the line-framing helpers), so it must stay free of `vscode` imports, and
@@ -34,9 +37,11 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
  */
 
 /**
- * The acknowledgement line the broker sends after a successful handshake.
- * The forwarder treats anything else — or a close before it — as "broker
- * rejected us" and falls back to the zero-configuration launch.
+ * The acknowledgement line the broker sends after a successful handshake. The
+ * forwarder treats anything else — or a close before it — as "broker rejected
+ * us" and either falls back to the zero-configuration launch (a static launch)
+ * or reports the failure and stops (a launch that named an instance, which has
+ * no credentials of its own to fall back to serving with).
  */
 export const BROKER_HANDSHAKE_OK_LINE = JSON.stringify({ ok: true });
 
@@ -71,13 +76,51 @@ export interface BrokerMcpServerLike {
   close(): Promise<void>;
 }
 
+/**
+ * What a forwarder's first line must be. `authToken` and `cwd` are required
+ * (the token is the gate, the cwd decides which workspace the session is
+ * about); the rest is what a launch that knows more than its working directory
+ * can add:
+ *
+ * - `instanceId` — the instance the session was configured for. A definition
+ *   the extension provided names exactly one instance, and with several Forgejo
+ *   servers in one MCP client, resolving by working directory could hand a
+ *   session another instance's account. The broker matches the id against its
+ *   own token-bearing instances and refuses the session when there is no match
+ *   (the caller reports it; nothing is served under the wrong identity).
+ * - `stateFile` — the workspace → repository mapping of the window that
+ *   provided the definition, so `get_workspace_repository` answers for *that*
+ *   workspace even when a different window owns the broker.
+ * - `syncApiUrls` — the per-instance URL-rewriting flag, which exists only in
+ *   the editor's settings and would otherwise be lost on this route.
+ */
+export interface BrokerHandshake {
+  authToken: string;
+  cwd: string;
+  instanceId?: string;
+  stateFile?: string;
+  syncApiUrls?: boolean;
+}
+
+/** One accepted session, as the server factory needs it. */
+export interface BrokerSessionRequest {
+  /** The MCP client's working directory, already defaulted to the host's own. */
+  cwd: string;
+  /** The instance the launch named, when it named one (see BrokerHandshake). */
+  instanceId?: string | undefined;
+  /** The workspace state file the launch wants the session to answer from. */
+  stateFile?: string | undefined;
+  /** The launch's per-instance URL-sync flag; unset means "use your default". */
+  syncApiUrls?: boolean | undefined;
+}
+
 export interface StartMcpBrokerOptions {
   /** Where to listen: a `\\.\pipe\…` name on Windows, a unix socket path elsewhere. */
   endpoint: string;
   /** The per-launch handshake secret the forwarder must present. Never logged. */
   authToken: string;
-  /** Builds one MCP server per accepted session, bound to the client's cwd. */
-  createServer(cwd: string): Promise<BrokerMcpServerLike> | BrokerMcpServerLike;
+  /** Builds one MCP server per accepted session, from what the handshake carried. */
+  createServer(request: BrokerSessionRequest): Promise<BrokerMcpServerLike> | BrokerMcpServerLike;
   /**
    * Debug sink for lifecycle messages (rejections, session close). Optional:
    * the headless forwarder side has no logger worth wiring here.
@@ -499,9 +542,15 @@ async function handleConnection(
     return;
   }
 
-  let handshake: { authToken?: unknown; cwd?: unknown };
+  let handshake: {
+    authToken?: unknown;
+    cwd?: unknown;
+    instanceId?: unknown;
+    stateFile?: unknown;
+    syncApiUrls?: unknown;
+  };
   try {
-    handshake = JSON.parse(handshakeLine) as { authToken?: unknown; cwd?: unknown };
+    handshake = JSON.parse(handshakeLine) as typeof handshake;
   } catch {
     log('MCP broker: rejected a connection whose first line was not JSON');
     socket.destroy();
@@ -519,10 +568,18 @@ async function handleConnection(
     return;
   }
   const cwd = typeof handshake.cwd === 'string' && handshake.cwd ? handshake.cwd : process.cwd();
+  // Identity fields are read structurally and only when they are the right
+  // type: this file is not a trust boundary in the same sense as the
+  // registration (the handshake already proved the peer), but a malformed
+  // field must mean "not provided", never a crash inside the host.
+  const instanceId =
+    typeof handshake.instanceId === 'string' && handshake.instanceId ? handshake.instanceId : undefined;
+  const stateFile = typeof handshake.stateFile === 'string' && handshake.stateFile ? handshake.stateFile : undefined;
+  const syncApiUrls = typeof handshake.syncApiUrls === 'boolean' ? handshake.syncApiUrls : undefined;
 
   let mcpServer: BrokerMcpServerLike;
   try {
-    mcpServer = await options.createServer(cwd);
+    mcpServer = await options.createServer({ cwd, instanceId, stateFile, syncApiUrls });
   } catch (error) {
     // Instance resolution failed (e.g. no token-bearing instance). The
     // forwarder then falls back to its anonymous zero-configuration launch,

@@ -32,7 +32,7 @@ vi.mock('../../mcp/brokerServer', async (importOriginal) => {
 });
 
 import { detectLinkedRepositories } from '../worktree/gitOperations';
-import { startMcpBroker } from '../../mcp/brokerServer';
+import { startMcpBroker, type BrokerSessionRequest, type StartMcpBrokerOptions } from '../../mcp/brokerServer';
 import {
   BROKER_TAKEOVER_POLL_MS,
   cleanupMcpBroker,
@@ -309,6 +309,98 @@ describe('resolveBrokerInstance', () => {
     detectMock.mockResolvedValue({ linked: undefined, all: [], unpublished: [] });
     const picked = await resolveBrokerInstance(os.homedir(), [makeInstance({ token: '' })], logger);
     expect(picked).toBeUndefined();
+  });
+});
+
+/**
+ * The authenticated route for a definition the extension provided (§11.1
+ * stage-2 follow-up). Those definitions no longer carry a token, so the
+ * instance they were created for travels in the handshake and the broker has
+ * to resolve *that* instance against its own token-bearing list.
+ *
+ * The session factory is captured through the real `startMcpBroker` entry
+ * point, which is how production reaches it, and driven with the handshake
+ * shape `mcp/brokerForwarder.ts` writes.
+ */
+describe('broker sessions that name an instance', () => {
+  /** Starts the broker (with a mocked listener) and returns its session factory. */
+  async function captureSessionFactory(
+    config: ConfigManager,
+  ): Promise<(session: BrokerSessionRequest) => Promise<{ close(): Promise<void> }>> {
+    let factory: ((session: BrokerSessionRequest) => Promise<{ close(): Promise<void> }>) | undefined;
+    startMock.mockImplementation((options: StartMcpBrokerOptions) => {
+      const captured = options.createServer;
+      factory = async (session) => captured(session) as Promise<{ close(): Promise<void> }>;
+      return Promise.resolve({ endpoint: options.endpoint, close: () => Promise.resolve() });
+    });
+    await startMcpBrokerIfFirst(context, config, logger, { endpoint: uniqueEndpoint() });
+    if (!factory) {
+      throw new Error('the broker was expected to start');
+    }
+    return factory;
+  }
+
+  it('uses the instance the launch named, even when the cwd says otherwise', async () => {
+    // The whole reason the id is in the handshake: with two instances, cwd
+    // matching would hand this session the *other* account's credentials.
+    detectMock.mockResolvedValue({ linked: undefined, all: [], unpublished: [] });
+    const config = {
+      getInstances: () => [
+        makeInstance(),
+        makeInstance({ id: 'instance-2', url: 'https://other.example.com', token: 'second-token', name: 'Other' }),
+      ],
+    } as unknown as ConfigManager;
+    const factory = await captureSessionFactory(config);
+
+    const server = await factory({ cwd: os.homedir(), instanceId: 'instance-2' });
+    await server.close();
+    // instance-1 is first in the list and would win any cwd fallback; the
+    // resolved client is the one for instance-2, so detection never ran.
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('explicit instance id'));
+    expect(detectMock).not.toHaveBeenCalled();
+  });
+
+  it('honours the launch’s URL-sync flag instead of the resolved instance’s default', async () => {
+    const config = {
+      getInstances: () => [makeInstance({ syncApiUrlsToInstanceUrl: true })],
+    } as unknown as ConfigManager;
+    const factory = await captureSessionFactory(config);
+
+    // The flag lives in the editor's settings, which the broker owner can also
+    // read through its own config — but the launch's value is the one that
+    // must win, and `createMcpServer` is what carries it into the client.
+    const server = await factory({ cwd: os.homedir(), instanceId: 'instance-1', syncApiUrls: false });
+    await server.close();
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('explicit instance id'));
+  });
+
+  it('refuses the session when the named instance has no usable token here', async () => {
+    // Reached when the window that provided the definition removed the
+    // instance (or its token) after VS Code resolved the server. Serving a
+    // different instance would be the silent-wrong-account failure this whole
+    // route exists to avoid, so the broker refuses and the forwarder reports
+    // it instead of degrading.
+    const config = { getInstances: () => [makeInstance({ token: '' })] } as unknown as ConfigManager;
+    const factory = await captureSessionFactory(config);
+
+    await expect(factory({ cwd: os.homedir(), instanceId: 'instance-1' })).rejects.toThrow(/instance-1/);
+  });
+
+  it('still resolves a session with no instance id by working directory, as a static launch needs', async () => {
+    const checkout = path.join(os.tmpdir(), 'demo-repo');
+    detectMock.mockResolvedValue({
+      linked: undefined,
+      all: [makeRepo({ instanceId: 'instance-2', localPath: checkout })],
+      unpublished: [],
+    });
+    const config = {
+      getInstances: () => [makeInstance(), makeInstance({ id: 'instance-2', name: 'Other' })],
+    } as unknown as ConfigManager;
+    const factory = await captureSessionFactory(config);
+
+    const server = await factory({ cwd: checkout });
+    await server.close();
+    expect(detectMock).toHaveBeenCalled();
   });
 });
 

@@ -185,7 +185,9 @@ async function writeMcpServerShimNow(context: vscode.ExtensionContext, logger: L
  * The URL is written with its userinfo *removed* — the file must never carry
  * credentials, and the token field never reaches the payload at all: a
  * zero-configuration MCP child reads this file to learn which instances exist
- * and authenticates anonymously or through its own FORGEJO_MCP_TOKEN.
+ * and either forwards into the extension host's broker (the normal case) or,
+ * with no broker running, authenticates anonymously or through its own
+ * FORGEJO_MCP_TOKEN.
  */
 export function buildInstanceRegistryPayload(instances: ForgejoInstance[]): McpInstanceRegistryFile {
   return {

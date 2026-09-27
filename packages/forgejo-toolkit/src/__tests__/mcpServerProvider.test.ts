@@ -7,12 +7,12 @@ import {
   registerMcpServerProvider,
   MCP_ENABLED_SETTING,
   MCP_SERVER_DEFINITION_PROVIDER_ID,
+  MCP_ENV_BROKER_ONLY,
   MCP_ENV_INSTANCE_ID,
   MCP_ENV_INSTANCE_URL,
   MCP_ENV_PROXY,
   MCP_ENV_STATE_FILE,
   MCP_ENV_SYNC_API_URLS,
-  MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
 import {
   mcpInstanceRegistryFilePath,
@@ -23,6 +23,19 @@ import {
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
+
+/**
+ * A registration file for the broker this setup pretends to have started.
+ * Written into the context's globalStorage, which is where the provider looks
+ * (the real reader checks the recorded pid with `process.kill(pid, 0)`, and
+ * `process.pid` is by definition alive, so a fake registration is enough to
+ * make the provider publish definitions).
+ *
+ * Pids that are certainly dead are hard to produce portably, so the
+ * unavailable-broker cases point `FORGEJO_MCP_DATA_DIR` at a directory with no
+ * registration at all instead of at a dead pid.
+ */
+const BROKER_REGISTRATION_FILE = 'mcp-broker.json';
 
 // The broker binds a real endpoint (a named pipe or a unix socket), so it is
 // replaced here: what the provider must be shown to control is *when* it is
@@ -38,6 +51,31 @@ interface CapturedDefinition {
   command: string;
   args: string[];
   env: Record<string, string>;
+}
+
+/**
+ * Every test setup leaves a fake broker registration behind so the provider
+ * publishes definitions — the interesting subject of most of these tests. A
+ * test that wants the "no broker" behaviour removes it (see
+ * `removeBrokerRegistration`).
+ */
+function writeBrokerRegistration(context: { globalStorageUri: { fsPath: string } }): void {
+  fs.mkdirSync(context.globalStorageUri.fsPath, { recursive: true });
+  fs.writeFileSync(
+    path.join(context.globalStorageUri.fsPath, BROKER_REGISTRATION_FILE),
+    JSON.stringify({
+      version: 1,
+      pid: process.pid,
+      endpoint: process.platform === 'win32' ? '\\\\.\\pipe\\forgejo-toolkit-test-broker' : '/tmp/fake.sock',
+      authToken: 'broker-handshake-secret',
+      startedAt: new Date(0).toISOString(),
+    }),
+    'utf8',
+  );
+}
+
+function removeBrokerRegistration(context: { globalStorageUri: { fsPath: string } }): void {
+  fs.rmSync(path.join(context.globalStorageUri.fsPath, BROKER_REGISTRATION_FILE), { force: true });
 }
 
 /** Every context a setup() produced, drained (disposed) by afterEach. */
@@ -122,6 +160,10 @@ function setup(options: { mcpEnabled?: boolean; getterSubscriptions?: boolean } 
   if (options.mcpEnabled !== undefined) {
     setMcpEnabled(options.mcpEnabled);
   }
+  // Written before registration, so the provider's own check (and every
+  // resolution a test makes) sees a reachable broker. A test that is *about*
+  // the missing broker removes it afterwards.
+  writeBrokerRegistration(context);
   const configListenerCalls = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.length;
   registerMcpServerProvider(context, config, logger);
   const provider = registerSpy.mock.calls[0]?.[1] as import('vscode').McpServerDefinitionProvider;
@@ -318,17 +360,101 @@ describe('registerMcpServerProvider', () => {
     expect(first.command).toBe(process.execPath);
     expect(first.args[0]).toContain('mcp-server.mjs');
     expect(first.env[MCP_ENV_INSTANCE_URL]).toBe('https://forgejo.example.com');
-    expect(first.env[MCP_ENV_TOKEN]).toBe('secret-token');
     expect(first.env[MCP_ENV_INSTANCE_ID]).toBe('instance-1');
+    // The definition says which instance its session is for and that the
+    // extension host — not this child — holds the credential; the credential
+    // itself is not part of the definition at all.
+    expect(first.env[MCP_ENV_BROKER_ONLY]).toBe('true');
     expect(first.label).toBe('Forgejo: Example');
     expect(second.env[MCP_ENV_INSTANCE_URL]).toBe('https://other.example.com');
-    expect(second.env[MCP_ENV_TOKEN]).toBe('second-token');
     expect(second.env[MCP_ENV_INSTANCE_ID]).toBe('instance-2');
     expect(second.label).toBe('Forgejo: Other');
-    // The tokens must never appear outside the env channel.
-    for (const definition of definitions) {
-      expect(definition.label).not.toContain('token');
-      expect(definition.args.join(' ')).not.toContain('token');
+  });
+
+  it('hands VS Code a definition that contains no stored token anywhere', async () => {
+    // The reason this matters is not hygiene, it is where the definition goes:
+    // VS Code persists every registered definition — `env` included — in the
+    // profile's workspace storage (state.vscdb), so a token in this struct is a
+    // token at rest in cleartext beside SecretStorage. The whole definition is
+    // therefore searched, not one field of it: a future change that smuggles
+    // the secret into a label, an argument or a differently named variable has
+    // to fail here, not only in a review.
+    const { provider, instances } = setup();
+    instances.push(
+      makeInstance({ token: 'secret-token' }),
+      makeInstance({ id: 'instance-2', url: 'https://other.example.com', token: 'second-token', username: 'bob' }),
+    );
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions).toHaveLength(2);
+    for (const [index, definition] of definitions.entries()) {
+      const serialized = JSON.stringify(definition);
+      const expectedToken = index === 0 ? 'secret-token' : 'second-token';
+      expect(serialized).not.toContain(expectedToken);
+      // The other instance's token must not leak either, and neither may the
+      // token variable itself: an empty FORGEJO_MCP_TOKEN would still invite a
+      // future fill-in, and the child must not be handed a token channel here.
+      expect(serialized).not.toContain(index === 0 ? 'second-token' : 'secret-token');
+      expect(serialized).not.toContain('FORGEJO_MCP_TOKEN');
+      expect(Object.keys(definition.env)).not.toContain('FORGEJO_MCP_TOKEN');
+      expect(Object.values(definition.env).some((value) => value.includes('token'))).toBe(false);
+    }
+  });
+
+  it('withholds every definition while no broker is running, because no definition carries a token', async () => {
+    // The failure direction this pins: with the broker gone there is no
+    // authenticated route left, and the two alternatives are both worse — an
+    // anonymous server the client believes is authenticated, or a child that
+    // fails at startup. Nothing is published, and the log says why.
+    const { provider, instances, logger, context } = setup();
+    instances.push(makeInstance());
+    removeBrokerRegistration(context);
+
+    const definitions = await provider.provideMcpServerDefinitions(new AbortController().signal as never);
+
+    expect(definitions).toEqual([]);
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('broker is not running'));
+  });
+
+  it('publishes again once a broker registration exists', async () => {
+    // The counterpart of the assertion above: "absent" must be caused by the
+    // missing broker, not by something else in the fixture.
+    const { provider, instances, context } = setup();
+    instances.push(makeInstance());
+    removeBrokerRegistration(context);
+
+    expect(await provider.provideMcpServerDefinitions(new AbortController().signal as never)).toEqual([]);
+
+    writeBrokerRegistration(context);
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0].env[MCP_ENV_BROKER_ONLY]).toBe('true');
+  });
+
+  it('ignores a broker registration whose owning pid is gone', async () => {
+    // A crash-orphaned registration is exactly the state a stale file
+    // produces, and `process.kill(pid, 0)` is what distinguishes it from a
+    // live broker. pid 0 would target the whole process group, so the file is
+    // written with a pid that cannot be ours and then shot down by the probe.
+    const { provider, instances, context } = setup();
+    instances.push(makeInstance());
+    fs.writeFileSync(
+      path.join(context.globalStorageUri.fsPath, BROKER_REGISTRATION_FILE),
+      JSON.stringify({ version: 1, pid: process.pid, endpoint: 'x', authToken: 'y', startedAt: 'z' }),
+      'utf8',
+    );
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
+    });
+    try {
+      expect(await provider.provideMcpServerDefinitions(new AbortController().signal as never)).toEqual([]);
+    } finally {
+      kill.mockRestore();
     }
   });
 
@@ -350,14 +476,16 @@ describe('registerMcpServerProvider', () => {
     )) as unknown as CapturedDefinition[];
 
     expect(definitions).toHaveLength(1);
-    expect(definitions[0].env[MCP_ENV_TOKEN]).toBe('secret-token');
+    expect(definitions[0].env[MCP_ENV_INSTANCE_ID]).toBe('instance-2');
     expect(definitions[0].label).toContain('Second');
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('Tokenless'));
   });
 
-  it('keeps credential userinfo out of the server label', async () => {
-    // The label is user-visible in the MCP server list; the environment keeps
-    // the real URL, which the child needs to authenticate.
+  it('keeps credential userinfo out of the server label and out of the definition', async () => {
+    // A stored URL that embeds credentials (an import from an older version
+    // could still carry one) must never reach the user-visible label, and the
+    // environment that used to need the verbatim value no longer does: the
+    // broker resolves the instance by id and holds the real URL itself.
     const { provider, instances } = setup();
     instances.push(makeInstance({ name: '', url: 'https://token-abc123@forgejo.example.com' }));
 
@@ -367,7 +495,6 @@ describe('registerMcpServerProvider', () => {
 
     expect(definitions[0].label).not.toContain('token-abc123');
     expect(definitions[0].label).toContain('forgejo.example.com');
-    expect(definitions[0].env[MCP_ENV_INSTANCE_URL]).toBe('https://token-abc123@forgejo.example.com');
   });
 
   it('hands every definition this window’s workspace state file', async () => {

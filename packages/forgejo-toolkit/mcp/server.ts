@@ -28,61 +28,102 @@ const logger: ClientLogger = {
 async function main(): Promise<void> {
   let url = process.env.FORGEJO_MCP_INSTANCE_URL;
   let stateFile = process.env.FORGEJO_MCP_STATE_FILE;
-  // Zero-configuration launch: a static workspace `.mcp.json` can carry only
-  // command + args, so a server started that way has no instance URL in its
-  // environment and discovers it instead — from the extension's published
-  // instance registry plus this working directory's workspace state or git
-  // remotes (see mcp/autoConfig.ts). When FORGEJO_MCP_INSTANCE_URL *is* set
-  // the launch behaves exactly as before; auto-discovery never overrides it.
-  if (!url) {
-    // Broker mode, tried before the zero-configuration launch: when the
-    // extension host runs, it publishes a broker registration
-    // (mcp-broker.json) and this process becomes a pure forwarder — the real
-    // tool logic, token included, executes inside the extension host and the
-    // token never crosses into this process. Only reachable when no explicit
-    // instance URL was configured: an explicit launch keeps serving directly.
-    const broker = await discoverBrokerRegistration();
-    if (broker) {
-      try {
-        logger.info(
-          `No instance credentials in the launch environment (expected for a static mcp.json); forwarding to the extension-host broker at ${broker.endpoint}.`,
-        );
-        const result = await forwardToBroker({
-          endpoint: broker.endpoint,
-          authToken: broker.authToken,
-          cwd: process.cwd(),
-        });
-        logger.info(
-          result.reason === 'input-ended'
-            ? 'The MCP client closed its stdin; forwarding session over.'
-            : 'The extension-host broker closed the connection (the window was closed or the extension deactivated); MCP session over.',
-        );
-        // No process.exit(): it would truncate stdout writes still buffered
-        // in Node (the broker's last frames can be in flight when the socket
-        // closes). Setting the exit code and releasing stdin lets the event
-        // loop drain — pending pipe writes keep it alive until flushed — and
-        // the process then exits on its own.
-        process.exitCode = 0;
+  // `true` for a launch the extension itself provided (see
+  // src/mcpServerProvider.ts): the definition carries no token — the token
+  // stays in the extension host's SecretStorage — so this process may only
+  // serve by forwarding to the host's broker. Falling back to a direct server
+  // would answer anonymously while the MCP client believes it reached the
+  // configured instance, which is the one outcome this flag forbids.
+  const brokerOnly = process.env.FORGEJO_MCP_BROKER_ONLY === 'true';
+  const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
+  // Forwarding is not tied to *how* the launch was configured, because the
+  // reason to prefer the broker is the same in both: the extension host holds
+  // the token, and the broker runs the real tool logic with it. A static
+  // `.mcp.json` launch reaches this without the flag (the extension did not
+  // provide its definition) and keeps the documented degradation below.
+  const registration = await discoverBrokerRegistration();
+  if (registration) {
+    try {
+      logger.info(
+        brokerOnly
+          ? `Forwarding to the extension-host broker at ${registration.endpoint} (this launch carries no token of its own).`
+          : `No instance credentials in the launch environment (expected for a static mcp.json); forwarding to the extension-host broker at ${registration.endpoint}.`,
+      );
+      const result = await forwardToBroker({
+        endpoint: registration.endpoint,
+        authToken: registration.authToken,
+        cwd: process.cwd(),
+        // The forwarded session belongs to the instance *this* definition was
+        // created for; without it the broker would re-derive the instance from
+        // the session's working directory and a client with several Forgejo
+        // servers could reach another one's account.
+        instanceId: process.env.FORGEJO_MCP_INSTANCE_ID,
+        // The workspace mapping the extension host computed for its own window;
+        // the broker cannot see it, and `get_workspace_repository` would
+        // otherwise answer from whichever window owns the broker.
+        stateFile,
+        syncApiUrls,
+      });
+      logger.info(
+        result.reason === 'input-ended'
+          ? 'The MCP client closed its stdin; forwarding session over.'
+          : 'The extension-host broker closed the connection (the window was closed or the extension deactivated); MCP session over.',
+      );
+      // No process.exit(): it would truncate stdout writes still buffered
+      // in Node (the broker's last frames can be in flight when the socket
+      // closes). Setting the exit code and releasing stdin lets the event
+      // loop drain — pending pipe writes keep it alive until flushed — and
+      // the process then exits on its own.
+      process.stdin.destroy();
+      return;
+    } catch (error) {
+      if (error instanceof BrokerSessionError) {
+        // The session was already established when it broke; restarting as
+        // a different (anonymous) server mid-session would be worse than a
+        // clean stop the MCP client can report.
+        console.error(`forgejo-toolkit MCP forwarder: ${error.message}`);
+        process.exitCode = 1;
         process.stdin.destroy();
         return;
-      } catch (error) {
-        if (error instanceof BrokerSessionError) {
-          // The session was already established when it broke; restarting as
-          // a different (anonymous) server mid-session would be worse than a
-          // clean stop the MCP client can report.
-          console.error(`forgejo-toolkit MCP forwarder: ${error.message}`);
-          process.exitCode = 1;
-          process.stdin.destroy();
-          return;
-        }
-        if (!(error instanceof BrokerUnavailableError)) {
-          throw error;
-        }
-        // No broker after all (stale registration file, rejected handshake):
-        // degrade to the anonymous zero-configuration launch below.
-        logger.info(`Extension-host broker unavailable (${error.message}); falling back to local auto-matching.`);
       }
+      if (!(error instanceof BrokerUnavailableError)) {
+        throw error;
+      }
+      // No broker after all (stale registration file, rejected handshake) — or
+      // a broker that refused the session: the instance this definition names
+      // is no longer configured or has lost its token, and silently serving a
+      // different instance's account is not an option.
+      if (process.env.FORGEJO_MCP_INSTANCE_ID) {
+        console.error(
+          `forgejo-toolkit MCP server: the extension host did not accept the session for instance ` +
+            `"${process.env.FORGEJO_MCP_INSTANCE_ID}" (${error.message}); it is no longer configured with a usable token. ` +
+            `Pick it again in the extension, or use the static mcp.json route, which reads anonymously when no window is running.`,
+        );
+        process.exitCode = 1;
+        process.stdin.destroy();
+        return;
+      }
+      logger.info(`Extension-host broker unavailable (${error.message}); falling back to local auto-matching.`);
     }
+  }
+  if (brokerOnly) {
+    // Only reachable without a registration at all: the broker disappeared
+    // between this process starting and its discovery.
+    console.error(
+      'forgejo-toolkit MCP server: this MCP server was provided by the Forgejo Toolkit extension, which keeps the access token in VS Code SecretStorage, ' +
+        'so it can only serve through the extension host — and no extension-host broker is running. ' +
+        'Reload a VS Code window with the extension enabled, or use the static mcp.json route (the shim), which reads anonymously when no window is running.',
+    );
+    process.exitCode = 1;
+    process.stdin.destroy();
+    return;
+  }
+  if (!url) {
+    // Zero-configuration launch: a static workspace `.mcp.json` can carry only
+    // command + args, so a server started that way has no instance URL in its
+    // environment and discovers it instead — from the extension's published
+    // instance registry plus this working directory's workspace state or git
+    // remotes (see mcp/autoConfig.ts).
     const auto = await resolveAutoConfiguration();
     if (auto.status === 'failed') {
       console.error(`forgejo-toolkit MCP server: ${auto.message}`);
@@ -111,13 +152,15 @@ async function main(): Promise<void> {
   // The token is optional: without it the tools read anonymously, which is
   // enough for public repositories. This matters for configs the Agent Host
   // reads natively (workspace `.mcp.json`, `~/.copilot/mcp-config.json`),
-  // where a plaintext token would be at rest in a shareable file.
+  // where a plaintext token would be at rest in a shareable file. The
+  // extension-provided route never reaches this point with a token at all —
+  // it is the broker's job to authenticate (see the flag above), and a
+  // credential in a definition VS Code persists would be a token on disk.
   const token = process.env.FORGEJO_MCP_TOKEN || '';
   if (!token) {
     logger.info('FORGEJO_MCP_TOKEN is not set; reading anonymously (only public data is visible).');
   }
 
-  const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
   // The MCP process reads the environment only: there is no editor setting here,
   // except for the proxy, which the extension forwards as FORGEJO_MCP_PROXY
   // because a proxy configured only in settings would otherwise be ignored by

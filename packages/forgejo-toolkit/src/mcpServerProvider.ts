@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ConfigManager, ForgejoInstance } from './config';
 import { redactUrlUserinfo } from './utils/redactUrlUserinfo';
@@ -26,13 +28,28 @@ const MCP_ENABLED_KEY = 'mcpEnabled';
 export const MCP_ENABLED_SETTING = `${MCP_SETTINGS_SECTION}.mcpEnabled`;
 
 export const MCP_ENV_INSTANCE_URL = 'FORGEJO_MCP_INSTANCE_URL';
-export const MCP_ENV_TOKEN = 'FORGEJO_MCP_TOKEN';
 /**
  * The configured instance's id. The child matches state-file entries against
  * it before falling back to the URL, so two accounts on the same host (two
- * instances, one URL) do not both claim the same workspace repositories.
+ * instances, one URL) do not both claim the same workspace repositories. It is
+ * also what the broker resolves the forwarded session against, since one
+ * broker serves every definition of the user.
  */
 export const MCP_ENV_INSTANCE_ID = 'FORGEJO_MCP_INSTANCE_ID';
+/**
+ * 'true' for every extension-provided definition: the child is a forwarder for
+ * the extension host's broker and must **never** fall back to a server of its
+ * own.
+ *
+ * This exists because of what an extension-provided definition may contain:
+ * nothing secret. The token stays in SecretStorage and is only ever read by the
+ * extension host, so this child has no credentials — a direct server launched
+ * from it would silently be anonymous while the MCP client still believes it
+ * reached the configured instance. The static-`mcp.json` route deliberately
+ * does not set this: there, the child falling back to auto-discovery (and then
+ * to anonymous reads with the documented log line) is the intended behaviour.
+ */
+export const MCP_ENV_BROKER_ONLY = 'FORGEJO_MCP_BROKER_ONLY';
 /** 'false' disables rewriting API-provided URLs to the configured instance URL. */
 export const MCP_ENV_SYNC_API_URLS = 'FORGEJO_MCP_SYNC_API_URLS';
 /** The editor's `http.proxy`, forwarded so the child uses the same proxy. */
@@ -40,7 +57,9 @@ export const MCP_ENV_PROXY = 'FORGEJO_MCP_PROXY';
 /**
  * This window's workspace → repository state file (see mcpWorkspaceState.ts),
  * shared by every server definition of the window: the mapping describes the
- * workspace, not the instance.
+ * workspace, not the instance. The child forwards it to the broker, which is
+ * what makes `get_workspace_repository` answer for this window's workspace even
+ * when another window owns the broker.
  */
 export const MCP_ENV_STATE_FILE = 'FORGEJO_MCP_STATE_FILE';
 
@@ -61,12 +80,30 @@ export function isMcpServerEnabled(): boolean {
  * Exposes every configured Forgejo instance that has a stored access token to
  * VS Code agent mode as a stdio MCP server (out/mcp-server.mjs) — one
  * definition per instance, so an agent can reach several instances in the
- * same session. Each instance's URL and token reach its child process
- * exclusively through environment variables — never through tool schemas,
- * results, or log output. Every child also receives this window's workspace
- * state file (see mcpWorkspaceState.ts), which lets the
- * `get_workspace_repository` tool resolve "this repository" against the
- * window's actual workspace.
+ * same session.
+ *
+ * **What a definition carries, and what it deliberately does not.** Every
+ * registered definition is persisted by the editor — environment included —
+ * in the profile's workspace storage, so a token placed in a definition's
+ * `env` is a token written to disk in cleartext beside SecretStorage. It is
+ * therefore not passed at all: the child receives the instance's *identity*
+ * (URL, id, sync flag, this window's state file) and `FORGEJO_MCP_BROKER_ONLY`,
+ * and authenticates through the same local broker the static-`mcp.json` route
+ * uses (src/mcpBroker.ts, mcp/brokerServer.ts). The token is read from
+ * SecretStorage by the extension host and never leaves it, so no definition —
+ * or anything derived from one, such as a log line or a tool schema/result —
+ * can contain it. The broker resolves the forwarded session against
+ * `FORGEJO_MCP_INSTANCE_ID`, so two definitions still reach two instances even
+ * though one broker serves them both.
+ *
+ * **When no broker is reachable**, the provider publishes nothing for that
+ * resolution and logs it: a definition whose child cannot authenticate would
+ * either be a server that silently answers anonymous reads while the MCP
+ * client believes it is authenticated, or a server that fails at startup. No
+ * definition is the honest third option, and it needs no secret on disk to
+ * reach. In practice this is a narrow window: this provider is registered by
+ * the same activation that starts the broker, and a client resolves servers
+ * after that.
  *
  * When the instance list changes — or the editor's `http.proxy` changes, since
  * that setting is read here and forwarded to the child — the provider fires
@@ -205,7 +242,14 @@ function startMcpSurface(
   // it runs, a static client gets authenticated tools out of this process.
   // Never throws — a broker failure only means the anonymous
   // zero-configuration fallback stays in effect.
-  void startMcpBrokerIfFirst(context, config, logger);
+  //
+  // The same broker is what makes extension-provided definitions authenticated
+  // (see provideMcpServerDefinitions below): those definitions carry no token,
+  // so the broker is their only route to the instance. `brokerStartup` is kept
+  // so a resolution that arrives while the listen is still in flight waits for
+  // it instead of deciding "no broker" against a not-yet-published
+  // registration.
+  const brokerStartup = startMcpBrokerIfFirst(context, config, logger);
 
   // VS Code forks are not required to implement every API: an editor without
   // `vscode.lm.registerMcpServerDefinitionProvider` must not lose the whole
@@ -217,7 +261,7 @@ function startMcpSurface(
       register.call(
         vscode.lm,
         MCP_SERVER_DEFINITION_PROVIDER_ID,
-        createInstanceDefinitionProvider(context, config, logger, onDidChange),
+        createInstanceDefinitionProvider(context, config, logger, onDidChange, () => brokerStartup),
       ),
     );
   } else {
@@ -246,11 +290,23 @@ function createInstanceDefinitionProvider(
   config: ConfigManager,
   logger: Logger,
   onDidChange: vscode.EventEmitter<void>,
+  brokerStartupSettled: () => Promise<void>,
 ): vscode.McpServerDefinitionProvider {
   return {
     onDidChangeMcpServerDefinitions: onDidChange.event,
-    provideMcpServerDefinitions: () => {
+    provideMcpServerDefinitions: async () => {
       const instances = config.getInstances();
+      // Nothing below can be authenticated without the broker, so this is
+      // decided once per resolution rather than per instance. The extra await
+      // only happens when the registration is not on disk yet, i.e. while this
+      // same activation is still listening.
+      if (!(await mcpBrokerIsReachable(context, brokerStartupSettled))) {
+        logger.info(
+          'MCP server definitions withheld: the extension-host broker is not running, and an extension-provided definition carries no token of its own. ' +
+            'A static mcp.json route (the shim) still works, and still degrades to anonymous reads when no window is running.',
+        );
+        return [];
+      }
       const serverPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'mcp-server.mjs').fsPath;
       const stateFilePath = mcpWorkspaceStateFilePath(context);
       // The editor's proxy setting is not in the child's environment either;
@@ -266,8 +322,10 @@ function createInstanceDefinitionProvider(
       const configuredProxy = typeof rawProxy === 'string' && rawProxy.trim() ? rawProxy.trim() : undefined;
       const prepared: { instance: ForgejoInstance; env: Record<string, string>; baseLabel: string }[] = [];
       for (const instance of instances) {
-        // An instance without a stored token cannot authenticate its child;
-        // it is skipped (and reported) rather than hiding the usable ones.
+        // An instance without a stored token cannot authenticate its session;
+        // it is skipped (and reported) rather than hiding the usable ones. The
+        // token itself stays in SecretStorage: the child is told which instance
+        // to forward for, never how to authenticate to it.
         if (!instance.token) {
           logger.debug(
             `MCP server definition skipped: instance ${instance.name || redactUrlUserinfo(instance.url)} has no stored token.`,
@@ -276,8 +334,11 @@ function createInstanceDefinitionProvider(
         }
         const env: Record<string, string> = {
           [MCP_ENV_INSTANCE_URL]: instance.url,
-          [MCP_ENV_TOKEN]: instance.token,
           [MCP_ENV_INSTANCE_ID]: instance.id,
+          // The token is deliberately absent — see the module header. This flag
+          // is what tells the child to forward instead of serving what would be
+          // an anonymous direct server.
+          [MCP_ENV_BROKER_ONLY]: 'true',
           // The headless process cannot read the extension's settings, so the
           // per-instance URL-sync flag travels with the launch environment:
           // otherwise a user who disabled syncing (reverse proxy, split
@@ -289,8 +350,11 @@ function createInstanceDefinitionProvider(
           env[MCP_ENV_PROXY] = configuredProxy;
         }
         // The label is user-visible (the MCP server list), so the stored URL's
-        // userinfo never reaches it. The launch environment above keeps the real
-        // value, which the headless server needs to authenticate.
+        // userinfo never reaches it. The environment keeps the verbatim URL, but
+        // only as identity: with the token gone the child never connects to it
+        // directly (the broker resolves the instance by id from its own
+        // configuration), so nothing here publishes a credential-bearing URL as
+        // something to authenticate with.
         const baseLabel = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${redactUrlUserinfo(instance.url)}`;
         prepared.push({ instance, env, baseLabel });
       }
@@ -313,4 +377,65 @@ function createInstanceDefinitionProvider(
       return definitions;
     },
   };
+}
+
+/** The registration file the broker publishes; reader side of src/mcpBroker.ts. */
+const BROKER_REGISTRATION_BASENAME = 'mcp-broker.json';
+
+/**
+ * Whether a broker this window's children can reach is present.
+ *
+ * The registration file is the only cross-process evidence — a listener with no
+ * registration is undiscoverable by design (the forwarder never guesses the
+ * endpoint), so the file's existence plus a live owning pid is the right test,
+ * and it is the same one `discoverBrokerRegistration` applies on the child's
+ * side. The file is looked for in this window's globalStorage only, which is
+ * where `startMcpBrokerIfFirst` writes it; the other place it can live is a
+ * different profile's directory, and a broker serving another profile is not
+ * this window's concern.
+ *
+ * `awaitStartup` is the narrow race this closes: `startMcpBrokerIfFirst` is
+ * asynchronous, so a resolution that arrives between activation and the
+ * completion of the listen would otherwise see no file, publish nothing, and
+ * leave the user without an MCP server until the next re-resolution.
+ */
+export async function mcpBrokerIsReachable(
+  context: vscode.ExtensionContext,
+  awaitStartup: () => Promise<void>,
+): Promise<boolean> {
+  const registrationPath = path.join(context.globalStorageUri.fsPath, BROKER_REGISTRATION_BASENAME);
+  if (await brokerRegistrationIsLive(registrationPath)) {
+    return true;
+  }
+  await awaitStartup().catch(() => undefined);
+  return brokerRegistrationIsLive(registrationPath);
+}
+
+/** True when the registration file exists and names a live pid. */
+async function brokerRegistrationIsLive(registrationPath: string): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await fs.promises.readFile(registrationPath, 'utf8');
+  } catch {
+    return false;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  const pid = (parsed as { pid?: unknown } | null)?.pid;
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  // Signal 0 performs the existence and permission checks without delivering
+  // anything; EPERM still means "the process exists" (the rule
+  // mcp/autoConfig.ts and src/mcpBroker.ts both apply to this same file).
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
 }

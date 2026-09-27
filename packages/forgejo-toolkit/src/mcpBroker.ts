@@ -10,7 +10,12 @@ import type { ConfigManager } from './config';
 import type { Logger } from './logger';
 import { detectLinkedRepositories, isPathInsideFolder } from './worktree/gitOperations';
 import { writeFileAtomically } from './utils/atomicWrite';
-import { defaultBrokerEndpoint, startMcpBroker, type McpBrokerHandle } from '../mcp/brokerServer';
+import {
+  defaultBrokerEndpoint,
+  startMcpBroker,
+  type BrokerSessionRequest,
+  type McpBrokerHandle,
+} from '../mcp/brokerServer';
 import { createMcpServer } from '../mcp/mcpServer';
 import { mcpWorkspaceStateFilePath } from './mcpWorkspaceState';
 
@@ -26,6 +31,15 @@ import { mcpWorkspaceStateFilePath } from './mcpWorkspaceState';
  * process becomes a pure stdio forwarder onto a local named pipe / unix
  * socket, and the authenticated tool logic runs here, in the process that
  * already holds the tokens.
+ *
+ * A definition the extension provides has the same problem for a different
+ * reason (§11.1 stage-2 follow-up): VS Code persists every registered server
+ * definition, environment included, in the profile's workspace storage, so a
+ * token handed to the child as an environment variable is a token written to
+ * disk in cleartext. Those definitions therefore carry no token either and
+ * forward here as well — naming the instance they were created for, which this
+ * side resolves against its own configured instances (see
+ * createBrokerMcpServer). One broker serves both routes.
  *
  * The forwarder finds this broker through the fixed-name `mcp-broker.json`
  * registration in globalStorage (see McpBrokerRegistryFile in
@@ -230,7 +244,7 @@ async function attemptMcpBrokerStart(
     handle = await startMcpBroker({
       endpoint,
       authToken,
-      createServer: (cwd) => createBrokerMcpServer(cwd, context, config, logger),
+      createServer: (session) => createBrokerMcpServer(session, context, config, logger),
       log: (message) => logger.debug(message),
     });
   } catch (error) {
@@ -541,22 +555,57 @@ export async function findBrokerStateMatch(
  * gate reuses the extension host's probe cache (activation already probed
  * every instance), so no extra probe runs here.
  *
- * Instance and state file follow the session's working directory, not the
- * owning window: a session whose cwd sits inside a checkout another window
- * published gets that window's state file and (when it carries a token) that
- * window's instance, so `get_workspace_repository` answers for the workspace
- * the session is actually about (see findBrokerStateMatch). Sessions that
- * match no published checkout behave as before: git-scan resolution against
- * this window's links, then the first token-bearing instance, with this
- * window's own state file.
+ * **An explicit instance wins, and is never substituted.** A definition the
+ * extension provided names exactly one instance (see
+ * src/mcpServerProvider.ts); it used to carry that instance's token, and the
+ * broker now carries it instead — so the session must resolve to the instance
+ * the definition named, not to whichever one the working directory happens to
+ * match. With two Forgejo servers in one client and both launched from the
+ * user's home directory, cwd matching would otherwise hand a session the other
+ * account's credentials. No match means the session is refused (the caller
+ * destroys the socket; the forwarder reports it and exits), which is the
+ * honest outcome: serving a different instance would be worse than not serving
+ * at all, and the instance list is what the definition came from.
+ *
+ * A session without an explicit instance — a static `mcp.json` launch, which
+ * has no way to know one — resolves by working directory as before: the state
+ * file whose repository entry contains the session cwd wins, then the git scan
+ * against this window's links, then the first token-bearing instance. That
+ * path's *defaults* still follow the owning window, because it has no launch
+ * metadata to follow instead.
  */
 async function createBrokerMcpServer(
-  cwd: string,
+  session: BrokerSessionRequest,
   context: vscode.ExtensionContext,
   config: ConfigManager,
   logger: Logger,
 ) {
+  const { cwd } = session;
   const instances = config.getInstances();
+  if (session.instanceId !== undefined) {
+    const requested = instances.find((candidate) => candidate.id === session.instanceId && candidate.token);
+    if (!requested) {
+      throw new Error(
+        `instance ${session.instanceId} is not configured with a usable token in this extension host ` +
+          `(the window that provided this server may have removed it)`,
+      );
+    }
+    logger.debug(`MCP broker: session for instance ${requested.name || requested.url} (explicit instance id)`);
+    const client = new ForgejoClient(
+      requested.url,
+      requested.token,
+      logger,
+      session.syncApiUrls ?? requested.syncApiUrlsToInstanceUrl,
+    );
+    return createMcpServer(client, {
+      instanceUrl: requested.url,
+      instanceId: requested.id,
+      // The window that provided the definition computed this mapping for its
+      // own workspace; without it the tool would answer from the broker
+      // owner's workspace, which may be a different one entirely.
+      stateFile: session.stateFile ?? mcpWorkspaceStateFilePath(context),
+    });
+  }
   const stateMatch = await findBrokerStateMatch(context, cwd).catch(() => undefined);
   let instance = stateMatch?.instanceId
     ? instances.find((candidate) => candidate.id === stateMatch.instanceId && candidate.token)
@@ -571,11 +620,16 @@ async function createBrokerMcpServer(
   if (!instance) {
     throw new Error('no configured instance with a token');
   }
-  const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+  const client = new ForgejoClient(
+    instance.url,
+    instance.token,
+    logger,
+    session.syncApiUrls ?? instance.syncApiUrlsToInstanceUrl,
+  );
   return createMcpServer(client, {
     instanceUrl: instance.url,
     instanceId: instance.id,
-    stateFile: stateMatch?.stateFile ?? mcpWorkspaceStateFilePath(context),
+    stateFile: session.stateFile ?? stateMatch?.stateFile ?? mcpWorkspaceStateFilePath(context),
   });
 }
 
