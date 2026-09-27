@@ -107,12 +107,34 @@ export const LEASE_CLAIM_TICK_MS = 2_000;
 export const LEASE_UNANSWERED_REQUEST_LIMIT_K = 3;
 
 /**
- * The staleness threshold used by the accelerated takeover (§2.3, §12.10):
- * "no heartbeat for more than 5 s" is treated as the current owner being
- * unreachable. Deliberately *not* the expiry — it is what makes the K-request
- * escalation faster than waiting out the 35 s lease.
+ * The staleness threshold used by the *accelerated* takeover (§2.3, §4.1,
+ * §12.10): a record older than this, next to K unanswered requests, counts as
+ * "the current owner is unreachable" rather than "the current owner is between
+ * two heartbeats".
+ *
+ * It is **three heartbeat periods**, and that multiple is the whole point: a
+ * threshold below one period can never distinguish a dead owner from a live one,
+ * because a healthy owner's record is legitimately up to `LEASE_HEARTBEAT_MS`
+ * old at any moment. The recorded starting value of 5 s — below the 10 s
+ * heartbeat — made this branch fire against healthy owners; it evicted a leader
+ * whose record was 6 s old and made §11.2's "zero non-intentional owner changes"
+ * unreachable (the soak timeline is in §11.2, the rule in §4.1).
+ *
+ * Deliberately *not* the expiry, and deliberately below it: 3 × 10 s = 30 s is
+ * what lets the K escalation act before waiting out the 35 s lease — by at most
+ * one heartbeat period. The accelerated branch also respects the anti-ping-pong
+ * window N (§2.3): K buys an earlier *attempt*, never the right to displace a
+ * window that has just taken the lease.
+ *
+ * A future reader can check the two properties without re-deriving them: the
+ * consistency test in `src/__tests__/leaseDecision.test.ts` asserts the literal
+ * 30 s, the `LEASE_HEARTBEAT_MS` multiple, and
+ * `LEASE_ACCELERATED_STALE_MS < LEASE_EXPIRY_MS`. A retune of the heartbeat that
+ * breaks either order fails that test instead of silently turning this branch
+ * into dead code (at or above the expiry) or into a false-positive generator (at
+ * or below one heartbeat).
  */
-export const LEASE_HEARTBEAT_STALE_MS = 5_000;
+export const LEASE_ACCELERATED_STALE_MS = 3 * LEASE_HEARTBEAT_MS;
 
 /**
  * A claim request older than this is ignored (§2.3: a request is only honoured

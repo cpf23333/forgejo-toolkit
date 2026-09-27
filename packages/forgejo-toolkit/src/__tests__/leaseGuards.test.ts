@@ -79,6 +79,16 @@ describe('the lease module never reaches for globalState (§2 decision 1, §12.2
     expect(code).not.toMatch(/Date\.now\(\)|new Date\(/);
     expect(code).not.toMatch(/setTimeout|setInterval/);
   });
+
+  it('keeps the instance fingerprint structurally outside the decision input (§3.3)', async () => {
+    // The fingerprint is diagnostics only. It is not "passed in and skipped":
+    // the decision module has no field for it, so it cannot influence an
+    // election even by accident, and a change to the configured instances can
+    // never be a reason to hand the lease over.
+    const text = await fs.promises.readFile(path.join(LEASE_SOURCE_DIR, 'leaseDecision.ts'), 'utf8');
+    expect(text).not.toMatch(/fingerprint/i);
+    expect(text).not.toMatch(/instanceIds|instanceSetFingerprint/);
+  });
 });
 
 describe('there is no single-window shortcut and no "am I alone" inference (§2 decision 4, §12.4)', () => {
@@ -117,7 +127,7 @@ describe('there is no single-window shortcut and no "am I alone" inference (§2 
     const withoutTraces = decideLeaseAction({
       now: 5_000,
       own: { ownerNonce: 'self', pid: 111, focused: true },
-      lease: { leasePathReadable: true, lease: { kind: 'ok', record }, claimRequests: [] },
+      lease: { leasePathReadable: true, lease: { kind: 'ok', record }, claimRequests: [], ownRecordUnpublished: false },
       holderPidAlive: true,
       ownerHealth: { consecutiveFailures: 0 },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },
@@ -125,7 +135,12 @@ describe('there is no single-window shortcut and no "am I alone" inference (§2 
     const withTraces = decideLeaseAction({
       now: 5_000,
       own: { ownerNonce: 'self', pid: 111, focused: true },
-      lease: { leasePathReadable: true, lease: { kind: 'ok', record }, claimRequests: traces },
+      lease: {
+        leasePathReadable: true,
+        lease: { kind: 'ok', record },
+        claimRequests: traces,
+        ownRecordUnpublished: false,
+      },
       holderPidAlive: true,
       ownerHealth: { consecutiveFailures: 0 },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },

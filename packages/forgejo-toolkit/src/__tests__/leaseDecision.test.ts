@@ -11,14 +11,15 @@ import {
   type LeaseSnapshot,
 } from '../lease/leaseDecision';
 import {
+  LEASE_ACCELERATED_STALE_MS,
   LEASE_CLAIM_REQUEST_MAX_AGE_MS,
   LEASE_EXPIRY_MS,
   LEASE_HANDOVER_HYSTERESIS_N_MS,
   LEASE_HEARTBEAT_MS,
-  LEASE_HEARTBEAT_STALE_MS,
   LEASE_OWNER_STEP_DOWN_MS,
   LEASE_UNANSWERED_REQUEST_LIMIT_K,
 } from '../lease/leaseConstants';
+import type { LeaseRecord } from '../lease/leaseTypes';
 import { makeClaimRequestObservation, makeInput, makeLease, makeWindow } from './leaseTestHelpers';
 
 /**
@@ -99,8 +100,17 @@ describe('decideLeaseAction: the follower branches', () => {
 });
 
 describe('decideLeaseAction: the accelerated takeover (K)', () => {
-  it('escalates after K unanswered requests against a stale heartbeat', () => {
-    const record = makeLease({ ownerNonce: 'other', heartbeatAt: NOW - LEASE_HEARTBEAT_STALE_MS - 1 });
+  /** A foreign, live owner whose record is at least `ageMs` old and past N. */
+  function staleForeignOwner(ageMs: number): LeaseRecord {
+    return makeLease({
+      ownerNonce: 'other',
+      claimedAt: NOW - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
+      heartbeatAt: NOW - ageMs,
+    });
+  }
+
+  it('escalates after K unanswered requests against a record older than 3 × heartbeat', () => {
+    const record = staleForeignOwner(LEASE_ACCELERATED_STALE_MS + 1);
     const decision = decideLeaseAction(
       makeInput({
         now: NOW,
@@ -117,8 +127,75 @@ describe('decideLeaseAction: the accelerated takeover (K)', () => {
     });
   });
 
+  it('does not accelerate against a healthy owner whose record is younger than one heartbeat period', () => {
+    // The 2026-09-27 dual-window soak's regression, in one assertion: with the
+    // old 5 s threshold this fired, evicting a leader whose record was 6 s old —
+    // a perfectly healthy owner between two 10 s heartbeats.
+    const record = staleForeignOwner(6_000);
+    const decision = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        own: makeWindow({ focused: true }),
+        holderPidAlive: true,
+        lease: snapshotOf(record),
+        ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+      }),
+    );
+    expect(decision).toEqual({ action: 'inactive', reason: 'follower-follow' });
+  });
+
+  it('does not accelerate one heartbeat short of three', () => {
+    // 2 × heartbeat: still inside the range a live (but slower) owner can
+    // produce, so it is not evidence yet.
+    const record = staleForeignOwner(2 * LEASE_HEARTBEAT_MS);
+    const decision = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        own: makeWindow({ focused: true }),
+        holderPidAlive: true,
+        lease: snapshotOf(record),
+        ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+      }),
+    );
+    expect(decision).toEqual({ action: 'inactive', reason: 'follower-follow' });
+  });
+
+  it('does not accelerate an owner that is still inside the anti-ping-pong window N', () => {
+    // K outranks the wait for the expiry; it never outranks N. A window that
+    // just took the lease keeps it for N even with K requests and an old record.
+    const justTookIt = makeLease({
+      ownerNonce: 'other',
+      claimedAt: NOW - 1_300, // 1.3 s into its tenure, as in the soak
+      heartbeatAt: NOW - LEASE_ACCELERATED_STALE_MS - 1,
+    });
+    const decision = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        own: makeWindow({ focused: true }),
+        holderPidAlive: true,
+        lease: snapshotOf(justTookIt),
+        ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+      }),
+    );
+    expect(decision).toEqual({ action: 'inactive', reason: 'follower-follow' });
+  });
+
+  it('does escalate once N has passed, all else equal', () => {
+    const record = staleForeignOwner(LEASE_ACCELERATED_STALE_MS + 1);
+    const decision = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        own: makeWindow({ focused: true }),
+        holderPidAlive: true,
+        lease: snapshotOf(record),
+        ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+      }),
+    );
+    expect(decision.action).toBe('claim');
+  });
+
   it('does not escalate one request short of K', () => {
-    const record = makeLease({ ownerNonce: 'other', heartbeatAt: NOW - LEASE_HEARTBEAT_STALE_MS - 1 });
+    const record = staleForeignOwner(LEASE_ACCELERATED_STALE_MS + 1);
     const decision = decideLeaseAction(
       makeInput({
         now: NOW,
@@ -131,7 +208,7 @@ describe('decideLeaseAction: the accelerated takeover (K)', () => {
   });
 
   it('does not escalate while the heartbeat is fresher than the staleness threshold', () => {
-    const record = makeLease({ ownerNonce: 'other', heartbeatAt: NOW - 1_000 });
+    const record = staleForeignOwner(1_000);
     const decision = decideLeaseAction(
       makeInput({
         now: NOW,
@@ -144,7 +221,7 @@ describe('decideLeaseAction: the accelerated takeover (K)', () => {
   });
 
   it('does not escalate from an unfocused window', () => {
-    const record = makeLease({ ownerNonce: 'other', heartbeatAt: NOW - LEASE_HEARTBEAT_STALE_MS - 1 });
+    const record = staleForeignOwner(LEASE_ACCELERATED_STALE_MS + 1);
     const decision = decideLeaseAction(
       makeInput({
         now: NOW,
@@ -198,6 +275,81 @@ describe('decideLeaseAction: the owner branches', () => {
     expect(decision).toEqual({ action: 'step-down', reason: 'owner-heartbeat-stale' });
   });
 
+  it('names the write failure, not the aged record, while a failure streak is active (§4.1)', () => {
+    // Both thresholds are crossed at the same time in the real world: the first
+    // attempt that fails is one heartbeat after the last write that succeeded,
+    // so the record is older than 2 x expiry exactly when the streak is. The
+    // cause is what an operator needs, so the streak wins and the generic stale
+    // reason is not reported.
+    const record = makeLease({ ownerNonce: 'self-nonce', heartbeatAt: NOW - LEASE_OWNER_STEP_DOWN_MS - 30_000 });
+    const decision = decideLeaseAction(
+      ownerInput({
+        lease: snapshotOf(record),
+        ownerHealth: { consecutiveFailures: 3, failureSince: NOW - LEASE_OWNER_STEP_DOWN_MS },
+      }),
+    );
+    expect(decision).toEqual({ action: 'step-down', reason: 'owner-step-down-unwritable' });
+  });
+
+  it('keeps owning while an active streak has not reached 2 x expiry, even with an anciently old record', () => {
+    // The threshold is the streak's, not the record's, once something is failing
+    // on the write path: stepping down before 2 x expiry would create a window
+    // with nobody polling for a fault that may already be over.
+    const record = makeLease({ ownerNonce: 'self-nonce', heartbeatAt: NOW - 10 * LEASE_OWNER_STEP_DOWN_MS });
+    const decision = decideLeaseAction(
+      ownerInput({
+        lease: snapshotOf(record),
+        ownerHealth: { consecutiveFailures: 6, failureSince: NOW - LEASE_OWNER_STEP_DOWN_MS + 1 },
+      }),
+    );
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-renew' });
+  });
+
+  it('stays the owner of an unpublished record and renews it instead of taking it over (§3.2, §4.2)', () => {
+    // The `wx` create is this window's mutex, but the record never landed, so no
+    // reader can see the nonce: the follower branch here would release and
+    // re-create the file every tick.
+    const decision = decideLeaseAction(makeInput({ now: NOW, lease: snapshotOf({ kind: 'invalid' }, [], true, true) }));
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-renew-unpublished' });
+  });
+
+  it('steps down with the write-failure reason when an unpublished record stays unpublished', () => {
+    const before = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        lease: snapshotOf({ kind: 'invalid' }, [], true, true),
+        ownerHealth: { consecutiveFailures: 7, failureSince: NOW - LEASE_OWNER_STEP_DOWN_MS + 1 },
+      }),
+    );
+    expect(before.action).toBe('keep-and-heartbeat');
+
+    const atThreshold = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        lease: snapshotOf({ kind: 'invalid' }, [], true, true),
+        ownerHealth: { consecutiveFailures: 8, failureSince: NOW - LEASE_OWNER_STEP_DOWN_MS },
+      }),
+    );
+    expect(atThreshold).toEqual({ action: 'step-down', reason: 'owner-step-down-unwritable' });
+  });
+
+  it('still degrades rather than claiming an unpublished record on an unreadable path', () => {
+    // An unusable mechanism short-circuits everything, including this branch: §8
+    // degradation is not about who holds what.
+    const decision = decideLeaseAction(
+      makeInput({
+        now: NOW,
+        lease: {
+          leasePathReadable: false,
+          lease: { kind: 'invalid', reason: 'unreadable' },
+          claimRequests: [],
+          ownRecordUnpublished: true,
+        },
+      }),
+    );
+    expect(decision).toEqual({ action: 'degraded-to-full-speed', reason: 'lease-unavailable' });
+  });
+
   it('keeps owning while a request is not newer than the lease itself', () => {
     // Every window on one machine reads one clock (§6), so the rule "only a
     // request newer than the lease displaces it" is enforced at the utility
@@ -230,26 +382,47 @@ describe('decideLeaseAction: the owner branches', () => {
     expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-requested-unfocused' });
   });
 
-  it('keeps owning while this window itself is not focused: nobody is looking, so nobody gets the job', () => {
-    // §2.3: leadership must not move to a window the user is not using, and it
-    // must never become "nobody polls".
+  it('keeps the lease while this window itself is focused, even for a newer focused request (§2.3)', () => {
+    // The exact regression of the 2026-09-27 soak: both windows reported
+    // `focused`, so yielding handed the lease over only for the window it came
+    // from to ask for it back — a handover every N + a tick. Handing over while
+    // this window is the one being looked at buys nothing.
     const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 60_000, heartbeatAt: NOW });
     const request = makeClaimRequestObservation({ at: NOW - 1_000, focused: true });
+    const decision = decideLeaseAction(ownerInput({ lease: snapshotOf(record, [request]) }));
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-focused' });
+  });
+
+  it('yields to a newer focused request once this window itself is not focused (§2.3)', () => {
+    // The intended handover: the user has moved to the other window, so the
+    // seat — and with it the toast — follows the eyes.
+    const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 60_000, heartbeatAt: NOW });
+    const request = makeClaimRequestObservation({ at: NOW - 1_000, focused: true, pid: 4242 });
     const decision = decideLeaseAction(
       ownerInput({ own: makeWindow({ focused: false }), lease: snapshotOf(record, [request]) }),
     );
-    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-unfocused' });
-  });
-
-  it('yields to a newer focused request, naming the reason and the counterpart', () => {
-    const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 60_000, heartbeatAt: NOW });
-    const request = makeClaimRequestObservation({ at: NOW - 1_000, focused: true, pid: 4242 });
-    const decision = decideLeaseAction(ownerInput({ lease: snapshotOf(record, [request]) }));
     expect(decision).toEqual({
       action: 'yield',
       reason: 'owner-yield-focus-request',
       yieldTo: request.request,
     });
+  });
+
+  it('keeps the lease when it is unfocused and nobody asks for it: "nobody is looking" is not a reason to stop', () => {
+    const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 60_000, heartbeatAt: NOW });
+    const decision = decideLeaseAction(ownerInput({ own: makeWindow({ focused: false }), lease: snapshotOf(record) }));
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-renew' });
+  });
+
+  it('keeps the lease when it is unfocused and only an unfocused window asks', () => {
+    // Both windows in the background: leadership does not move to a window the
+    // user is not using, and it must never become "nobody polls" (§2.3).
+    const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 60_000, heartbeatAt: NOW });
+    const request = makeClaimRequestObservation({ at: NOW - 1_000, focused: false });
+    const decision = decideLeaseAction(
+      ownerInput({ own: makeWindow({ focused: false }), lease: snapshotOf(record, [request]) }),
+    );
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-requested-unfocused' });
   });
 
   it('does not yield within the anti-ping-pong window N of taking the lease (§2.3)', () => {
@@ -259,14 +432,27 @@ describe('decideLeaseAction: the owner branches', () => {
     expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-hysteresis' });
   });
 
-  it('does yield once N has elapsed', () => {
+  it('lets N outrank the focus rule: an unfocused owner inside N still keeps the lease', () => {
+    // The soak's shape: the new owner is inside N while the window it took the
+    // lease from asks again. N is checked first, so the answer is "keep".
+    const record = makeLease({ ownerNonce: 'self-nonce', claimedAt: NOW - 1_000, heartbeatAt: NOW });
+    const request = makeClaimRequestObservation({ at: NOW - 500, focused: true });
+    const decision = decideLeaseAction(
+      ownerInput({ own: makeWindow({ focused: false }), lease: snapshotOf(record, [request]) }),
+    );
+    expect(decision).toEqual({ action: 'keep-and-heartbeat', reason: 'owner-keep-hysteresis' });
+  });
+
+  it('does yield once N has elapsed and this window is not focused', () => {
     const record = makeLease({
       ownerNonce: 'self-nonce',
       claimedAt: NOW - LEASE_HANDOVER_HYSTERESIS_N_MS,
       heartbeatAt: NOW,
     });
     const request = makeClaimRequestObservation({ at: NOW - 1_000, focused: true });
-    const decision = decideLeaseAction(ownerInput({ lease: snapshotOf(record, [request]) }));
+    const decision = decideLeaseAction(
+      ownerInput({ own: makeWindow({ focused: false }), lease: snapshotOf(record, [request]) }),
+    );
     expect(decision.action).toBe('yield');
   });
 
@@ -283,7 +469,12 @@ describe('decideLeaseAction: degradation', () => {
     const decision = decideLeaseAction(
       makeInput({
         now: NOW,
-        lease: { leasePathReadable: false, lease: { kind: 'invalid', reason: 'unreadable' }, claimRequests: [] },
+        lease: {
+          leasePathReadable: false,
+          lease: { kind: 'invalid', reason: 'unreadable' },
+          claimRequests: [],
+          ownRecordUnpublished: false,
+        },
       }),
     );
     expect(decision).toEqual({ action: 'degraded-to-full-speed', reason: 'lease-unavailable' });
@@ -297,7 +488,12 @@ describe('decideLeaseAction: degradation', () => {
     const unreadable = decideLeaseAction(
       makeInput({
         now: NOW,
-        lease: { leasePathReadable: true, lease: { kind: 'invalid', reason: 'unreadable' }, claimRequests: [] },
+        lease: {
+          leasePathReadable: true,
+          lease: { kind: 'invalid', reason: 'unreadable' },
+          claimRequests: [],
+          ownRecordUnpublished: false,
+        },
       }),
     );
     expect(unreadable).toEqual({ action: 'degraded-to-full-speed', reason: 'lease-unavailable' });
@@ -311,6 +507,7 @@ describe('decideLeaseAction: degradation', () => {
           leasePathReadable: false,
           lease: { kind: 'ok', record: makeLease({ ownerNonce: 'self-nonce', heartbeatAt: NOW }) },
           claimRequests: [],
+          ownRecordUnpublished: false,
         },
       }),
     );
@@ -338,7 +535,12 @@ describe('the decision is total', () => {
                     makeInput({
                       now: NOW,
                       own: makeWindow({ focused }),
-                      lease: { leasePathReadable: readable, lease: { kind: 'ok', record }, claimRequests: [] },
+                      lease: {
+                        leasePathReadable: readable,
+                        lease: { kind: 'ok', record },
+                        claimRequests: [],
+                        ownRecordUnpublished: false,
+                      },
                       holderPidAlive: alive,
                       ownerHealth: {
                         consecutiveFailures: failures,
@@ -432,8 +634,16 @@ describe('the recorded starting values are internally consistent (§12 last entr
     expect(LEASE_OWNER_STEP_DOWN_MS).toBe(2 * LEASE_EXPIRY_MS);
   });
 
-  it('keeps the staleness threshold well below one heartbeat', () => {
-    expect(LEASE_HEARTBEAT_STALE_MS).toBeLessThan(LEASE_HEARTBEAT_MS);
+  it('keeps the accelerated staleness threshold at three heartbeats, below the expiry', () => {
+    // The threshold is only evidence if it is above one heartbeat period (a
+    // healthy record is legitimately that old), and it is only useful if it is
+    // below the expiry (otherwise the accelerated branch is dead code and the
+    // expiry takeover always wins). Both properties are asserted here so a
+    // retune of the heartbeat cannot silently break either — §4.1 and §11.2.
+    expect(LEASE_ACCELERATED_STALE_MS).toBe(30_000);
+    expect(LEASE_ACCELERATED_STALE_MS).toBe(3 * LEASE_HEARTBEAT_MS);
+    expect(LEASE_ACCELERATED_STALE_MS).toBeGreaterThan(LEASE_HEARTBEAT_MS);
+    expect(LEASE_ACCELERATED_STALE_MS).toBeLessThan(LEASE_EXPIRY_MS);
   });
 });
 
@@ -441,11 +651,13 @@ function snapshotOf(
   record: ReturnType<typeof makeLease> | { kind: 'missing' } | { kind: 'invalid' },
   claimRequests: ClaimRequestObservation[] = [],
   leasePathReadable = true,
+  ownRecordUnpublished = false,
 ): LeaseSnapshot {
   return {
     leasePathReadable,
     lease: 'kind' in record ? { kind: record.kind, reason: 'malformed' } : { kind: 'ok', record },
     claimRequests,
+    ownRecordUnpublished,
   };
 }
 

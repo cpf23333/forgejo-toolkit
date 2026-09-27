@@ -63,7 +63,7 @@ export function makeInput(overrides: Partial<LeaseDecisionInput> = {}): LeaseDec
   const base: LeaseDecisionInput = {
     now: 10_000,
     own: makeWindow(),
-    lease: { leasePathReadable: true, lease: { kind: 'missing' }, claimRequests: [] },
+    lease: { leasePathReadable: true, lease: { kind: 'missing' }, claimRequests: [], ownRecordUnpublished: false },
     holderPidAlive: undefined,
     ownerHealth: { consecutiveFailures: 0 },
     ownClaimRequest: { consecutiveUnansweredRequests: 0 },

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { decideLeaseAction } from '../lease/leaseDecision';
 import {
+  LEASE_CLAIM_REQUEST_MAX_AGE_MS,
   LEASE_EXPIRY_MS,
   LEASE_FILE_NAME,
   LEASE_HEARTBEAT_MS,
@@ -11,7 +12,14 @@ import {
   LEASE_RECORD_VERSION,
   LEASE_STALE_PART_MAX_AGE_MS,
 } from '../lease/leaseConstants';
-import { LeaseStore, isPidAlive, isTransientWriteError, toFileSystem, validateLeaseRecord } from '../lease/leaseStore';
+import {
+  LeaseStore,
+  instanceSetFingerprint,
+  isPidAlive,
+  isTransientWriteError,
+  toFileSystem,
+  validateLeaseRecord,
+} from '../lease/leaseStore';
 import { fsError, makeLease, makeStore, makeTempDir, removeTempDir } from './leaseTestHelpers';
 
 /**
@@ -38,6 +46,7 @@ describe('claim', () => {
   it('creates the lease record and reports the claim', async () => {
     const store = makeStore(dir, { ownerNonce: 'nonce-a', windowId: 'window-a' });
     expect(await store.claim(1_000)).toBe('claimed');
+    expect(store.holdsUnpublishedRecord).toBe(false);
 
     const observation = await store.read();
     expect(observation.read.kind).toBe('ok');
@@ -103,6 +112,7 @@ describe('claim', () => {
         leasePathReadable: true,
         lease: (await store.read()).read,
         claimRequests: [],
+        ownRecordUnpublished: false,
       },
       holderPidAlive: false,
       ownerHealth: { consecutiveFailures: 0 },
@@ -149,7 +159,12 @@ describe('claim', () => {
     const decision = decideLeaseAction({
       now: 1_000,
       own: { ownerNonce: 'nonce-a', pid: process.pid, focused: true },
-      lease: { leasePathReadable: observation.read.kind !== 'invalid', lease: observation.read, claimRequests: [] },
+      lease: {
+        leasePathReadable: observation.read.kind !== 'invalid',
+        lease: observation.read,
+        claimRequests: [],
+        ownRecordUnpublished: false,
+      },
       holderPidAlive: undefined,
       ownerHealth: { consecutiveFailures: 0 },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },
@@ -178,6 +193,114 @@ describe('claim', () => {
     // lease: `contended` would make this window a silent follower, which is the
     // direction §8 forbids.
     expect(await store.claim(1_000)).toBe('unavailable');
+  });
+});
+
+describe('claim: the file existing is not the same as the lease being published (§3.2, §4.2)', () => {
+  /** A store whose record writes fail on demand, so the two states can be told apart. */
+  function storeWithFailingRecordWrites(): { store: LeaseStore; heal: () => void } {
+    const real = toFileSystem();
+    let failing = true;
+    const store = new LeaseStore({
+      directory: dir,
+      ownerNonce: 'nonce-a',
+      delay: async () => undefined,
+      fs: {
+        ...real,
+        rename: async (from, to) => {
+          if (failing) {
+            throw fsError('EPERM');
+          }
+          return real.rename(from, to);
+        },
+      },
+    });
+    return {
+      store,
+      heal: () => {
+        failing = false;
+      },
+    };
+  }
+
+  it('reports claimed-unpublished when the record write fails, and keeps the mutex', async () => {
+    const { store } = storeWithFailingRecordWrites();
+    expect(await store.claim(1_000)).toBe('claimed-unpublished');
+    expect(store.holdsUnpublishedRecord).toBe(true);
+
+    // The file exists — the `wx` create is what excludes other windows — but no
+    // reader can find a record in it.
+    expect((await store.read()).read.kind).toBe('invalid');
+    expect(await store.claim(1_000)).toBe('contended');
+
+    const other = makeStore(dir, { ownerNonce: 'nonce-b' });
+    expect(await other.claim(1_000)).toBe('contended');
+    // A window that did not create it must not try to repair it either.
+    expect(await other.heartbeat(1_000)).toBe('not-owner');
+  });
+
+  it('republishes its own unpublished record on the next heartbeat, keeping claimedAt', async () => {
+    const { store, heal } = storeWithFailingRecordWrites();
+    await store.claim(1_000);
+    heal();
+
+    expect(await store.heartbeat(2_000)).toBe('written');
+    expect(store.holdsUnpublishedRecord).toBe(false);
+    const observation = await store.read();
+    expect(observation.read.kind).toBe('ok');
+    if (observation.read.kind !== 'ok') {
+      return;
+    }
+    // The repair publishes the original claim time, not the repair time.
+    expect(observation.read.record.claimedAt).toBe(1_000);
+    expect(observation.read.record.heartbeatAt).toBe(2_000);
+    expect(observation.read.record.ownerNonce).toBe('nonce-a');
+  });
+
+  it('keeps reporting the failure while the record still cannot be published', async () => {
+    const { store } = storeWithFailingRecordWrites();
+    await store.claim(1_000);
+    expect(await store.heartbeat(2_000)).toBe('failed');
+    expect(store.holdsUnpublishedRecord).toBe(true);
+    // Still ours to repair, and still unreadable for everyone else.
+    expect(await store.heartbeat(3_000)).toBe('failed');
+    expect((await store.read()).read.kind).toBe('invalid');
+  });
+
+  it('releases the empty shell it created, but never a malformed file it did not', async () => {
+    const { store } = storeWithFailingRecordWrites();
+    await store.claim(1_000);
+    expect(await store.yieldOwn()).toBe('released');
+    expect(store.holdsUnpublishedRecord).toBe(false);
+    expect((await store.read()).read.kind).toBe('missing');
+
+    // A malformed file this window never created is not ours to delete (§2.3).
+    await fs.promises.writeFile(leasePath(), 'not json at all');
+    const stranger = makeStore(dir, { ownerNonce: 'nonce-c' });
+    expect(await stranger.yieldOwn()).toBe('not-owner');
+    expect((await stranger.read()).read.kind).toBe('invalid');
+  });
+
+  it('reports a contended claim, not a held one, when the file disappears under the record write', async () => {
+    // The `wx` create succeeded, then someone released the file while the record
+    // was being written: there is nothing left to hold, and calling it ours
+    // would let two windows believe they own the same path.
+    const real = toFileSystem();
+    const store = new LeaseStore({
+      directory: dir,
+      ownerNonce: 'nonce-a',
+      delay: async () => undefined,
+      fs: {
+        ...real,
+        rename: async (from, to) => {
+          await fs.promises.rm(to, { force: true });
+          throw fsError('EPERM');
+        },
+      },
+    });
+    expect(await store.claim(1_000)).toBe('contended');
+    expect(store.holdsUnpublishedRecord).toBe(false);
+    expect(await store.yieldOwn()).toBe('missing');
   });
 });
 
@@ -348,7 +471,12 @@ describe('the step-down threshold is 2 x expiry, not one failure and not one exp
     const decision = decideLeaseAction({
       now: 2_000,
       own: { ownerNonce: 'nonce-a', pid: process.pid, focused: true },
-      lease: { leasePathReadable: true, lease: (await store.read()).read, claimRequests: [] },
+      lease: {
+        leasePathReadable: true,
+        lease: (await store.read()).read,
+        claimRequests: [],
+        ownRecordUnpublished: false,
+      },
       holderPidAlive: true,
       ownerHealth: { consecutiveFailures: 1, failureSince: 2_000 },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },
@@ -364,7 +492,12 @@ describe('the step-down threshold is 2 x expiry, not one failure and not one exp
     const before = decideLeaseAction({
       now: failureSince + LEASE_OWNER_STEP_DOWN_MS - 1,
       own: { ownerNonce: 'nonce-a', pid: process.pid, focused: true },
-      lease: { leasePathReadable: true, lease: (await store.read()).read, claimRequests: [] },
+      lease: {
+        leasePathReadable: true,
+        lease: (await store.read()).read,
+        claimRequests: [],
+        ownRecordUnpublished: false,
+      },
       holderPidAlive: true,
       ownerHealth: { consecutiveFailures: 7, failureSince },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },
@@ -374,7 +507,12 @@ describe('the step-down threshold is 2 x expiry, not one failure and not one exp
     const atThreshold = decideLeaseAction({
       now: failureSince + LEASE_OWNER_STEP_DOWN_MS,
       own: { ownerNonce: 'nonce-a', pid: process.pid, focused: true },
-      lease: { leasePathReadable: true, lease: (await store.read()).read, claimRequests: [] },
+      lease: {
+        leasePathReadable: true,
+        lease: (await store.read()).read,
+        claimRequests: [],
+        ownRecordUnpublished: false,
+      },
       holderPidAlive: true,
       ownerHealth: { consecutiveFailures: 8, failureSince },
       ownClaimRequest: { consecutiveUnansweredRequests: 0 },
@@ -422,10 +560,12 @@ describe('yield and cleanup', () => {
 describe('claim requests', () => {
   it("writes, reads back and clears this window's own request", async () => {
     const store = makeStore(dir, { ownerNonce: 'nonce-a', windowId: 'window-a' });
-    const request = await store.writeClaimRequest(5_000, { focused: true });
-    expect(request.pid).toBe(process.pid);
-    expect(request.focused).toBe(true);
-    expect(request.at).toBe(5_000);
+    const published = await store.writeClaimRequest(5_000, { focused: true });
+    // Nothing to retire on the first publish: the requester had no request yet.
+    expect(published.retiredPrevious).toBe('missing');
+    expect(published.request.pid).toBe(process.pid);
+    expect(published.request.focused).toBe(true);
+    expect(published.request.at).toBe(5_000);
 
     const observations = await store.readClaimRequests();
     expect(observations).toHaveLength(1);
@@ -451,6 +591,42 @@ describe('claim requests', () => {
     await fs.promises.writeFile(ownPath, 'not json');
     expect(await store.clearClaimRequest()).toBe('not-owner');
     await expect(fs.promises.stat(ownPath)).resolves.toBeDefined();
+  });
+
+  it('replaces its own request in place, so a refused window keeps one file (§3.2, §12.10)', async () => {
+    const store = makeStore(dir, { ownerNonce: 'nonce-a' });
+    const first = await store.writeClaimRequest(1_000, { focused: true });
+    expect(first.retiredPrevious).toBe('missing'); // nothing to retire yet
+    const firstToken = store.lastClaimRequestToken;
+    expect(firstToken).toBeDefined();
+    // Another window's request, and a legacy token-less one, must survive.
+    await fs.promises.writeFile(
+      store.claimRequestPath(4242),
+      JSON.stringify({ version: 1, pid: 4242, focused: true, at: 1_000 }),
+    );
+
+    const second = await store.writeClaimRequest(2_000, { focused: true });
+
+    expect(second.retiredPrevious).toBe('cleared');
+    const names = (await fs.promises.readdir(dir)).sort();
+    expect(names).toHaveLength(2);
+    expect(names.filter((name) => name.startsWith(`${LEASE_FILE_NAME}.claim.${process.pid}.`))).toHaveLength(1);
+    expect(names).toContain(`${LEASE_FILE_NAME}.claim.4242`);
+    await expect(fs.promises.stat(store.claimRequestPath(process.pid, firstToken))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('leaves a request file it cannot prove it wrote, and publishes anyway', async () => {
+    const store = makeStore(dir, { ownerNonce: 'nonce-a' });
+    // An unparseable file at the token-less name: ownership cannot be proven.
+    await fs.promises.writeFile(store.claimRequestPath(), 'not json');
+
+    const published = await store.writeClaimRequest(1_000, { focused: true });
+
+    expect(published.retiredPrevious).toBe('not-owner');
+    // Both files are there: the stranger's is left alone, ours is published.
+    expect(await fs.promises.readdir(dir)).toHaveLength(2);
   });
 
   it('ignores malformed request files when listing them', async () => {
@@ -484,6 +660,58 @@ describe('claim requests', () => {
   });
 });
 
+describe('pruning a dead requester’s leftovers (§2.3, §12.10)', () => {
+  /** A request file whose pid is verifiably dead, as a crash would leave it. */
+  const DEAD_PID = 0x7fff_fffe;
+
+  async function writeRequest(store: LeaseStore, pid: number, at: number, token: string): Promise<string> {
+    const name = `${LEASE_FILE_NAME}.claim.${pid}.${token}`;
+    await fs.promises.writeFile(path.join(dir, name), JSON.stringify({ version: 1, pid, focused: true, at }));
+    return name;
+  }
+
+  it('removes an old, dead requester and keeps fresh or live ones', async () => {
+    const store = makeStore(dir, { ownerNonce: 'nonce-a' });
+    const oldDead = await writeRequest(store, DEAD_PID, 1_000 - LEASE_CLAIM_REQUEST_MAX_AGE_MS - 1, 'aaaa');
+    const freshDead = await writeRequest(store, DEAD_PID, 1_000, 'bbbb');
+    const oldLive = await writeRequest(store, process.pid, 1_000 - LEASE_CLAIM_REQUEST_MAX_AGE_MS - 1, 'cccc');
+
+    const observed = await store.readClaimRequests();
+    const removed = await store.pruneStaleClaimRequests(1_000, observed);
+
+    expect(removed).toEqual([oldDead]);
+    // The age filter alone is not enough (a live window may be republishing),
+    // and a fresh file is never removed whatever its pid.
+    await expect(fs.promises.stat(path.join(dir, oldLive))).resolves.toBeDefined();
+    await expect(fs.promises.stat(path.join(dir, freshDead))).resolves.toBeDefined();
+    await expect(fs.promises.stat(path.join(dir, oldDead))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('never removes the pending request it is acting on', async () => {
+    const store = makeStore(dir, { ownerNonce: 'nonce-a' });
+    // Old and dead, but still the one this tick is deciding about.
+    const pending = await writeRequest(store, DEAD_PID, 1_000 - LEASE_CLAIM_REQUEST_MAX_AGE_MS - 1, 'dddd');
+    const observed = await store.readClaimRequests();
+
+    expect(await store.pruneStaleClaimRequests(1_000, observed, pending)).toEqual([]);
+    await expect(fs.promises.stat(path.join(dir, pending))).resolves.toBeDefined();
+  });
+
+  it('does not touch the lease file, and reports nothing when there is nothing to prune', async () => {
+    const store = makeStore(dir, { ownerNonce: 'nonce-a' });
+    await store.claim(1_000);
+    expect(await store.pruneStaleClaimRequests(1_000, await store.readClaimRequests())).toEqual([]);
+    expect((await store.read()).read.kind).toBe('ok');
+
+    // A malformed request never reaches the pruner (the reader drops it), so a
+    // crashed window's unparseable leftover stays rather than being deleted blind.
+    await fs.promises.writeFile(path.join(dir, `${LEASE_FILE_NAME}.claim.${DEAD_PID}.eeee`), 'not json');
+    expect(await store.readClaimRequests()).toEqual([]);
+    expect(await store.pruneStaleClaimRequests(1_000, await store.readClaimRequests())).toEqual([]);
+    await expect(fs.promises.stat(path.join(dir, `${LEASE_FILE_NAME}.claim.${DEAD_PID}.eeee`))).resolves.toBeDefined();
+  });
+});
+
 describe('validation and probing', () => {
   it('accepts a complete record and rejects an incomplete one', () => {
     expect(validateLeaseRecord(makeLease())).toBeDefined();
@@ -513,6 +741,19 @@ describe('validation and probing', () => {
     expect(inspection.holderAlive).toBe(true);
     expect(inspection.writable).toBe(true);
     expect(inspection.claimRequests).toHaveLength(1);
+  });
+
+  it('digests the instance set without carrying anything but the ids (§3.2, §3.3)', () => {
+    // The same set in any order is the same fingerprint: reordering instances is
+    // not a change in what this window polls.
+    expect(instanceSetFingerprint(['b', 'a'])).toBe(instanceSetFingerprint(['a', 'b']));
+    expect(instanceSetFingerprint(['a'])).not.toBe(instanceSetFingerprint(['a', 'b']));
+    expect(instanceSetFingerprint([])).toMatch(/^[0-9a-f]{16}$/);
+    expect(instanceSetFingerprint(['host-login'])).toMatch(/^[0-9a-f]{16}$/);
+    // A duplicate is a set member twice, so it must digest differently from one
+    // occurrence — the value describes the configured list, not a de-duplicated
+    // wish.
+    expect(instanceSetFingerprint(['a', 'a'])).not.toBe(instanceSetFingerprint(['a']));
   });
 });
 

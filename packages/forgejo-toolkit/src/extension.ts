@@ -22,6 +22,7 @@ import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvid
 import { registerMcpServerProvider } from './mcpServerProvider';
 import { cleanupMcpBroker } from './mcpBroker';
 import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
+import { disposeLeaseShadowMode, startLeaseShadowMode } from './lease/leaseSupervisor';
 import { registerWriteCopilotInstructionsCommand } from './commands/copilotInstructions';
 import { watchForExtensionUpdate } from './updateNotifier';
 import { maybeShowWelcomeOnboarding } from './welcome';
@@ -125,6 +126,26 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(notificationPoller);
   notificationPoller.start();
 
+  // Multi-window polling lease, stage 1 (shadow mode): this window takes part
+  // in the real election in its globalStorage directory and logs what it would
+  // do, but nothing consumes the decision yet — every window still polls
+  // exactly as before (see src/lease/leaseSupervisor.ts). The record carries the
+  // running version and a fingerprint of the configured instance set, both read
+  // here because this is where the context and the config live.
+  const globalStoragePath = context.globalStorageUri?.fsPath;
+  if (globalStoragePath) {
+    context.subscriptions.push(
+      startLeaseShadowMode(
+        {
+          directory: globalStoragePath,
+          appVersion: context.extension.packageJSON.version as string,
+          instanceIds: () => config.getInstances().map((instance) => instance.id),
+        },
+        logger,
+      ),
+    );
+  }
+
   const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);
   // Review submissions happen in a separate panel; let the dashboard reload
@@ -168,6 +189,10 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
+  // Gives up this window's polling lease — only while the record is still
+  // ours, so a window that has taken over is never fought — and stops the
+  // shadow election's timers and focus subscription.
+  await disposeLeaseShadowMode();
   // Deletes this window's MCP workspace-state file (best-effort; see the
   // function for why a crash-orphaned file is harmless).
   await cleanupMcpWorkspaceState(logger);

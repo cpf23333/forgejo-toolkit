@@ -21,10 +21,10 @@
  */
 
 import {
+  LEASE_ACCELERATED_STALE_MS,
   LEASE_CLAIM_REQUEST_MAX_AGE_MS,
   LEASE_EXPIRY_MS,
   LEASE_HANDOVER_HYSTERESIS_N_MS,
-  LEASE_HEARTBEAT_STALE_MS,
   LEASE_OWNER_STEP_DOWN_MS,
   LEASE_REQUEST_RETRY_BASE_MS,
   LEASE_REQUEST_RETRY_MAX_MS,
@@ -40,10 +40,17 @@ import type { ClaimRequest, ClaimRequestObservation, LeaseRead, LeaseRecord } fr
 export type LeaseDecisionReason =
   // Owner-side.
   | 'owner-renew'
+  /** The owner is republishing a record whose record write has not landed yet (§3.2, §4.2). */
+  | 'owner-renew-unpublished'
   | 'owner-heartbeat-stale'
   | 'owner-step-down-unwritable'
   | 'owner-yield-focus-request'
-  | 'owner-keep-unfocused'
+  /**
+   * The owner is focused itself, so a focused requester does not displace it
+   * (§2.3): handing the lease over would only move it between two windows the
+   * user is already looking at — the churn the 2026-09-27 soak measured.
+   */
+  | 'owner-keep-focused'
   | 'owner-keep-requested-unfocused'
   | 'owner-keep-requested-stale'
   | 'owner-keep-hysteresis'
@@ -140,6 +147,20 @@ export interface LeaseSnapshot {
    * the current owner in place (§8).
    */
   claimRequests: ClaimRequestObservation[];
+  /**
+   * True when the *file* at the lease path is this window's own `wx`-created
+   * lease but its record was never published, so every reader — including this
+   * window — sees garbage instead of the `ownerNonce` that proves ownership
+   * (§3.2, §4.2).
+   *
+   * It is an input rather than something this layer could read because only the
+   * window whose record write failed can know it: a `wx` create is atomic and
+   * exactly one window wins it, so "there is an unusable record here and I
+   * created it" is in-process knowledge, in the same category as
+   * `ownerHealth`. A snapshot without it (the field is required, so producers
+   * must state it) is the normal published-record case.
+   */
+  ownRecordUnpublished: boolean;
 }
 
 /** A claim request as observed on disk; defined with the other shared shapes. */
@@ -258,10 +279,16 @@ export function claimRequestBackoffMs(
  * 2. Ownership is decided by the `ownerNonce`, never by pid or timestamps, so a
  *    recycled pid or a clock glitch cannot make two windows believe they own it
  *    (§4.1.2). A record that is not ours — including `invalid` — leaves this
- *    window a follower.
- * 3. As the owner, holding on is the default. Yielding needs a *focused*
- *    requester whose request is newer than our claim and outside the N window;
- *    "nobody is focused" never means giving up polling (§2.3).
+ *    window a follower, unless it is the unusable record this window itself
+ *    created and failed to publish (`ownRecordUnpublished`, §3.2/§4.2): the
+ *    `wx` create is the mutex, and exactly one window wins it, so that window is
+ *    the owner whether or not a reader can tell.
+ * 3. As the owner, holding on is the default. Yielding needs **this window to be
+ *    unfocused** *and* a *focused* requester whose request is newer than our
+ *    claim and outside the N window: the seat follows the user's eyes, and a
+ *    focused owner handing over to another focused window would only churn. The
+ *    "nobody is focused" case needs no branch of its own — with no focused
+ *    requester there is nothing to yield to, so polling continues (§2.3).
  * 4. As a follower, only the owner's apparent absence justifies a claim: an
  *    expired or dead-pid lease, or K unanswered requests against a stale
  *    heartbeat.
@@ -281,22 +308,54 @@ export function decideLeaseAction(input: LeaseDecisionInput): LeaseDecision {
   if (record !== undefined && holderIsSelf) {
     return decideAsOwner(input, record);
   }
+  if (lease.ownRecordUnpublished) {
+    return decideAsUnpublishedOwner(input);
+  }
   return decideAsFollower(input, record);
+}
+
+/**
+ * The owner branch for the lease this window `wx`-created but could not publish
+ * (§3.2, §4.2, §8).
+ *
+ * There is no record to compare against, so nothing here can yield or take
+ * over: no `claimedAt` exists to test a request against, and no other window
+ * may repair the file. Holding on is the whole decision until the write-failure
+ * streak reaches the step-down threshold — the accurate reason for giving up,
+ * because the record the readers need never landed.
+ */
+function decideAsUnpublishedOwner(input: LeaseDecisionInput): LeaseDecision {
+  const { now, ownerHealth } = input;
+  if (ownerHealth.failureSince !== undefined && now - ownerHealth.failureSince >= LEASE_OWNER_STEP_DOWN_MS) {
+    return { action: 'step-down', reason: 'owner-step-down-unwritable' };
+  }
+  // `keep-and-heartbeat` is the caller's republish: the heartbeat path writes
+  // this window's record again, which is the only way out of this state.
+  return { action: 'keep-and-heartbeat', reason: 'owner-renew-unpublished' };
 }
 
 function decideAsOwner(input: LeaseDecisionInput, record: LeaseRecord): LeaseDecision {
   const { now, own, lease, ownerHealth } = input;
 
-  if (ownerHealth.failureSince !== undefined && now - ownerHealth.failureSince >= LEASE_OWNER_STEP_DOWN_MS) {
-    // §4.1: continuous heartbeat-write failure past 2 × expiry. Degrade and
-    // re-claim rather than keep a title we can no longer refresh.
-    return { action: 'step-down', reason: 'owner-step-down-unwritable' };
-  }
-
-  if (now - record.heartbeatAt >= LEASE_OWNER_STEP_DOWN_MS) {
-    // Our own record went old — the heartbeat timer was throttled past the
-    // step-down point (§6), or the write path has been silently broken. Either
-    // way we can no longer prove liveness to anyone.
+  // §4.1, §12.9: an active write-failure streak decides the *reason* as well as
+  // the threshold. When the writes have been failing since the last success,
+  // "the record went old" and "the streak reached 2 × expiry" are the same
+  // event, and the accurate cause is the one an operator needs in the log: name
+  // the write failure, not the symptom. The generic stale reason stays for a
+  // record that aged out with no write failure in progress (a throttled timer,
+  // a laptop that slept, a clock jump) — the case where the write path is fine
+  // and only our own liveness proof is missing.
+  if (ownerHealth.failureSince !== undefined) {
+    if (now - ownerHealth.failureSince >= LEASE_OWNER_STEP_DOWN_MS) {
+      // §4.1: continuous write failure past 2 × expiry. Degrade and re-claim
+      // rather than keep a title we can no longer refresh. At the documented
+      // cadence this is the eighth failed heartbeat, one heartbeat after the
+      // record itself crossed the same threshold.
+      return { action: 'step-down', reason: 'owner-step-down-unwritable' };
+    }
+  } else if (now - record.heartbeatAt >= LEASE_OWNER_STEP_DOWN_MS) {
+    // Our own record went old with nothing failing on the write path: we can no
+    // longer prove liveness to anyone, so the lease is not ours to keep.
     return { action: 'step-down', reason: 'owner-heartbeat-stale' };
   }
 
@@ -309,18 +368,13 @@ function decideAsOwner(input: LeaseDecisionInput, record: LeaseRecord): LeaseDec
 
   if (now - record.claimedAt < LEASE_HANDOVER_HYSTERESIS_N_MS) {
     // §2.3 hysteresis: a window that just took the lease is not displaced
-    // within N, so two focused windows cannot trade it back and forth.
+    // within N, so two windows cannot trade it back and forth.
     return nothingToYieldTo('owner-keep-hysteresis');
   }
-  if (!own.focused) {
-    // §2.3: leadership does not follow "nobody is looking". We stay the owner
-    // and keep polling — the requester will win on its next tick, or the K
-    // escalation will take it, but we do not hand the job to nobody.
-    return nothingToYieldTo('owner-keep-unfocused');
-  }
   if (!claim.request.focused) {
-    // A request from a window that is not focused is ignored outright, even
-    // when this window happens to be focused.
+    // A request from a window that is not focused never justifies a handover,
+    // whoever is looking — this is also what makes "nobody is focused" safe:
+    // no focused requester, no handover.
     return nothingToYieldTo('owner-keep-requested-unfocused');
   }
   if (claim.request.at <= record.claimedAt) {
@@ -330,6 +384,15 @@ function decideAsOwner(input: LeaseDecisionInput, record: LeaseRecord): LeaseDec
     // request-tick filter already make it hard to reach: it is the rule, and a
     // caller that supplies observations directly must hit it.
     return nothingToYieldTo('owner-keep-requested-stale');
+  }
+  if (own.focused) {
+    // §2.3, corrected 2026-09-27 after the dual-window soak (see §11.2): the
+    // owner yields **only while it is not focused itself**. Handing the lease
+    // over while this window is the one being looked at buys nothing — the
+    // toast already comes here — and when two windows both reported `focused`
+    // it produced a handover every N + a tick: the new owner immediately got a
+    // request from the window it had just taken the lease from.
+    return nothingToYieldTo('owner-keep-focused');
   }
 
   // §2.3 step 3: yield with *only* a re-read plus holder-token comparison
@@ -360,13 +423,21 @@ function decideAsFollower(input: LeaseDecisionInput, record: LeaseRecord | undef
   }
 
   const claim = selectCurrentClaimRequest(lease.claimRequests, now, own.pid);
+  // §2.3: the anti-ping-pong window N outranks the K escalation. A window that
+  // has just taken the lease is not displaced for N seconds, whatever its
+  // heartbeat age and however many requests it ignored — otherwise K is exactly
+  // the bypass that makes the hysteresis pointless. The 2026-09-27 dual-window
+  // soak had a focused follower evict a leader 1.3 s into its tenure this way.
+  const ownerInsideHysteresis = now - record.claimedAt < LEASE_HANDOVER_HYSTERESIS_N_MS;
   if (
     own.focused &&
+    !ownerInsideHysteresis &&
     input.ownClaimRequest.consecutiveUnansweredRequests >= LEASE_UNANSWERED_REQUEST_LIMIT_K &&
-    now - record.heartbeatAt > LEASE_HEARTBEAT_STALE_MS
+    now - record.heartbeatAt > LEASE_ACCELERATED_STALE_MS
   ) {
-    // §2.3, K = 3: the owner is alive by pid but its heartbeat is older than
-    // the staleness threshold and it has ignored K requests, so stop waiting
+    // §2.3, K = 3: the owner is alive by pid but its record is older than three
+    // heartbeat periods — evidence of a hung owner, not of the normal gap
+    // between two heartbeats — and it has ignored K requests, so stop waiting
     // for the expiry. The cost is a possible short double poll — the safe
     // direction (§8).
     return {

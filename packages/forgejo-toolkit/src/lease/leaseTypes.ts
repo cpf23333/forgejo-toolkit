@@ -89,16 +89,28 @@ export interface ClaimRequestObservation {
 
 /** Outcome of a claim attempt (§4.2's `claim()`). */
 export type ClaimOutcome =
-  /** `wx` created the file: this window is the owner. */
+  /**
+   * `wx` created the file **and** the record was published: this window is the
+   * owner and every other window can read the `ownerNonce` that proves it.
+   */
   | 'claimed'
+  /**
+   * `wx` created the file — the mutex is this window's, and no other window can
+   * claim it — but writing the record failed, so a reader finds an empty (or
+   * truncated) file instead of a record (§3.2, §4.2). The caller is still the
+   * owner and must keep republishing; **the file existing is not the same as
+   * the lease being published**, and the two states need different actions: a
+   * published lease is refreshed, an unpublished one is repaired.
+   */
+  | 'claimed-unpublished'
   /** The file already exists: another window holds it (or just did) — stay follower. */
   | 'contended'
   /** The mechanism itself is unusable (`EACCES`, `EROFS`, `ENOSPC`, …) → §8. */
   | 'unavailable';
 
-/** Outcome of one heartbeat refresh. */
+/** Outcome of one heartbeat refresh, or of republishing an unpublished record. */
 export type HeartbeatOutcome =
-  /** Fresh `heartbeatAt` written. */
+  /** Fresh `heartbeatAt` written (or the record that never landed is now published). */
   | 'written'
   /** Someone else owns the lease now: the caller must degrade (§4.1.2). */
   | 'not-owner'

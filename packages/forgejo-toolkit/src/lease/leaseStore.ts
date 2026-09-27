@@ -33,6 +33,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  LEASE_CLAIM_REQUEST_MAX_AGE_MS,
   LEASE_FILE_NAME,
   LEASE_HEARTBEAT_RETRY_DELAY_MS,
   LEASE_HEARTBEAT_WRITE_ATTEMPTS,
@@ -56,6 +57,28 @@ export const LEASE_WINDOW_NONCE = crypto.randomBytes(8).toString('hex');
 /** The slice used in log lines and the diagnostics JSON (§7.1, §11.1 stage 2). */
 export function noncePrefix(nonce: string): string {
   return nonce.slice(0, 8);
+}
+
+/**
+ * A stable digest of the configured instance *set*, for the record's
+ * `instancesFingerprint` (§3.2, §3.3).
+ *
+ * The input is the config's own instance identity — `ForgejoInstance.id`, the
+ * value the saved configuration and the stored secret are keyed by, and the same
+ * notion `notificationPoller`'s instance key is built from. Nothing else is
+ * hashed: no URL, no login, no name, so the digest carries no address (§3.2).
+ * Sorting makes it depend on the *set*, not the order, because reordering the
+ * configured instances is not a change in what this window polls.
+ *
+ * Diagnostics only, by decision: the fingerprint is deliberately absent from
+ * `LeaseDecisionInput`, so it structurally cannot influence an election (§3.3).
+ */
+export function instanceSetFingerprint(instanceIds: readonly string[]): string {
+  return crypto
+    .createHash('sha256')
+    .update([...instanceIds].sort().join('\u0000'))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /**
@@ -126,6 +149,20 @@ export function toFileSystem(): FileSystem {
       }
     },
   };
+}
+
+/** What `writeClaimRequest` did: the published request, and the fate of the previous one. */
+export interface ClaimRequestPublish {
+  request: ClaimRequest;
+  /**
+   * What became of this window's *previous* request file (§3.2/§12.10: one file
+   * per requester, replaced in place). `cleared` is the normal case; `missing`
+   * means there was nothing to retire; `not-owner` means the file at our last
+   * name was not provably ours and was deliberately left alone; **`failed`**
+   * means the new request was published anyway and the old file is still there —
+   * the caller should report that once per streak rather than per tick.
+   */
+  retiredPrevious: 'cleared' | 'missing' | 'not-owner' | 'failed';
 }
 
 /** Everything a `LeaseStore` needs to know about the window it serves. */
@@ -236,6 +273,19 @@ export class LeaseStore {
   private readonly delay: (ms: number) => Promise<void>;
   /** The token of the request file this window last wrote, if any. */
   private claimRequestToken?: string;
+  /**
+   * `Date.now()` of the `wx` create this window won, kept in memory so an
+   * unpublished record can be republished with its original claim time instead
+   * of restarting the anti-ping-pong window N on every retry (§2.3, §3.2).
+   */
+  private claimedAt?: number;
+  /**
+   * True while the file at the lease path is this window's own `wx`-created
+   * lease whose record never landed. It is the store's knowledge that the *file
+   * exists* but the *lease is not published* (§3.2, §4.2): only the window that
+   * won the create can tell, and only it may repair the file.
+   */
+  private recordUnpublished = false;
 
   constructor(options: LeaseStoreOptions) {
     this.directory = options.directory;
@@ -259,9 +309,24 @@ export class LeaseStore {
     return this.pid;
   }
 
-  /** The instance fingerprint is refreshed by the owner, never a reason to elect (§3.3). */
+  /**
+   * The instance fingerprint is refreshed by the owner, never a reason to elect
+   * (§3.3). Diagnostics only: the decision layer's input has no field for it.
+   */
   updateInstancesFingerprint(fingerprint: string): void {
     this.instancesFingerprint = fingerprint;
+  }
+
+  /**
+   * True when this window holds a `wx`-created lease whose record was never
+   * published — the file exists, but what a reader gets is garbage, not the
+   * `ownerNonce` that proves ownership (§3.2, §4.2). The decision layer needs
+   * this to stay in its owner branch instead of trying to take over its own
+   * lease, and the caller needs it to know that a `heartbeat()` call is really
+   * a republish.
+   */
+  get holdsUnpublishedRecord(): boolean {
+    return this.recordUnpublished;
   }
 
   /**
@@ -282,6 +347,12 @@ export class LeaseStore {
    * Read and validate the lease file. Never throws: an unreadable file is
    * reported as `invalid` (or as an unreadable *path*, which the decision layer
    * turns into the degraded branch, §8).
+   *
+   * Every read also settles this window's unpublished-ownership knowledge,
+   * because that is where the truth arrives: a readable record naming this
+   * window means the publish succeeded, a foreign or absent one means this
+   * window no longer holds anything. A malformed record leaves the flag alone —
+   * that is the state the flag exists to describe (§3.2, §4.2).
    */
   async read(): Promise<LeaseObservation> {
     let raw: string;
@@ -289,6 +360,7 @@ export class LeaseStore {
       raw = await this.fs.readFile(this.leasePath);
     } catch (error) {
       if (errorCode(error) === 'ENOENT') {
+        this.abandonUnpublishedRecord();
         return { read: { kind: 'missing' } };
       }
       // Anything else — EACCES, EISDIR, ENOTDIR, an I/O error — means the
@@ -306,10 +378,23 @@ export class LeaseStore {
       if (!record) {
         return { read: { kind: 'invalid', reason: 'malformed' }, ...(mtimeMs === undefined ? {} : { mtimeMs }) };
       }
+      if (record.ownerNonce === this.ownerNonce) {
+        // Readable and ours: whatever was unpublished is published now.
+        this.recordUnpublished = false;
+        this.claimedAt = record.claimedAt;
+      } else {
+        this.abandonUnpublishedRecord();
+      }
       return { read: { kind: 'ok', record }, record, ...(mtimeMs === undefined ? {} : { mtimeMs }) };
     } catch {
       return { read: { kind: 'invalid', reason: 'malformed' }, ...(mtimeMs === undefined ? {} : { mtimeMs }) };
     }
+  }
+
+  /** This window holds nothing any more: forget the unpublished claim entirely. */
+  private abandonUnpublishedRecord(): void {
+    this.recordUnpublished = false;
+    this.claimedAt = undefined;
   }
 
   /** Read the lease and, when it parses, probe the holder pid (§3.5). */
@@ -363,13 +448,26 @@ export class LeaseStore {
    * the holder token, and only unlink when it is still ours. This is the whole
    * confirmation — the maintainer's 2026-09-27 decision removed the second one,
    * so nothing here waits for anything else.
+   *
+   * A *malformed* record is released too when this window is the one whose
+   * publish failed (see `holdsUnpublishedRecord`): that file is the empty shell
+   * of our own claim, it holds nobody's data, and leaving it behind would make a
+   * step-down or a `deactivate()` leave a file that only some other window's
+   * stale-release can clear. An *unreadable* path is still left alone — nothing
+   * can be proven about it.
    */
   async yieldOwn(): Promise<ReleaseOutcome> {
     const observation = await this.read();
     if (observation.read.kind === 'missing') {
       return 'missing';
     }
-    if (observation.read.kind !== 'ok' || observation.read.record.ownerNonce !== this.ownerNonce) {
+    if (observation.read.kind === 'invalid') {
+      if (observation.read.reason === 'unreadable' || !this.recordUnpublished) {
+        return 'not-owner';
+      }
+      return this.unlinkAndClassify();
+    }
+    if (observation.read.record.ownerNonce !== this.ownerNonce) {
       // Not our file: touch nothing. This is the case a window that lost the
       // lease during its own tick lands in.
       return 'not-owner';
@@ -378,35 +476,73 @@ export class LeaseStore {
   }
 
   /**
-   * Refresh `heartbeatAt` if — and only if — the lease is still ours (§4.1).
+   * Refresh `heartbeatAt` if — and only if — the lease is still ours (§4.1), or
+   * republish this window's own record when its last write never landed.
    *
    * The re-read is the entire convergence mechanism: a window that took over
    * while this one was busy is detected here, within one heartbeat, and the
    * caller degrades instead of polling alongside the new owner (§4.1.2, §4.3).
+   *
+   * The repair case is the one exception, and it is narrow: a *malformed*
+   * record this window created (`holdsUnpublishedRecord`) is written again with
+   * the claim time kept in memory — nobody else may repair that file, and
+   * leaving it alone would make the lease permanently unreadable while its
+   * holder keeps renewing (§3.2, §4.2). A malformed record this window did not
+   * create, and any foreign record, is `not-owner`: it is not ours to fix.
    */
   async heartbeat(now: number, options: { attempts?: number } = {}): Promise<HeartbeatOutcome> {
     const observation = await this.read();
     if (observation.read.kind === 'missing') {
       return 'missing';
     }
-    if (observation.read.kind !== 'ok' || observation.read.record.ownerNonce !== this.ownerNonce) {
-      return 'not-owner';
+    let claimedAt: number;
+    if (observation.read.kind === 'ok') {
+      if (observation.read.record.ownerNonce !== this.ownerNonce) {
+        return 'not-owner';
+      }
+      claimedAt = observation.read.record.claimedAt;
+    } else {
+      // The record is unreadable. Only this window's own unpublished shell may
+      // be written, and only with the claim time its `wx` create remembered.
+      if (observation.read.reason === 'unreadable') {
+        return 'unavailable';
+      }
+      if (!this.recordUnpublished || this.claimedAt === undefined) {
+        return 'not-owner';
+      }
+      claimedAt = this.claimedAt;
     }
     const record: LeaseWriteInput = {
       ownerNonce: this.ownerNonce,
       pid: this.pid,
       ...(this.windowId === undefined ? {} : { windowId: this.windowId }),
-      claimedAt: observation.read.record.claimedAt,
+      claimedAt,
       heartbeatAt: now,
       releaseReason: null,
       appVersion: this.appVersion,
       instancesFingerprint: this.instancesFingerprint,
     };
     const attempts = Math.max(1, options.attempts ?? LEASE_HEARTBEAT_WRITE_ATTEMPTS);
-    return this.writeLeaseWithRetry(record, attempts);
+    const outcome = await this.writeLeaseWithRetry(record, attempts);
+    if (outcome === 'written') {
+      // Published (or republished): the file now carries the record a reader
+      // needs, so the unpublished state is over.
+      this.recordUnpublished = false;
+      this.claimedAt = claimedAt;
+    }
+    return outcome;
   }
 
-  /** One immediate `wx` attempt; no stale handling, no retries (§4.2.2). */
+  /**
+   * One immediate `wx` attempt; no stale handling, no retries (§4.2.2).
+   *
+   * The outcome distinguishes the two states a successful create can produce
+   * (§3.2, §4.2): `claimed` means the file was created *and* the record
+   * published, `claimed-unpublished` means this window holds the mutex but the
+   * record a reader needs is missing. The latter is not a failure of the claim —
+   * the `wx` create is what excludes other windows, and it stands — but it is
+   * not a usable lease either, and the caller has to keep republishing.
+   */
   private async tryCreate(now: number): Promise<ClaimOutcome> {
     try {
       await this.fs.mkdirp(this.directory, 0o700);
@@ -423,9 +559,11 @@ export class LeaseStore {
     } catch (error) {
       return isExistsError(error) ? 'contended' : 'unavailable';
     }
-    // We own the file now. Filling it in is best-effort: an empty lease is
-    // stale by construction, so the worst case is that another window takes it
-    // over 35 s later — never that a live holder goes unnoticed (§8).
+    // The mutex is ours from here on, and the claim time has to be remembered
+    // for a possible repair: once the record is unreadable, the file cannot tell
+    // us when this window claimed it.
+    this.claimedAt = now;
+    this.recordUnpublished = true;
     const record: LeaseWriteInput = {
       ownerNonce: this.ownerNonce,
       pid: this.pid,
@@ -436,14 +574,27 @@ export class LeaseStore {
       appVersion: this.appVersion,
       instancesFingerprint: this.instancesFingerprint,
     };
-    try {
-      await this.writeLeaseWithRetry(record, LEASE_HEARTBEAT_WRITE_ATTEMPTS);
-      // §4.2.5: a `.part` left by a crashed write can be cleared on takeover,
-      // now that this window is the one writing that name.
-      await this.clearStalePart(now);
-    } catch {
-      // Keep the claim: the empty file still excludes others via `wx`.
+    const published = await this.writeLeaseWithRetry(record, LEASE_HEARTBEAT_WRITE_ATTEMPTS).catch(
+      (): HeartbeatOutcome => 'failed',
+    );
+    if (published === 'missing') {
+      // The file disappeared under the write: someone released it while this
+      // window was filling it in. There is nothing to hold, and calling it ours
+      // would let two windows claim the same path.
+      this.abandonUnpublishedRecord();
+      return 'contended';
     }
+    if (published !== 'written') {
+      // An empty file is stale by construction, so the worst case is that
+      // another window releases it as stale and claims it — never that a live
+      // holder goes unnoticed (§8). Report the state honestly instead of
+      // pretending the record landed.
+      return 'claimed-unpublished';
+    }
+    this.recordUnpublished = false;
+    // §4.2.5: a `.part` left by a crashed write can be cleared on takeover, now
+    // that this window is the one writing that name.
+    await this.clearStalePart(now);
     return 'claimed';
   }
 
@@ -517,6 +668,11 @@ export class LeaseStore {
   }
 
   private async unlinkAndClassify(): Promise<ReleaseOutcome> {
+    // Releasing means giving up the claim, whatever the unlink answered: the
+    // unpublished-record bookkeeping must not survive a release, or a later
+    // heartbeat would "repair" a lease this window has just walked away from
+    // (and a successor may hold it by then).
+    this.abandonUnpublishedRecord();
     try {
       await this.fs.unlink(this.leasePath);
       return 'released';
@@ -582,13 +738,26 @@ export class LeaseStore {
    * Publish this window's request to displace the owner (§2.3 step 1). The
    * owner's lease file is never touched: it stays the `wx`-protected mutex.
    *
+   * **One request file per requester, replaced in place.** The name carries a
+   * fresh random token per request, so publishing without retiring the previous
+   * file leaves one small file behind per request — a window that is refused on
+   * every tick would leak thousands of them into globalStorage within a day, and
+   * nothing else ever removes them: `clearClaimRequest` only knows the token it
+   * wrote last, and the owner deliberately prunes only *dead* requesters
+   * (`pruneStaleClaimRequests`). So the previous file is retired first, with the
+   * same re-read-and-verify discipline `clearClaimRequest` uses: a file that is
+   * no longer ours, or that names another pid, is left alone. **A failed
+   * retirement never blocks the publish** — the new request is written either
+   * way, and the caller reports `retiredPrevious: 'failed'` once per streak.
+   *
    * `now` is passed in, and the caller enforces the H debounce and the
    * anti-storm backoff before calling; this method only writes.
    */
   async writeClaimRequest(
     now: number,
     options: { focused: boolean; ownPid?: number } = { focused: true },
-  ): Promise<ClaimRequest> {
+  ): Promise<ClaimRequestPublish> {
+    const retiredPrevious = await this.clearClaimRequest();
     const token = crypto.randomBytes(4).toString('hex');
     const request: ClaimRequest = {
       version: LEASE_RECORD_VERSION,
@@ -600,12 +769,60 @@ export class LeaseStore {
     await this.fs.mkdirp(this.directory, 0o700);
     await this.fs.writeFile(this.claimRequestPath(request.pid, token), `${JSON.stringify(request, null, 2)}\n`, 0o600);
     this.claimRequestToken = token;
-    return request;
+    return { request, retiredPrevious };
   }
 
   /** The token of the request file this store last wrote, for ownership checks. */
   get lastClaimRequestToken(): string | undefined {
     return this.claimRequestToken;
+  }
+
+  /**
+   * Owner-side housekeeping (§2.3, §12.10), run while the owner is already
+   * reading the request directory: remove the entries that can never matter
+   * again — **older than `LEASE_CLAIM_REQUEST_MAX_AGE_MS`** (the decision layer
+   * ignores them anyway) **and** written by a pid that is no longer alive (so no
+   * window can be mid-republish). It is the safety net for a window that died
+   * between publishing its request and retiring it; without it those files stay
+   * in globalStorage forever.
+   *
+   * The observations are the ones the caller just read, so this costs no second
+   * directory scan. Two conditions are deliberately absolute: a **fresh** file
+   * is never removed (whatever its pid — the age filter is the only thing that
+   * may make a file irrelevant), and an **old file of a live pid** is never
+   * removed either (that window may be about to republish, and the age filter
+   * already stops it from counting). `keepFileName` — the pending request the
+   * caller is acting on — is skipped as well. Unparseable entries never reach
+   * here: `readClaimRequests` drops them, and with no pid to probe they cannot
+   * be proven dead, so they are left alone rather than deleted blind.
+   *
+   * Returns the base names it removed, for the caller's log line.
+   */
+  async pruneStaleClaimRequests(
+    now: number,
+    observed: readonly ClaimRequestObservation[],
+    keepFileName?: string,
+  ): Promise<string[]> {
+    const removed: string[] = [];
+    for (const observation of observed) {
+      if (observation.fileName === keepFileName) {
+        continue;
+      }
+      if (now - observation.request.at <= LEASE_CLAIM_REQUEST_MAX_AGE_MS) {
+        continue;
+      }
+      if (isPidAlive(observation.request.pid)) {
+        continue;
+      }
+      try {
+        await this.fs.unlink(path.join(this.directory, observation.fileName));
+        removed.push(observation.fileName);
+      } catch {
+        // Another window removed it first, or the unlink is not permitted:
+        // nothing to report, and the next owner tick tries again.
+      }
+    }
+    return removed;
   }
 
   /**
