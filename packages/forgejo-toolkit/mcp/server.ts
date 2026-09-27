@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     if (broker) {
       try {
         logger.info(
-          `No FORGEJO_MCP_INSTANCE_URL configured; forwarding to the extension-host broker at ${broker.endpoint}.`,
+          `No instance credentials in the launch environment (expected for a static mcp.json); forwarding to the extension-host broker at ${broker.endpoint}.`,
         );
         const result = await forwardToBroker({
           endpoint: broker.endpoint,
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
           ? 'via the git remotes of the working directory.'
           : 'via the most recent workspace state file (working directory matched nothing; verify this is the instance you intend).';
     logger.info(
-      `No FORGEJO_MCP_INSTANCE_URL configured; auto-matched instance ${redactInstanceUrl(url)} ${viaMessage}`,
+      `No instance credentials in the launch environment; auto-matched instance ${redactInstanceUrl(url)} ${viaMessage}`,
     );
     if (auto.note) {
       logger.info(auto.note);
