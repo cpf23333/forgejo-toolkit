@@ -15,8 +15,9 @@
   （§2 决策 1、§3.1、§12.2）、不做状态栏但退化时给一次性提示（§7.1、§12.3）、诊断字段清单已定稿
   （§11.1 阶段 2）、**不做单窗口优化**（§12.4）、版本探测结果跨窗口共享并放在实例配置旁（§9 路线 2、
   §12.5）、强制接管立即轮询一次（§7.2、§12.8——该命令本身则已于 2026-09-28 决定不做）、心跳写失败与焦点跟随参数照建议采纳（§4.1、§8、§12.9、
-  §12.10）。**仍然开放的两条都在 §12 末段**：逐窗口焦点保真度需按平台验证，H/N/K 与陈旧阈值、心跳失败
-  重试次数等实测值也等 §11.2 的 soak 数据定稿；三处从未实现的条目见本节开头的状态说明。
+  §12.10）。**仍然开放的一条在 §12 的必测项**：逐窗口焦点保真度需按平台验证；H/N/K 与陈旧阈值、心跳失败
+  重试次数等实测值已由 2026-09-28 的真机复测按现行出厂值定稿（§11.2 的新增条目、§12 末条）；
+  三处从未实现的条目见本节开头的状态说明。
 - 关联：`TODO.md` 的 P4 条目（「多窗口轮询租约」）、`KNOWN_ISSUES.md` 的
   「Notification polling, version probes and the first-run guide are coordinated between windows」条目（及 `KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目）、
   `FEATURES.md` 的「多窗口通知基线合并」（已交付，它修掉的正是本文初版误判为缺口的那个竞态）
@@ -1394,6 +1395,109 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
     所以"请求者聚焦"这个前提是自动满足的、本身没有被变动——这一轮量的是 **K 连串**与**记录年龄**两个变量。
   - **方法注记**：注入必须落在持有者刚心跳过之后——否则持有者自己那个 10 s 心跳会把改过的值盖回去
     （有一次尝试就是这样被抹掉、因而完全没有发生接管）。
+- **2026-09-28 真机复测：H / N / K、心跳重试与降级阈值一次量完（Windows 11，同一 profile 两个窗口；
+  `out/extension.mjs` 287,362 B + `out/chunks/chunk-PRLMJRIO.mjs`，即含 `staleRelease` 的那个 build；
+  工具是 `tools/ui-review` 的 `dual` 模式，故障注入用暂停进程 / 占住租约文件 / 写坏记录）。**
+  下面每条都取自两个窗口各自的 `lease role=` 行（时间为 UTC，`at=` 是 epoch ms）：
+  - **H = 12.5 s 是"请求"的硬下界，而且只是下界。** 持续聚焦后第一条
+    `action=request reason=focus-debounce-elapsed` 出现在聚焦后 **13.366 s / 14.045 s**
+    （`focusedForMs=13366` / `14045`），即 H 加上落在 2 s tick 上的最多约 1.55 s；H 之前没有任何请求。
+    一次冷启动焦点交接的全程：`focus-gained` → 请求 **13.366 s** → 旧持有者
+    `action=yield reason=owner-yield-focus-request outcome=released` **+1.997 s** → 新窗口
+    `action=claim reason=follower-takeover-absent outcome=claimed` **+0.014 s**，即**聚焦到换手
+    15.377 s**、其中"请求 → 上手" **2.011 s**（与阶段 2 记的 ~2.0 s 一致；另一次冷启动
+    16.048 s / 2.003 s）。若请求早已在盘上，同一段只需 **1.627 s**。**旧文档里"焦点事件最多晚
+    约 6 s"在本轮没有复现**：20 条焦点转换全部是 `reason=window-state`（另 4 条 `reason=start`），
+    **一条 `tick-fallback` 也没有**，失去/获得焦点的两个窗口在同一毫秒落笔（三次实测 0 ms / 8 ms /
+    11 ms）；受 tick 约束的是**换手**，不是事件。
+  - **N = 15 s 是真实生效的边界。** 新持有者 `claimedAt` 后 2.009 s 就收到聚焦请求，它在
+    **4.013 s** 处记 `action=keep-and-heartbeat reason=owner-keep-hysteresis nMs=15000
+wouldAction=yield`（N 内不让位），随后在 **`sinceClaimMs=16073`** 处才真的让位，即
+    **N + 一个 tick（1.07 s）**；新持有者再用 2.010 s 完成 claim（被顶掉的窗口同一 tick 也发过
+    一次 claim，得到 `outcome=contended`，晚 7 ms）。第二个实例：claim 后 2.006 s 拒绝、
+    让位落在 N + 1.66 s。
+  - **加速臂（K + `LEASE_ACCELERATED_STALE_MS`）按改动后的释放规则真的买到了提前量。** 注入方式
+    是 `NtSuspendProcess` 挂起持有者的 extension host（pid 仍活着、心跳停止）：被聚焦的 follower
+    连发 3 个请求后，下一个 tick 打出 `action=release-stale reason=follower-takeover-accelerated
+outcome=released releaseThresholdMs=30000`，紧接 `action=claim reason=follower-takeover-accelerated
+outcome=claimed`，行上 `heartbeatAgeMs=30119`、`holderAlive=1`、`mustReleaseStale=1`——
+    比 35 s 过期路径早 **4.881 s**。**负对照**（无人聚焦、K = 0）：接管落在
+    `heartbeatAgeMs=35004`，理由是 `follower-takeover-expired`，`release-stale` 行上没有
+    `releaseThresholdMs`，即冷连串仍走 35 s。两次被恢复的持有者都在恢复后 3–19 ms 内
+    `demote reason=owner-changed`。**本轮每一次加速接管都发生在连串已达 K = 3 之后**，没有出现
+    冷连串命中加速臂的事件，与 §4.1 的算术一致。
+  - **心跳写失败的治理（§4.1 / §12.9 / §13.1）实测。** 注入方式与 §13.1 的探针同形：用
+    `FileShare::ReadWrite`（不含 Delete）的读句柄占住 `mcp-leader-lease.json`，使原子写的
+    `rename` 失败，而 follower 的读仍正常。用 `FileSystemWatcher` 记录 `.part` 的生命周期：
+    - **每次心跳 = 4 次尝试**（首次 + 3 次重试），四次 `.part` 创建的间隔 **258 / 265 / 268 ms**
+      （常量 250 ms 加约 12 ms 的写入、改权限、失败 rename 与清理开销）；失败连串期间的心跳间隔
+      **10.035–10.046 s**（按"上次尝试"起算，与 §4.1 的措辞一致）。
+    - **降级确实要等到 2 × 过期周期**：**7 次连续失败、`failedForMs=70315`** 后记
+      `action=step-down reason=owner-step-down-unwritable outcome=failed failures=7
+stepDownMs=70000 recordPublished=1`，随后 `action=degraded-to-full-speed
+reason=lease-unavailable cause=record-write-failed` 并弹出 §7.1 的一次性提示。
+      **这 70 s 里持有者的每一行都是 `polling=unchanged`**（从未停止轮询）；降级时它自己的
+      `unlink` 也被同一个句柄挡住（`outcome=failed`），文件留给后继者。
+    - **短失败（45 s）不降级**：4 次失败后句柄一放开，下一次心跳就是
+      `action=heartbeat reason=recovered failures=4 failedForMs=40153`（距放开 3.254 s，
+      受 10 s 心跳节奏约束），随后 `failures=0`；同一轮之后对租约文件的一次 `ReadWrite`
+      打开成功（权限/占用已恢复）。
+    - **follower 侧的观感**：文件被占住时它每 2 s 打 `action=release-stale …
+outcome=failed` + `action=claim … outcome=contended`，**每一行都是 `polling=unchanged`**
+      （闸门 fail-open）：从记录越过 35 s（`05:58:23.856`）到占用解除（`05:59:32.096`）是
+      **约 68 s 的双轮询**，但只多出闸门打开时的那一轮立即轮询
+      （`polling-gate reason=granted` 与 `Polling notifications` 同一毫秒），因此没有重复提示。
+      占用解除后 follower 在 590 ms 内 `release-stale outcome=released` + `claim outcome=claimed`
+      （`heartbeatAgeMs=103240`）。
+  - **同一轮的其它故障路径**（给 §5 的表格作证）：硬杀持有者的 extension host
+    （`Stop-Process -Force`）后 **0.725 s** 完成接管（`heartbeatAgeMs=3419`、`holderAlive=0`，
+    claim 后 6 ms 打开闸门并立即轮询）；把租约记录写成垃圾 JSON 后 **0.934 s** 由另一个窗口
+    `release-stale outcome=released`（`lease=invalid-malformed`）+ `claim outcome=claimed`，
+    被顶掉的窗口 1.5 s 后 `demote reason=owner-changed`。
+- **降级到全速轮询、设置开关与一次性提示（2026-09-28 真机）。**
+  - 运行中把 `forgejoToolkit.multiWindowLease` 写回 `false`：两个窗口在 **2 ms 之内**各记一条
+    `action=stop reason=setting-off`（持有者 `lease=released`、另一个 `lease=not-owner`），
+    被抑制的窗口同一毫秒 `polling-gate reason=granted` 并立即轮询一次，**两个窗口都没有任何提示**
+    ——提示只属于"机制不可用"的降级，不属于用户主动关掉开关。改回 `true` 后 **331 ms / 294 ms**
+    （两次）就有窗口重新 claim，选举干净恢复。第二次改回时抓到一次真实竞态：先赢的窗口刚
+    `wx` 建好空气文件、记录还没落盘，另一个窗口把它读成 `invalid-malformed`、按 §8 判为过期，
+    `release-stale outcome=released` 后 **13 ms** 自己 claim；先赢的窗口在一个 tick（2.004 s）后
+    `demote reason=owner-changed`。双主导的重叠只有 13 ms，期间双方都没有发出额外请求。
+  - **一次性提示的实测文本**（唯一会弹提示的路径，`cause=record-write-failed`，zh-cn 界面）：
+    「多窗口轮询协调在本窗口不可用，因此本窗口会自行轮询并弹出提示。通知不会丢失，只是请求可能更多。」
+    两个按钮「复制诊断信息」/「在本窗口关闭」，来源 `Forgejo Toolkit`；日志同一时刻记
+    `Polling lease unavailable (cause=record-write-failed); this window polls on its own and
+the one-time notice is shown.`。它**按窗口、按会话**各一次：该窗口重载（新的 extension host）
+    后再降级会再弹一次，同一次会话内不重复。
+- **逐窗口焦点保真度（2026-09-28，Windows 11，同一 profile 两个窗口）——比 §12 必测项要求的多量了三种形态。**
+  - **同应用窗口互相激活可靠且互斥**（见上，事件同毫秒、`focusedForMs` 属实到 371 s、0 条
+    `tick-fallback`）；但**同一个应用的两个窗口可以同时报 `focused=1`**：`dual launch` 启动的
+    窗口 1 与 `Ctrl+Shift+N` 打开的窗口 2 都报 `focused=1`，且窗口 1 的这条陈旧值维持了 **73.4 s**
+    而没有任何 `focus-lost`。
+  - **最小化不产生 blur**：把持有者最小化后它 **44 s 内一直报 `focused=1`**（`focusedForMs`
+    从 35 s 涨到 75 s），10 s 心跳与 2 s tick 照常；它直到**另一个窗口**被激活才记 `focus-lost`。
+  - **被其它应用盖住时结果不一致**：让 Edge 真实占据前台 25 s，持有者**没有**任何 `focus-lost`
+    （仍 `focused=1`、继续心跳）；而同一轮里另外两次前台被夺走（harness 自己的控制台、
+    维护者自己的 VS Code 窗口）各自让当时聚焦的窗口在一个 tick 内记下了 `focus-lost`。
+    三种外部前台形态里有一次不触发，所以"用户切到别的应用"这一形态上焦点**不可信**。
+  - **锁屏（维护者已批准，两次，合计约 7.5 分钟）**：锁定与解锁**都不产生**焦点事件。
+    第二次锁屏前持有者是聚焦的（它先记了 `focus-gained`）：整段锁屏期间它持续报 `focused=1`
+    （`focusedForMs` 从 40 s 单调涨到 371 s），10 s 心跳实测间隔 **10.02–10.05 s**、2 s tick 照常，
+    **没有任何假交接**（同一个 `claimedAt` 横跨整段 10.4 分钟的任期），解锁后也没有 `focus-gained`。
+    也就是说锁屏不是"焦点丢失"而是"焦点保持 true"，失败方向正是安全的那一侧：现任继续持有、
+    继续轮询，谁都不会漏通知；代价只是锁屏期间"提示跟着焦点走"这层意图没有意义（也没人能看到）。
+  - **第二台显示器：本机没有**（只有 `\\.\DISPLAY1` 1920×1080），这一形态本轮无法验证。
+- **"无人轮询"的界（取代已决定不做的饥饿看门狗的实测证据）。** 挂起持有者的 extension host
+  （pid 活着、心跳停止）并让**两个窗口都不聚焦**：follower 仍在 **`heartbeatAgeMs=35004`** 处
+  `release-stale outcome=released` + `claim reason=follower-takeover-expired outcome=claimed`
+  （`holderAlive=1`）——不依赖焦点、不依赖 K，界就是**过期周期 35 s 加一个 tick**（本例落在过期
+  瞬间后 4 ms）；同一形状下 follower 聚焦且已有 K 连串时，界降到 **30.1 s**。唯一超过 35 s 的
+  情形是"**release 本身被封死**"（读句柄占住文件）：那时 follower 一直
+  `release-stale outcome=failed` + `claim outcome=contended`，**但每一行都是 `polling=unchanged`**
+  ——被推迟的是"接手"，不是"通知"，这正是 §8.1 第 3 条说的闸门 fail-open 兜底。
+- **重复 / 漏提示本轮无法观测**：配置实例在整个会话里 **21 次 `/api/v1/notifications` 响应
+  全部是 `[]`**，因此没有任何 toast 可能产生（日志里 0 条聚合提示）。"双轮询期间会不会重复弹、
+  换手期间会不会漏弹"要真正判掉 §11.3 第 3 条，需要一个会产生未读通知的实例。
 - 人工实测**关闭主导窗口**后，follower 在下一次 poll 间隔内接管（用命令查询 pid 变化作为证据）。
   _样板_：broker 侧的正常关闭接管。
 - 人工实测**强杀**（对 exthost 进程 `Stop-Process -Force`，见 §10.2）。**阶段 1 已在真实双窗口上量过
@@ -1458,7 +1562,9 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
 
 **维护者已于 2026-09-27 裁决完本节的每一条。** 本节保留原有编号（其他文档与本文各处按 `§` 号
 引用它们），逐条写成"决定"；**凡是被取代的旧口径都写成"原先是 X，现决定 Y"，不静默删除**。
-本节现在只剩**一条**真正开放的内容：末条列出的**实测值**（H/N/K 与陈旧阈值、心跳重试与降级阈值）。
+本节现在只剩**一条**真正开放的内容：上面那条**必测项**（逐窗口 / 逐平台的焦点保真度）。末条那组
+**实测值**（H/N/K 与陈旧阈值、心跳重试与降级阈值）已由 2026-09-28 的真机复测**按现行出厂值定稿**，
+不再是待定项（见末条与 §11.2 的新增条目）。
 **没有新增任何开放问题**；§13.1 末尾那批"未能验证、只能留作假设的"条目属于**测量清单**，
 不是待裁决的问题，它们不受本轮决定影响。
 
@@ -1579,25 +1685,28 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
   也小于"没人轮询"；所以**不需要**为"焦点不可信"再加开关或启发式，把 §2.2 的承诺降级为"提示落在
   租约所在窗口"即可，直到上面那条验证给出正证。
 
-**仍然开放的只剩这一条（实测值）：**
+**实测值这一条已收口（2026-09-28 真机复测）；§12 现在只剩上面那条必测项（逐平台/逐窗口形态的焦点保真度）。**
 
-- **H / N / K、心跳重试次数与降级阈值这些数值的最终定稿**——依据是阶段 1 的影子日志
-  （§11.1 阶段 1）与阶段 2 的 soak / 真实 `%APPDATA%` 实测（§11.2）。这些是**参数**，不是机制：
-  机制、边界、字段与协议形状都已由上面的决定关闭，所以实现可以先按 §2.3 参数总表里的起始值开工。
-  **已经落定的一项**：加速接管的"心跳陈旧度"由首次真实双窗口 soak（2026-09-27，§11.2 的时间线）
-  定稿为 **30 s = 3 × 心跳周期**，且加速分支同样受 N 约束——5 s 那个起始值被实测推翻，不再是待定
-  参数。其余各项（H / N / K、心跳重试次数与 70 s 降级阈值）仍按 §11.2 的清单继续收。
-  **另需记入的一项（2026-09-27 提出，2026-09-28 关闭）**：该加速分支**对从零累积的请求连串**在出厂
-  常量下是休眠的（它只有 5 s 宽的窗口，而 `H = 12.5 s` 加 `K = 3` 次未获响应的约 6 s 合计 18.5 s，
-  见 §4.1）；2026-09-28 的真机实测又指出：当时的释放规则（`releaseStale` 只删 `isLeaseStale` 认账的
-  记录，活 pid 要求 35 s）让这条臂"能发火、拿不下租约"，**靠 H/N/K 或心跳 / 过期常量的重调并不能让它
-  接管**（加速与释放用的是同一个 `isLeaseStale`，见 §4.1 第 3 点）。**维护者同日裁决并落地：给加速
-  claim 它自己的释放阈值 `LEASE_ACCELERATED_STALE_MS`**，让它真的在 ~30 s 而不是 35 s 拿下"活着但
-  沉默"的现任；这是一次协议改动（代价：心跳超过 30 s 的活现任可被顶掉），实现是
-  `LeaseClaimPlan.staleRelease` → `releaseStale(now, expectation)` 的身份与阈值两道复核，
-  `leaseSupervisor.ts` 的 claim 分支负责传下去。**接管时刻已按改动后的代码真机复测**（2026-09-28，
-  见 §11.2 的复测条目：同一个"活着但沉默"的场景在心跳年龄 31.1 s / 32.8 s 就完成接管），§11.2 的
-  2026-09-28 数字（心跳年龄 35.6 s / 36.4 s 处的过期接管）描述的是改动前的行为。
+- **H / N / K、心跳重试次数与降级阈值的最终定稿：维持现行出厂值，六项一次量完，没有一项需要调**
+  （数字与原始日志见 §11.2 的新增条目）：
+  H = 12.5 s（请求实测落在聚焦后 13.4 / 14.0 s，即 H 加一个 tick）；
+  N = 15 s（N 内 4.013 s 处拒绝，让位落在 16.073 s，即 N + 一个 tick）；
+  K = 3（每一次加速接管都发生在连串达 K 之后，冷连串仍走 35 s 过期）；
+  `LEASE_ACCELERATED_STALE_MS` = 30 s（挂起的持有者在 `heartbeatAgeMs=30119` 处被接管，
+  比过期早 4.881 s，且 `release-stale` 给出 `outcome=released releaseThresholdMs=30000`）；
+  `LEASE_EXPIRY_MS` = 35 s（冷连串在 `heartbeatAgeMs=35004` 处接管）；
+  心跳写失败 = 每次 4 次尝试、间隔实测 258 / 265 / 268 ms，连续失败 `failedForMs=70315`
+  （7 次心跳）后 `owner-step-down-unwritable` + 降级一次性提示，期间轮询从未停止，句柄一放开
+  3.254 s 内 `reason=recovered`。
+  因此本项从"待实测"改为"**已实测、维持**"，文档里不再有待定的数值参数。加速接管的陈旧阈值与
+  它自己的释放规则（2026-09-28 的那次协议改动）怎么来的、为什么如此，仍记在 §4.1 第 3 点与 §11.2
+  的复测条目里；2026-09-27 那些被取代的旧数字（5 s 陈旧阈值、35.6 s / 36.4 s 处的过期接管）
+  由那两处负责保留，本节不再重复。
+- **仍未关闭的是上面那条必测项**：Windows 11 的同 profile 双窗口本轮补测了最小化、被其它应用盖住
+  与锁屏三种形态，结论是**只有"另一个窗口被激活"这一形态可靠**，另外两种形态**没有**产生
+  `focus-lost`，锁屏则全程保持 `focused=true`（§11.2）。失败方向安全（现任继续持有、继续轮询、
+  不漏通知），所以本项**不阻塞发布**；但它把 §2.2 的承诺限定为"提示落在租约所在的窗口"，
+  直到其它平台/窗口管理器给出正证。
 
 ---
 
