@@ -20,7 +20,8 @@
   三处从未实现的条目见本节开头的状态说明。
 - 关联：`TODO.md` 的 P4 条目（「多窗口轮询租约」）、`KNOWN_ISSUES.md` 的
   「Notification polling, version probes and the first-run guide are coordinated between windows」条目（及 `KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目）、
-  `FEATURES.md` 的「多窗口通知基线合并」（已交付，它修掉的正是本文初版误判为缺口的那个竞态）
+  （已由 `9a041b0` 交付：`packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的
+  `_reconcileSeenIds` / `_mergeBaselineForWrite` 只覆盖本窗口拥有的条目，它修掉的正是本文初版误判为缺口的那个竞态）
 - 基线代码：实现侧断言在 **2026-09-27 的复核**里逐条重开代码确认过一次，位置写成**符号名 / 标题**
   （见 §13）；上一轮留下的行号没有在那一轮逐条复查，已经不再作为断言依据
 
@@ -94,7 +95,7 @@
 > **一处必须纠正的旧判断。** 本文初版把通知已读基线列为"整表覆盖"的真实缺口，并据此在
 > §9/§12.6 提出"顺带修基线"的后续项。**这条已经过时且当时就是错的**：那个竞态在本文初版
 > 之前就已由 `9a041b0`（"let the extension activate, settle every state write, and keep two
-> windows' baselines"）修掉，`FEATURES.md` 的「多窗口通知基线合并」条目也把它记在了「已完成」里。现在写入的数据源是
+> windows' baselines"）修掉，记录见提交 `9a041b0` 与 `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_mergeBaselineForWrite`。现在写入的数据源是
 > `_getAllSeenIds()` **在队列内**读回的那一份（`notificationPoller.ts` 的 `_reconcileSeenIds`），本窗口只覆盖
 > 自己拥有的条目，删除还要求"配置里没有了 **且** 本窗口拥有"（同处的 `_ownedSeenInstanceIds` 判断）。
 > 那个"少一次提示"的场景已不成立，§9 与 §12.6 相应改写。
@@ -962,8 +963,7 @@ follower 的状态机：
     时钟为准）视为"正在写入"（活的），更旧的才当坏残留清掉。
 - **通知已读基线**：**这条已在 `9a041b0` 交付**，不再是本文的后续项。
   `_reconcileSeenIds` 现在是"队列内重读 + 只覆盖本窗口拥有的条目"的合并写
-  （`notificationPoller.ts`，写回经 `_mergeBaselineForWrite`），`FEATURES.md` 的「多窗口通知基线合并」条目记录了它
-  （"窗口之间不再互相清空基线"）。**租约落地后它仍然成立**：多个窗口可以各自写自己的条目，
+  （`notificationPoller.ts`，写回经 `_mergeBaselineForWrite`；提交 `9a041b0`，效果即"窗口之间不再互相清空基线"）。**租约落地后它仍然成立**：多个窗口可以各自写自己的条目，
   租约只减少**请求与提示**的重复，不改变基线的所有权规则。本文初版把它写成"顺带修正确性"
   的收益，是错的——它已经是对的，**不要**把"只有主导者写基线"混进来，那会破坏现有的
   所有权规则（一个 follower 窗口观察到的新通知将无人记录）。
@@ -1604,7 +1604,7 @@ the one-time notice is shown.`。它**按窗口、按会话**各一次：该窗�
      使用，过期的"高版本"会让 follower 一路放行到会话结束（污染闸门）；而"未知即放行"是既有的
      安全缺省（`src/api/serverVersion.ts` 的 `isVersionSupported` 对 `undefined` 返回 `true`），所以重探是安全方向。
 6. ~~顺带修 `seenNotificationIds` 的整表覆盖~~ **已作废**：该竞态已由 `9a041b0` 修掉
-   （§1.2 的纠正、`FEATURES.md` 的「多窗口通知基线合并」条目）。除非有新的证据，租约**不应**改动基线的所有权规则
+   （§1.2 的纠正、提交 `9a041b0`）。除非有新的证据，租约**不应**改动基线的所有权规则
    （理由见 §9 末尾）。
 7. ~~**harness 支持**：`tools/ui-review/` 目前每次 launch 用独立 `--user-data-dir`。要不要加一个
    "共享 profile 的双窗口"模式，让多窗口场景可以走查？~~ **已决定（2026-09-27）：加**，
@@ -1734,7 +1734,7 @@ the one-time notice is shown.`。它**按窗口、按会话**各一次：该窗�
 | 首次运行标记是 read-then-write                                        | `packages/forgejo-toolkit/src/welcome.ts` 的 `maybeShowWelcomeOnboarding`                                                                                                                                            |
 | 首次运行挂载点                                                        | `packages/forgejo-toolkit/src/extension.ts` 里的 `maybeShowWelcomeOnboarding` 调用点                                                                                                                                 |
 | 已读基线是"队列内重读 + 只覆盖本窗口条目"的合并写（**不是**整表覆盖） | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_reconcileSeenIds`、`_mergeBaselineForWrite`、`_getAllSeenIds`、`_ownedSeenInstanceIds` ⚠                                                     |
-| 该修复的交付记录                                                      | `FEATURES.md` 的「多窗口通知基线合并」条目                                                                                                                                                                           |
+| 该修复的交付记录                                                      | 提交 `9a041b0`、`packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_mergeBaselineForWrite`                                                                                                       |
 | 首轮无基线时的抑制分支                                                | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_unpersistedSeenIds` 分支 ⚠                                                                                                                   |
 | `globalState` 无跨窗口变更事件                                        | `packages/forgejo-toolkit/src/config.ts` 的 `_writeInstancesMerged` 注释                                                                                                                                             |
 | 实例列表写回是"紧邻重读 + 合并"，且自认非原子                         | `packages/forgejo-toolkit/src/config.ts` 的 `_writeInstancesMerged`                                                                                                                                                  |
@@ -1752,7 +1752,7 @@ the one-time notice is shown.`。它**按窗口、按会话**各一次：该窗�
 | 平台代价与规避方法的既有记录                                          | `KNOWN_ISSUES.md` 的「Notification polling, version probes and the first-run guide are coordinated between windows」条目、`KNOWN_ISSUES.zh.md` 的同名条目                                                            |
 | P4 条目                                                               | `TODO.md` 的「多窗口轮询租约」条目 ⚠                                                                                                                                                                                 |
 | 加速 claim 的释放阈值（2026-09-28 决定并落地）                        | `packages/forgejo-toolkit/src/lease/leaseTypes.ts` 的 `StaleReleaseExpectation` / `LeaseClaimPlan.staleRelease`、`leaseStore.ts` 的 `releaseStale`、`leaseSupervisor.ts` 的 claim 分支；复测见 §11.2 的条目 ⚠        |
-| broker 交接的交付记录与实测数字                                       | 提交 `52ede35`/`c5118a6`、`FEATURES.md` 的「MCP broker 窗口间自动交接」条目、`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目                                                                    |
+| broker 交接的交付记录与实测数字                                       | 提交 `52ede35`/`c5118a6`、`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目                                                                                                                       |
 | broker 看门狗常量与测试                                               | `packages/forgejo-toolkit/src/mcpBroker.ts` 的 `BROKER_TAKEOVER_POLL_MS` / `startMcpBrokerTakeoverWatcher` 与 `src/__tests__/mcpBroker.test.ts` 的 `automatic broker takeover` / `broker takeover watcher lifecycle` |
 | 架构页对 broker 交接的描述（可作术语与写法的参照）                    | `docs/architecture/mcp-server.md` 的「Broker mode」一节                                                                                                                                                              |
 | MCP 启动日志的现行措辞（本文若引用旧措辞须改）                        | `packages/forgejo-toolkit/mcp/server.ts` 里的启动日志文案                                                                                                                                                            |

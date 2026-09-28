@@ -134,6 +134,14 @@ Keep these documents in sync with the actual codebase. Do not let them drift.
     remains; per-task detail, blockers and next actions stay in `TODO.md`.
   - Move a feature to **已完成** when it is delivered, and drop entries that are no
     longer planned.
+  - The test for an entry: it must describe something the user can observe or do. Judge
+    the subject, not the wording — a genuine user-facing behaviour stays even when an
+    engineering change delivered it. If the subject is a file layout, a module boundary,
+    a build or packaging step, a test or audit suite, a migration, a refactor or a
+    measurement, it belongs in the `CHANGELOG` or the commit history instead, even when
+    it shipped and even when the section it sits in would look thinner without it. Entries
+    like the removed 「Webview 入口按面拆分」and 「消息目录按语言拆分」are the worked
+    examples of what does not belong.
 - `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` — documented workarounds and platform limitations.
   - Add an entry when a bug or limitation is accepted as "won't fix short-term".
   - Keep both language files in sync: same headings, same structure, equivalent meaning.
