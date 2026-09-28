@@ -57,4 +57,8 @@ export const mockTimelineComment: TimelineComment = {
   assets: [mockCommentAttachment],
   created_at: '2026-08-17T09:00:00Z',
   updated_at: '2026-08-17T09:00:00Z',
+  // The write tool returns this so the user can verify in the web UI what was
+  // written; a fixture without it made the tool's audit-relevant second half
+  // untestable (and the tool reported `html_url: undefined`).
+  html_url: 'https://forgejo.example.com/demo-user/demo-repo/issues/1#issuecomment-50',
 } as TimelineComment;

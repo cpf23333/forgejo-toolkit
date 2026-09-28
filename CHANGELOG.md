@@ -38,6 +38,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports. It never contains an access token or any other secret.
 - Two design documents for future work: the confirmation model for MCP write
   tools, and a multi-window polling lease.
+- The MCP server's first **write** tool, `create_issue_comment`, which adds one
+  comment to an issue or pull request. It is off by default and only available in
+  a session the extension host itself established (an extension-provided MCP
+  server, or a static configuration served through the host's broker): a
+  configuration that only carries your own token can read but never write. VS
+  Code asks you to confirm every call — the tool deliberately does not claim to
+  be read-only — and the extension asks separately, through the new
+  `forgejoToolkit.mcpWriteTools.createIssueComment` setting. The tool refuses,
+  with an explanation naming that setting, when either gate is closed, and it
+  supports `dryRun: true` (report the plan, send nothing) and an
+  `idempotencyKey` (reuse it on a retry; within ten minutes the earlier result is
+  returned instead of writing a second comment).
+- `forgejoToolkit.mcpWriteAuditToFile` (default off): also append the MCP
+  write-tool audit records to `mcp-write-audit.jsonl` in the extension's log
+  folder, as JSON Lines with a 1 MB cap and two rolled files. Each record names
+  the caller, instance, repository, target, tool, dry-run flag, body size and
+  SHA-256, result and duration — never the comment text. Off by default, the
+  records still go to the `Forgejo Toolkit` Output Channel, where they are gone
+  when the window closes.
 - The MCP server gains `get_pr_review_brief`, which answers a whole pull request
   review in one call: the pull request header, the diff statistics with a
   per-file additions/deletions table, each reviewer's latest conclusion plus an

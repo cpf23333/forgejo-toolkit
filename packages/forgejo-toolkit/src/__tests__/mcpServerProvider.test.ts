@@ -23,6 +23,7 @@ import {
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
+import { MCP_ENV_WRITE_TOOLS } from '../../mcp/writeTools';
 
 /**
  * A registration file for the broker this setup pretends to have started.
@@ -557,6 +558,59 @@ describe('registerMcpServerProvider', () => {
     )) as unknown as CapturedDefinition[];
 
     expect(definitions[0].env[MCP_ENV_SYNC_API_URLS]).toBe('true');
+  });
+
+  it('never puts the write-tools marker in a definition while every write switch is off', async () => {
+    // §5: the marker's *presence* is what tells the child (and, through the
+    // broker's own answer, the session) that the extension host established
+    // this launch for writing. While no switch is on there is nothing to
+    // establish, and an empty value would be a lie — so the variable is absent.
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].env).not.toHaveProperty(MCP_ENV_WRITE_TOOLS);
+  });
+
+  it('marks the definition with the write tool the window switched on', async () => {
+    const getConfiguration = vi.mocked(vscode.workspace.getConfiguration);
+    getConfiguration.mockReturnValue({
+      get: (key: string) => (key === 'mcpWriteTools' ? { createIssueComment: true } : undefined),
+      update: vi.fn(),
+    } as never);
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    // The marker carries tool names, not setting keys: one spelling end to end.
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment');
+    // The stage-2 tool has no switch in package.json and must not leak in.
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('submit_pull_review');
+    // The token still never appears in a definition.
+    expect(JSON.stringify(definitions[0].env)).not.toContain('secret-token');
+  });
+
+  it('treats a non-boolean switch value as off', async () => {
+    // A hand-edited settings.json can hold any JSON type under the key; only an
+    // explicit `true` may enable a write tool.
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: (key: string) => (key === 'mcpWriteTools' ? { createIssueComment: 'true', submitPullReview: 1 } : undefined),
+      update: vi.fn(),
+    } as never);
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].env).not.toHaveProperty(MCP_ENV_WRITE_TOOLS);
   });
 
   it('forwards the editor proxy setting to the child process', async () => {

@@ -7,6 +7,7 @@ import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/ap
 import { createMcpServer } from './mcpServer';
 import { discoverBrokerRegistration, resolveAutoConfiguration } from './autoConfig';
 import { BrokerSessionError, BrokerUnavailableError, forwardToBroker } from './brokerForwarder';
+import { MCP_ENV_WRITE_TOOLS, sessionWriteToolsFromEnvironment } from './writeTools';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
 // diagnostics go to stderr. The token is never logged: request logs carry
@@ -36,6 +37,18 @@ async function main(): Promise<void> {
   // configured instance, which is the one outcome this flag forbids.
   const brokerOnly = process.env.FORGEJO_MCP_BROKER_ONLY === 'true';
   const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
+  // The write tools the extension host switched on for this definition, parsed
+  // from the launch environment. This process never acts on them: the tool
+  // logic that could write runs in the extension host's broker, which computes
+  // its own answer from the host's settings and deliberately does not trust
+  // this variable (see mcp/writeTools.ts). Parsing it here is still worth the
+  // three lines — it is the one place a malformed name would be visible, and
+  // the tool set stays empty below, which is what makes every session this
+  // process ever serves a read-only one.
+  const advertisedWriteTools = sessionWriteToolsFromEnvironment(process.env.FORGEJO_MCP_WRITE_TOOLS);
+  if (process.env.FORGEJO_MCP_WRITE_TOOLS && advertisedWriteTools.length === 0) {
+    logger.info(`${MCP_ENV_WRITE_TOOLS} carries no write tool this build knows; this session serves read-only.`);
+  }
   // Forwarding is not tied to *how* the launch was configured, because the
   // reason to prefer the broker is the same in both: the extension host holds
   // the token, and the broker runs the real tool logic with it. A static
@@ -181,6 +194,13 @@ async function main(): Promise<void> {
     // "not configured" instead of failing. A zero-configuration launch fills
     // this with the newest discovered state file (see the auto-match above).
     stateFile,
+    // Deliberately empty, whatever the launch environment advertised (see
+    // `advertisedWriteTools` above): this process has no route to a write —
+    // it either forwards to the host's broker, which decides for itself, or it
+    // is a direct server with either no token or a token from someone's own
+    // configuration file. Both of those may read and never write, so no write
+    // tool it serves is ever allowed, and the refusal names the setting.
+    writeTools: [],
   });
   // The extension host probes the server version on activation and caches it per
   // instance URL, but this process has its own module state and never runs

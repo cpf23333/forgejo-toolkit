@@ -1,6 +1,9 @@
 # MCP Server Integration
 
-Status: **implemented — Phase 1 shipped and extended (2026-09)**
+Status: **implemented — Phase 1 shipped and extended (2026-09); Phase 2 write
+tools: `create_issue_comment` shipped (stage 1 of
+[the write-tool confirmation model](../design/mcp-write-tools-confirmation.md)),
+`submit_pull_review` still to come**
 
 This document describes how Forgejo Toolkit exposes its configured instances
 to AI agents through the [Model Context Protocol](https://modelcontextprotocol.io)
@@ -121,7 +124,11 @@ instance id>)`).
   `http.proxy` setting travels as `FORGEJO_MCP_PROXY` (the child inherits this
   process's environment, so environment proxies reach it either way; without the
   forwarded setting, MCP requests would connect directly while the extension's
-  own requests go through the proxy). An external MCP client cannot reproduce
+  own requests go through the proxy). The write-tool switches travel as
+  `FORGEJO_MCP_WRITE_TOOLS` (see [Write tools](#write-tools)); unlike the two
+  above, that value is only a **marker** on this route — what a session may
+  actually write is decided in the extension host, never from a launch
+  environment. An external MCP client cannot reproduce
   the extension-provided route: the definition — and the broker session it
   forwards into — is created by the extension, and the token is only ever read
   inside this host.
@@ -424,12 +431,13 @@ versions are no longer supported by the extension as a whole.
 
 ## Tool surface
 
-All tools are read-only, carry `readOnlyHint` annotations, and reuse the
+Every read tool is read-only, carries `readOnlyHint` annotations, and reuses the
 client's paginated methods with their `MAX_ITEMS` caps so a runaway agent
 cannot pull unbounded data. Tool results pass through a per-field size
 budget (~10 KB per string field); single-string payloads (job logs, diffs,
 file contents) are subject to the same truncation, as their descriptions
-state.
+state. Write tools (below) carry neither `readOnlyHint` nor
+`destructiveHint: false`, and are gated twice.
 
 ### Phase 1 (read-only core)
 
@@ -558,6 +566,96 @@ bound: the path arrives through the process environment, which a hand-edited
 launch can point anywhere. It is the tool an agent should call first when
 the user says "this repo" / "the current project" without naming owner/repo.
 
+## Write tools
+
+Phase 2 of the tool surface is the one that changes server state. The model it
+follows is decided in
+[`docs/design/mcp-write-tools-confirmation.md`](../design/mcp-write-tools-confirmation.md)
+(§13 is the 2026-09-28 decision record); this section describes what shipped,
+not what was planned.
+
+**Shipped:** `create_issue_comment` (stage 1). **Not yet:** `submit_pull_review`
+(stage 2) — its name and switch are fixed by the decision record, but the tool,
+its schema and its switch contribution do not exist, so nothing about it is
+user-visible.
+
+### Two gates, in this order
+
+1. **VS Code's per-call confirmation.** The tool declares no `readOnlyHint`, so
+   the client shows its confirmation dialog before the call is sent at all; the
+   user can edit the parameters there. It is a client policy, so it is the first
+   gate and not the only one: a client (or a user setting) can turn it off.
+   Deliberately **not** declared either: `destructiveHint: false` (a public,
+   permanent record is not what that hint is for) and `idempotentHint` (the
+   idempotency key is the caller's to reuse, and an idempotent hint invites
+   client-side auto-retries that duplicate the comment).
+2. **A per-tool setting, default off** —
+   `forgejoToolkit.mcpWriteTools.createIssueComment`. One switch per tool, never
+   one master switch: the point is explicit consent to one concrete side
+   effect. The switch is read by the **extension host** and enforced there,
+   because the headless process cannot read settings.
+
+### Provenance: only a session the host established may write
+
+`FORGEJO_MCP_WRITE_TOOLS` (comma-separated tool names) is set on a definition
+the extension provides, and only when at least one write switch is on. Its
+**presence** marks the launch as host-established. The child parses it, reports
+a name this build does not know, and then passes **no** write tools to its own
+server: whatever route a session reaches the child by, the child itself has no
+way to write (it either forwards, or it is a direct server with no token or with
+one from the user's own configuration file).
+
+What a broker session may write is computed **in `createBrokerMcpServer`, from
+the host's own settings, and never from the handshake** — the child's
+environment is not a trust input. The provision that closes the obvious hole is
+that a broker session _is_ the host: the endpoint is a per-user local pipe behind
+the registration's handshake secret, and only this process ever builds a session
+server. The launch's own value therefore widens nothing, and a hand-written
+`mcp.json` that sets the variable by hand can still only reach a session whose
+tools the host's settings enable.
+
+Two consequences worth stating plainly:
+
+- The switches are **the broker owner window's** settings. A session from another
+  window's workspace follows the window that currently owns the broker, which
+  after a handover is whatever window took the endpoint over.
+- A refusal is a **successful tool result** with a `refused: true` flag, naming
+  the setting to turn on — never `isError`, which an agent reads as "retry".
+  Both refusals (no provenance, switch off) name the setting explicitly.
+
+### Dry run, idempotency, audit
+
+- **`dryRun: true`** returns the plan (tool, instance, repository, target, body
+  length, byte size, digest, endpoint) and sends nothing. It is not a separate
+  switch, it is evaluated _after_ the two gates and the body validation, and the
+  description says it cannot promise the server would accept the real call. A
+  dry run writes no idempotency entry: it is not the operation.
+- **`idempotencyKey`** (optional) is the caller's retry key. The table is
+  per-session, in-memory, **10 minutes / 32 entries** (fixed values, not
+  settings). Same key + same target + same body digest ⇒ the earlier result is
+  replayed and no second comment is created; same key with a different target or
+  body ⇒ an error telling the caller to use a new key. Forgejo has no
+  server-side idempotency on this endpoint, so a retry that does not reuse the
+  key still duplicates — a residual risk the tool description states.
+- **Audit** (§8): every write call is recorded — success, HTTP failure, refusal,
+  duplicate and dry run alike — as one JSON line with the fixed field set `at`,
+  `caller`, `instance`, `repo`, `target`, `tool`, `dryRun`, `bytes`, `sha256`,
+  `result`, `ms`. The body is never recorded, only its byte count and SHA-256.
+  `result` is `ok` / `http:<status>` / `refused:<reason>` / `duplicate`.
+  `caller` names the extension host and, for a broker session, which instance
+  and working directory that session was for.
+  The line goes to the `Forgejo Toolkit` Output Channel by default, where the
+  channel's usual `[INFO] <timestamp>` prefix is skipped so the channel text and
+  the file text are byte-identical. `forgejoToolkit.mcpWriteAuditToFile`
+  (default off) additionally appends the same line to
+  `mcp-write-audit.jsonl` under the extension's log directory
+  (`context.logUri`, i.e. VS Code's "Open Logs Folder"), capped at 1 MB with two
+  rolled files (`.1`, `.2`); the channel then prints one line naming that path.
+  Two gaps are worth knowing: the log is **per window**, and a broker session's
+  records land in the Output Channel of whichever window owns the broker at that
+  moment; and the `html_url` in the tool result is the authoritative record of
+  what was actually written.
+
 ## Prompts
 
 Three MCP prompts ship next to the tools: parameterised instruction templates a
@@ -592,22 +690,26 @@ implying a capability the tools do not have. Registration lives in
 
 ## Environment variables
 
-| Variable                    | Content                                                                                                                                                                                                                                                                                                  |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it). Optional: when absent, the server auto-discovers the instance (see Zero-configuration launch)                                                   |
-| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL, and the key the broker resolves a forwarded session against. Also what makes a launch "identity-bearing": a session that names an instance the host cannot authenticate is refused, never substituted                   |
-| `FORGEJO_MCP_BROKER_ONLY`   | `'true'` on every extension-provided definition: the child may only serve by forwarding to the extension-host broker and must **never** fall back to a direct server of its own (logged, exit code 1). Absent on a static `mcp.json` launch, whose anonymous auto-discovery fallback stays as documented |
-| `FORGEJO_MCP_TOKEN`         | The instance's access token — **never set by the extension**, in a definition or anywhere else. A direct-server launch (a static `mcp.json` when no broker is reachable) may carry its own; without one the tools read anonymously (public data only)                                                    |
-| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                                                                                                                                                                                |
-| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                                                                                                                                                                               |
-| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                                                                                                                                                                          |
-| `FORGEJO_MCP_DATA_DIR`      | Explicit override for the directory auto-discovery reads `mcp-instances.json` from (tests, unconventional installs); absent: the platform defaults                                                                                                                                                       |
-| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                                                                                                                                                                     |
+| Variable                    | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it). Optional: when absent, the server auto-discovers the instance (see Zero-configuration launch)                                                                                                                                                                                                                      |
+| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL, and the key the broker resolves a forwarded session against. Also what makes a launch "identity-bearing": a session that names an instance the host cannot authenticate is refused, never substituted                                                                                                                                                                                      |
+| `FORGEJO_MCP_BROKER_ONLY`   | `'true'` on every extension-provided definition: the child may only serve by forwarding to the extension-host broker and must **never** fall back to a direct server of its own (logged, exit code 1). Absent on a static `mcp.json` launch, whose anonymous auto-discovery fallback stays as documented                                                                                                                                                                    |
+| `FORGEJO_MCP_TOKEN`         | The instance's access token — **never set by the extension**, in a definition or anywhere else. A direct-server launch (a static `mcp.json` when no broker is reachable) may carry its own; without one the tools read anonymously (public data only)                                                                                                                                                                                                                       |
+| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `FORGEJO_MCP_WRITE_TOOLS`   | Comma-separated **tool names** the extension switched on (`create_issue_comment`), set **only** on a definition the extension provides and only while at least one write switch is on. Its presence is the provenance marker: a session without it may read but never write. The child parses it and serves no write tool of its own; a broker session's permissions are recomputed from the host's settings, so a hand-written value in a static `mcp.json` widens nothing |
+| `FORGEJO_MCP_DATA_DIR`      | Explicit override for the directory auto-discovery reads `mcp-instances.json` from (tests, unconventional installs); absent: the platform defaults                                                                                                                                                                                                                                                                                                                          |
+| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Security model
 
-- The tool surface is read-only by design; write tools (below) will ship
-  disabled by default.
+- The read tool surface is read-only by design. The write tools that exist
+  (`create_issue_comment`) are off by default, off unless the extension host
+  established the session, annotated so VS Code asks before every call, and
+  audited; see [Write tools](#write-tools). No write tool can be reached by a
+  launch that only carries a token from its own configuration file.
 - The token is not handed to a child at all. It stays in SecretStorage, is read
   only by the extension host, and is used there by the broker; the server
   scrubs anything credential-shaped from any error it returns
@@ -650,13 +752,19 @@ implying a capability the tools do not have. Registration lives in
   turn a repository-scoped read into an arbitrary same-origin request.
 - Read-only tools are annotated `readOnlyHint`, which means VS Code runs them
   **without** a per-call confirmation prompt. The human-in-the-loop guarantee
-  therefore rests on the tool surface: every tool maps to a `GET` endpoint —
-  the one exception is `get_workspace_repository`, which issues no request at
-  all and only reads the local state file the extension publishes.
-  Phase 2 write tools will not carry `readOnlyHint`, so each mutating call is
+  for that half therefore rests on the tool surface: every read tool maps to a
+  `GET` endpoint — the one exception is `get_workspace_repository`, which issues
+  no request at all and only reads the local state file the extension
+  publishes. A write tool carries no such annotation, so each mutating call is
   confirmed in the VS Code UI (also to stay aligned with the Codeberg hosting
   rules: no autonomous agents acting on the user's behalf without per-action
-  confirmation).
+  confirmation). The confirmation is a client policy — it can be turned off per
+  tool, and other clients may not implement it — which is why it is only the
+  first of the two write gates, the second being the per-tool setting.
+- The write-tool audit line records the body's byte count and SHA-256, never the
+  body; `html_url` in the result is the authoritative record. The audit file is
+  written into the extension's log directory, not into the repository or
+  globalStorage, and the setting that enables it is off by default.
 - The server never requests MCP _sampling_ (server-initiated model calls via
   `createMessage`): it is a plain tool/prompt surface and makes no LLM calls of
   its own. VS Code still shows its generic per-server "Configure Model Access"
@@ -694,13 +802,45 @@ implying a capability the tools do not have. Registration lives in
   (names, descriptions, all-optional argument schemas) and the text each
   template expands to, both with arguments supplied and with none —
   `mcp/__tests__/prompts.test.ts`.
+- Write tools: the pure contract (the two gates, the setting names, the
+  annotation skeleton, the marker parsing, the refusal texts) in
+  `mcp/__tests__/writeTools.test.ts`; the audit line's shape and the file
+  append/roll in `mcp/__tests__/writeAudit.test.ts`; the end-to-end tool
+  behaviour — refusals with a request count of zero, dry run, replay, body
+  validation, the 403 scope text, and the audit record — in
+  `mcp/__tests__/server.test.ts`; and the round trip of a real write call
+  through the forwarder and the broker in `mcp/__tests__/broker.test.ts`. The
+  provider's marker emission is covered in
+  `src/__tests__/mcpServerProvider.test.ts`.
 - Manual: VS Code agent mode smoke test ("list my issues") against a real
-  instance — done for Phase 1 before release.
+  instance — done for Phase 1 before release. The two stage-1 acceptance checks
+  for the write path — that VS Code really shows its confirmation dialog on the
+  installed build, and what "Always Allow" actually persists — are still
+  pending: both need a real MCP client session in a built extension host.
 
 ## Future directions
 
-- **Phase 2 write tools (gated, separately approved):** `create_issue`,
-  `create_comment`, `create_pull_request`, `submit_pull_review`,
-  `merge_pull_request`, `mark_notification_read`. Omitting `readOnlyHint` on
-  these makes VS Code ask the user to confirm each tool call; they will
-  additionally require individual opt-in in extension settings (default off).
+- **Phase 2 write tools (gated, separately approved):** `submit_pull_review` is
+  the remaining tool of the first batch, and needs the `event` enum
+  (`COMMENT` / `APPROVE` / `REQUEST_CHANGES`, one spelling only — Forgejo's own
+  `ReviewStateType`), its own switch (`forgejoToolkit.mcpWriteTools.submitPullReview`)
+  and the extra wording for `APPROVE` ("this counts as a formal approval and may
+  satisfy branch protection") and `REQUEST_CHANGES`. `cancel_action_run` is the
+  first candidate of a second batch, also with its own switch.
+  `rerun_action_run` is blocked on Forgejo ≥ 17 exposing the endpoint — a
+  hand-written web route is explicitly rejected, because that would bypass the
+  audited API surface.
+- **Host-side modal confirmation for broker sessions (stage 3, needs separate
+  approval):** the extension host _could_ ask in a `vscode.window` modal before
+  writing. It is deliberately not implemented: it needs (1) routing the request
+  to the window the session belongs to — "the window that currently owns the
+  broker" is not a stable answer, since a takeover moves it — and (2) a timeout
+  whose expiry means refusal. Without both, a modal in a window nobody is
+  looking at blocks the agent's session, which is worse than the client-side
+  confirmation that already exists. If the cross-window routing turns out to be
+  too expensive, the correct fallback is to **refuse the write**, not to prompt
+  in the wrong window.
+- **More write tools** (create issue, create pull request, merge, mark
+  notification read) would each follow the same shape: per-tool switch, no
+  `readOnlyHint`, dry run, idempotency key, audit line. None of them is planned
+  for a specific release.

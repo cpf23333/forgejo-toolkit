@@ -9,6 +9,8 @@ import {
   registerMcpWorkspaceStateSync,
 } from './mcpWorkspaceState';
 import { cleanupMcpBroker, startMcpBrokerIfFirst } from './mcpBroker';
+import { createWindowWriteAuditSink, enabledMcpWriteTools, MCP_WRITE_TOOLS_KEY } from './mcpWriteSettings';
+import { MCP_ENV_WRITE_TOOLS } from '../mcp/writeTools';
 import type { Logger } from './logger';
 
 /** Contribution id; must match contributes.mcpServerDefinitionProviders in package.json. */
@@ -190,6 +192,13 @@ export function registerMcpServerProvider(
       if (event.affectsConfiguration('http.proxy')) {
         onDidChange.fire();
       }
+      // A write switch is read in provideMcpServerDefinitions too (it decides
+      // both the launch environment and, for broker sessions, what the session
+      // may actually do). Without this, turning one on would only take effect
+      // after a window reload.
+      if (event.affectsConfiguration(`${MCP_SETTINGS_SECTION}.${MCP_WRITE_TOOLS_KEY}`)) {
+        onDidChange.fire();
+      }
     }),
     // Disposing the subscriptions above does not dispose the surface they
     // started; this is what stops the broker and the state file when the
@@ -249,7 +258,13 @@ function startMcpSurface(
   // so a resolution that arrives while the listen is still in flight waits for
   // it instead of deciding "no broker" against a not-yet-published
   // registration.
-  const brokerStartup = startMcpBrokerIfFirst(context, config, logger);
+  //
+  // The write-tool audit sink is created here, once per surface, so every
+  // broker session of this window shares one file handle policy and one
+  // "records also go to <path>" log line.
+  const brokerStartup = startMcpBrokerIfFirst(context, config, logger, {
+    writeAudit: createWindowWriteAuditSink(context, logger),
+  });
 
   // VS Code forks are not required to implement every API: an editor without
   // `vscode.lm.registerMcpServerDefinitionProvider` must not lose the whole
@@ -320,6 +335,15 @@ function createInstanceDefinitionProvider(
       // definition down with it (same contract as src/api/proxy.ts).
       const rawProxy: unknown = vscode.workspace.getConfiguration('http').get('proxy');
       const configuredProxy = typeof rawProxy === 'string' && rawProxy.trim() ? rawProxy.trim() : undefined;
+      // The write tools this window has switched on, read once per resolution.
+      // This is the *provenance marker* as far as the definition is concerned
+      // (see mcp/writeTools.ts): only a launch the extension provides carries
+      // the variable at all, so its presence is what distinguishes "the host
+      // established this session" from a hand-written `mcp.json`, whose author
+      // could set the same variable. The broker does not take the child's word
+      // for what is enabled — it recomputes from these same settings — so a
+      // forged value in a static config cannot widen anything.
+      const writeTools = enabledMcpWriteTools();
       const prepared: { instance: ForgejoInstance; env: Record<string, string>; baseLabel: string }[] = [];
       for (const instance of instances) {
         // An instance without a stored token cannot authenticate its session;
@@ -348,6 +372,12 @@ function createInstanceDefinitionProvider(
         };
         if (configuredProxy) {
           env[MCP_ENV_PROXY] = configuredProxy;
+        }
+        // Only written when at least one write switch is on: the variable's
+        // *presence* is the marker, so an empty value would be a lie and is
+        // deliberately not used to mean "no write tools".
+        if (writeTools.length > 0) {
+          env[MCP_ENV_WRITE_TOOLS] = writeTools.join(',');
         }
         // The label is user-visible (the MCP server list), so the stored URL's
         // userinfo never reaches it. The environment keeps the verbatim URL, but

@@ -133,6 +133,16 @@
           "default": true,
           "description": "%config.mcpEnabled.description%"
         },
+        "forgejoToolkit.mcpWriteTools.createIssueComment": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.mcpWriteTools.createIssueComment.description%"
+        },
+        "forgejoToolkit.mcpWriteAuditToFile": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.mcpWriteAuditToFile.description%"
+        },
         "forgejoToolkit.multiWindowLease": {
           "type": "boolean",
           "default": true,

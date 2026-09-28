@@ -1,0 +1,117 @@
+import { describe, it, expect } from 'vitest';
+import {
+  decideWriteCall,
+  isMcpWriteTool,
+  MCP_ENV_WRITE_TOOLS,
+  MCP_WRITE_TOOL_NAMES,
+  MCP_WRITE_TOOL_SETTINGS,
+  mcpWriteToolSettingKey,
+  hasHostProvenance,
+  sessionWriteToolsFromEnvironment,
+  writeRefusalMessage,
+  writeRefusalReason,
+  WRITE_TOOL_ANNOTATIONS,
+} from '../writeTools';
+
+/**
+ * The write-tool contract is pure on purpose (mcp/writeTools.ts): these tests
+ * run without `vscode`, without MSW and without a server, and they are the ones
+ * that pin the two gates, the setting names and the annotation skeleton.
+ */
+describe('write tool surface', () => {
+  it('names the tools and the settings the decision record fixed', () => {
+    // §13.7: the underscore, verb-first names; §13.2: one switch per tool.
+    expect([...MCP_WRITE_TOOL_NAMES]).toEqual(['create_issue_comment', 'submit_pull_review']);
+    expect(MCP_WRITE_TOOL_SETTINGS.map((setting) => setting.settingKey)).toEqual([
+      'forgejoToolkit.mcpWriteTools.createIssueComment',
+      'forgejoToolkit.mcpWriteTools.submitPullReview',
+    ]);
+    expect(mcpWriteToolSettingKey('create_issue_comment')).toBe('forgejoToolkit.mcpWriteTools.createIssueComment');
+    expect(isMcpWriteTool('create_issue_comment')).toBe(true);
+    expect(isMcpWriteTool('get_issue')).toBe(false);
+  });
+
+  it('never lets a write tool claim to be read-only or non-destructive', () => {
+    // §3.2: the annotations are the first gate. Claiming read-only skips VS
+    // Code's per-call confirmation; claiming `destructiveHint: false` would buy
+    // a looser prompt for a call that leaves a public permanent record. A
+    // regression here silently removes the human-in-the-loop step.
+    expect(WRITE_TOOL_ANNOTATIONS).not.toHaveProperty('readOnlyHint');
+    expect(WRITE_TOOL_ANNOTATIONS).not.toHaveProperty('destructiveHint');
+    // §6.6: an idempotent hint would invite a client-side auto-retry that
+    // duplicates a comment when the caller did not pass the same key.
+    expect(WRITE_TOOL_ANNOTATIONS.idempotentHint).toBe(false);
+    // …and read as the SDK's own annotation shape, where all five fields are
+    // optional: an absent key is what the wire carries, and a set-but-wrong one
+    // is what the next two assertions would have to catch.
+    const annotations = WRITE_TOOL_ANNOTATIONS as {
+      readOnlyHint?: boolean;
+      destructiveHint?: boolean;
+      idempotentHint?: boolean;
+    };
+    expect(annotations.readOnlyHint).not.toBe(true);
+    expect(annotations.destructiveHint).not.toBe(false);
+  });
+
+  it('parses the provenance marker the extension host writes', () => {
+    expect(MCP_ENV_WRITE_TOOLS).toBe('FORGEJO_MCP_WRITE_TOOLS');
+    expect(sessionWriteToolsFromEnvironment('create_issue_comment')).toEqual(['create_issue_comment']);
+    expect(sessionWriteToolsFromEnvironment(' create_issue_comment , submit_pull_review ')).toEqual([
+      'create_issue_comment',
+      'submit_pull_review',
+    ]);
+    // A tool this build does not know is ignored, not fatal: a newer host may
+    // advertise one, and the safe reading of "unknown" is "not enabled here".
+    expect(sessionWriteToolsFromEnvironment('create_issue_comment,create_issue')).toEqual(['create_issue_comment']);
+    // Unknown-to-this-build and empty mean the same thing to the gate.
+    expect(sessionWriteToolsFromEnvironment('create_issue')).toEqual([]);
+  });
+
+  it('treats an absent, empty or non-string marker as "not host-established"', () => {
+    // §5: every route that is not an extension-provided definition — the
+    // zero-configuration launch, an anonymous direct server, a hand-written
+    // mcp.json — lands here, and must not write.
+    for (const value of [undefined, '', '   ', ',', ',,']) {
+      expect(sessionWriteToolsFromEnvironment(value)).toEqual([]);
+    }
+    expect(hasHostProvenance([])).toBe(false);
+    expect(hasHostProvenance(['create_issue_comment'])).toBe(true);
+  });
+
+  it('checks provenance before the per-tool switch', () => {
+    const tool = 'create_issue_comment';
+    // No marker: even a switch that is on cannot help, because the session was
+    // not established by the host.
+    expect(decideWriteCall(tool, { writeTools: [], enabledTools: [tool] })).toBe('unprovenanced');
+    // Marker present, switch off: the second gate.
+    expect(decideWriteCall(tool, { writeTools: [tool], enabledTools: [] })).toBe('disabled');
+    expect(decideWriteCall(tool, { writeTools: [tool], enabledTools: [tool] })).toBe('allowed');
+    // The two lists are answered by different sides (the launch environment vs
+    // this window's settings), so membership in both is required: a session
+    // whose marker did not cover this tool is not a provenanced write session
+    // for it, and a switch turned on where the tool was never established is off.
+    expect(decideWriteCall(tool, { writeTools: ['submit_pull_review'], enabledTools: [tool] })).toBe('unprovenanced');
+    expect(decideWriteCall(tool, { writeTools: [tool], enabledTools: ['submit_pull_review'] })).toBe('disabled');
+    expect(writeRefusalReason('unprovenanced')).toBe('no-provenance');
+    expect(writeRefusalReason('disabled')).toBe('tool-disabled');
+  });
+
+  it('names the setting to turn on, in both refusal texts', () => {
+    // §13.8: the refusal must point the caller at the exact setting, so it can
+    // tell the user instead of retrying in place.
+    const disabled = writeRefusalMessage('disabled', 'create_issue_comment');
+    expect(disabled).toContain('forgejoToolkit.mcpWriteTools.createIssueComment');
+    expect(disabled).toMatch(/not enabled in this session/);
+    expect(disabled).toMatch(/Do not retry/);
+
+    const unprovenanced = writeRefusalMessage('unprovenanced', 'create_issue_comment');
+    expect(unprovenanced).toContain('forgejoToolkit.mcpWriteTools.createIssueComment');
+    expect(unprovenanced).toMatch(/not established by the Forgejo Toolkit extension host/);
+    expect(unprovenanced).toMatch(/Do not retry/);
+
+    // The stage-2 tool's message must name the stage-2 setting, not stage 1's.
+    expect(writeRefusalMessage('disabled', 'submit_pull_review')).toContain(
+      'forgejoToolkit.mcpWriteTools.submitPullReview',
+    );
+  });
+});

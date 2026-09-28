@@ -6,9 +6,12 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
+import { http, HttpResponse } from 'msw';
 import { ForgejoClient } from '../../src/api/client';
-import { startMockServer, stopMockServer, resetMockServer } from '../../src/test/mocks/server';
+import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../src/test/mocks/server';
+import { mockTimelineComment } from '../../src/test/mocks/data';
 import { createMcpServer } from '../mcpServer';
+import type { McpWriteAuditRecord } from '../writeTools';
 import {
   defaultBrokerEndpoint,
   LinePump,
@@ -167,6 +170,76 @@ describe('MCP broker over real sockets', () => {
     const response = await listed;
     const tools = (response.result as { tools: { name: string }[] }).tools;
     expect(tools.map((tool) => tool.name)).toContain('list_issues');
+    harness.input.end();
+    await expect(harness.done).resolves.toEqual({ reason: 'input-ended' });
+  });
+
+  it('carries a write tool call and its result through the same channel, in the host', async () => {
+    // The mechanism the write tools stand on (docs/design/mcp-write-tools-
+    // confirmation.md §9 stage 1): a tool call travels stdin → socket → the
+    // broker's own McpServer, is executed there with the host's token, and the
+    // result comes back over the same bridge. Nothing extra is needed for a
+    // write, and nothing new is invented — which is exactly what this asserts.
+    const audited: McpWriteAuditRecord[] = [];
+    let posts = 0;
+    mockServer.use(
+      http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/comments', async ({ request }) => {
+        posts += 1;
+        const body = (await request.json()) as { body?: string };
+        return HttpResponse.json({ ...mockTimelineComment, body: body.body }, { status: 201 });
+      }),
+    );
+    endpoint = testEndpoint();
+    broker = await startMcpBroker({
+      endpoint,
+      authToken: TEST_TOKEN,
+      createServer: () =>
+        createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'), {
+          instanceId: 'instance-1',
+          // Both gates, as the host computes them for a broker session: the
+          // provenance marker and the per-tool switch (src/mcpBroker.ts).
+          writeTools: ['create_issue_comment'],
+          enabledWriteTools: ['create_issue_comment'],
+          writeCaller: 'extension host (broker session for instance-1)',
+          writeAudit: {
+            record: async (entry) => {
+              audited.push(entry);
+            },
+            recordFilePath: () => undefined,
+          },
+        }),
+    });
+    const harness = startForwarder(endpoint, TEST_TOKEN);
+    await initializeSession(harness);
+
+    const called = harness.waitForMessage(2);
+    harness.input.write(
+      `${JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'create_issue_comment',
+          arguments: { owner: 'demo-user', repo: 'demo-repo', index: 1, body: 'via the broker' },
+        },
+      })}\n`,
+    );
+    const response = await called;
+    const result = response.result as { isError?: boolean; content: { text: string }[] };
+    expect(result.isError).toBeFalsy();
+    const created = JSON.parse(result.content[0].text) as { ok?: boolean; id?: number; html_url?: string };
+    expect(created.ok).toBe(true);
+    expect(created.id).toBe(mockTimelineComment.id);
+    expect(created.html_url).toBe(mockTimelineComment.html_url);
+    expect(posts).toBe(1);
+    // The audit ran in the host process too — the same one that made the write.
+    expect(audited).toHaveLength(1);
+    expect(audited[0]).toMatchObject({
+      tool: 'create_issue_comment',
+      result: 'ok',
+      caller: 'extension host (broker session for instance-1)',
+      target: 'demo-user/demo-repo#1',
+    });
     harness.input.end();
     await expect(harness.done).resolves.toEqual({ reason: 'input-ended' });
   });

@@ -17,6 +17,9 @@ import {
   type McpBrokerHandle,
 } from '../mcp/brokerServer';
 import { createMcpServer } from '../mcp/mcpServer';
+import type { WorkspaceContextOptions } from '../mcp/tools';
+import type { McpWriteAuditSink } from '../mcp/writeTools';
+import { enabledMcpWriteTools } from './mcpWriteSettings';
 import { mcpWorkspaceStateFilePath } from './mcpWorkspaceState';
 
 /**
@@ -180,7 +183,7 @@ export function startMcpBrokerIfFirst(
   context: vscode.ExtensionContext,
   config: ConfigManager,
   logger: Logger,
-  options?: { endpoint?: string },
+  options?: { endpoint?: string; writeAudit?: McpWriteAuditSink },
 ): Promise<void> {
   const generation = brokerGeneration;
   brokerStartup = startMcpBrokerIfFirstInner(context, config, logger, options, generation);
@@ -191,7 +194,7 @@ async function startMcpBrokerIfFirstInner(
   context: vscode.ExtensionContext,
   config: ConfigManager,
   logger: Logger,
-  options: { endpoint?: string } | undefined,
+  options: { endpoint?: string; writeAudit?: McpWriteAuditSink } | undefined,
   generation: number,
 ): Promise<void> {
   // Tests override the endpoint: the default is a hash of the user profile,
@@ -206,9 +209,9 @@ async function startMcpBrokerIfFirstInner(
       username: os.userInfo().username,
       homeDir: os.homedir(),
     });
-  const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation);
+  const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation, options?.writeAudit);
   if (outcome === 'contended') {
-    startMcpBrokerTakeoverWatcher(context, config, logger, endpoint, generation);
+    startMcpBrokerTakeoverWatcher(context, config, logger, endpoint, generation, options?.writeAudit);
   }
 }
 
@@ -233,6 +236,7 @@ async function attemptMcpBrokerStart(
   logger: Logger,
   endpoint: string,
   generation: number,
+  writeAudit?: McpWriteAuditSink,
 ): Promise<BrokerStartOutcome> {
   // Random per broker launch, not per session: the registration file is what
   // authorizes a forwarder, and it is rewritten every time the broker starts
@@ -244,7 +248,7 @@ async function attemptMcpBrokerStart(
     handle = await startMcpBroker({
       endpoint,
       authToken,
-      createServer: (session) => createBrokerMcpServer(session, context, config, logger),
+      createServer: (session) => createBrokerMcpServer(session, context, config, logger, writeAudit),
       log: (message) => logger.debug(message),
     });
   } catch (error) {
@@ -345,12 +349,13 @@ function startMcpBrokerTakeoverWatcher(
   logger: Logger,
   endpoint: string,
   generation: number,
+  writeAudit?: McpWriteAuditSink,
 ): void {
   if (brokerTakeoverWatcher) {
     return;
   }
   const timer = setInterval(() => {
-    void checkBrokerTakeover(context, config, logger, endpoint, generation).catch((error: unknown) => {
+    void checkBrokerTakeover(context, config, logger, endpoint, generation, writeAudit).catch((error: unknown) => {
       // A tick must never surface as an unhandled rejection in the host; the
       // next tick tries again anyway.
       logger.debug(`MCP broker takeover check failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -369,6 +374,7 @@ async function checkBrokerTakeover(
   logger: Logger,
   endpoint: string,
   generation: number,
+  writeAudit?: McpWriteAuditSink,
 ): Promise<void> {
   if (generation !== brokerGeneration) {
     // cleanupMcpBroker ran (the setting was turned off, or the window is
@@ -387,7 +393,7 @@ async function checkBrokerTakeover(
     if (await brokerRegistrationOwnerIsAlive(mcpBrokerFilePath(context))) {
       return; // Owner alive: stay stepped aside, silently, and keep watching.
     }
-    const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation);
+    const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation, writeAudit);
     if (outcome === 'contended') {
       return; // Another window won the race; keep watching.
     }
@@ -579,9 +585,39 @@ async function createBrokerMcpServer(
   context: vscode.ExtensionContext,
   config: ConfigManager,
   logger: Logger,
+  writeAudit?: McpWriteAuditSink,
 ) {
   const { cwd } = session;
   const instances = config.getInstances();
+  // The write gate, computed here and **not** taken from the session's launch
+  // environment (mcp/writeTools.ts explains why). This function runs inside the
+  // extension host, so its very existence is the provenance proof the design
+  // asks for: the broker endpoint is a per-user local pipe gated by the
+  // registration's handshake secret, and this process is the only thing that
+  // ever builds a session server. What the settings then decide is *which*
+  // write tools this session may use; an empty list means it may read but never
+  // write, which is also what covers a static `mcp.json` whose author set
+  // `FORGEJO_MCP_WRITE_TOOLS` by hand — the variable widens nothing here.
+  //
+  // Re-read per session (not captured at broker start) so turning a switch on
+  // in a running window reaches the next session — and after a takeover the new
+  // owner recomputes from its own settings, which is the intended reading of
+  // "only the extension host provides writes".
+  const enabledWriteTools = enabledMcpWriteTools();
+  const insertions: Pick<
+    WorkspaceContextOptions,
+    'enabledWriteTools' | 'writeAudit' | 'writeCaller' | 'writeInstanceLabel'
+  > = {
+    // `writeTools` doubles as the provenance marker on the child path; for a
+    // broker session both lists are the host's own answer, which is exactly
+    // "a session this host established may write the tools it enabled". The
+    // computation reads this window's settings directly, never the launch's
+    // `FORGEJO_MCP_WRITE_TOOLS`.
+    enabledWriteTools,
+    ...(writeAudit ? { writeAudit } : {}),
+    writeCaller: `extension host (broker session${session.instanceId ? ` for instance ${session.instanceId}` : ''}, cwd ${cwd})`,
+  };
+  const writeTools = enabledWriteTools;
   if (session.instanceId !== undefined) {
     const requested = instances.find((candidate) => candidate.id === session.instanceId && candidate.token);
     if (!requested) {
@@ -604,6 +640,12 @@ async function createBrokerMcpServer(
       // own workspace; without it the tool would answer from the broker
       // owner's workspace, which may be a different one entirely.
       stateFile: session.stateFile ?? mcpWorkspaceStateFilePath(context),
+      writeTools,
+      ...insertions,
+      // The audit line names the instance the way §8 asks — display name *and*
+      // id — while `instanceId` above stays exactly what the state-file
+      // resolver matches on.
+      writeInstanceLabel: writeAuditInstanceLabel(requested),
     });
   }
   const stateMatch = await findBrokerStateMatch(context, cwd).catch(() => undefined);
@@ -630,7 +672,25 @@ async function createBrokerMcpServer(
     instanceUrl: instance.url,
     instanceId: instance.id,
     stateFile: session.stateFile ?? stateMatch?.stateFile ?? mcpWorkspaceStateFilePath(context),
+    writeTools,
+    ...insertions,
+    writeInstanceLabel: writeAuditInstanceLabel(instance),
   });
+}
+
+/**
+ * How a write-tool audit line names the instance: display name plus id (§8).
+ * The name is whatever the user typed, so a literal `(`/`)` in it would make the
+ * label ambiguous — they are replaced, not escaped, because the audit line is
+ * read by a human. A nameless instance falls back to its id, which is what the
+ * field means when there is no name to show.
+ */
+function writeAuditInstanceLabel(instance: { id: string; name?: string }): string {
+  const name = instance.name?.trim();
+  if (!name) {
+    return instance.id;
+  }
+  return `${name.replace(/[()]/g, '')} (${instance.id})`;
 }
 
 /**

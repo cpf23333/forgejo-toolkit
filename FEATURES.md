@@ -5,6 +5,7 @@
 ## 进行中
 
 - **多窗口轮询租约**：机制已交付并默认开启（`forgejoToolkit.multiWindowLease`）——同一时间只有持有者窗口轮询与提示，其余窗口保持安静，任何不确定都退化为全速轮询，不可信时的正确降级是完全不换手；仍待定稿的是去抖、防乒乓、加速接管、心跳重试与降级阈值这几组参数（按真实观测定稿），仍待按平台验证的是逐窗口焦点保真度（多显示器、最小化、锁屏、同 profile 双窗口）。见 `TODO.md` 的「多窗口轮询租约」条目。
+- **MCP 写工具（Phase 2）**：首个写工具 `create_issue_comment` 已可用，默认关闭——开启后 AI 可以通过 MCP 在 Issue / Pull Request 下新增一条评论。两道闸门：VS Code 每次调用都会弹确认框，并且还需要在扩展设置里逐工具开启（`forgejoToolkit.mcpWriteTools.createIssueComment`）。只有**由扩展宿主建立的会话**才能写（扩展提供的 MCP server，或静态 `mcp.json` 经宿主 broker 转发的会话）；只带你自己配置里 token 的会话只能读，写请求会被明确拒绝并指出该打开哪个设置。工具支持 dry-run（先念计划再提交）与幂等键（重试不会重复发评论），每次调用都会留下不含正文的审计记录（默认只进 `Forgejo Toolkit` Output Channel，可用 `forgejoToolkit.mcpWriteAuditToFile` 同时落盘）。**仍待交付**：`submit_pull_review`（评审结论 APPROVE / REQUEST_CHANGES / COMMENT 与对应双重警示文案），以及两个只在真实 MCP 会话里才能做的验收（VS Code 确认框真的会弹、"Always Allow" 实际持久了什么）。设计与决定记录见 `docs/design/mcp-write-tools-confirmation.md`，剩余实现与验收在 `TODO.md` 的「MCP Phase 2 写工具的实现」条目。
 
 ## 已完成
 

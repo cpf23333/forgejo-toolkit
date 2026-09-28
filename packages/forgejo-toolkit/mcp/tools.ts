@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
@@ -20,6 +21,16 @@ import type {
   MergeBlocker,
 } from '../src/api/types';
 import { resolveWorkspaceRepository } from './workspaceState';
+import {
+  decideWriteCall,
+  MCP_WRITE_BODY_MAX_BYTES,
+  writeRefusalMessage,
+  writeRefusalReason,
+  WRITE_TOOL_ANNOTATIONS,
+  type McpWriteAuditRecord,
+  type McpWriteAuditSink,
+  type McpWriteTool,
+} from './writeTools';
 
 /**
  * Per-field size budget for tool results: issue/PR bodies, comment text and
@@ -129,6 +140,21 @@ export interface ReviewRefArgs extends IssueRefArgs {
   reviewId: number;
 }
 
+/** Input of `create_issue_comment` (stage 1's only write tool). */
+export interface CreateIssueCommentArgs extends IssueRefArgs {
+  /** The comment text (Markdown). Non-empty, at most `MCP_WRITE_BODY_MAX_BYTES`. */
+  body: string;
+  /**
+   * Retry key. Reuse it for the *same* logical operation (a retry after a
+   * timeout or a truncated turn) and never for a different comment; within the
+   * session's 10-minute window the same key with the same target and body
+   * replays the earlier result instead of writing twice.
+   */
+  idempotencyKey?: string;
+  /** Report what would be sent, without sending it. Default: false. */
+  dryRun?: boolean;
+}
+
 /**
  * Workspace context the extension host passes down to the MCP child through
  * its launch environment (see src/mcpWorkspaceState.ts). Both fields are
@@ -148,6 +174,41 @@ export interface WorkspaceContextOptions {
    * resolver falls back to the URL.
    */
   instanceId?: string;
+  /**
+   * The write tools (and therefore the provenance marker) this session carries.
+   * Populated by the extension host — from its own settings for a broker
+   * session, or from the launch's `FORGEJO_MCP_WRITE_TOOLS` for the child — and
+   * **empty** on every other route: the zero-configuration launch, an anonymous
+   * direct server, and a user's hand-written `mcp.json`. Empty means "this
+   * session may not write", never "no switch is on" (see mcp/writeTools.ts).
+   */
+  writeTools?: readonly McpWriteTool[];
+  /**
+   * The subset of `writeTools` whose per-tool switch is on. The host reads its
+   * own settings for this; a child cannot read settings at all, so it is only
+   * ever set where the two lists are computed together (the broker).
+   */
+  enabledWriteTools?: readonly McpWriteTool[];
+  /**
+   * Who to name in the audit line, e.g. `extension host` or
+   * `broker session for instance-1 (cwd D:\work\demo)` (the host prefixes
+   * `extension host` itself). Defaults to the extension host, which is where
+   * the tool logic actually runs.
+   */
+  writeCaller?: string;
+  /**
+   * How to name the instance in the audit line — `name (id)`, per §8 — when the
+   * host knows the configured instance. Defaults to `instanceId`, or `unknown`
+   * when the session has no instance at all. This is a display label only: it
+   * never reaches the workspace-state resolver, which keeps using `instanceId`.
+   */
+  writeInstanceLabel?: string;
+  /**
+   * Where write-tool audit records go. Supplied by the extension host
+   * (`src/mcpWriteAudit.ts`, Output Channel + optional JSONL file); absent in
+   * the headless child, which never writes anyway.
+   */
+  writeAudit?: McpWriteAuditSink;
 }
 
 /**
@@ -915,18 +976,298 @@ async function collectReviewComments(
   return { comments: perReview.flat(), unreadableReviewCount };
 }
 
+/** UTF-8 byte length, the unit the write budgets and the audit line report in. */
+function utf8ByteLength(value: string): number {
+  return Buffer.byteLength(value, 'utf8');
+}
+
+/** SHA-256 of the body in hex — the audit line's content fingerprint (§8). */
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+/** One audited write call, before `ms` and the outcome are known. */
+interface WriteAuditDraft {
+  tool: McpWriteTool;
+  repo: string;
+  target: string;
+  dryRun: boolean;
+  bytes?: number;
+  sha256?: string;
+}
+
+/**
+ * Who and where the audit line names. `caller` defaults to the extension host
+ * because that is the process the tool logic runs in — a broker session passes
+ * a more specific string (`extension host (broker session …, cwd …)`).
+ */
+function writeAuditCaller(workspaceContext: WorkspaceContextOptions): string {
+  return workspaceContext.writeCaller ?? 'extension host';
+}
+
+/** The instance the audit line names: a display label, never a token or URL. */
+function writeAuditInstance(workspaceContext: WorkspaceContextOptions): string {
+  return workspaceContext.writeInstanceLabel ?? workspaceContext.instanceId ?? 'unknown';
+}
+
+/**
+ * Structurally identical to the client's `ApiError` (`toApiError`), which is
+ * consumed by value rather than imported so this file keeps only the client
+ * import it already had.
+ */
+interface ApiErrorLike {
+  kind: string;
+  status?: number;
+}
+
+/** One successful write, kept for the session's idempotency table (§6.2). */
+interface WriteIdempotencyEntry {
+  tool: McpWriteTool;
+  target: string;
+  sha256: string;
+  /** The `ok` payload, replayed verbatim when the same call comes back. */
+  response: Record<string, unknown>;
+  /** Completion time, for the TTL sweep. */
+  at: number;
+}
+
+/**
+ * The idempotency table of one MCP server instance, i.e. of one session
+ * (`mcp/brokerServer.ts`: every connection gets its own server). 10 minutes and
+ * 32 entries are the decided values (§6.2, §13.6) and are deliberately not
+ * exposed in settings — nobody tunes this knob, and the refusal text already
+ * tells the caller to wait.
+ *
+ * Capacity is enforced by dropping the oldest entry, and expiry is enforced on
+ * read, so a session that makes one call and then goes quiet holds nothing
+ * forever.
+ */
+class WriteIdempotencyTable {
+  private readonly entries = new Map<string, WriteIdempotencyEntry>();
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  /** The live entry for a key, if any; expired entries are dropped on sight. */
+  lookup(key: string, now: number): WriteIdempotencyEntry | undefined {
+    const entry = this.entries.get(key);
+    if (!entry) {
+      return undefined;
+    }
+    if (now - entry.at >= WRITE_IDEMPOTENCY_TTL_MS) {
+      this.entries.delete(key);
+      return undefined;
+    }
+    return entry;
+  }
+
+  /** Records a completed write, evicting the oldest entry when full. */
+  store(key: string, entry: WriteIdempotencyEntry): void {
+    // `Map` preserves insertion order, so the first key is the oldest.
+    while (this.entries.size >= WRITE_IDEMPOTENCY_MAX_ENTRIES) {
+      const oldest = this.entries.keys().next();
+      if (oldest.done) {
+        break;
+      }
+      this.entries.delete(oldest.value);
+    }
+    this.entries.set(key, entry);
+  }
+}
+
+/** How long one completed write stays replayable, and how many are kept (§6.2). */
+export const WRITE_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+export const WRITE_IDEMPOTENCY_MAX_ENTRIES = 32;
+
+/**
+ * `create_issue_comment`: the one write tool of stage 1.
+ *
+ * Ordering matters and is asserted by the tests: the body is validated, then
+ * both gates are evaluated, then `dryRun` short-circuits, then the idempotency
+ * table answers, and only then is a request issued. So a switched-off tool
+ * sends nothing, a dry run sends nothing, and a replay sends nothing — and all
+ * three are still audited (§8 audits every call, including the refused ones).
+ *
+ * `table` is the session's, owned by `registerTools` (see the comment there):
+ * this function is rebuilt for a call that carries an abort signal, so the
+ * table cannot live here.
+ */
+function createIssueCommentWrite(
+  client: ForgejoClient,
+  workspaceContext: WorkspaceContextOptions,
+  table: WriteIdempotencyTable,
+) {
+  return async function create_issue_comment(args: CreateIssueCommentArgs): Promise<unknown> {
+    const dryRun = args.dryRun === true;
+    const repoRef = `${args.owner}/${args.repo}`;
+    const target = `${repoRef}#${args.index}`;
+    const hasBody = typeof args.body === 'string';
+    const bytes = hasBody ? utf8ByteLength(args.body) : undefined;
+    const digest = hasBody ? sha256Hex(args.body) : undefined;
+    const draft: WriteAuditDraft = {
+      tool: 'create_issue_comment',
+      repo: repoRef,
+      target,
+      dryRun,
+      bytes,
+      sha256: digest,
+    };
+    const started = Date.now();
+
+    /** One audited outcome; the tool result is the caller's business. */
+    const audit = async (result: string, ms = Date.now() - started): Promise<void> => {
+      await recordWriteAudit(workspaceContext, {
+        ...draft,
+        caller: writeAuditCaller(workspaceContext),
+        instance: writeAuditInstance(workspaceContext),
+        at: new Date().toISOString(),
+        result,
+        ms,
+      });
+    };
+
+    // Validation before the gates: an empty or oversized body is the caller's
+    // own error and can be reported even where writing is disabled, and it
+    // never reaches the network either way.
+    if (!hasBody || args.body.trim() === '') {
+      await audit('refused:validation');
+      throw new Error('body must be a non-empty comment; nothing was sent.');
+    }
+    if (bytes !== undefined && bytes > MCP_WRITE_BODY_MAX_BYTES) {
+      await audit('refused:validation');
+      throw new Error(
+        `body is ${bytes} bytes, over the ${MCP_WRITE_BODY_MAX_BYTES}-byte limit of this tool; nothing was sent.`,
+      );
+    }
+
+    const decision = decideWriteCall('create_issue_comment', {
+      writeTools: workspaceContext.writeTools ?? [],
+      enabledTools: workspaceContext.enabledWriteTools ?? [],
+    });
+    if (decision !== 'allowed') {
+      await audit(`refused:${writeRefusalReason(decision)}`);
+      return {
+        ok: false,
+        refused: true,
+        reason: decision,
+        message: writeRefusalMessage(decision, 'create_issue_comment'),
+      };
+    }
+
+    if (dryRun) {
+      // No request, and no idempotency entry: a dry run is not the operation, so
+      // it must not make a later real call look like a replay (§7).
+      await audit('ok');
+      return {
+        ok: true,
+        dryRun: true,
+        message: 'Dry run: nothing was sent to the server.',
+        plan: {
+          tool: 'create_issue_comment',
+          // The same label the audit line uses, so the plan the user is shown
+          // and the record of what happened name the instance identically.
+          instance: writeAuditInstance(workspaceContext),
+          repo: repoRef,
+          target,
+          bodyCharacters: args.body.length,
+          bytes,
+          sha256: digest,
+          api: `POST /repos/${args.owner}/${args.repo}/issues/${args.index}/comments`,
+        },
+        note: 'A dry run proves nothing about the server accepting this call: a missing write scope (403), a locked or invisible issue (404/423), rate limiting and validation errors only appear on the real request.',
+      };
+    }
+
+    const key = args.idempotencyKey;
+    if (key !== undefined) {
+      const previous = table.lookup(key, Date.now());
+      if (previous) {
+        if (previous.tool === 'create_issue_comment' && previous.target === target && previous.sha256 === digest) {
+          await audit('duplicate');
+          return {
+            ok: true,
+            duplicate: true,
+            message:
+              'This is a repeat of an earlier call with the same idempotencyKey and the same target and body; the earlier result is returned and no new comment was created.',
+            result: previous.response,
+          };
+        }
+        await audit('refused:idempotency-key-reused');
+        throw new Error(
+          `idempotencyKey "${key}" was already used in this session for a different target or body. ` +
+            'Generate a new key for a different comment; reuse a key only when retrying the same logical operation.',
+        );
+      }
+    }
+
+    try {
+      const comment = await client.createIssueComment(args.owner, args.repo, args.index, args.body);
+      const response = {
+        ok: true,
+        id: comment.id,
+        html_url: comment.html_url,
+        message: 'The comment was created on the server; open html_url to read it there.',
+      };
+      if (key !== undefined) {
+        table.store(key, {
+          tool: 'create_issue_comment',
+          target,
+          sha256: digest as string,
+          response,
+          at: Date.now(),
+        });
+      }
+      await audit('ok');
+      return response;
+    } catch (error) {
+      const status = (toApiError(error) as ApiErrorLike).status;
+      await audit(status === undefined ? 'failed' : `http:${status}`);
+      throw error;
+    }
+  };
+}
+
+/**
+ * Appends one audit record through the host-supplied sink. A session with no
+ * sink (the headless child, or a unit test) records nothing — there is nothing
+ * to record to — and a failing sink never fails the tool call: the audit is a
+ * record *about* the call, not part of it.
+ */
+async function recordWriteAudit(workspaceContext: WorkspaceContextOptions, record: McpWriteAuditRecord): Promise<void> {
+  const sink = workspaceContext.writeAudit;
+  if (!sink) {
+    return;
+  }
+  try {
+    await sink.record(record);
+    sink.recordFilePath();
+  } catch {
+    // Swallowed on purpose: see above.
+  }
+}
+
 /**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
  */
-export function buildToolHandlers(client: ForgejoClient, workspaceContext: WorkspaceContextOptions = {}) {
+export function buildToolHandlers(
+  client: ForgejoClient,
+  workspaceContext: WorkspaceContextOptions = {},
+  writeIdempotency: WriteIdempotencyTable = new WriteIdempotencyTable(),
+) {
   return {
     // Reads the state file fresh on every call: the workspace changes while
     // this long-lived process runs, and a cached answer would quietly go
     // stale. Needs no HTTP, so the client's abort signal does not apply.
     get_workspace_repository: () =>
       resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl, workspaceContext.instanceId),
+
+    // The one write tool of stage 1. Everything that makes it safe lives in
+    // createIssueCommentWrite: the two gates, the dry run, the session
+    // idempotency table and the audit line.
+    create_issue_comment: createIssueCommentWrite(client, workspaceContext, writeIdempotency),
 
     // The scope assertion stays in a synchronous arrow so a half-specified
     // scope throws (rather than rejecting) before any request is issued. The
@@ -1360,6 +1701,8 @@ const NO_PAGED_LISTS: readonly PagedListSpec[] = [];
  */
 const PAGED_LISTS: Record<ToolName, readonly PagedListSpec[]> = {
   get_workspace_repository: NO_PAGED_LISTS,
+  // A write returns one object, not a list; the paged-list note must not fire.
+  create_issue_comment: NO_PAGED_LISTS,
   list_issues: PAGED_RESULT,
   get_issue: [{ field: 'comments', totalField: 'commentsTotalCount' }],
   list_pull_requests: PAGED_RESULT,
@@ -1605,12 +1948,20 @@ export function registerTools(
   workspaceContext: WorkspaceContextOptions = {},
 ): void {
   const handlers = buildToolHandlers(client, workspaceContext);
+  // One idempotency table per `registerTools` call, i.e. per MCP server
+  // instance, i.e. per session (`mcp/brokerServer.ts`: every connection gets its
+  // own server). It is created *here* and passed in, not inside
+  // `buildToolHandlers`, because that function is rebuilt per call whenever the
+  // SDK supplies an abort signal — a table built there would be discarded
+  // between two calls of the same session, which is exactly the duplication the
+  // key exists to prevent.
+  const writeIdempotency = new WriteIdempotencyTable();
   // A cancelled tool call should abort its HTTP requests. The SDK passes the signal
   // in the tool callback's second argument, and `withSignal` is cheap, so the
   // handlers are rebuilt around a signalling client instead of threading a
   // parameter through all of them.
   const handlersFor = (extra?: { signal?: AbortSignal }) =>
-    extra?.signal ? buildToolHandlers(client.withSignal(extra.signal), workspaceContext) : handlers;
+    extra?.signal ? buildToolHandlers(client.withSignal(extra.signal), workspaceContext, writeIdempotency) : handlers;
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 
   server.registerTool(
@@ -1622,6 +1973,44 @@ export function registerTools(
       annotations: readOnly,
     },
     async (_args, extra) => callTool('get_workspace_repository', () => handlersFor(extra).get_workspace_repository()),
+  );
+
+  // The first write tool (stage 1 of docs/design/mcp-write-tools-confirmation.md).
+  // Registering it unconditionally is deliberate: the tool list stays stable, and
+  // a call that is not allowed comes back as a refusal naming the setting to turn
+  // on (§9 stage 0 fixes that semantic). It carries WRITE_TOOL_ANNOTATIONS, not
+  // `readOnly`, so VS Code shows its per-call confirmation dialog — which is the
+  // first of the two gates, and the reason `readOnlyHint` must stay unset.
+  server.registerTool(
+    'create_issue_comment',
+    {
+      description:
+        'Write operation: add a comment to an issue or pull request. This changes server state — it creates a public, permanent record on the instance under the account the configured token belongs to. It appends exactly one comment and changes nothing else (no title, no labels, no state, no merge), and it cannot be undone by this tool; a wrong comment has to be edited or deleted in the Forgejo web UI. It needs a token with write access to issues (Forgejo answers 403 without it; the extension cannot fix that for this session), 404 when the issue or pull request is not visible to the token, and 422 when the server rejects the text. Every call is confirmed by the user in VS Code first, and it is additionally gated by the extension setting `forgejoToolkit.mcpWriteTools.createIssueComment`, which is off by default; when it is off — or when this session was not established by the Forgejo Toolkit extension host — the call returns a plain explanation naming the setting instead of writing. Idempotency: pass an `idempotencyKey` and reuse the same value when retrying the same logical operation; within 10 minutes a repeat with the same key, target and body replays the earlier result instead of creating a second comment, while the same key with a different target or body is refused. Forgejo itself has no idempotency key on this endpoint, so a retry that does not reuse the key does create a second comment. Before a batch of comments (or any comment the user has not read yet), call this tool once with `dryRun: true`, show the user the returned plan, and only then send the real calls one at a time; a dry run proves the shape of the call, not that the server will accept it.',
+      inputSchema: {
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
+        index: z.number().int().positive().describe('Issue or pull request number to comment on.'),
+        body: z
+          .string()
+          .describe(
+            `Comment text (Markdown), at most ${MCP_WRITE_BODY_MAX_BYTES} bytes. Must not be empty or whitespace-only. It is written verbatim and is publicly visible on the instance; never include credentials or private data the instance should not hold.`,
+          ),
+        idempotencyKey: z
+          .string()
+          .optional()
+          .describe(
+            'Retry key for this logical write. Reuse the identical value when retrying the same operation; use a new one for a different comment. Within 10 minutes the same key with the same target and body returns the earlier result instead of writing again.',
+          ),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, report what would be sent (target, body length, digest) without sending it. Default: false. Recommended before a batch, or whenever the user has not read the exact text yet.',
+          ),
+      },
+      annotations: WRITE_TOOL_ANNOTATIONS,
+    },
+    async (args, extra) => callTool('create_issue_comment', () => handlersFor(extra).create_issue_comment(args)),
   );
 
   server.registerTool(
