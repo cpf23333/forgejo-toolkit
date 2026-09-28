@@ -1005,12 +1005,23 @@ export class LeaseSupervisor implements LeasePollingGate {
         this.refreshInstancesFingerprint();
         if (decision.plan.mustReleaseStale) {
           // §4.2.3: release before claiming re-reads and re-checks staleness,
-          // so a lease that became live in the meantime is left alone.
-          const released = await this.store.releaseStale(now);
+          // so a lease that became live in the meantime is left alone. The
+          // accelerated branch also hands over the threshold and the identity
+          // of the record it decided about (`staleRelease`), which is what lets
+          // a live-but-silent holder be displaced at 30 s; every other claim
+          // passes nothing and keeps the ordinary 35 s release.
+          const released = await this.store.releaseStale(now, decision.plan.staleRelease);
           if (this.stale(generation)) {
             return;
           }
-          this.logger.debug(this.line(context, 'release-stale', decision.reason, { outcome: released }));
+          this.logger.debug(
+            this.line(context, 'release-stale', decision.reason, {
+              outcome: released,
+              ...(decision.plan.staleRelease === undefined
+                ? {}
+                : { releaseThresholdMs: decision.plan.staleRelease.thresholdMs }),
+            }),
+          );
         }
         const outcome = await this.store.claim(now);
         if (this.stale(generation)) {
@@ -1570,10 +1581,13 @@ export class LeaseSupervisor implements LeasePollingGate {
    *   when the streak started against an already-gone holder. Either way it is
    *   a measurement of *this* window, never a guess about the predecessor.
    *
-   * (The escalation is currently unreachable at the shipped constants — see
-   * `never invents a latency for the K escalation` in `leasePollingGate.test.ts`
-   * — so the arm is kept correct for the retune §11.2 will decide, not because
-   * it runs today.)
+   * (The escalation is dormant for a *cold-start* streak at the shipped
+   * constants — see `never invents a latency for the K escalation when the
+   * streak is built from scratch` in `leasePollingGate.test.ts` — but a streak
+   * that is already at K does displace an owner that is alive but silent: the
+   * claim's release re-checks the record at the same 30 s threshold rather than
+   * at the 35 s expiry (§4.2.3), which is what the 2026-09-28 measurement was
+   * about.)
    */
   private handoverLatency(
     context: TickContext,

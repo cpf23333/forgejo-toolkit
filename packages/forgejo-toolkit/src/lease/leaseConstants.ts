@@ -100,9 +100,19 @@ export const LEASE_CLAIM_TICK_MS = 2_000;
  * How many consecutive unanswered claim requests a focused window tolerates
  * before it stops waiting for the full expiry (K = 3, §2.3, §12.10).
  *
- * With K ticks of 2 s this bounds the handover at ~6 s instead of 35 s. The
- * cost is a short window with two pollers and therefore a duplicated alert,
- * which is the safe direction: a duplicate alert, never a missing one (§8).
+ * A streak built from scratch still runs out of patience only after the expiry
+ * has passed (see `LEASE_ACCELERATED_STALE_MS`): `H` = 12.5 s plus K = 3 requests
+ * at the 2 s tick is 18.5 s, and the accelerated arm only opens at 30 s. The
+ * counter is **not** cleared by a focus change, though — only by an ownership
+ * change or by the election stopping (`resetFollowerRequestState`) — so a streak
+ * that is already at K meets a hung but alive owner (pid alive, heartbeat older
+ * than `LEASE_ACCELERATED_STALE_MS`) and fires on the next 2 s tick. Since
+ * 2026-09-28 that claim also *wins*: the release it drives uses the same
+ * accelerated threshold (`LeaseClaimPlan.staleRelease`, §4.2.3), so the takeover
+ * lands about one heartbeat before the 35 s expiry instead of waiting it out.
+ * The cost when it fires is a short window with two pollers and therefore a
+ * duplicated alert, which is the safe direction: a duplicate alert, never a
+ * missing one (§8).
  */
 export const LEASE_UNANSWERED_REQUEST_LIMIT_K = 3;
 
@@ -121,18 +131,34 @@ export const LEASE_UNANSWERED_REQUEST_LIMIT_K = 3;
  * unreachable (the soak timeline is in §11.2, the rule in §4.1).
  *
  * Deliberately *not* the expiry, and deliberately below it: 3 × 10 s = 30 s is
- * what lets the K escalation act before waiting out the 35 s lease — by at most
- * one heartbeat period. The accelerated branch also respects the anti-ping-pong
- * window N (§2.3): K buys an earlier *attempt*, never the right to displace a
- * window that has just taken the lease.
+ * what lets the K escalation act before the 35 s lease. This is also the
+ * threshold the accelerated claim's **release** re-checks against
+ * (`LeaseClaimPlan.staleRelease`, §4.2.3), together with the identity of the
+ * record the decision saw. Before 2026-09-28 it did not: the release re-read the
+ * record against `LEASE_EXPIRY_MS`, answered `not-owner`, the `wx` create
+ * answered `contended`, and the real takeover still happened at 35.6 s / 36.4 s
+ * on the ordinary expiry path — measured twice, decisions 597 ms / 1.321 s after
+ * the fault (§11.2). With the threshold carried through, a focused follower with
+ * K unanswered requests displaces a **live-but-silent** holder at ~30 s.
  *
- * A future reader can check the two properties without re-deriving them: the
+ * A streak built from scratch is still dormant: its record has always expired
+ * before K = 3 requests could be sent (18.5 s < 30 s to open the arm, 35 s to
+ * expire), so its takeover is the plain expiry path. That is a statement about a
+ * cold-start streak, not about the arm — a streak already at K (cleared only by
+ * an ownership change or by the election stopping, never by a focus change; see
+ * `resetFollowerRequestState`) is exactly what this threshold now serves.
+ *
+ * The accelerated branch still respects the anti-ping-pong window N (§2.3): K
+ * buys an earlier *attempt*, never the right to displace a window that has just
+ * taken the lease.
+ *
+ * A future reader can check the properties without re-deriving them: the
  * consistency test in `src/__tests__/leaseDecision.test.ts` asserts the literal
  * 30 s, the `LEASE_HEARTBEAT_MS` multiple, and
- * `LEASE_ACCELERATED_STALE_MS < LEASE_EXPIRY_MS`. A retune of the heartbeat that
- * breaks either order fails that test instead of silently turning this branch
- * into dead code (at or above the expiry) or into a false-positive generator (at
- * or below one heartbeat).
+ * `LEASE_ACCELERATED_STALE_MS < LEASE_EXPIRY_MS`, while
+ * `src/__tests__/leasePollingGate.test.ts` pins the cold-start arithmetic above
+ * — it fails if a retune ever lets a cold-start streak reach the branch without
+ * a test that exercises it.
  */
 export const LEASE_ACCELERATED_STALE_MS = 3 * LEASE_HEARTBEAT_MS;
 

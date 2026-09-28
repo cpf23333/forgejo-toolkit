@@ -30,11 +30,58 @@ export interface LeaseRecord {
   claimedAt: number;
   /** `Date.now()` on every heartbeat. */
   heartbeatAt: number;
-  /** "deactivate" / "takeover-requested" / "stepped-down"; null while held. */
+  /** Always `null` as shipped: a yield does not write a tombstone (see below). */
   releaseReason: string | null;
   appVersion: string;
   /** Fingerprint of the instance set; a change never triggers an election (§3.3). */
   instancesFingerprint: string;
+}
+
+/**
+ * `releaseReason` is kept in the record shape but is never given a value: a
+ * yielding window unlinks the lease instead of writing a tombstone (§7.1, the
+ * stage-0 conclusion), so both write sites store `null` and the field is only
+ * ever read back as `null`. The reason for a handover is recorded in the log
+ * line and the diagnostics report, not on disk — a tombstone a reader could
+ * mistake for a live lease was the reason the field stayed empty.
+ */
+
+/**
+ * The three fields that identify one *specific* record on disk, for a release
+ * that must not unlink a record some window has written since (§4.2.3).
+ *
+ * One field alone is never enough: a pid is recycled, an owner republishes
+ * under the same `ownerNonce` on every heartbeat, and two windows can write in
+ * the same millisecond. The three together are what "the record the decision
+ * was about" means.
+ */
+export interface LeaseRecordIdentity {
+  ownerNonce: string;
+  pid: number;
+  claimedAt: number;
+}
+
+/**
+ * What a caller asserts about the record it wants released as stale (§2.3,
+ * §4.2.3).
+ *
+ * The two fields travel together on purpose. The only caller that lowers the
+ * age threshold below `LEASE_EXPIRY_MS` is the accelerated takeover (reason
+ * `follower-takeover-accelerated`), and that is exactly the caller which may
+ * unlink a record whose pid is still alive — so it must also name the record it
+ * decided about. A lowered threshold can therefore never be aimed at "whatever
+ * is older than 30 s": it applies to the decision's own record or to nothing.
+ *
+ * `LeaseStore.releaseStale` re-reads and re-checks both: the identity must
+ * still match, and the *re-read* age must still exceed `thresholdMs`. A caller
+ * that omits this argument keeps the ordinary `LEASE_EXPIRY_MS` release, which
+ * is what every other path (and every other caller) does.
+ */
+export interface StaleReleaseExpectation {
+  /** The record the decision saw. Any difference on the re-read answers `not-owner`. */
+  expectedHolder: LeaseRecordIdentity;
+  /** The age `now - heartbeatAt` the re-read record must still reach or exceed. */
+  thresholdMs: number;
 }
 
 /** The result of reading the lease file (§4.2's follower state machine). */

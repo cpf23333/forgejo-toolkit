@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { decideLeaseAction } from '../lease/leaseDecision';
+import { decideLeaseAction, leaseRecordIdentity } from '../lease/leaseDecision';
 import {
+  LEASE_ACCELERATED_STALE_MS,
   LEASE_CLAIM_REQUEST_MAX_AGE_MS,
   LEASE_EXPIRY_MS,
   LEASE_FILE_NAME,
@@ -21,6 +22,7 @@ import {
   validateLeaseRecord,
 } from '../lease/leaseStore';
 import { fsError, makeLease, makeStore, makeTempDir, removeTempDir } from './leaseTestHelpers';
+import type { LeaseRecord } from '../lease/leaseTypes';
 
 /**
  * The IO layer (§10.1.2, §10.1.3, §10.1.5, §10.1.7). These tests use a real
@@ -301,6 +303,143 @@ describe('claim: the file existing is not the same as the lease being published 
     expect(await store.claim(1_000)).toBe('contended');
     expect(store.holdsUnpublishedRecord).toBe(false);
     expect(await store.yieldOwn()).toBe('missing');
+  });
+});
+
+describe('releaseStale: the accelerated threshold and the record identity (§2.3, §4.2.3)', () => {
+  /**
+   * The threshold the accelerated claim hands the release: the decision already
+   * judged the record unreachable at 30 s, so the release must re-check against
+   * the same number instead of `LEASE_EXPIRY_MS`.
+   */
+  const ACCELERATED = { thresholdMs: LEASE_ACCELERATED_STALE_MS };
+
+  /** The fixed `now` every case uses, so an age is exactly `now - heartbeatAt`. */
+  const NOW = 1_000_000;
+
+  /** A live-pid foreign record written straight to disk, `ageMs` old at `NOW`. */
+  async function writeHungHolder(ageMs: number, overrides: Partial<LeaseRecord> = {}) {
+    const record = makeLease({
+      ownerNonce: 'hung-nonce',
+      pid: process.pid, // alive: only the age can make this record stale
+      claimedAt: NOW - 120_000,
+      heartbeatAt: NOW - ageMs,
+      ...overrides,
+    });
+    await fs.promises.writeFile(leasePath(), JSON.stringify(record));
+    return record;
+  }
+
+  it('releases a live-but-silent holder at the accelerated threshold, and the takeover then wins', async () => {
+    // The measured failure of 2026-09-28, as a test: a record 31 s old with a
+    // live pid is inside `(30 s, 35 s)`, so the ordinary expiry refuses it and
+    // the accelerated release is the only thing that can unlink it.
+    const record = await writeHungHolder(LEASE_ACCELERATED_STALE_MS + 1_000);
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+
+    expect(await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder: leaseRecordIdentity(record) })).toBe(
+      'released',
+    );
+    // …and the `wx` create that follows finds no contender: the takeover lands
+    // while the record was still inside the expiry window.
+    expect(await store.claim(NOW)).toBe('claimed');
+    const after = await store.read();
+    expect(after.read.kind === 'ok' && after.read.record.ownerNonce).toBe('other-nonce');
+    expect(NOW - record.heartbeatAt).toBeLessThan(LEASE_EXPIRY_MS);
+  });
+
+  it('still refuses that same live holder on the ordinary release (the expiry path is untouched)', async () => {
+    const record = await writeHungHolder(LEASE_ACCELERATED_STALE_MS + 1_000);
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+
+    expect(await store.releaseStale(NOW)).toBe('not-owner');
+    expect(await store.claim(NOW)).toBe('contended');
+    const after = await store.read();
+    expect(after.read.kind === 'ok' && after.read.record.ownerNonce).toBe('hung-nonce');
+
+    // The expiry — one millisecond more than the accelerated threshold buys —
+    // is the only thing the ordinary path waits for.
+    expect(await store.releaseStale(record.heartbeatAt + LEASE_EXPIRY_MS - 1)).toBe('not-owner');
+    expect(await store.releaseStale(record.heartbeatAt + LEASE_EXPIRY_MS)).toBe('released');
+  });
+
+  it('refuses a record younger than the accelerated threshold, even with the identity', async () => {
+    // Safety constraint 3 in its plain form: 30 s means three missed heartbeats,
+    // and a record younger than that is a holder between two heartbeats.
+    const record = await writeHungHolder(LEASE_ACCELERATED_STALE_MS - 1_000);
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+
+    expect(await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder: leaseRecordIdentity(record) })).toBe(
+      'not-owner',
+    );
+    const after = await store.read();
+    expect(after.read.kind === 'ok' && after.read.record.ownerNonce).toBe('hung-nonce');
+  });
+
+  it('refuses a record that changed any identity field between decision and release', async () => {
+    // The decision saw this record; what is on disk now is a newer holder's,
+    // written in between, and it happens to be older than the accelerated
+    // threshold too — so only the identity check can refuse it.
+    const seenByDecision = { ownerNonce: 'old-nonce', pid: 4242, claimedAt: NOW - 120_000 };
+    const cases: { what: string; overrides: Record<string, unknown> }[] = [
+      { what: 'a new pid', overrides: { pid: process.pid } },
+      { what: 'a new nonce', overrides: { ownerNonce: 'newer-nonce' } },
+      { what: 'a new claimedAt', overrides: { claimedAt: NOW - 60_000 } },
+    ];
+    for (const { what, overrides } of cases) {
+      const record = makeLease({
+        ownerNonce: 'old-nonce',
+        pid: 4242,
+        claimedAt: NOW - 120_000,
+        heartbeatAt: NOW - LEASE_ACCELERATED_STALE_MS - 1_000,
+        ...overrides,
+      });
+      await fs.promises.writeFile(leasePath(), JSON.stringify(record));
+      const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+
+      expect(
+        await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder: seenByDecision }),
+        `${what} must not be released`,
+      ).toBe('not-owner');
+      const after = await store.read();
+      expect(after.read.kind === 'ok' && after.read.record.ownerNonce).toBe(record.ownerNonce);
+      expect(after.read.kind === 'ok' && after.read.record.claimedAt).toBe(record.claimedAt);
+    }
+  });
+
+  it('re-measures the age at release time, so a holder that heartbeated is left alone', async () => {
+    // The re-read is the authority, exactly as it is for the ordinary release:
+    // the same holder (identity intact) but a fresh heartbeat is a healthy
+    // window, not the silent one the decision saw.
+    const record = await writeHungHolder(LEASE_ACCELERATED_STALE_MS + 1_000);
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+    await fs.promises.writeFile(leasePath(), JSON.stringify({ ...record, heartbeatAt: NOW - 1_000 }));
+
+    expect(await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder: leaseRecordIdentity(record) })).toBe(
+      'not-owner',
+    );
+    expect((await store.read()).read.kind).toBe('ok');
+  });
+
+  it('refuses an unreadable record when an identity was demanded, and leaves it to the ordinary path', async () => {
+    // The decision saw a valid record; the file is now malformed or unreadable.
+    // That is not the record the decision was about, so this caller does not
+    // unlink it — the next tick re-decides (and the ordinary path releases it).
+    const record = await writeHungHolder(LEASE_ACCELERATED_STALE_MS + 1_000);
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+    await fs.promises.writeFile(leasePath(), 'not json at all');
+
+    expect(await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder: leaseRecordIdentity(record) })).toBe(
+      'not-owner',
+    );
+    expect(await store.releaseStale(NOW)).toBe('released');
+  });
+
+  it('leaves a missing file to the claim, with or without an identity', async () => {
+    const store = makeStore(dir, { ownerNonce: 'other-nonce' });
+    const expectedHolder = { ownerNonce: 'hung-nonce', pid: process.pid, claimedAt: NOW - 120_000 };
+    expect(await store.releaseStale(NOW, { ...ACCELERATED, expectedHolder })).toBe('missing');
+    expect(await store.claim(NOW)).toBe('claimed');
   });
 });
 

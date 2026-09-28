@@ -230,19 +230,36 @@ describe('the focus debounce H (§2.3)', () => {
 
     // The owner stops heartbeating while keeping its pid (a hung window): now
     // the record is real evidence, and the escalation fires.
-    await writeForeignLease(h, {
+    const hung = await writeForeignLease(h, {
       pid: process.pid,
       claimedAt: h.clock.ms - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
       heartbeatAt: h.clock.ms - LEASE_ACCELERATED_STALE_MS - 1_000,
     });
     await h.tick(1); // 22 s
-    const escalated = h.infoLines().find((line) => line.includes('reason=follower-takeover-accelerated')) ?? '';
-    expect(escalated).toContain('reason=follower-takeover-accelerated');
-    expect(escalated).toContain('mustReleaseStale=1');
-    // The owner never yielded, so the `wx` attempt is contended and this
-    // window stays a follower — the log says both.
-    expect(h.debugLines().join('\n')).toContain('outcome=contended');
-    expect((await h.readRecord())?.ownerNonce).toBe('foreign-nonce');
+    // Two `action=claim` lines carry the reason: the decision line (which is
+    // what `mustReleaseStale` belongs to) and the success outcome line.
+    const claimLines = linesWithAction(h.infoLines(), 'claim');
+    const decisionLine = claimLines.find((line) => !line.includes('outcome=')) ?? '';
+    expect(decisionLine).toContain('reason=follower-takeover-accelerated');
+    expect(decisionLine).toContain('mustReleaseStale=1');
+    expect(claimLines.find((line) => line.includes('outcome=claimed')) ?? '').toContain(
+      'reason=follower-takeover-accelerated',
+    );
+    // Still inside the expiry window, so this cannot be the ordinary expiry
+    // path arriving first: the accelerated release is what makes it succeed.
+    expect(h.clock.ms - hung.heartbeatAt).toBeGreaterThan(LEASE_ACCELERATED_STALE_MS);
+    expect(h.clock.ms - hung.heartbeatAt).toBeLessThan(LEASE_EXPIRY_MS);
+    // The release unlinked the hung holder's record under the accelerated
+    // threshold and named the record it decided about (`staleRelease`, §4.2.3):
+    // the `wx` create then wins, and this window owns the lease ~30 s after the
+    // holder went silent instead of waiting for the 35 s expiry.
+    const releaseLine = h.debugLines().find((line) => line.includes('action=release-stale')) ?? '';
+    expect(releaseLine).toContain('outcome=released');
+    expect(releaseLine).toContain(`releaseThresholdMs=${LEASE_ACCELERATED_STALE_MS}`);
+    expect(h.supervisor.role).toBe('leader');
+    expect(h.supervisor.lastHandover?.direction).toBe('takeover');
+    expect(h.supervisor.lastHandover?.reason).toBe('expiry');
+    expect((await h.readRecord())?.ownerNonce).toBe(h.store.nonce);
   });
 
   it('starts the H clock at the event, not at the next tick', async () => {

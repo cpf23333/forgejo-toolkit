@@ -258,13 +258,20 @@ describe('the setting and the command are contributed, not just implemented (§2
     expect(setting?.description).toBe('%config.multiWindowLease.description%');
   });
 
-  it('ships the drafted bilingual description in both locale files', () => {
+  it('ships the revised bilingual description in both locale files', () => {
     const key = 'config.multiWindowLease.description';
+    // The published text, as revised on 2026-09-27: the §2.1 draft promised a
+    // handover ("handing that job to whichever window you are working in"), which
+    // per-platform focus fidelity has not verified, so the shipped wording is the
+    // cautious one ("The mode tries to hand…", with the no-handover outcome named
+    // explicitly). The exact-equality assertion stays: this guard is what catches
+    // a locale file drifting from the approved description — or silently
+    // reverting to the draft.
     expect(nlsEn[key]).toBe(
-      'Poll Forgejo instances and raise notification alerts from only one VS Code window at a time instead of every open window, handing that job to whichever window you are working in. The other windows stay quiet but still load notifications when you open the view. Turn this off to let every window poll and alert on its own, which uses more requests but is the behaviour before this setting existed.',
+      "Poll Forgejo instances and raise notification alerts from only one VS Code window at a time instead of every open window. The mode tries to hand that job to whichever window you are working in; if VS Code's focus state cannot be trusted on your platform, the current holder keeps the lease and the alerts stay with the lease-holding window, and no alert is lost. The other windows stay quiet but still load notifications when you open the view. Turn this off to let every window poll and alert on its own, which uses more requests but is the behaviour before this setting existed.",
     );
     expect(nlsZh[key]).toBe(
-      '同一时间只让一个 VS Code 窗口轮询 Forgejo 实例并弹出通知提示，并把这个角色交给你正在使用的窗口；其余窗口保持安静，但手动打开通知视图时仍会即时读取。关闭后每个窗口各自轮询与提示——请求更多，但那是此设置存在之前的行为。',
+      '同一时间只让一个 VS Code 窗口轮询 Forgejo 实例并弹出通知提示，并尝试把这个角色交给你正在使用的窗口；如果 VS Code 的焦点状态在你的平台上不可信，则现任继续持有租约、提示留在租约所在窗口，不会漏掉任何通知。其余窗口保持安静，但手动打开通知视图时仍会即时读取。关闭后每个窗口各自轮询与提示——请求更多，但那是此设置存在之前的行为。',
     );
   });
 

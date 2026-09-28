@@ -30,7 +30,14 @@ import {
   LEASE_REQUEST_RETRY_MAX_MS,
   LEASE_UNANSWERED_REQUEST_LIMIT_K,
 } from './leaseConstants';
-import type { ClaimRequest, ClaimRequestObservation, LeaseRead, LeaseRecord } from './leaseTypes';
+import type {
+  ClaimRequest,
+  ClaimRequestObservation,
+  LeaseRead,
+  LeaseRecord,
+  LeaseRecordIdentity,
+  StaleReleaseExpectation,
+} from './leaseTypes';
 
 /**
  * Every reason the decision layer can name. A closed union so the stage-2
@@ -70,6 +77,22 @@ export interface LeaseClaimPlan {
    * re-checks staleness first (§4.2.3) — never an unconditional unlink.
    */
   mustReleaseStale: boolean;
+  /**
+   * How that release must judge the record: its identity and its age threshold.
+   *
+   * Set by **one** branch and no other — `follower-takeover-accelerated`, which
+   * is the only claim that displaces a holder whose pid is still alive. It
+   * carries `LEASE_ACCELERATED_STALE_MS` instead of the ordinary
+   * `LEASE_EXPIRY_MS`, because a decision this branch already justified at
+   * 30 s must not be undone by a release that re-checks the record against
+   * 35 s (measured 2026-09-28: the release answered `not-owner`, the `wx`
+   * create answered `contended`, and the takeover only happened on the ordinary
+   * expiry path several seconds later, §11.2).
+   *
+   * Every other claim path leaves this `undefined`, and the store then keeps the
+   * ordinary release: `LEASE_EXPIRY_MS` and the ownership check it always had.
+   */
+  staleRelease?: StaleReleaseExpectation;
   /** The claim request that justified an accelerated takeover, if any (§2.3). */
   requestedBy?: ClaimRequest;
 }
@@ -190,7 +213,17 @@ export interface LeaseDecisionInput {
   ownClaimRequest: OwnClaimRequestState;
 }
 
-/** True when a lease record is stale by age or by a dead holder pid. */
+/**
+ * True when a lease record is stale by age or by a dead holder pid.
+ *
+ * `expiryMs` is the caller's threshold, and it is a parameter because two
+ * callers legitimately disagree: the ordinary takeover and the ordinary
+ * `LeaseStore.releaseStale` use `LEASE_EXPIRY_MS`, while the accelerated
+ * takeover's release passes `LEASE_ACCELERATED_STALE_MS` — the same threshold
+ * the decision itself used, re-applied to the record it re-reads (§2.3, §4.2.3).
+ * Nothing about the dead-pid shortcut depends on it: a dead holder is stale
+ * under any threshold.
+ */
 export function isLeaseStale(
   record: LeaseRecord,
   now: number,
@@ -203,6 +236,15 @@ export function isLeaseStale(
     return true;
   }
   return now - record.heartbeatAt >= expiryMs;
+}
+
+/**
+ * The three fields of `record` that identify it on disk (§4.2.3). One place, so
+ * the decision that orders a release and the store that performs it agree on
+ * what "the same record" means without either re-listing the fields.
+ */
+export function leaseRecordIdentity(record: LeaseRecord): LeaseRecordIdentity {
+  return { ownerNonce: record.ownerNonce, pid: record.pid, claimedAt: record.claimedAt };
 }
 
 /**
@@ -440,10 +482,24 @@ function decideAsFollower(input: LeaseDecisionInput, record: LeaseRecord | undef
     // between two heartbeats — and it has ignored K requests, so stop waiting
     // for the expiry. The cost is a possible short double poll — the safe
     // direction (§8).
+    //
+    // The plan carries the same threshold to the release (§4.2.3): this is the
+    // one claim that may unlink a record whose pid is alive, so it says exactly
+    // which record it decided about and re-checks the age at that lowered
+    // threshold. Without it the release would re-check against the 35 s expiry,
+    // answer `not-owner`, and the takeover would fall back to the ordinary
+    // expiry path ~5 s later (measured 2026-09-28, §11.2).
     return {
       action: 'claim',
       reason: 'follower-takeover-accelerated',
-      plan: { mustReleaseStale: true, requestedBy: claim?.request },
+      plan: {
+        mustReleaseStale: true,
+        staleRelease: {
+          expectedHolder: leaseRecordIdentity(record),
+          thresholdMs: LEASE_ACCELERATED_STALE_MS,
+        },
+        requestedBy: claim?.request,
+      },
     };
   }
 

@@ -34,6 +34,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   LEASE_CLAIM_REQUEST_MAX_AGE_MS,
+  LEASE_EXPIRY_MS,
   LEASE_FILE_NAME,
   LEASE_HEARTBEAT_RETRY_DELAY_MS,
   LEASE_HEARTBEAT_WRITE_ATTEMPTS,
@@ -48,7 +49,9 @@ import type {
   HeartbeatOutcome,
   LeaseRead,
   LeaseRecord,
+  LeaseRecordIdentity,
   ReleaseOutcome,
+  StaleReleaseExpectation,
 } from './leaseTypes';
 
 /** The per-window nonce: generated once per extension host process (§3.2). */
@@ -261,6 +264,19 @@ function isExistsError(error: unknown): boolean {
 }
 
 /**
+ * True when the record on disk is still the one a release decision was made
+ * about (§4.2.3): the same holder, under the same nonce, with the same claim
+ * time. Any difference means a window wrote a new record in between, and that
+ * record is not the caller's to unlink — the caller's decision was about the
+ * old one.
+ */
+function matchesExpectedHolder(record: LeaseRecord, expected: LeaseRecordIdentity): boolean {
+  return (
+    record.ownerNonce === expected.ownerNonce && record.pid === expected.pid && record.claimedAt === expected.claimedAt
+  );
+}
+
+/**
  * The IO layer for one window: claim, heartbeat, yield, request, clean up.
  *
  * One instance per window. It holds no timer and starts nothing — the wiring
@@ -430,20 +446,56 @@ export class LeaseStore {
    * Release a lease that is verifiably not usable (invalid, expired, or held
    * by a dead pid), re-reading it first so a lease that became live in the
    * meantime is left alone (§4.2.3).
+   *
+   * `expectation` is how the *accelerated* takeover releases a live-but-silent
+   * holder (§2.3, reason `follower-takeover-accelerated`). That claim has
+   * already decided the record is unreachable at
+   * `LEASE_ACCELERATED_STALE_MS`, so waiting for `LEASE_EXPIRY_MS` here would
+   * silently undo the decision — measured 2026-09-28: this method answered
+   * `not-owner`, the `wx` create answered `contended`, and the real takeover
+   * happened ~5 s later on the ordinary expiry path (§11.2).
+   *
+   * The lowered threshold is therefore the one thing `expectation` buys, and it
+   * is fenced by two re-checks that keep it from ever unlinking a healthy
+   * holder's record:
+   *
+   * - **identity**: `pid`, `ownerNonce` and `claimedAt` must still match the
+   *   record the decision saw. A record some window has written in between is a
+   *   different record, and this caller has no decision that covers it, so it
+   *   answers `not-owner`. An unreadable or absent record matches no identity
+   *   either — `missing` still means "nothing to unlink", a broken record is
+   *   left to the ordinary expiry path on the next tick;
+   * - **age**: the age is re-measured from the *re-read* `heartbeatAt`, never
+   *   carried over from the decision, so a holder that heartbeated in between
+   *   is left alone even though the decision saw an old record.
+   *
+   * Every other caller passes no expectation and keeps the ordinary
+   * `LEASE_EXPIRY_MS` release, exactly as before.
    */
-  async releaseStale(now: number): Promise<ReleaseOutcome> {
+  async releaseStale(now: number, expectation?: StaleReleaseExpectation): Promise<ReleaseOutcome> {
     const observation = await this.read();
     if (observation.read.kind === 'missing') {
       return 'missing';
     }
     if (observation.read.kind === 'invalid') {
+      if (expectation !== undefined) {
+        // The decision saw a *valid* record and this is not it: the file was
+        // replaced between the two reads, so it is not this caller's to unlink.
+        // The next tick re-decides from what is on disk now (an unusable record
+        // is released by the ordinary path, §4.2, §8).
+        return 'not-owner';
+      }
       return this.unlinkAndClassify();
     }
     const record = observation.read.record;
     if (record.ownerNonce === this.ownerNonce) {
       return 'not-owner';
     }
-    if (!isLeaseStale(record, now, isPidAlive(record.pid))) {
+    if (expectation !== undefined && !matchesExpectedHolder(record, expectation.expectedHolder)) {
+      return 'not-owner';
+    }
+    const thresholdMs = expectation?.thresholdMs ?? LEASE_EXPIRY_MS;
+    if (!isLeaseStale(record, now, isPidAlive(record.pid), thresholdMs)) {
       return 'not-owner';
     }
     return this.unlinkAndClassify();

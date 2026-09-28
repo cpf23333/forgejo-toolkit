@@ -6,6 +6,7 @@ import {
   isLeaseStale,
   selectCurrentClaimRequest,
   type ClaimRequestObservation,
+  type LeaseClaimPlan,
   type LeaseDecision,
   type LeaseDecisionInput,
   type LeaseSnapshot,
@@ -109,6 +110,27 @@ describe('decideLeaseAction: the accelerated takeover (K)', () => {
     });
   }
 
+  /** The plan of a decision the test knows is a claim; throws if it is not. */
+  function claimPlanOf(decision: LeaseDecision): LeaseClaimPlan {
+    if (decision.action !== 'claim') {
+      throw new Error(`expected a claim decision, got ${decision.action}`);
+    }
+    return decision.plan;
+  }
+
+  /** The accelerated decision for a record that is `ageMs` old, K requests in. */
+  function acceleratedDecision(ageMs: number): LeaseDecision {
+    return decideLeaseAction(
+      makeInput({
+        now: NOW,
+        own: makeWindow({ focused: true }),
+        holderPidAlive: true,
+        lease: snapshotOf(staleForeignOwner(ageMs)),
+        ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+      }),
+    );
+  }
+
   it('escalates after K unanswered requests against a record older than 3 × heartbeat', () => {
     const record = staleForeignOwner(LEASE_ACCELERATED_STALE_MS + 1);
     const decision = decideLeaseAction(
@@ -123,7 +145,67 @@ describe('decideLeaseAction: the accelerated takeover (K)', () => {
     expect(decision).toEqual({
       action: 'claim',
       reason: 'follower-takeover-accelerated',
-      plan: { mustReleaseStale: true },
+      plan: {
+        mustReleaseStale: true,
+        // The release is ordered at the *accelerated* threshold, so it cannot
+        // undo the decision it came from (§4.2.3), and it names the record it
+        // decided about so a newer holder can never be unlinked by it.
+        staleRelease: {
+          expectedHolder: {
+            ownerNonce: 'other',
+            pid: process.pid,
+            claimedAt: NOW - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
+          },
+          thresholdMs: LEASE_ACCELERATED_STALE_MS,
+        },
+      },
+    });
+  });
+
+  it('orders the accelerated release threshold off the accelerated reason alone (safety constraint 1)', () => {
+    // Every other claim path must keep `LEASE_EXPIRY_MS`: only
+    // `follower-takeover-accelerated` may lower the threshold the release
+    // re-checks, and it must hand over the identity of the record it decided
+    // about in the same breath.
+    const expired = claimPlanOf(
+      decideLeaseAction(
+        makeInput({ now: NOW, holderPidAlive: true, lease: snapshotOf(staleForeignOwner(LEASE_EXPIRY_MS + 1)) }),
+      ),
+    );
+    expect(expired.staleRelease).toBeUndefined();
+
+    const absent = claimPlanOf(decideLeaseAction(makeInput({ now: NOW })));
+    expect(absent.staleRelease).toBeUndefined();
+
+    const invalid = claimPlanOf(decideLeaseAction(makeInput({ now: NOW, lease: snapshotOf({ kind: 'invalid' }) })));
+    expect(invalid.staleRelease).toBeUndefined();
+
+    const accelerated = claimPlanOf(acceleratedDecision(LEASE_ACCELERATED_STALE_MS + 1));
+    expect(accelerated.staleRelease?.thresholdMs).toBe(LEASE_ACCELERATED_STALE_MS);
+
+    // The plan is built from the record the decision read, never from a
+    // constant: a second decision about a different holder carries that holder.
+    const otherHolder = makeLease({
+      ownerNonce: 'third-window',
+      pid: 987_654,
+      claimedAt: NOW - LEASE_HANDOVER_HYSTERESIS_N_MS - 2_000,
+      heartbeatAt: NOW - LEASE_ACCELERATED_STALE_MS - 1,
+    });
+    const second = claimPlanOf(
+      decideLeaseAction(
+        makeInput({
+          now: NOW,
+          own: makeWindow({ focused: true }),
+          holderPidAlive: true,
+          lease: snapshotOf(otherHolder),
+          ownClaimRequest: { consecutiveUnansweredRequests: LEASE_UNANSWERED_REQUEST_LIMIT_K },
+        }),
+      ),
+    );
+    expect(second.staleRelease?.expectedHolder).toEqual({
+      ownerNonce: 'third-window',
+      pid: 987_654,
+      claimedAt: NOW - LEASE_HANDOVER_HYSTERESIS_N_MS - 2_000,
     });
   });
 
@@ -640,6 +722,9 @@ describe('the recorded starting values are internally consistent (§12 last entr
     // below the expiry (otherwise the accelerated branch is dead code and the
     // expiry takeover always wins). Both properties are asserted here so a
     // retune of the heartbeat cannot silently break either — §4.1 and §11.2.
+    // It is also the threshold the accelerated *release* re-checks (§4.2.3,
+    // `LeaseClaimPlan.staleRelease`), which is what makes a live-but-silent
+    // holder displaceable at 30 s rather than only at 35 s.
     expect(LEASE_ACCELERATED_STALE_MS).toBe(30_000);
     expect(LEASE_ACCELERATED_STALE_MS).toBe(3 * LEASE_HEARTBEAT_MS);
     expect(LEASE_ACCELERATED_STALE_MS).toBeGreaterThan(LEASE_HEARTBEAT_MS);

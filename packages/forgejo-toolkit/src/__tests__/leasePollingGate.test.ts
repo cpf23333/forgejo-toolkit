@@ -122,19 +122,30 @@ describe('the recorded handover tells the truth on every path (§11.1 stage 2)',
     expect(demotionReason('lease-missing')).toBe('close');
   });
 
-  it('never invents a latency for the K escalation, which the shipped timings cannot reach', async () => {
+  it('never invents a latency for the K escalation when the streak is built from scratch', async () => {
     // Finding, recorded here because it is a reportable product fact rather
-    // than a test convenience: the accelerated takeover cannot fire at the
-    // shipped constants. Its whole purpose is to act inside the staleness
+    // than a test convenience: a streak built from scratch still cannot reach
+    // the accelerated takeover. Its whole purpose is to act inside the staleness
     // window `[3 x heartbeat, expiry)` — 5 s wide — but the first claim request
-    // a focused follower may send is H = 12.5 s after it becomes focused, and K
-    // = 3 requests at a 2 s cadence need 6 s beyond that. The record therefore
+    // a focused follower may send is H = 12.5 s after it becomes focused, and
+    // K = 3 requests at a 2 s cadence need 6 s beyond that. The record therefore
     // expires first, which is what this test walks through: no request is ever
     // published, and the takeover is the plain expiry path.
     //
-    // The two assertions are the numbers (a retune that makes the escalation
-    // reachable has to come with a test that exercises it) and the behaviour
-    // (whatever happens, no handover reports a fabricated `0`).
+    // This pins the cold-start arithmetic, not impossibility: the K counter is
+    // cleared only by an ownership change or by the election stopping
+    // (`resetFollowerRequestState`), never by a focus change, so a streak
+    // already at K reaches the arm against an owner that is alive but silent
+    // (pid alive, heartbeat older than 30 s, record not yet past 35 s) — and
+    // since 2026-09-28 it *wins* there, because the claim's release re-checks
+    // the record at `LEASE_ACCELERATED_STALE_MS` instead of `LEASE_EXPIRY_MS`
+    // (§4.2.3, §11.2). The gate test below and the supervisor's K escalation
+    // case are the other half of that pair.
+    //
+    // The two assertions are the numbers (a retune that lets a cold-start
+    // streak reach the escalation has to come with a test that exercises it)
+    // and the behaviour (whatever happens, no handover reports a fabricated
+    // `0`).
     const accelerationWindowMs = LEASE_EXPIRY_MS - LEASE_ACCELERATED_STALE_MS;
     const firstRequestDelayMs = LEASE_FOCUS_DEBOUNCE_H_MS;
     const timeToKRequestsMs = LEASE_UNANSWERED_REQUEST_LIMIT_K * LEASE_CLAIM_TICK_MS;
@@ -318,6 +329,48 @@ describe('only a confirmed, healthy follower closes the gate (§8)', () => {
     expect(h.supervisor.lastHandover?.latencyMs).toBe(5_000);
     expect(h.supervisor.lastHandover?.latencyUnknown).toBeNull();
     expect(h.supervisor.mayPoll()).toBe(true);
+  });
+
+  it('opens the gate when the K escalation displaces a live-but-silent holder before the expiry', async () => {
+    // The 2026-09-28 measurement, closed: a focused follower that already asked
+    // K times takes over a holder whose pid is alive but whose record is 31 s
+    // old — inside `(30 s, 35 s)` — because the accelerated claim's release
+    // re-checks the record at the accelerated threshold (§4.2.3). Before that it
+    // answered `not-owner`, the `wx` create answered `contended`, and this
+    // window stayed suppressed until the 35 s expiry. The gate opens at the
+    // takeover, which is what lets the new owner poll immediately.
+    const h = await lease({ focused: true });
+    await writeForeignLease(h, {
+      pid: process.pid,
+      claimedAt: h.clock.ms - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
+      heartbeatAt: h.clock.ms,
+    });
+    await h.start();
+    expect(h.supervisor.mayPoll()).toBe(false);
+    expect(h.gateChanges).toEqual([false]);
+
+    await h.tick(6); // 12 s: no request yet (H = 12.5 s)
+    await h.tick(1); // 14 s: request 1
+    await h.tick(2); // 18 s: requests 2 and 3 — K reached, record still healthy
+    expect(h.supervisor.mayPoll()).toBe(false);
+
+    // The holder goes silent while keeping its pid.
+    const hung = await writeForeignLease(h, {
+      pid: process.pid,
+      claimedAt: h.clock.ms - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
+      heartbeatAt: h.clock.ms - LEASE_ACCELERATED_STALE_MS - 1_000,
+    });
+    await h.tick(1);
+
+    // Still inside the expiry window: this is the accelerated path winning, not
+    // the ordinary expiry arriving first.
+    expect(h.clock.ms - hung.heartbeatAt).toBeGreaterThan(LEASE_ACCELERATED_STALE_MS);
+    expect(h.clock.ms - hung.heartbeatAt).toBeLessThan(LEASE_EXPIRY_MS);
+    expect(h.supervisor.decision?.reason).toBe('follower-takeover-accelerated');
+    expect(h.supervisor.role).toBe('leader');
+    expect(h.supervisor.lastHandover?.reason).toBe('expiry');
+    expect((await h.readRecord())?.ownerNonce).toBe(h.store.nonce);
+    expect(h.gateChanges).toEqual([false, true]);
   });
 
   it('opens the gate when the lease path becomes unreadable: uncertainty polls', async () => {
