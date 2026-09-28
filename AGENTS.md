@@ -141,14 +141,23 @@ Keep these documents in sync with the actual codebase. Do not let them drift.
     measurement, it belongs in the `CHANGELOG` or the commit history instead, even when
     it shipped and even when the section it sits in would look thinner without it. Entries
     like the removed 「Webview 入口按面拆分」and 「消息目录按语言拆分」are the worked
-    examples of what does not belong.
+    examples of what does not belong. The subject must likewise be a capability — something
+    the user can do, or a surface or action the plugin provides — not a state or property
+    that merely holds: a guarantee, an invariant, a "does not do X", a guard that holds on
+    every call, a quality of an existing surface, or a condition that is always true. The
+    removed 「推送前校验 git 实际使用的推送目标」is the worked example of such a
+    state/property entry, alongside those two: it holds on every push, but it is neither
+    something the user can do nor a surface the plugin offers.
 - `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` — documented workarounds and platform limitations.
   - Add an entry when a bug or limitation is accepted as "won't fix short-term".
   - Keep both language files in sync: same headings, same structure, equivalent meaning.
   - Explain _what_ happens, _why_, and the current workaround (if any).
 - `docs/design/**` — decision records. They state what was decided and why; they are not a task
   list, so open work belongs in `TODO.md` (a design document may name the tracking entry, never
-  hold the only copy of a pending item).
+  hold the only copy of a pending item). `docs/design/README.md` is their index: register a new
+  record there in the same change that creates it, and keep its status column current as stages
+  land. The directory stays flat — a subfolder per subsystem only once that subsystem has a second
+  record, and never one per status.
 
 Run `node tools/tracking-audit/check.mjs` after touching any of them (CI runs it too). It enforces the
 boundary above: `TODO.md` must have no completed/history heading, no checked boxes and a role header

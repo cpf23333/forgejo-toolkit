@@ -2,16 +2,11 @@
 
 功能清单：按状态分类（进行中 / 已完成 / 未完成），只列插件面向用户的能力；功能级的现状在这里，具体待办、阻塞与下一步动作在 `TODO.md`。
 
-## 进行中
-
-- **多窗口轮询租约**：机制已交付并默认开启（`forgejoToolkit.multiWindowLease`）——同一时间只有持有者窗口轮询与提示，其余窗口保持安静，任何不确定都退化为全速轮询，不可信时的正确降级是完全不换手；仍待定稿的是去抖、防乒乓、加速接管、心跳重试与降级阈值这几组参数（按真实观测定稿），仍待按平台验证的是逐窗口焦点保真度（多显示器、最小化、锁屏、同 profile 双窗口）。见 `TODO.md` 的「多窗口轮询租约」条目。
-
 ## 已完成
 
 ### 多实例管理
 
 - 添加、删除、测试连接多个 Forgejo/Codeberg 实例。
-- 使用 VS Code SecretStorage 安全保存 access token。
 
 ### Dashboard 面板
 
@@ -22,7 +17,6 @@
 - 仓库详情页：README、分支列表、最近 commits、返回 Dashboard。
 - 初次使用引导页：以编辑器页签形式打开，支持语言、服务器、worktree 配置。
 - 首次安装引导：Walkthrough 三步入门指南（添加实例 → 打开仪表板 → 发布/创建 PR，中英双语）；首次激活且无实例时自动打开引导页。
-- 多个窗口同时启动时引导页只打开一次；没有配置实例的 profile 仍照旧提供引导，添加实例或走完引导后不再自动出现。
 
 ### Pull Request Worktree
 
@@ -30,11 +24,8 @@
 - 自动 bare clone 源仓库到缓存目录，基于 `refs/pull/<index>/head` 创建本地分支和可编辑 worktree。
 - 支持配置 worktree 打开方式（新窗口 / 当前窗口）和缓存目录。
 - 设置页管理已创建的 worktree（打开、删除）。
-- 打开 worktree 前检测当前 workspace 是否就是 PR base repo。
 - 未配置打开方式时弹窗询问（新窗口 / 当前窗口），并支持记住选择。
 - 本地没有源仓库时支持：clone 到缓存目录、选择已有本地仓库、取消。
-- worktree 目录命名包含 PR 标题。
-- 打开已存在的 worktree 前校验 PR head：过期时重新创建，本地有未提交改动或本地提交时必须确认后才丢弃，避免静默删除本地工作。
 
 ### 设置页
 
@@ -46,7 +37,6 @@
 ### 国际化
 
 - 支持中文 / 英文切换。
-- 扩展清单（名称、简介）与包内 README 中英双语，扩展详情页跟随 VS Code 显示语言。
 
 ### 调试日志
 
@@ -59,18 +49,15 @@
 - Issue / PR 描述的 Markdown 渲染与附件列表。
 - Issue / PR 详情页：展示评论、diff、时间线。
 - PR 详情页 diff 增强：按提交查看 diff，列出每个 commit 的变更文件并支持单提交 diff 预览。
-- PR 详情页左右两栏布局。
 - PR 详情页右侧栏展示标签、负责人、里程碑、到期时间、引用、参与者。
 - PR 详情页支持反应表情、订阅/取消订阅通知、时间追踪、依赖议题管理。
 - PR 详情页显示合并状态及具体阻塞原因（冲突、需要审查、状态检查未通过等）。
 - PR 详情页直接展示 CI / commit status 列表。
-- 打开 PR 的新增/删除文件时给出状态提示。
 
 ### Issue / PR 操作
 
 - 创建 Issue / PR：仓库 Issue/PR 列表页提供新建弹窗。
 - 编辑 / 关闭 / 重新打开 / 删除 Issue 和 PR：详情页弹窗编辑，保存成功后重新获取详情；删除 Issue 需二次确认。
-- 编辑弹窗不使用 URL 路由，关闭后不留下浏览器历史条目。
 - 为 Issue / PR 添加评论，支持附件上传。
 - 合并 PR，支持 merge / squash / rebase 策略。
 - 撤销已合并 PR（Revert merge commit）。
@@ -91,8 +78,6 @@
 - 描述编辑使用带 Markdown 工具栏与预览的富文本编辑器。
 - 富文本内图片上传，上传后固定插入 `![image](/attachments/{uuid})` 格式。
 - 编辑弹窗内支持附件上传与删除。
-- 附件删除改为 pending 模式：标记后随保存一起提交，取消编辑则放弃删除。
-- 保存成功后重新获取详情，确保附件等数据最新。
 - Issue / PR / Release / 评论创建时支持 pending 附件：先选好附件，实体创建成功后自动上传。
 
 ### 仓库浏览
@@ -106,9 +91,7 @@
 
 - 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
 - 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
-- workspace 文件夹变化或实例增删时自动重新检测。
 - 发布本地仓库到 Forgejo：「Publish to Forgejo」命令引导选择实例、仓库名与可见性，自动创建远程仓库、添加 origin 并推送当前分支；已关联 Forgejo 仓库时该命令直接推送当前分支。
-- 推送前校验 git 实际使用的推送目标（含 `remote.<name>.pushurl` 与 `url.<base>.pushInsteadOf`）属于目标实例，不一致则中止，token 不会被发往其他主机。
 - 作为 VS Code Git clone 源：已配置实例注册为 `RemoteSourceProvider`，「Git: Clone」快速选择中按关键字在服务端搜索仓库克隆，无关键字时列出当前用户仓库。
 - 多仓库 / 嵌套仓库 workspace：workspace folder 一层子目录中的独立 git 仓库（含 repo 内嵌套 repo）参与关联检测，按当前文件/活动编辑器归属仓库，多仓库歧义时交互命令弹 QuickPick 消歧。
 - 多 remote 仓库：一个仓库配置多个 git remote 时，任一 remote 匹配已配置实例即参与关联（origin 优先）；Publish 命令可选择推送到匹配的 remote。
@@ -119,7 +102,6 @@
 
 - 当前 workspace 关联 Forgejo 仓库、当前分支非默认分支且无开放 PR 时，状态栏显示「创建 PR」按钮；点击按需推送分支并打开预填 head/base 的新建 PR 弹窗。
 - 分支已有开放 PR 时显示「PR #n」，点击直达 PR 详情。
-- 切换分支或增删实例时状态栏即时刷新。
 
 ### 通知与搜索
 
@@ -134,10 +116,8 @@
 - 实例配置导出 / 导入：支持将已保存实例（含 access token）和设置导出为 JSON 文件，或从 JSON 文件导入。
   - 导出时可选择具体实例、复制到剪贴板、使用密码加密。
   - 导入前预览，显示「已存在」实例的差异和 Token 冲突检测。
-  - 导入条目复用了已存在的实例 id 但 origin 不同时，不接受原 token（需重新输入），避免凭据被带到其他主机。
   - 导入后自动恢复语言、调试开关、worktree 配置，并自动跳转到 Dashboard。
 - 移除实例前二次确认。
-- onboarding 面板与侧栏主视图通过事件同步实例变更。
 
 ### CI / Actions
 
@@ -152,17 +132,13 @@
 ### MCP Server
 
 - 通过 VS Code `contributes.mcpServerDefinitionProviders` 将每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition，label 为 `Forgejo: <实例名>`；两个实例的 label 相同时——同名，或同一主机上的两个账号——只给相撞的那些追加 `<用户名或实例 id>` 判别符，保证列表里可区分），供 Copilot agent mode 等 MCP 客户端使用，零配置（VS Code ≥ 1.102）。
-- 每个 MCP definition 的 `env` 只带身份（实例 URL / 实例 id / 同步开关 / 本窗口工作区状态文件 / 可选代理），**token 不写进 definition**——definition 会被 VS Code 明文持久化到 profile 的 workspace storage；MCP 子进程改为转发到扩展宿主内的本地 broker，由宿主用 SecretStorage 里的 token 执行工具调用，broker 对握手里显式给出的实例 id 解析不到带 token 的实例时**拒绝该会话**。**没有存活的 broker 时不下发任何 definition 并记录原因**（宁可不提供，也不发布一个看起来已认证、实际匿名读取的 server）。无实例或无 token 时静默不注册（无 token 的实例逐个跳过并记 debug 日志），实例增删后自动重解析。token 不出现在定义、工具 schema / 结果 / 日志中。
 - 工作区 → 仓库映射工具 `get_workspace_repository`：宿主把当前工作区链接到的仓库按窗口写入 `globalStorage/mcp-workspace-<pid>-<nonce>.json`（复用检测的共享扫描缓存，串行化的原子写入，不含凭据），路径经 `FORGEJO_MCP_STATE_FILE` 传给 MCP 子进程；子进程每次调用实时重读，按实例 id（旧版宿主回退到实例 URL）过滤，并能把属于其他实例的仓库指向对应的服务器。AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。
 - Phase 1 只读工具集（全部标记 `readOnlyHint`，大字段截断保护上下文）：
   - 基础工具：Issue / PR / 时间线 / 通知 / 仓库信息 / 全局搜索。
   - Actions 扩展：运行历史、job 列表、job 日志、制品列表。
   - 代码读取扩展：文件内容、目录列表、分支、标签、提交、文件历史、仓库内文件搜索、PR diff。
   - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
-- 工具入参校验：`owner`/`repo`/文件路径拒绝路径分隔符与 `..`（生成客户端会原样拼接 URL），并限制单次结果总量（64 KB，带截断标记）。
-- 只读工具不弹确认框（`readOnlyHint` 的既定行为），保证来自工具面本身：全部映射到 `GET`，路径类入参均校验。
 - MCP Prompts：三个只读提示模板 `review-pull-request` / `analyze-ci-failure` / `triage-issue`，把工具按固定顺序串成工作流并规定回答结构（评审意见、CI 根因、issue 分诊建议）。参数全部可选：缺省 owner/repo 时指引先调 `get_workspace_repository`，缺省编号时指引先用对应的列表工具解析。提示模板本身无副作用，不改动只读工具面与安全模型。
-- 静态 `mcp.json`（Agents 窗口 / 第三方 MCP 客户端）拉起的 server 在扩展宿主运行时变成纯转发器：首行握手通过后把 stdio 桥接到扩展宿主的本地端点，工具逻辑带 token 在扩展宿主进程里执行；多窗口只留第一个绑定成功的 broker，其余静默让位，对外部客户端只表现为连接到同一个已认证 server。
 - 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
 - 面向 agent 上下文预算的 PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部（标题/状态/作者/基头分支/合并阻塞）、diff 统计（文件数与总增删行，外加按文件的增删行表——不含 diff 文本）、每个 reviewer 的最新结论与汇总判断、以及未解决的 inline 评审评论（path/line/作者/时间/正文），替代评审起步时的 `get_pull_request` + `get_pr_diff` + `get_pr_timeline` + `list_pull_reviews` 四次调用；描述注明 diff 文本、描述、commit 与时间线仍需按需回退原工具。评论按 review 逐条读取（上游没有一次取全的端点），以 4 并发有界扇出，单个 review 读取失败只计入 `unreadableReviewCount`；被解决的会话按 Forgejo 只写在首条评论上的 `resolver` 整体排除。各段预分片（文件表 100 行/16 KB，评论 50 条/24 KB、单条正文 1 KB），`truncated`/`truncatedBy`/`bodyTruncated` 标注每处裁剪且总数保持精确，不依赖 `truncateLargeStrings` 兜底。
 - Phase 2 写工具（首批两个，均默认关闭、各自独立开关）：`create_issue_comment` 在 Issue / PR 下新增一条评论；`submit_pull_review` 提交一个已存在的待处理（pending）评审，结论为 `COMMENT` / `APPROVED` / `REQUEST_CHANGES`（拼写与 Forgejo 的 `ReviewStateType` 一致，非法取值在发请求前即被拒），其中 `APPROVED` 可能满足分支保护要求，且 `APPROVED` 与 `REQUEST_CHANGES` 必须有非空正文。两道闸门：VS Code 每次调用弹确认框，并且要在扩展设置里**按工具**开启（`forgejoToolkit.mcpWriteTools.createIssueComment` / `forgejoToolkit.mcpWriteTools.submitPullReview`）；只有**由扩展宿主建立的会话**才能写，只带你自己配置里 token 的会话会被明确拒绝并指出该打开哪个设置。
@@ -173,10 +149,6 @@
 ### 多窗口轮询租约
 
 - 设置 `forgejoToolkit.multiWindowLease`（默认开）：机制健康时**只有持有者窗口轮询与提示**，follower 停止轮询/提示并在被接管后立即轮询一轮；**任何不确定一律退化为全速轮询**。机制不可用时给一次性提示（可复制诊断或关闭设置），并提供 `Forgejo Toolkit: Copy Polling Diagnostics` 命令（脱敏诊断字段）。
-
-### 可访问性与播报
-
-- 进度环使用本地化的 `aria-label`（不再播报英文 "Loading"）；Test/Save 结果进 live region；依赖/反应/标签等失败按错误提示而不是伪装成空结果；计时器状态读不到时不显示为"未运行"。
 
 ## 未完成
 
