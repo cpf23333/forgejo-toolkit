@@ -75,6 +75,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   four calls a review used to start with, and marking every part it had to cut
   short. The `review-pull-request` prompt now starts from it, and the tool
   surface grows from 29 tools to 30.
+- The workflow dispatch form now offers the inputs a workflow declares instead of
+  an empty key/value editor: it reads `on.workflow_dispatch.inputs` from the
+  workflow file at the ref the form has selected (`.forgejo/workflows`,
+  `.gitea/workflows` or `.github/workflows`), shows each input's name beside its
+  description, renders a text field for `string`, a checkbox for `boolean` and a
+  dropdown built from `options` for `choice` (any other declared type becomes a
+  text field rather than a broken control), prefills the declared `default` and
+  refuses to submit while a `required` input is empty. A workflow whose file
+  cannot be fetched or parsed — a private path, an unsupported shape, no `inputs:`
+  block, an API error — is still dispatchable through the raw key/value editor,
+  which the form says it is using; values already typed anywhere in the form are
+  never dropped when it switches between the two modes.
 
 ### Changed
 

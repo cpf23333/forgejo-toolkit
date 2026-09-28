@@ -356,6 +356,38 @@ export interface ForgejoActionArtifact {
   run_id?: number;
 }
 
+/**
+ * One input a workflow file declares under `on.workflow_dispatch.inputs`, as the
+ * extension host parsed it. The message layer forwards these; the webview never
+ * parses YAML itself (see `src/webview/workflowDispatchInputs.ts`).
+ */
+export interface WorkflowDispatchInputDescriptor {
+  name: string;
+  /** The control to render; `choice` only when `options` is non-empty. */
+  type: 'string' | 'boolean' | 'choice';
+  /** The declared `type`, exactly as the file spells it, for the help text. */
+  declaredType: string;
+  description?: string;
+  /** The declared default, stringified; absent when the file declares none. */
+  default?: string;
+  required: boolean;
+  options?: string[];
+}
+
+/**
+ * The host's answer to `getWorkflowDispatchInputs` for one workflow@ref. Absent
+ * or empty `inputs` means the form has no per-input controls to render and keeps
+ * its raw key/value editor; `reason` says why, and `error` carries the sentence
+ * to show when a file could not be read.
+ */
+export interface WorkflowDispatchInputsPayload {
+  inputs?: WorkflowDispatchInputDescriptor[];
+  /** The repository path the inputs were read from, when a file was found. */
+  path?: string;
+  reason?: 'no-inputs' | 'unreadable';
+  error?: string;
+}
+
 export type ForgejoBranch = {
   name?: string;
   commit?: {

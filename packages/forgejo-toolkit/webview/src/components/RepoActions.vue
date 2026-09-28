@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
+import { useAppState, actionRunsKey, dispatchWorkflowKey, workflowDispatchInputsKey } from '../composables/useAppState';
 import { actionStatusClass as statusClass, actionStatusIcon as statusIcon } from '../utils/actionStatus';
+import type { WorkflowDispatchInputDescriptor, WorkflowDispatchInputsPayload } from '../types/api';
 
 const props = defineProps<{
   instanceId: string;
@@ -19,6 +20,10 @@ const showTrigger = ref(false);
 const triggerWorkflow = ref('');
 const triggerRef = ref(props.defaultBranch ?? '');
 const triggerInputs = ref<{ key: string; value: string }[]>([]);
+// The values of the workflow's *declared* inputs, keyed by input name. The
+// descriptors themselves live in the shared state (the host read them); these
+// are the form's own edits, and they are what `submitTrigger` sends.
+const declaredInputValues = ref<Record<string, string>>({});
 // The workflow filename as the rest of the flow uses it (and as the host
 // receives it): `dispatchWorkflow` writes its loading/error slot under the
 // trimmed name (see submitTrigger). Keying the spinner and the error on the raw
@@ -30,6 +35,84 @@ const dispatchKey = computed(() =>
 );
 const dispatchLoading = computed(() => state.loading.get(dispatchKey.value) ?? false);
 const dispatchError = computed(() => state.errors.get(dispatchKey.value));
+const trimmedRef = computed(() => triggerRef.value.trim());
+
+/**
+ * The declared inputs of the current selection.
+ *
+ * Forgejo's own form lists only each input's `description`, never its name, so
+ * a user had to know which names a workflow declares. The host now reads
+ * `on.workflow_dispatch.inputs` out of the workflow file at the selected ref and
+ * answers with one descriptor per input; the form renders a control for each.
+ * Nothing is parsed here — the webview bundle has no YAML parser.
+ */
+const dispatchInputsKey = computed(() =>
+  trimmedWorkflow.value && trimmedRef.value
+    ? workflowDispatchInputsKey(props.instanceId, props.owner, props.repo, trimmedWorkflow.value, trimmedRef.value)
+    : '',
+);
+const dispatchInputsReply = computed(() =>
+  dispatchInputsKey.value ? state.workflowDispatchInputs.value.get(dispatchInputsKey.value) : undefined,
+);
+const dispatchInputsLoading = computed(() =>
+  dispatchInputsKey.value ? (state.loading.get(dispatchInputsKey.value) ?? false) : false,
+);
+// What the form is showing while the current selection's reply is in flight:
+// the previous selection's descriptors, so changing the ref does not flicker
+// through the raw editor for one round trip. A reply that carries no inputs
+// clears it, which is what swaps the form back to the raw editor.
+const lastDeclaredInputs = ref<WorkflowDispatchInputDescriptor[]>([]);
+const declaredInputs = computed(() =>
+  dispatchInputsReply.value
+    ? (dispatchInputsReply.value.inputs ?? [])
+    : dispatchInputsLoading.value
+      ? lastDeclaredInputs.value
+      : [],
+);
+const hasDeclaredInputs = computed(() => declaredInputs.value.length > 0);
+
+/**
+ * A required input the user has not filled in. An empty submit is refused for
+ * one, which is the declaration's own contract; the server would only answer
+ * with a validation error after the dispatch was attempted.
+ */
+const missingRequiredInput = computed(
+  () =>
+    declaredInputs.value.find((input) => input.required && (declaredInputValues.value[input.name] ?? '') === '')?.name,
+);
+const canSubmit = computed(
+  () =>
+    !dispatchLoading.value &&
+    !dispatchInputsLoading.value &&
+    Boolean(trimmedWorkflow.value) &&
+    Boolean(trimmedRef.value) &&
+    missingRequiredInput.value === undefined,
+);
+
+/**
+ * The sentence naming the mode the form is in. A file that could not be read or
+ * parsed is not an error state here: the raw editor stays, so the user can still
+ * dispatch and is told why the typed controls are missing.
+ */
+const inputsModeText = computed(() => {
+  const reply = dispatchInputsReply.value;
+  if (dispatchInputsLoading.value) {
+    // The fields may still be the previous selection's (see `declaredInputs`),
+    // so the line says what is happening rather than naming a file whose reply
+    // has not arrived.
+    return t('dashboard.actionRun.inputsLoading');
+  }
+  if (hasDeclaredInputs.value) {
+    return t('dashboard.actionRun.inputsDeclared', { path: reply?.path ?? '' });
+  }
+  if (reply?.error) {
+    return t('dashboard.actionRun.inputsUnreadable', { message: reply.error });
+  }
+  if (reply?.reason === 'no-inputs') {
+    return t('dashboard.actionRun.inputsNone');
+  }
+  return t('dashboard.actionRun.inputsManual');
+});
 // One accumulated list per repo: pages append to it, so "Load more" never
 // replaces the runs already on screen. The next page is derived from how many
 // runs are loaded rather than from a page counter, which keeps a concurrent
@@ -110,6 +193,112 @@ watch(
 // reload: the activation refresh lands in `runs` too, so a run that appeared
 // while the view was off screen ends the wait as soon as that reply arrives.
 watch(runs, resolveDispatchWait);
+
+/**
+ * Reads the declared inputs of the current selection. Called when the form's
+ * workflow or ref changes and from `onActivated`, because a selection made while
+ * the view was off screen never had its request sent (the watcher below is
+ * guarded on `isActive`, exactly like the run list's) — and `force` there, so a
+ * branch that moved on since the last visit is read again.
+ */
+function loadDeclaredInputs(force = false) {
+  if (!showTrigger.value || !trimmedWorkflow.value || !trimmedRef.value) {
+    return;
+  }
+  state.loadWorkflowDispatchInputs(
+    props.instanceId,
+    props.owner,
+    props.repo,
+    trimmedWorkflow.value,
+    trimmedRef.value,
+    force,
+  );
+}
+
+watch(
+  [() => props.instanceId, () => props.owner, () => props.repo, trimmedWorkflow, trimmedRef, showTrigger],
+  () => {
+    if (!isActive.value) {
+      return;
+    }
+    loadDeclaredInputs();
+  },
+  { immediate: true },
+);
+
+/**
+ * Reconciles the form with the reply for the current selection.
+ *
+ * A value the user typed is never dropped when the descriptors change (another
+ * ref, another workflow, a file that stopped being readable): a name the new
+ * declaration still has keeps its value in the typed controls, and a name it no
+ * longer declares becomes a raw row instead of disappearing. Unedited defaults
+ * go with the declaration they came from — except when the new selection has no
+ * declared inputs at all, where the values on screen are the only copy of what
+ * the user is about to send.
+ */
+function applyDeclaredInputs(next: WorkflowDispatchInputsPayload, previous: WorkflowDispatchInputsPayload | undefined) {
+  const declared = next.inputs ?? [];
+  const declaredNames = new Set(declared.map((input) => input.name));
+  const carried = new Map<string, string>();
+  const rows: { key: string; value: string }[] = [];
+
+  const remember = (name: string, value: string) => {
+    if (declaredNames.has(name)) {
+      carried.set(name, value);
+    } else {
+      rows.push({ key: name, value });
+    }
+  };
+
+  const keepEveryValue = declared.length === 0;
+  for (const input of previous?.inputs ?? []) {
+    const value = declaredInputValues.value[input.name];
+    if (value === undefined) {
+      continue;
+    }
+    if (keepEveryValue || value !== (input.default ?? '')) {
+      remember(input.name, value);
+    }
+  }
+  // Rows the user typed in the fallback editor: one whose key is now a declared
+  // input moves into that control (their own text wins over the default), and
+  // the rest stay on screen as extra inputs.
+  for (const row of triggerInputs.value) {
+    const name = row.key.trim();
+    if (name) {
+      remember(name, row.value);
+    } else {
+      rows.push(row);
+    }
+  }
+
+  const values: Record<string, string> = {};
+  for (const input of declared) {
+    // A checkbox always answers: an undeclared default means "off", which is
+    // what the unchecked box on screen says.
+    values[input.name] = carried.get(input.name) ?? input.default ?? (input.type === 'boolean' ? 'false' : '');
+  }
+
+  declaredInputValues.value = values;
+  triggerInputs.value = rows;
+  lastDeclaredInputs.value = declared;
+}
+
+let previousInputsReply: WorkflowDispatchInputsPayload | undefined;
+watch([dispatchInputsKey, dispatchInputsReply], () => {
+  const next = dispatchInputsReply.value;
+  if (next === undefined) {
+    // The selection changed and its reply is still on the wire: the controls on
+    // screen are still the previous list's (see `declaredInputs`), so the values
+    // stay where they are and are reconciled once the reply lands. The last
+    // reply is kept as the comparison base for that reconciliation.
+    return;
+  }
+  const previous = previousInputsReply;
+  previousInputsReply = next;
+  applyDeclaredInputs(next, previous);
+});
 
 function reload() {
   // Page 1 replaces the accumulated list: a refresh/retry starts the list over
@@ -332,6 +521,18 @@ function removeTriggerInput(index: number) {
   triggerInputs.value.splice(index, 1);
 }
 
+function onTextInputChange(name: string, event: Event) {
+  declaredInputValues.value[name] = (event.target as HTMLInputElement).value;
+}
+
+function onBooleanInputChange(name: string, event: Event) {
+  declaredInputValues.value[name] = (event.target as { checked?: boolean }).checked ? 'true' : 'false';
+}
+
+function onChoiceInputChange(name: string, event: Event) {
+  declaredInputValues.value[name] = (event.target as HTMLSelectElement).value;
+}
+
 function availableWorkflows(): string[] {
   const list = runs.value
     .map((run) => run.workflow_id)
@@ -341,11 +542,23 @@ function availableWorkflows(): string[] {
 
 function submitTrigger() {
   const workflow = trimmedWorkflow.value;
-  const ref = triggerRef.value.trim();
-  if (!workflow || !ref) {
+  const ref = trimmedRef.value;
+  if (!workflow || !ref || missingRequiredInput.value !== undefined) {
     return;
   }
   const inputs: Record<string, string> = {};
+  // The declared inputs first, then the raw rows: a key the user typed in the
+  // fallback editor wins, and nothing either editor holds is dropped.
+  for (const input of declaredInputs.value) {
+    const value = (declaredInputValues.value[input.name] ?? '').trim();
+    // An optional input left empty is not sent at all: Forgejo would otherwise
+    // take the empty string as the value and the workflow's own default would
+    // never apply.
+    if (value === '') {
+      continue;
+    }
+    inputs[input.name] = value;
+  }
   for (const item of triggerInputs.value) {
     const key = item.key.trim();
     const value = item.value.trim();
@@ -370,6 +583,9 @@ function resetTrigger() {
   triggerWorkflow.value = '';
   triggerRef.value = props.defaultBranch ?? '';
   triggerInputs.value = [];
+  declaredInputValues.value = {};
+  lastDeclaredInputs.value = [];
+  previousInputsReply = undefined;
   // Closing the form drops the dispatch feedback with it, so the poll that was
   // serving it has nothing left to report.
   finishDispatchWait('idle');
@@ -382,6 +598,11 @@ onActivated(() => {
   // the current repo is loaded (the loader dedups in-flight requests). Page 1
   // refreshes the accumulated list when the view is re-entered.
   state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
+  // A selection made while the view was off screen never sent its request (the
+  // form's watcher is guarded on `isActive`), and a selection that did is read
+  // again because the branch may have moved on: the loader dedups in-flight
+  // requests and keeps the answer otherwise.
+  loadDeclaredInputs(true);
   // A dispatch that was still being waited for when the view was left keeps its
   // wait: start the poll whose timer `onDeactivated` stopped — or, when the
   // reply landed off screen, the one that was never started — and resolve it
@@ -473,29 +694,99 @@ onUnmounted(() => {
           />
         </div>
         <div class="trigger-inputs">
-          <div v-for="(input, index) in triggerInputs" :key="index" class="trigger-input-row">
-            <vscode-textfield
-              :value="input.key"
-              @input="input.key = ($event.target as HTMLInputElement).value"
-              :placeholder="t('dashboard.actionRun.inputKey')"
-              :label="t('dashboard.actionRun.inputKey')"
-            />
-            <vscode-textfield
-              :value="input.value"
-              @input="input.value = ($event.target as HTMLInputElement).value"
-              :placeholder="t('dashboard.actionRun.inputValue')"
-              :label="t('dashboard.actionRun.inputValue')"
-            />
-            <vscode-button
-              icon-only
-              icon="trash"
-              :aria-label="t('dashboard.remove')"
-              @click="removeTriggerInput(index)"
-            />
+          <div class="inputs-mode">
+            <vscode-icon :name="hasDeclaredInputs ? 'symbol-field' : 'edit'" />
+            <span>{{ inputsModeText }}</span>
           </div>
-          <vscode-button secondary icon="add" @click="addTriggerInput">
-            {{ t('dashboard.actionRun.addInput') }}
-          </vscode-button>
+          <!--
+            One control per input the workflow file declares. The name is the
+            label (the gap Forgejo's own form leaves: it shows only the
+            description), and an input type this form has no control for renders
+            as a text field rather than a broken one.
+          -->
+          <div v-for="input in declaredInputs" :key="input.name" class="trigger-field declared-input">
+            <vscode-checkbox
+              v-if="input.type === 'boolean'"
+              :checked="declaredInputValues[input.name] === 'true'"
+              @change="onBooleanInputChange(input.name, $event)"
+            >
+              {{ input.name }}
+              <span v-if="input.required" class="input-required" :title="t('dashboard.actionRun.inputRequired')">
+                *
+              </span>
+            </vscode-checkbox>
+            <template v-else>
+              <label>
+                {{ input.name }}
+                <span v-if="input.required" class="input-required" :title="t('dashboard.actionRun.inputRequired')">
+                  *
+                </span>
+              </label>
+              <vscode-single-select
+                v-if="input.type === 'choice'"
+                class="input-choice"
+                :value="declaredInputValues[input.name] ?? ''"
+                :label="input.name"
+                @change="onChoiceInputChange(input.name, $event)"
+              >
+                <vscode-option
+                  v-for="option in input.options"
+                  :key="option"
+                  :value="option"
+                  :selected="option === (declaredInputValues[input.name] ?? '')"
+                >
+                  {{ option }}
+                </vscode-option>
+              </vscode-single-select>
+              <vscode-textfield
+                v-else
+                class="input-text"
+                :value="declaredInputValues[input.name] ?? ''"
+                :label="input.name"
+                @input="onTextInputChange(input.name, $event)"
+              />
+            </template>
+            <p v-if="input.description" class="input-help">{{ input.description }}</p>
+            <p v-if="input.type === 'string' && input.declaredType !== 'string'" class="input-help">
+              {{ t('dashboard.actionRun.inputDeclaredType', { type: input.declaredType }) }}
+            </p>
+          </div>
+
+          <!--
+            The raw key/value editor. It is what the form falls back to when the
+            file could not be fetched or parsed, and it stays on screen in the
+            typed mode for any row the user typed there, so a value is never
+            dropped by a switch between the two.
+          -->
+          <div v-if="!hasDeclaredInputs || triggerInputs.length > 0" class="trigger-input-rows">
+            <div v-if="hasDeclaredInputs" class="inputs-mode">
+              <vscode-icon name="edit" />
+              <span>{{ t('dashboard.actionRun.extraInputs') }}</span>
+            </div>
+            <div v-for="(input, index) in triggerInputs" :key="index" class="trigger-input-row">
+              <vscode-textfield
+                :value="input.key"
+                @input="input.key = ($event.target as HTMLInputElement).value"
+                :placeholder="t('dashboard.actionRun.inputKey')"
+                :label="t('dashboard.actionRun.inputKey')"
+              />
+              <vscode-textfield
+                :value="input.value"
+                @input="input.value = ($event.target as HTMLInputElement).value"
+                :placeholder="t('dashboard.actionRun.inputValue')"
+                :label="t('dashboard.actionRun.inputValue')"
+              />
+              <vscode-button
+                icon-only
+                icon="trash"
+                :aria-label="t('dashboard.remove')"
+                @click="removeTriggerInput(index)"
+              />
+            </div>
+            <vscode-button secondary icon="add" @click="addTriggerInput">
+              {{ t('dashboard.actionRun.addInput') }}
+            </vscode-button>
+          </div>
         </div>
         <div v-if="dispatchError" class="error-state">
           <span>{{ t('dashboard.error', { message: dispatchError }) }}</span>
@@ -507,7 +798,7 @@ onUnmounted(() => {
           {{ t('dashboard.repoActions.dispatchTimeout') }}
         </div>
         <div class="trigger-actions">
-          <vscode-button :disabled="dispatchLoading || !trimmedWorkflow || !triggerRef.trim()" @click="submitTrigger">
+          <vscode-button :disabled="!canSubmit" @click="submitTrigger">
             {{ dispatchLoading ? t('dashboard.loading') : t('dashboard.repoActions.runWorkflow') }}
           </vscode-button>
           <vscode-button secondary :disabled="dispatchLoading" @click="resetTrigger">
@@ -755,6 +1046,40 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.trigger-input-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Which editor the form is in: one control per declared input, or the raw
+   key/value rows. */
+.inputs-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.inputs-mode vscode-icon {
+  flex-shrink: 0;
+}
+
+.input-required {
+  color: var(--vscode-errorForeground);
+}
+
+.input-help {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.declared-input vscode-checkbox {
+  display: block;
 }
 
 .trigger-input-row {

@@ -276,6 +276,8 @@ import type {
   ForgejoStopWatch,
   ForgejoTrackedTime,
   ForgejoWatchInfo,
+  WorkflowDispatchInputDescriptor,
+  WorkflowDispatchInputsPayload,
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
@@ -419,6 +421,12 @@ function createAppState() {
   const actionRunJobs = ref<Map<string, ForgejoActionRunJob[]>>(new Map());
   const actionRunArtifacts = ref<Map<string, ForgejoActionArtifact[]>>(new Map());
   const actionJobLogs = ref<Map<string, string>>(new Map());
+  // The inputs a workflow file declares at one ref, keyed by the selection the
+  // dispatch form holds. The parse happens in the extension host (the webview
+  // bundle must not carry a YAML parser); a reply with no usable inputs means
+  // the form keeps its raw key/value editor, which is why this slot is a payload
+  // rather than an error (see `handleWorkflowDispatchInputs`).
+  const workflowDispatchInputs = ref<Map<string, WorkflowDispatchInputsPayload>>(new Map());
   const repoBranchCommits = ref<Map<string, ForgejoCommit[]>>(new Map());
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
@@ -1640,6 +1648,21 @@ function createAppState() {
             repo: string;
             jobId: number;
             log?: string;
+            error?: string;
+          },
+        );
+        break;
+      case 'workflowDispatchInputs':
+        handleWorkflowDispatchInputs(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            workflow: string;
+            ref: string;
+            inputs?: unknown[];
+            path?: string;
+            reason?: 'no-inputs' | 'unreadable';
             error?: string;
           },
         );
@@ -3531,6 +3554,38 @@ function createAppState() {
       // bound (see MAX_JOB_LOG_ENTRIES).
       setBoundedEntry(actionJobLogs.value, key, data.log ?? '', MAX_JOB_LOG_ENTRIES);
     }
+  }
+
+  /**
+   * The declared inputs of one workflow@ref.
+   *
+   * A reply without usable `inputs` is stored as-is rather than turned into an
+   * error: it is the form's fallback signal ("this workflow declares nothing",
+   * "the file could not be read"), and the dispatch itself stays available
+   * through the raw key/value editor. The error slot is deliberately cleared —
+   * a read that failed is not a failed dispatch, and leaving an error under this
+   * key would only confuse the two.
+   */
+  function handleWorkflowDispatchInputs(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    workflow: string;
+    ref: string;
+    inputs?: unknown[];
+    path?: string;
+    reason?: 'no-inputs' | 'unreadable';
+    error?: string;
+  }) {
+    const key = workflowDispatchInputsKey(data.instanceId, data.owner, data.repo, data.workflow, data.ref);
+    loading.set(key, false);
+    errors.delete(key);
+    setPayloadEntry(workflowDispatchInputs.value, key, {
+      ...(Array.isArray(data.inputs) ? { inputs: data.inputs as WorkflowDispatchInputDescriptor[] } : {}),
+      ...(data.path !== undefined ? { path: data.path } : {}),
+      ...(data.reason !== undefined ? { reason: data.reason } : {}),
+      ...(data.error !== undefined ? { error: data.error } : {}),
+    });
   }
 
   function handleActionRunDispatched(data: {
@@ -5547,6 +5602,32 @@ function createAppState() {
     postMessage({ command: 'getActionJobLog', instanceId, owner, repo, jobId });
   }
 
+  /**
+   * Asks the host which inputs the selected workflow declares at `ref`. The
+   * answer is cached per selection (the key carries both), so reopening the form
+   * or toggling the ref back and forth does not re-read the file; `force` is for
+   * re-entering the view, where the branch may have moved on since (the run list
+   * is refreshed there for the same reason).
+   */
+  function loadWorkflowDispatchInputs(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    workflow: string,
+    ref: string,
+    force = false,
+  ) {
+    const key = workflowDispatchInputsKey(instanceId, owner, repo, workflow, ref);
+    if (loading.get(key)) {
+      return;
+    }
+    if (!force && workflowDispatchInputs.value.has(key)) {
+      return;
+    }
+    beginLoading(key);
+    postMessage({ command: 'getWorkflowDispatchInputs', instanceId, owner, repo, workflow, ref });
+  }
+
   function dispatchWorkflow(
     instanceId: string,
     owner: string,
@@ -5806,6 +5887,7 @@ function createAppState() {
     clearRepoScope(actionRunJobs.value, prefix);
     clearRepoScope(actionRunArtifacts.value, prefix);
     clearRepoScope(actionJobLogs.value, prefix);
+    clearRepoScope(workflowDispatchInputs.value, prefix);
     clearRepoScope(issueSubscriptions.value, prefix);
     clearRepoScope(issueTrackedTimes.value, prefix);
     clearRepoScope(issueDependencies.value, prefix);
@@ -6422,6 +6504,7 @@ function createAppState() {
     actionRunJobs,
     actionRunArtifacts,
     actionJobLogs,
+    workflowDispatchInputs,
     repoBranchCommits,
     pullRequestFiles,
     pullRequestComments,
@@ -6573,6 +6656,7 @@ function createAppState() {
     loadActionRunJobs,
     loadActionRunArtifacts,
     loadActionJobLog,
+    loadWorkflowDispatchInputs,
     dispatchWorkflow,
     cancelActionRun,
     deleteActionRun,
@@ -6774,6 +6858,21 @@ export function actionJobLogKey(instanceId: string, owner: string, repo: string,
 
 export function dispatchWorkflowKey(instanceId: string, owner: string, repo: string, workflowfilename: string): string {
   return `${instanceId}:${owner}/${repo}:actions:dispatch:${workflowfilename}`;
+}
+
+/**
+ * The declared inputs of one workflow at one ref. Both halves are in the key:
+ * the same filename can declare different inputs on another branch, and the
+ * dispatch form reads the file at the ref it is about to dispatch to.
+ */
+export function workflowDispatchInputsKey(
+  instanceId: string,
+  owner: string,
+  repo: string,
+  workflow: string,
+  ref: string,
+): string {
+  return `${instanceId}:${owner}/${repo}:actions:dispatch-inputs:${workflow}@${ref}`;
 }
 
 export function actionRunCancelKey(instanceId: string, owner: string, repo: string, runId: number): string {

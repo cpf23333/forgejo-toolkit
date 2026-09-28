@@ -287,5 +287,12 @@
   "Copy Diagnostics": "复制诊断信息",
   "Turn Off in This Window": "在本窗口关闭",
   "Polling diagnostics copied to the clipboard": "轮询诊断信息已复制到剪贴板",
-  "Failed to copy polling diagnostics: {0}": "复制轮询诊断信息失败：{0}"
+  "Failed to copy polling diagnostics: {0}": "复制轮询诊断信息失败：{0}",
+  "The workflow file is not valid YAML: {0}": "workflow 文件不是合法的 YAML：{0}",
+  "The workflow file does not contain a YAML mapping of workflow keys.": "workflow 文件顶层不是 YAML 映射（mapping）。",
+  "`on.workflow_dispatch.inputs` is not a mapping of input names.": "`on.workflow_dispatch.inputs` 不是以输入名为键的映射。",
+  "The workflow input \"{0}\" is not a mapping of input options.": "workflow 输入「{0}」不是输入选项的映射。",
+  "The default value of the workflow input \"{0}\" is not a scalar.": "workflow 输入「{0}」的默认值不是标量。",
+  "No workflow file named \"{0}\" was found in {1}.": "在 {1} 中未找到名为「{0}」的 workflow 文件。",
+  "Forgejo did not return the contents of \"{0}\": the file is larger than this instance returns through the contents API.": "Forgejo 未返回「{0}」的内容：该文件超过此实例通过 contents API 返回的大小上限。"
 }

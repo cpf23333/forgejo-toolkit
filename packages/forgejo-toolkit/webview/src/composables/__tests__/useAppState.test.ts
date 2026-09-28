@@ -4049,3 +4049,81 @@ describe('notification paging boundary', () => {
     expect([...state.notificationsHasMore.value.values()]).toEqual([false]);
   });
 });
+
+describe('workflow dispatch inputs', () => {
+  it('reads a selection once, caches it, and stores the reply under the same key', async () => {
+    const { state, mod } = await createState();
+    vscodePostMessage().mockClear();
+
+    // Two watchers firing in the same tick are one read, not two.
+    state.loadWorkflowDispatchInputs('inst-1', 'owner', 'repo', 'ci.yml', 'main');
+    state.loadWorkflowDispatchInputs('inst-1', 'owner', 'repo', 'ci.yml', 'main');
+    expect(
+      vscodePostMessage().mock.calls.filter(([message]) => message.command === 'getWorkflowDispatchInputs'),
+    ).toHaveLength(1);
+
+    const key = mod.workflowDispatchInputsKey('inst-1', 'owner', 'repo', 'ci.yml', 'main');
+    expect(state.loading.get(key)).toBe(true);
+
+    dispatchMessage({
+      command: 'workflowDispatchInputs',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      workflow: 'ci.yml',
+      ref: 'main',
+      path: '.forgejo/workflows/ci.yml',
+      inputs: [{ name: 'tag', type: 'string', declaredType: 'string', required: false }],
+    });
+    await nextTick();
+
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.workflowDispatchInputs.value.get(key)).toMatchObject({
+      path: '.forgejo/workflows/ci.yml',
+      inputs: [{ name: 'tag', type: 'string' }],
+    });
+
+    // The cached answer serves the same selection again...
+    vscodePostMessage().mockClear();
+    state.loadWorkflowDispatchInputs('inst-1', 'owner', 'repo', 'ci.yml', 'main');
+    expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+    // ...and `force` re-reads it, which is what re-entering the view does.
+    state.loadWorkflowDispatchInputs('inst-1', 'owner', 'repo', 'ci.yml', 'main', true);
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'getWorkflowDispatchInputs',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      workflow: 'ci.yml',
+      ref: 'main',
+    });
+  });
+
+  it('keeps a fallback reply out of the error slot', async () => {
+    const { state, mod } = await createState();
+    const key = mod.workflowDispatchInputsKey('inst-1', 'owner', 'repo', 'ci.yml', 'dev');
+    state.loadWorkflowDispatchInputs('inst-1', 'owner', 'repo', 'ci.yml', 'dev');
+
+    dispatchMessage({
+      command: 'workflowDispatchInputs',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      workflow: 'ci.yml',
+      ref: 'dev',
+      reason: 'unreadable',
+      error: 'no workflow file there',
+    });
+    await nextTick();
+
+    // A file that could not be read is the form's fallback signal, not a failed
+    // dispatch: nothing may land in the error slot the Run button watches.
+    expect(state.workflowDispatchInputs.value.get(key)).toEqual({
+      reason: 'unreadable',
+      error: 'no workflow file there',
+    });
+    expect(state.errors.get(key)).toBeUndefined();
+    expect(state.loading.get(key)).toBe(false);
+  });
+});

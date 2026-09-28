@@ -127,7 +127,7 @@
 - Actions 运行详情页：展示 job 列表、job 日志、制品列表。
 - Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
 - Actions 运行详情页支持取消正在运行的记录。
-- Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
+- Actions 远程触发 workflow：表单读取所选 ref 上 workflow 文件声明的 `on.workflow_dispatch.inputs`（依次查找 `.forgejo/workflows`、`.gitea/workflows`、`.github/workflows`），按声明渲染控件——`string` 文本框、`boolean` 复选框、`choice` 用 `options` 生成下拉框，其他类型（如 `number`、`environment`）退化为文本框——并显示输入名与 `description`、预填 `default`、标出 `required` 且在必填为空时拒绝提交。文件读取或解析失败（私有路径、不支持的写法、没有 `inputs`、接口报错）时回退到原始键值对输入、在界面上说明当前模式，且切换模式不会丢弃已填写的值；触发后轮询展示运行状态。
 
 ### MCP Server
 

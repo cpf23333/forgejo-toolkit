@@ -9,8 +9,10 @@ const { stateMock } = vi.hoisted(() => ({
     actionRuns: { value: new Map<string, unknown[]>() },
     actionRunsHasMore: { value: new Map<string, boolean>() },
     actionRunTotalCount: { value: new Map<string, number>() },
+    workflowDispatchInputs: { value: new Map<string, unknown>() },
     lastDispatchCancelled: { value: undefined as string | undefined },
     loadActionRuns: vi.fn(),
+    loadWorkflowDispatchInputs: vi.fn(),
     dispatchWorkflow: vi.fn(),
     openActionRunDetail: vi.fn(),
     openExternal: vi.fn(),
@@ -26,6 +28,8 @@ vi.mock('../../composables/useAppState', async () => {
     actionRunsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:actions`,
     dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
       `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
+    workflowDispatchInputsKey: (instanceId: string, owner: string, repo: string, workflow: string, ref: string) =>
+      `${instanceId}:${owner}/${repo}:actions:dispatch-inputs:${workflow}@${ref}`,
   };
 });
 

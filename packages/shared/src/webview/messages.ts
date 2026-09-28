@@ -564,6 +564,31 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'workflowDispatchInputs';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      /** The workflow filename the request named, echoed for routing. */
+      workflow: string;
+      /** The ref the request named, echoed for routing. */
+      ref: string;
+      /**
+       * The inputs the workflow file declares, in file order. Absent (or empty)
+       * means the dispatch form has nothing to render per input and keeps its
+       * raw key/value editor — see `reason` for which fallback applies.
+       */
+      inputs?: unknown[];
+      /** The repository path the inputs were read from, when a file was found. */
+      path?: string;
+      /**
+       * Why the reply carries no usable inputs: the workflow declares none, or
+       * its file could not be read/parsed. Both leave the raw editor available,
+       * so neither is an error state; a fetch failure carries `error` with it.
+       */
+      reason?: 'no-inputs' | 'unreadable';
+      error?: string;
+    }
+  | {
       command: 'actionRunCancelled';
       instanceId: string;
       owner: string;
@@ -1377,6 +1402,16 @@ export type WebviewToHostMessage =
   | { command: 'getActionRunJobs'; instanceId: string; owner: string; repo: string; runId: number }
   | { command: 'getActionRunArtifacts'; instanceId: string; owner: string; repo: string; runId: number }
   | { command: 'getActionJobLog'; instanceId: string; owner: string; repo: string; jobId: number }
+  | {
+      command: 'getWorkflowDispatchInputs';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      /** The workflow filename as the dispatch names it (`workflow_id`). */
+      workflow: string;
+      /** The ref the form has selected: the file is read at that ref. */
+      ref: string;
+    }
   | {
       command: 'dispatchWorkflow';
       instanceId: string;

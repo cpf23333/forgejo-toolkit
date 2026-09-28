@@ -7,6 +7,7 @@ import * as path from 'path';
 
 const clientMocks = vi.hoisted(() => ({
   getRepoContents: vi.fn(),
+  getFileContentResult: vi.fn(),
   getReadmeEntry: vi.fn(),
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('../../api/client', () => ({
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
       getRepoContents: clientMocks.getRepoContents,
+      getFileContentResult: clientMocks.getFileContentResult,
       getReadmeEntry: clientMocks.getReadmeEntry,
       getPullRequestDetail: clientMocks.getPullRequestDetail,
       getUserIssues: clientMocks.getUserIssues,
@@ -305,6 +307,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
   beforeEach(async () => {
     clientMocks.getRepoContents.mockReset();
+    clientMocks.getFileContentResult.mockReset();
     clientMocks.getReadmeEntry.mockReset();
     clientMocks.editIssue.mockReset();
     clientMocks.replaceIssueLabels.mockReset();
@@ -5064,6 +5067,117 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       provider.openDashboard();
 
       expect(postedMessages(fake.posted).some((m) => m.command === 'openDashboard')).toBe(true);
+    });
+  });
+
+  describe('workflow dispatch inputs', () => {
+    const request = {
+      command: 'getWorkflowDispatchInputs',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      workflow: 'release.yml',
+      ref: 'main',
+    };
+
+    function reply() {
+      return postedMessages(fake.posted).find((message) => message.command === 'workflowDispatchInputs');
+    }
+
+    it('answers with the inputs the workflow file declares, and where they were read', async () => {
+      clientMocks.getFileContentResult.mockResolvedValue({
+        kind: 'file',
+        text: [
+          'on:',
+          '  workflow_dispatch:',
+          '    inputs:',
+          '      tag:',
+          '        description: Release tag',
+          '        type: string',
+          "        default: ''",
+          '        required: true',
+          '      dry_run:',
+          '        type: boolean',
+          '        default: true',
+        ].join('\n'),
+      });
+
+      fake.send(request);
+      await flushUntil(() => reply() !== undefined);
+
+      expect(reply()).toMatchObject({
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        // The workflow and the ref are echoed: they are the identity the
+        // webview's loading slot is keyed on.
+        workflow: 'release.yml',
+        ref: 'main',
+        path: '.forgejo/workflows/release.yml',
+        inputs: [
+          {
+            name: 'tag',
+            type: 'string',
+            declaredType: 'string',
+            description: 'Release tag',
+            default: '',
+            required: true,
+          },
+          { name: 'dry_run', type: 'boolean', declaredType: 'boolean', default: 'true', required: false },
+        ],
+      });
+      expect(reply()?.error).toBeUndefined();
+      expect(clientMocks.getFileContentResult).toHaveBeenCalledWith(
+        'owner',
+        'repo',
+        '.forgejo/workflows/release.yml',
+        'main',
+      );
+    });
+
+    it('answers "no-inputs" for a workflow that declares none', async () => {
+      clientMocks.getFileContentResult.mockResolvedValue({
+        kind: 'file',
+        text: 'on:\n  workflow_dispatch:\n',
+      });
+
+      fake.send(request);
+      await flushUntil(() => reply() !== undefined);
+
+      expect(reply()).toMatchObject({
+        workflow: 'release.yml',
+        ref: 'main',
+        path: '.forgejo/workflows/release.yml',
+        reason: 'no-inputs',
+      });
+      expect(reply()?.inputs).toBeUndefined();
+      expect(reply()?.error).toBeUndefined();
+    });
+
+    it('answers "unreadable" with the sentence to show when no candidate holds the file', async () => {
+      clientMocks.getFileContentResult.mockRejectedValue(new Error('Forgejo API error 404: Not Found'));
+
+      fake.send(request);
+      await flushUntil(() => reply() !== undefined);
+
+      expect(reply()).toMatchObject({ workflow: 'release.yml', ref: 'main', reason: 'unreadable' });
+      expect(reply()?.error).toBe(
+        'No workflow file named "release.yml" was found in .forgejo/workflows, .gitea/workflows, .github/workflows.',
+      );
+    });
+
+    it('answers a deleted instance rather than leaving the form waiting', async () => {
+      fake.send({ ...request, instanceId: 'deleted-instance' });
+      await flushDispatches();
+
+      expect(reply()).toMatchObject({
+        instanceId: 'deleted-instance',
+        owner: 'owner',
+        repo: 'repo',
+        workflow: 'release.yml',
+        ref: 'main',
+      });
+      expect(typeof reply()?.error).toBe('string');
     });
   });
 

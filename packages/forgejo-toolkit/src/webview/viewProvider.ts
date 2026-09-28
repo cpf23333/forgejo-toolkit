@@ -61,6 +61,7 @@ import { redactUrlUserinfo, stripUrlUserinfo, hasUrlUserinfo } from '../utils/re
 import { writeFileAtomically } from '../utils/atomicWrite';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
+import { readWorkflowDispatchInputs } from './workflowDispatchInputs';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
 import { echoedListRequestId } from './listRequestId';
 import { OnboardingWebviewPanel } from './onboardingPanel';
@@ -104,6 +105,7 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
   getActionRunJobs: 'actionRunJobs',
   getActionRunArtifacts: 'actionRunArtifacts',
   getActionJobLog: 'actionJobLog',
+  getWorkflowDispatchInputs: 'workflowDispatchInputs',
   getRepoContents: 'repoContents',
   searchRepoFiles: 'repoFilesSearchResult',
   getFileHistory: 'fileHistory',
@@ -3471,6 +3473,84 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const err = userFacingErrorMessage(error);
           logger.error(`getActionJobLog failed for ${instance.name}/${owner}/${repo}/jobs/${jobId}: ${err}`);
           this._reply('actionJobLog', { instanceId: message.instanceId, owner, repo, jobId, error: err });
+        }
+        return;
+      }
+      case 'getWorkflowDispatchInputs': {
+        const instance = this._findInstance(message.instanceId);
+        if (!instance) {
+          return;
+        }
+        const { owner, repo, workflow, ref } = message;
+        if (
+          typeof owner !== 'string' ||
+          typeof repo !== 'string' ||
+          typeof workflow !== 'string' ||
+          typeof ref !== 'string'
+        ) {
+          // The form waits on a result-shaped reply to leave its "reading the
+          // declared inputs" state, so a rejected request is answered rather
+          // than dropped.
+          this._replyResultShapedError(
+            message,
+            'workflowDispatchInputs',
+            vscode.l10n.t('The request could not be completed'),
+          );
+          return;
+        }
+        try {
+          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+          // Every outcome is a fallback, not an error: the form keeps its raw
+          // key/value editor for a workflow that declares nothing and for a
+          // file that could not be read or parsed, so `reason` — not a thrown
+          // error — is what the view switches on.
+          const result = await readWorkflowDispatchInputs(client, owner, repo, workflow, ref);
+          if (result.status === 'ok') {
+            this._reply('workflowDispatchInputs', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              workflow,
+              ref,
+              inputs: result.inputs,
+              path: result.path,
+            });
+          } else if (result.status === 'no-inputs') {
+            this._reply('workflowDispatchInputs', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              workflow,
+              ref,
+              path: result.path,
+              reason: 'no-inputs',
+            });
+          } else {
+            this._reply('workflowDispatchInputs', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              workflow,
+              ref,
+              reason: 'unreadable',
+              ...(result.path !== undefined ? { path: result.path } : {}),
+              error: result.error,
+            });
+          }
+        } catch (error) {
+          const err = userFacingErrorMessage(error);
+          logger.error(
+            `getWorkflowDispatchInputs failed for ${instance.name}/${owner}/${repo}/${workflow}@${ref}: ${err}`,
+          );
+          this._reply('workflowDispatchInputs', {
+            instanceId: message.instanceId,
+            owner,
+            repo,
+            workflow,
+            ref,
+            reason: 'unreadable',
+            error: err,
+          });
         }
         return;
       }
