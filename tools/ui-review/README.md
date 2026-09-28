@@ -15,6 +15,10 @@ the repo root type-checks this package too.
   dev host loads the built output, so rebuild after code changes. **The rebuild
   is the maintainer's step**: `AGENTS.md` forbids the agent from running build
   commands, so the harness only ever consumes an existing `out/`.
+- The build has to be **mock-backed** for a launch without `--real-api`: the
+  launcher reads `packages/forgejo-toolkit/out` and refuses to start a window
+  when the mock API is not compiled into it (see "Mock-backed runs and the
+  real-API opt-in" below).
 - No Playwright browser download needed; only `connectOverCDP` is used.
 
 ## Commands
@@ -26,7 +30,7 @@ harness directory). `pnpm launch` at the root fails with
 
 ```bash
 # From the repository root:
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch [workspacePath]  # start dev host (default workspace: D:\code\test)
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch [workspacePath] [--real-api]  # start dev host (default workspace: D:\code\test)
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review kill                   # stop only the isolated dev host instance
 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
@@ -41,7 +45,7 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval <js>           # evalu
 
 # Equivalent, from the harness directory (the `src/...` paths below assume it):
 cd tools/ui-review
-pnpm launch [workspacePath]
+pnpm launch [workspacePath] [--real-api]
 pnpm kill
 pnpm ui shot <name>
 ```
@@ -72,6 +76,58 @@ form had worked. The pattern that held up is one step per invocation —
 trustworthy check here: the command exits 0 whether or not the value landed, so
 never read a bare success as "the field is filled".
 
+## Mock-backed runs and the real-API opt-in
+
+The mock API (msw and the fixtures in
+`packages/forgejo-toolkit/src/test/mocks/`) exists in a build only when that build
+was made **without** `--production`: `packages/forgejo-toolkit/esbuild.js`
+_defines_ `process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS` at build time (`'true'`
+without `--production`, `'false'` with it) and `src/extension.ts` guards its
+dynamic mock import with it, so a production build dead-code-eliminates the whole
+module. Nothing this harness can set at launch time brings it back — which is why
+the launcher **reads the build** (`packages/forgejo-toolkit/out`, main bundle and
+chunks) before it starts a window and refuses when the answer is "this build can
+only talk to the network":
+
+```
+Refusing to launch: this dev host would poll a real server.
+
+  build:     …\packages\forgejo-toolkit\out  (no mock API compiled in)
+             a production build defines FORGEJO_TOOLKIT_INCLUDE_MOCKS=false, which
+             dead-code-eliminates src/test/mocks/ (msw and its fixtures) — see
+             packages/forgejo-toolkit/esbuild.js
+  profile:   …\tools\ui-review\profile
+  instances: <name> <url> (whatever the profile's mcp-instances.json holds)
+
+Two ways forward:
+  --real-api   run against those instances anyway. This is the explicit opt-in;
+               polling here is read-only, but instance-wide actions reach these servers
+               (for example "mark all as read", which changes data on every configured instance)
+  rebuild without --production, so the mock API intercepts every request:
+               pnpm --filter forgejo-toolkit build:extension
+```
+
+The refusal happens before anything is created or spawned, so a production build
+costs a message rather than a surprise request. Three rules complete the picture:
+
+- **`--real-api` is the opt-in**, accepted by both `launch` and `dual launch`. It
+  prints a warning naming the profile, the instance(s) they will use and what that
+  means for instance-wide actions, and it pins `forgejoToolkit.useMockApi` to
+  `false` in the profile so a mock-inclusive build cannot intercept the requests
+  the operator asked to send. Every run pins that setting to the mode it was
+  started for, so the profile always describes the last run.
+- **A mock-capable build changes nothing else**: without the flag the run is
+  mock-backed exactly as before, and the launcher says which literal it matched —
+  if the profile nevertheless has `forgejoToolkit.useMockApi: false`, that is
+  reported instead of being silently overridden.
+- **Detection is marker-based, not size-based**: the scan looks for literals that
+  exist only in `src/test/mocks/` (`[mocks] no handler matched`,
+  `(a test must never reach the real network).`, and two fixture sentences from
+  `data/repositories.ts`). They are reachable from `startMockServer()`, so a build
+  that keeps the module keeps them; `src/apiMode.test.ts` additionally asserts
+  every marker still exists in the mock sources, so rewording a fixture fails a
+  test instead of silently reporting every build as production.
+
 ## Shared-profile dual-window mode
 
 Everything above is one isolated profile per launch, which can never produce "two
@@ -80,7 +136,8 @@ polling lease and the MCP broker handover are about (`docs/design/multi-window-p
 §10.2, §11.2), so `src/dual.ts` adds it as a mode on top of the existing launcher:
 
 - the **first** window is launched exactly as `pnpm launch` does (same
-  `--user-data-dir`, same mock-API seeding, same CDP port);
+  `--user-data-dir`, same CDP port, the same build-capability gate and
+  `--real-api` opt-in — see "Mock-backed runs and the real-API opt-in" above);
 - the **second** window is a second window _of that same profile_, opened with
   **Ctrl+Shift+N inside the running instance** — not with
   `code --new-window <folder>`, which for an already-running profile only raises
@@ -94,7 +151,7 @@ real run established" below for what that settled and "Still unproven" for what 
 did not.
 
 ```bash
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch [workspace]  # first window, then window2
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch [workspace] [--real-api]  # first window, then window2
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual verify              # one profile, two windows, one exthost each
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual targets             # CDP target ids to address each window
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual windows             # each window's log directory
@@ -114,7 +171,9 @@ already-running instance, `UI_LOCALE` applies to **both** windows.
 
 Useful options: `--timeout <ms>` (how long to wait for window2, default 60000),
 `--no-wait-window` (skip waiting for the log directories),
-`--system-keystroke` (see the traps below). The driver addresses a window either
+`--system-keystroke` (see the traps below), `--real-api` (allow this run to poll the
+real instance instead of the mock API; it is refused without it when the build has
+no mock API compiled in). The driver addresses a window either
 positionally or by target id (`src/ui.ts` takes these, and they must come before
 the command):
 
@@ -304,6 +363,19 @@ handover happened and how long it took**, and **whether the survivor kept workin
   **neither** — only the per-window `--- windowN …`
   headers. So check `dual targets`/`dual windows` or the state file itself before
   trusting a `dual logs` fallback.
+- **`dual logs <n>` (one window) throws once that window has reloaded or been killed.** The
+  label → directory mapping matches the extension-host pid recorded in `dual-window.json`
+  against the **newest** `Extension host with pid <n> started` in each window's
+  `exthost/exthost.log`, and nothing re-records that pid, so after a reload (new pid, new
+  `output_logging_*` directory inside the same window directory) no directory matches and the
+  command fails with `could not attribute a log directory to window2 (recorded exthost pid …)`.
+  Measured 2026-09-28: window2's reload changed its exthost pid 44920 → 28532 and added
+  `window2/exthost/output_logging_20260928T140210/`; `dual logs 2` threw from then on while
+  `dual logs 1` kept working (window1's recorded pid was still the newest in its own log).
+  `dual logs all` never consults the pids — it takes every `windowN` directory — so it is the
+  one form that still resolves after a reload. To read one window's channel directly, take the
+  newest `profile/logs/<session>/window<N>/exthost/output_logging_*/` and its
+  `<n>-Forgejo Toolkit.log`; that is also where a handover's per-window timestamps come from.
 - **Window2 starts from the first launch's arguments.** `--locale` (from
   `UI_LOCALE`), `--extensionDevelopmentPath` and the profile come from the launch,
   so the second window does localize and does load the extension — the mode checks
@@ -355,10 +427,14 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   report `focused=true` with no `focus-lost` at all, so "the prompts follow your
   focus" is intent, not a measured property, on this platform.
 - **Window identity beyond the launch.** A window is named by the CDP target id
-  recorded at launch; after that window reloads (or is closed and reopened by hand)
-  the id changes, so it is no longer recognisable as "window2" — the mode still
-  refuses when the page count changes around its own launch, which is the case that
-  matters for the two-window invariant.
+  recorded at launch; that id is not guaranteed to change on a reload, and the recorded
+  extension-host pid does. Measured 2026-09-28: `Developer: Reload Window` in window2 left its
+  CDP target id unchanged (`96AB1A60…` before and after), so do not assume the id either
+  survives or changes — what certainly does change is its exthost pid and its
+  `output_logging_*` directory, which is why `dual logs 2` failed afterwards (see the traps
+  above). A window that reloaded or was closed and reopened by hand is therefore not reliably
+  recognisable as "window2" — the mode still refuses when the page count changes around its
+  own launch, which is the case that matters for the two-window invariant.
 - **The `window<N>` directory names.** The mapping is by log pid, but on a session
   whose window numbers do not start at 1 the _fallback_ (VS Code numbering) is what
   attributes the directories before the pids are read; that fallback is unexercised
@@ -402,10 +478,25 @@ localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] �
 
 ## Runtime state
 
-`profile/` (persisted dev-host settings, incl. the onboarded mock instance),
-`extensions/` and `shots/` are gitignored. The launcher pre-seeds
-`forgejoToolkit.useMockApi: true`, so all data comes from the MSW handlers in
-`packages/forgejo-toolkit/src/test/mocks/`.
+`profile/` (persisted dev-host settings), `extensions/` and `shots/` are gitignored. The
+launcher pre-seeds `forgejoToolkit.useMockApi: true`, but **that setting alone does not give
+you mock data**: `packages/forgejo-toolkit/src/extension.ts` starts the mock server only when
+`process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'`, and `packages/forgejo-toolkit/esbuild.js`
+_defines_ that expression at build time — `'true'` for a non-production build
+(`pnpm --filter forgejo-toolkit build:extension`), `'false'` for a production build, which
+dead-code-eliminates `src/test/mocks/` (msw and its fixtures) entirely. The launcher writes the
+setting and never controls that flag, so **against a production `out/` the dev host talks to
+whatever instance the shared profile has configured**. Measured 2026-09-28: a production-shaped
+build (no `Mock API server started` line in the output channel) polled the profile's real
+instance for a whole session. **Since 2026-09-28 the launcher detects this before it starts
+anything**: it reads `packages/forgejo-toolkit/out` for mock-only markers and refuses the launch
+when the build has no mock API compiled in, unless `--real-api` says the real instance is wanted
+(the exact message, the markers and the opt-in are in "Mock-backed runs and the real-API opt-in"
+above). Treat a harness run as able to touch a real server: the polling
+here is read-only, but the instance-wide actions under "Some UI actions are instance-wide"
+below apply unchanged, and `--real-api` is what turns that possibility into a stated intent.
+Rebuild without `--production` (the checklist's mock-backed walkthrough
+recipe) when you want the MSW handlers.
 
 ## Release walkthrough checklist
 

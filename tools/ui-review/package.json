@@ -10,7 +10,7 @@
     "dual": "tsx src/dual.ts",
     "ui": "tsx src/ui.ts",
     "kill": "tsx src/kill.ts",
-    "test": "tsx --test src/windows.test.ts src/logs.test.ts src/winProc.test.ts src/cliArgs.test.ts src/driver.test.ts src/state.test.ts",
+    "test": "tsx --test src/windows.test.ts src/logs.test.ts src/winProc.test.ts src/cliArgs.test.ts src/driver.test.ts src/state.test.ts src/apiMode.test.ts",
     "check": "tsc --noEmit"
   },
   "devDependencies": {

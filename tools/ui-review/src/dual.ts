@@ -21,7 +21,16 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cdpTargets, connectAll, pagesWithTargetIds, waitWorkbench } from './driver';
-import { defaultLaunchConfig, launchArgs, logsRootFor, seedProfileSettings, type LaunchConfig } from './config';
+import {
+  defaultLaunchConfig,
+  launchArgs,
+  logsRootFor,
+  readConfiguredInstances,
+  readMockApiSetting,
+  seedProfileSettings,
+  type LaunchConfig,
+} from './config';
+import { buildDirFor, requireApiMode } from './apiMode';
 import { flagBool, flagNumber, flagString, parseArgs } from './cliArgs';
 import {
   attributeWindowDirs,
@@ -72,6 +81,9 @@ const USAGE = `usage: dual.ts <command> [options]
       --system-keystroke   fall back to activate.ps1 SendKeys if CDP input is
                            swallowed (may target the wrong window; see README)
       --no-wait-window     do not wait for the second window's log directory
+      --real-api           allow this run to poll the real instance(s) configured
+                           in the profile. Without it, a build with no mock API
+                           compiled in is refused before any window starts
   verify                 re-check the running session (one profile, two windows,
                          two extension hosts, per-window log directories)
   targets                list the CDP target ids of both windows
@@ -126,10 +138,21 @@ try {
 async function launchCommand(argvArgs: readonly string[]): Promise<void> {
   const parsed = parseArgs(argvArgs, {
     value: ['--timeout'],
-    boolean: ['--system-keystroke', '--no-wait-window'],
+    boolean: ['--system-keystroke', '--no-wait-window', '--real-api'],
   });
   const config = defaultLaunchConfig(HARNESS_DIR, parsed.positional[0]);
   const timeoutMs = flagNumber(parsed, '--timeout', 60_000);
+
+  // Before the running-session checks and before anything is spawned: a build
+  // without the mock API must not start a window that would poll the profile's
+  // real instance unless the operator passed --real-api (see src/apiMode.ts).
+  const mode = requireApiMode({
+    buildDir: buildDirFor(config.extensionDevDir),
+    profileDir: config.profileDir,
+    instances: readConfiguredInstances(config.profileDir),
+    mockApiSetting: readMockApiSetting(config.profileDir),
+    realApiRequested: flagBool(parsed, '--real-api'),
+  });
 
   const existing = readState(HARNESS_DIR);
   if (existing && (await cdpReady(config.cdpPort))) {
@@ -148,7 +171,7 @@ async function launchCommand(argvArgs: readonly string[]): Promise<void> {
 
   fs.mkdirSync(config.profileDir, { recursive: true });
   fs.mkdirSync(config.extensionsDir, { recursive: true });
-  seedProfileSettings(config.profileDir);
+  seedProfileSettings(config.profileDir, { useMockApi: mode === 'mock' });
 
   console.log(`launching the first window (profile ${config.profileDir})`);
   // `code` is a shell shim on Windows; escaping is not a concern here because every
