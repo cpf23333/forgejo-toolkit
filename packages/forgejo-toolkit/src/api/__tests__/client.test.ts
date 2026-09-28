@@ -31,6 +31,8 @@ import {
 import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
+import { SERVER_VERSION_CACHE_TTL_MS, setServerVersionCacheStorage } from '../serverVersionCache';
+import { makeMemoryVersionCacheStore, type MemoryVersionCacheStore } from './serverVersionCacheTestHelpers';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import { MOCK_EMPTY_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
@@ -82,6 +84,15 @@ describe('ForgejoClient with MSW', () => {
     clearTreeCache();
     clearDetectedServerOrigins();
     clearRepoContentsCache();
+  });
+
+  beforeEach(() => {
+    // The shared probe cache's storage and slot are module state shared with
+    // every other suite in this worker. Detach it for the whole file (the store
+    // is pinned in the other suites' code, not by a setting) and reset the slot,
+    // so the on-demand gate tests count their own requests and nobody else's.
+    setServerVersionCacheStorage(undefined);
+    clearServerVersions();
   });
 
   function createClient(): ForgejoClient {
@@ -1817,11 +1828,107 @@ describe('ForgejoClient with MSW', () => {
       setServerVersion('https://forgejo.example.com', '1.18.0');
       try {
         const client = createClient();
-        // listActionRuns is not async, so the gate throws synchronously.
-        expect(() => client.listActionRuns('demo-user', 'demo-repo')).toThrow(/requires Forgejo .* or newer/);
+        // The gate is awaited now (it re-probes on demand), so it rejects
+        // rather than throwing synchronously.
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).rejects.toThrow(/requires Forgejo .* or newer/);
       } finally {
         clearServerVersions();
       }
+    });
+
+    /**
+     * The on-demand half of the gate (decision C of the multi-window lease
+     * follow-up): the shared cache's TTL turns an old record into "unknown", and
+     * unknown passes — so a gated call is the one place that renews the record.
+     * These tests drive the real client against the mock server and count the
+     * `/api/v1/version` requests that actually reached it.
+     */
+    describe('the version gate re-probes on demand', () => {
+      let store: MemoryVersionCacheStore;
+
+      // The gate's probe goes through the shared single-flight coordination, so
+      // the route taken depends on the slot. Each test gets a clean one.
+      beforeEach(() => {
+        store = makeMemoryVersionCacheStore();
+        setServerVersionCacheStorage(store.storage);
+        clearServerVersions();
+      });
+
+      afterEach(() => {
+        setServerVersionCacheStorage(undefined);
+      });
+
+      /** Counts `/api/v1/version` requests without disturbing the other mocks. */
+      function countVersionProbes(): () => number {
+        let probes = 0;
+        mockServer.use(
+          http.get('https://*/api/v1/version', () => {
+            probes += 1;
+            return HttpResponse.json({ version: '1.18.0' });
+          }),
+        );
+        return () => probes;
+      }
+
+      it('probes once for an unknown version, then refuses the gated call', async () => {
+        const probes = countVersionProbes();
+        const client = createClient();
+
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).rejects.toThrow(/requires Forgejo .* or newer/);
+
+        expect(probes()).toBe(1);
+      });
+
+      it('probes once for an expired version, then refuses the gated call', async () => {
+        // The TTL is what makes the cache safe, and the price of it is exactly
+        // this: a long session's first gated call renews the record.
+        store.seed({
+          'https://forgejo.example.com': {
+            version: '1.18.0',
+            writtenAt: Date.now() - SERVER_VERSION_CACHE_TTL_MS - 1,
+          },
+        });
+        const probes = countVersionProbes();
+        const client = createClient();
+
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).rejects.toThrow(/requires Forgejo .* or newer/);
+
+        expect(probes()).toBe(1);
+      });
+
+      it('probes once between two gated calls in the same turn', async () => {
+        // The gate's own single-flight: a dashboard read fans out over several
+        // Actions endpoints, and each used to be a separate request.
+        const probes = countVersionProbes();
+        const client = createClient();
+
+        const results = await Promise.allSettled([
+          client.listActionRuns('demo-user', 'demo-repo'),
+          client.getActionRun('demo-user', 'demo-repo', 1),
+        ]);
+
+        expect(results.every((result) => result.status === 'rejected')).toBe(true);
+        expect(probes()).toBe(1);
+      });
+
+      it('does not probe while a fresh version is recorded', async () => {
+        setServerVersion('https://forgejo.example.com', '17.0.0');
+        const probes = countVersionProbes();
+        const client = createClient();
+
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).resolves.toBeDefined();
+
+        expect(probes()).toBe(0);
+      });
+
+      it('fails open when the on-demand probe fails', async () => {
+        mockServer.use(http.get('https://*/api/v1/version', () => new HttpResponse(null, { status: 500 })));
+        const client = createClient();
+
+        // Unknown after the failed probe, so the gate allows and the real
+        // Actions request is the only thing that can fail.
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).resolves.toBeDefined();
+      });
     });
 
     it('streams an action artifact to disk', async () => {

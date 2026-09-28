@@ -13,7 +13,8 @@ import { LIST_ITEM_LIMIT, MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo
 import { toApiError, requestContextFor } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
 import type { TranslateFn } from './translate';
-import { assertActionsSupported } from './serverVersion';
+import { assertActionsSupportedAfterProbe, setServerVersion } from './serverVersion';
+import { withSharedServerVersion } from './serverVersionCache';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { Client, RequestConfig, RequestFetch, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
@@ -709,6 +710,13 @@ export class ForgejoClient {
   // Distinguishes same-origin accounts in the shared tree cache without
   // embedding the raw token in cache keys.
   private readonly tokenCacheKey: string;
+  /**
+   * The version probe this client has in flight, if any. Cached so a burst of
+   * gated calls (the Actions views, a workflow dispatch plus its refresh) shares
+   * one request instead of each waiting on its own; cleared when it settles, so
+   * a later stale-version gate can probe again.
+   */
+  private versionProbe: Promise<string | undefined> | undefined;
 
   constructor(
     private url: string,
@@ -745,9 +753,61 @@ export class ForgejoClient {
    * The Actions API only exists on Forgejo/Gitea ≥ 1.19; older instances
    * answer a bare 404. Gate on the probed server version (fail-open when
    * unknown) so users get an actionable message instead.
+   *
+   * On demand, not on a timer: the shared probe cache's TTL turns an old record
+   * into "unknown", and "unknown" passes — so a long session would otherwise
+   * lose this gate. The first gated call after the record goes stale therefore
+   * renews it, through the shared single-flight coordination, before the gate is
+   * evaluated. That costs one request per stale window and nothing at all while
+   * the record is fresh.
    */
-  private _assertActions(): void {
-    assertActionsSupported(this.url, getForgejoClientHost().t);
+  private async _assertActions(): Promise<void> {
+    await assertActionsSupportedAfterProbe(
+      this.url,
+      () => this._probeAndRecordServerVersion(),
+      getForgejoClientHost().t,
+    );
+  }
+
+  /**
+   * The probe behind {@link _assertActions}, deduplicated in two layers.
+   *
+   * In this process: several gated calls can start in the same turn (a dashboard
+   * read fanning out over Actions endpoints), so the promise is cached on the
+   * client and shared rather than each call carrying its own request.
+   *
+   * Across windows: the fetch runs inside the shared single-flight coordination
+   * (`withSharedServerVersion`), so a window that sees another window's live
+   * marker waits for that window's entry instead of issuing its own request.
+   * `getVersion` is called directly — not `client.getServerVersion()` — because
+   * the latter is the raw endpoint the gate wraps; calling it back here could
+   * only recurse.
+   */
+  private async _probeAndRecordServerVersion(): Promise<string | undefined> {
+    const inFlight = this.versionProbe;
+    if (inFlight !== undefined) {
+      return inFlight;
+    }
+    const probe = (async () => {
+      try {
+        const outcome = await withSharedServerVersion(this.url, async () => {
+          const result = await getVersion({ client: this._client() });
+          return (result as { version?: string }).version;
+        });
+        const version = outcome?.version;
+        // The shared cache already holds it. Record it here as well so a host
+        // whose store is unusable (or whose merged write was lost) does not
+        // re-probe on the next gated call.
+        if (version) {
+          setServerVersion(this.url, version);
+        }
+        return version;
+      } finally {
+        this.versionProbe = undefined;
+      }
+    })();
+    this.versionProbe = probe;
+    return probe;
   }
 
   /**
@@ -1005,18 +1065,23 @@ export class ForgejoClient {
     ) as Promise<ForgejoPullRequest[]>;
   }
 
-  listActionRuns(owner: string, repo: string, page: number = 1, limit: number = 30): Promise<ForgejoActionRunList> {
-    this._assertActions();
+  async listActionRuns(
+    owner: string,
+    repo: string,
+    page: number = 1,
+    limit: number = 30,
+  ): Promise<ForgejoActionRunList> {
+    await this._assertActions();
     return listActionRuns(owner, repo, { page, limit }, { client: this._client() }) as Promise<ForgejoActionRunList>;
   }
 
   async getActionRun(owner: string, repo: string, runId: number): Promise<ActionRun> {
-    this._assertActions();
+    await this._assertActions();
     return actionRun(owner, repo, runId, { client: this._client() }) as Promise<ActionRun>;
   }
 
   async getActionRunJobs(owner: string, repo: string, runId: number): Promise<ForgejoActionRunJob[]> {
-    this._assertActions();
+    await this._assertActions();
     const result = await listActionRunJobs(owner, repo, runId, { client: this._client() });
     return (
       Array.isArray(result) ? result : ((result as { jobs?: ActionRunJob[] }).jobs ?? [])
@@ -1035,7 +1100,7 @@ export class ForgejoClient {
     repo: string,
     runId: number,
   ): Promise<PagedList<ForgejoActionArtifact>> {
-    this._assertActions();
+    await this._assertActions();
     const result = await this._fetchAllPagesMeta<ActionArtifact>(
       (page) =>
         this._getListPage<ActionArtifact>(
@@ -1060,7 +1125,7 @@ export class ForgejoClient {
   }
 
   async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
-    this._assertActions();
+    await this._assertActions();
     const response = await repoGetActionJobLogs(owner, repo, jobId, undefined, {
       client: this._client(),
       responseType: 'text',
@@ -1086,7 +1151,7 @@ export class ForgejoClient {
     ref: string,
     inputs?: Record<string, string>,
   ): Promise<DispatchWorkflowRun | undefined> {
-    this._assertActions();
+    await this._assertActions();
     const result = await dispatchWorkflow(
       owner,
       repo,
@@ -1105,7 +1170,7 @@ export class ForgejoClient {
   }
 
   async cancelActionRun(owner: string, repo: string, runId: number): Promise<void> {
-    this._assertActions();
+    await this._assertActions();
     await cancelActionRun(owner, repo, runId, { client: this._client() });
   }
 
@@ -1127,7 +1192,7 @@ export class ForgejoClient {
     onProgress?: (bytesWritten: number) => void,
     maxBytes: number = MAX_ARTIFACT_BYTES,
   ): Promise<number> {
-    this._assertActions();
+    await this._assertActions();
     // No total cap: a 2 GB artifact on a slow link legitimately takes longer
     // than any fixed timeout. Instead an idle watchdog aborts the download
     // only when no bytes arrive for API_REQUEST_TIMEOUT_MS.
@@ -1227,7 +1292,7 @@ export class ForgejoClient {
   }
 
   async deleteActionRun(owner: string, repo: string, runId: number): Promise<void> {
-    this._assertActions();
+    await this._assertActions();
     await deleteActionRun(owner, repo, runId, { client: this._client() });
   }
 

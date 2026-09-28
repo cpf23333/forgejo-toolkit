@@ -179,12 +179,18 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
           );
       notify(details.body, displayUrl, instanceUrl, message, credentialFingerprint);
     },
-    notifyUnsupportedInstance(url: string, requiredVersion: string): void {
-      if (shownUnsupportedVersionUrls.has(url)) {
+    notifyUnsupportedInstance(url: string, requiredVersion: string, probedVersion?: string): void {
+      // Keyed by the version as well as the URL: a server that is upgraded and
+      // then downgraded again has moved, and the notice that describes the new
+      // state must not be swallowed by the old one. The caller passes the
+      // version it probed; `getServerVersion` remains the fallback for hosts
+      // that call this without one.
+      const serverVersion = probedVersion ?? getServerVersion(url);
+      const dedupeKey = `${url}\n${serverVersion ?? ''}`;
+      if (shownUnsupportedVersionUrls.has(dedupeKey)) {
         return;
       }
-      shownUnsupportedVersionUrls.add(url);
-      const serverVersion = getServerVersion(url);
+      shownUnsupportedVersionUrls.add(dedupeKey);
       const message = serverVersion
         ? vscode.l10n.t(
             'This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.',

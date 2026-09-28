@@ -90,7 +90,16 @@ export interface PollingDiagnosticsLease {
   claimRequestFiles: { name: string; mtimeMs: number }[];
 }
 
-/** The shared server-version cache, as far as this window can see it (§9). */
+/**
+ * One instance in the shared probe cache (§9 route 2), as far as this window
+ * can see it.
+ *
+ * `version` is reported even when the entry has expired, so a reader can see
+ * what the cache holds; `stale` says whether that value may still be used, and
+ * `probedAt` when it was written. Both stay `null` for a value that exists only
+ * in this process's memory — the fallback when the shared store is unusable —
+ * because such a value has no write time and therefore no TTL.
+ */
 export interface PollingDiagnosticsVersionRow {
   instanceId: string;
   url: string;
@@ -136,13 +145,14 @@ export interface PollingDiagnostics {
     nextScheduledPollAt: number | null;
   };
   versions: {
-    /** The in-process probe results this window holds right now (§9). */
+    /** The shared probe cache of §9 route 2, one row per configured instance. */
     probeCache: PollingDiagnosticsVersionRow[];
     /**
-     * Whether that cache lives beside the instance configuration (the §9 route
-     * 2 decision). Reported as observed, not as intended: this build still
-     * keeps it per process, so a reader is not misled about what a follower
-     * window can see.
+     * Whether that cache lives beside the instance configuration, which is the
+     * §9 route 2 decision: `globalState`, in a key next to the instance list, so
+     * every window reads the same records and a follower's gate no longer stops
+     * at "unknown". Reported as observed rather than as intended — the command
+     * that assembles the payload reads the same cache the gates do.
      */
     followsInstanceConfig: boolean;
   };
@@ -196,7 +206,18 @@ export interface PollingDiagnosticsInput {
     nextScheduledPollAt?: number | undefined;
   };
   versions: {
-    instances: readonly { id: string; url: string; version?: string | undefined }[];
+    instances: readonly {
+      id: string;
+      url: string;
+      version?: string | undefined;
+      /**
+       * When the shared cache entry was written (§9 route 2). `null` or absent
+       * for a value this window only holds in memory.
+       */
+      probedAt?: number | null | undefined;
+      /** Whether that entry is past its TTL; `null` when there is no shared entry. */
+      stale?: boolean | null | undefined;
+    }[];
     followsInstanceConfig: boolean;
   };
   env: {
@@ -353,10 +374,10 @@ export function buildPollingDiagnostics(input: PollingDiagnosticsInput): Polling
         // removed by the same rule the log lines use.
         url: redactInstanceUrl(instance.url),
         version: instance.version ?? null,
-        // The shared, timestamped cache of §9 route 2 is not part of this
-        // stage; a per-process entry has no write time and no TTL.
-        probedAt: null,
-        stale: null,
+        // The shared cache's write time and TTL verdict (§9 route 2). Both are
+        // `null` for the process-local fallback, which has neither.
+        probedAt: instance.probedAt ?? null,
+        stale: instance.stale ?? null,
       })),
       followsInstanceConfig: input.versions.followsInstanceConfig,
     },

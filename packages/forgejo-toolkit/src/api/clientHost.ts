@@ -36,8 +36,14 @@ export interface ForgejoClientHost {
    * `notifyInvalidCredentials`.
    */
   notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails, credentialFingerprint?: string): void;
-  /** The probed server version is below the supported floor (soft warning, never blocks). */
-  notifyUnsupportedInstance(url: string, requiredVersion: string): void;
+  /**
+   * The probed server version is below the supported floor (soft warning, never
+   * blocks). `probedVersion` is the value the caller just probed, when it has
+   * one: the host keys its per-window dedupe on it so a server that moves to a
+   * different unsupported version can warn again, and falls back to the cached
+   * version when the caller does not pass it.
+   */
+  notifyUnsupportedInstance(url: string, requiredVersion: string, probedVersion?: string): void;
 }
 
 const headlessHost: ForgejoClientHost = {

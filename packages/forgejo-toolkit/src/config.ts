@@ -7,10 +7,23 @@ import { resolveInstanceIdCollision } from './instanceIdentity';
 import { hasUrlUserinfo } from './utils/redactUrlUserinfo';
 import { WorktreeManager } from './worktree/worktreeManager';
 import { logger } from './logger';
+import {
+  createMementoServerVersionCache,
+  deleteSharedServerVersion,
+  setServerVersionCacheStorage,
+} from './api/serverVersionCache';
 
 export type { ForgejoInstance };
 
 const INSTANCES_KEY = 'forgejoToolkit.instances';
+/**
+ * The shared, timestamped probe cache of §9 route 2, deliberately stored next to
+ * the instance list: a probed version is a property of an instance, so it has
+ * the same lifetime and the same cleanup semantics as the entries above it. It
+ * is a cache, not an arbiter — the polling election never reads this key (§2
+ * decision 1) — so a lost cross-window update only costs one extra probe.
+ */
+const SERVER_VERSIONS_KEY = 'forgejoToolkit.serverVersions';
 const TOKEN_SECRET_PREFIX = 'forgejoToolkit.instanceToken.';
 const DEFAULT_INTERVAL_SECONDS = 300;
 const MIN_INTERVAL_SECONDS = 60;
@@ -27,7 +40,18 @@ export class ConfigManager {
    */
   private _worktreeManager?: WorktreeManager;
 
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) {
+    // §9 route 2: hand the shared probe cache the store it lives in. Registered
+    // here because this is where the extension context and the key beside the
+    // instance list are known; `extension.ts` builds this manager before it
+    // probes anything, so every probe in this window sees the shared entries.
+    // A store the host refuses to read or write degrades to the process-local
+    // cache (see `serverVersion.ts`), which is why the adapter reports failures
+    // through the logger instead of throwing.
+    setServerVersionCacheStorage(
+      createMementoServerVersionCache(context.globalState, SERVER_VERSIONS_KEY, (message) => logger.debug(message)),
+    );
+  }
 
   private get _worktrees(): WorktreeManager {
     this._worktreeManager ??= new WorktreeManager(
@@ -323,7 +347,9 @@ export class ConfigManager {
       }
       throw error;
     }
-    const instances = this._getStoredInstances().filter((i) => i.id !== id);
+    const stored = this._getStoredInstances();
+    const removedUrl = stored.find((entry) => entry.id === id)?.url;
+    const instances = stored.filter((i) => i.id !== id);
     try {
       await this._writeInstancesMerged(instances, id);
     } catch (error) {
@@ -344,6 +370,13 @@ export class ConfigManager {
     // once the instance is really gone, so a failed write above needs no
     // worktree rollback.
     const forgottenWorktrees = await this._worktrees.forgetInstanceWorktrees(id);
+    // §9 route 2: the probe result is a property of the instance, so its shared
+    // entry goes when the instance does — the "same cleanup semantics as the
+    // instance list" half of that decision. Best-effort and merged like every
+    // other write here; a lost update only means one extra probe.
+    if (removedUrl !== undefined) {
+      void deleteSharedServerVersion(removedUrl);
+    }
     this._onInstancesChanged.fire(this.getInstances());
     return { removed: forgottenWorktrees, strandedCheckouts };
   }

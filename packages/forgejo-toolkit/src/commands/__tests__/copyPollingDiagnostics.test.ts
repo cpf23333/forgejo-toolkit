@@ -3,6 +3,11 @@ import * as vscode from 'vscode';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { COPY_POLLING_DIAGNOSTICS_COMMAND } from '../../lease/leaseDegradedNotice';
 import { logger } from '../../logger';
+import { setServerVersionCacheStorage } from '../../api/serverVersionCache';
+import {
+  makeMemoryVersionCacheStore,
+  type MemoryVersionCacheStore,
+} from '../../api/__tests__/serverVersionCacheTestHelpers';
 import {
   collectPollingDiagnostics,
   registerCopyPollingDiagnosticsCommand,
@@ -160,8 +165,59 @@ describe('the copy-polling-diagnostics command', () => {
     const payload = await collectPollingDiagnostics(sources());
     expect(payload.schemaVersion).toBe(1);
     expect(payload.polling.nextScheduledPollAt).toBe(301_000);
+    // §9 route 2 is implemented, so the report says so rather than describing
+    // the pre-route-2 process-local cache.
+    expect(payload.versions.followsInstanceConfig).toBe(true);
     expect(payload.versions.probeCache).toEqual([
       { instanceId: 'instance-1', url: 'https://forgejo.example.com', version: null, probedAt: null, stale: null },
     ]);
+  });
+
+  it('reports the shared probe cache’s timestamps and staleness, not this window’s own memory', async () => {
+    // The store holds another window's results; this window never probed, and
+    // the report must still show them — including the expired one, whose value
+    // travels with `stale: true` so a reader can tell it may no longer gate.
+    const now = Date.now();
+    const store: MemoryVersionCacheStore = makeMemoryVersionCacheStore({
+      'https://forgejo.example.com': { version: '16.0.1', writtenAt: now - 1_000 },
+      'https://old.example.com': { version: '15.0.0', writtenAt: now - 120_000 },
+    });
+    setServerVersionCacheStorage(store.storage);
+    try {
+      const payload = await collectPollingDiagnostics(
+        sources({
+          config: {
+            getInstances: () => [
+              { ...instance, id: 'fresh', url: 'https://forgejo.example.com' },
+              { ...instance, id: 'expired', url: 'https://old.example.com' },
+            ],
+            isNotificationPollingEnabled: () => true,
+            getNotificationPollingInterval: () => 300,
+          } as unknown as PollingDiagnosticsCommandSources['config'],
+        }),
+      );
+
+      expect(payload.versions.followsInstanceConfig).toBe(true);
+      expect(payload.versions.probeCache).toEqual([
+        {
+          instanceId: 'fresh',
+          url: 'https://forgejo.example.com',
+          version: '16.0.1',
+          probedAt: now - 1_000,
+          stale: false,
+        },
+        {
+          instanceId: 'expired',
+          url: 'https://old.example.com',
+          version: '15.0.0',
+          probedAt: now - 120_000,
+          stale: true,
+        },
+      ]);
+      // The rows never carry the token, shared cache or not.
+      expect(JSON.stringify(payload)).not.toContain('s3cr3t-token');
+    } finally {
+      setServerVersionCacheStorage(undefined);
+    }
   });
 });
