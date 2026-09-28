@@ -17,13 +17,27 @@
 - **PR diff 与合并**：变更文件列表、按提交查看 diff、合并状态与阻塞原因、CI 状态检查，支持 merge / squash / rebase / revert。
 - **PR Worktree**：一键检出 `refs/pull/<index>/head` 到本地 worktree，支持配置打开方式和缓存目录；Start Work on Issue 以同样方式创建 issue 分支。
 - **发布与创建 PR**：将本地仓库或分支发布到 Forgejo，通过 Git: Clone 快速选择克隆服务端仓库，状态栏按钮一键创建 PR。
-- **通知中心**：未读角标、后台轮询与消息提醒、状态 / 类型筛选、标记已读。
+- **通知中心**：未读角标、后台轮询与消息提醒、状态 / 类型筛选、标记已读。同时打开多个窗口时，默认只由一个窗口轮询并弹出提醒（`forgejoToolkit.multiWindowLease`）；每个窗口打开时仍会加载通知，无法使用该协调机制的窗口会自行轮询。
 - **全局搜索**：跨实例搜索仓库、Issue、PR。
 - **CI / Actions**：运行历史、job 日志、制品下载、取消运行、带输入参数的 workflow 触发。
 - **MCP Server**：零配置将 Forgejo 实例暴露给 Copilot agent mode 等 MCP 客户端，提供 Issue、PR、Actions、代码浏览等只读工具（需 VS Code ≥ 1.102）。
 - **设置导出 / 导入**：将实例（可选加密）与设置导出为 JSON，导入前提供冲突预览。
 - **国际化**：支持中文 / 英文切换。
 - **调试日志**：可选开启 API 请求日志到 `Forgejo Toolkit` Output Channel。
+
+## 截图
+
+| 引导设置                                                                                                      | Dashboard                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| ![引导设置](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/dashboard.png) |
+
+| 仓库概览                                                                                                         | Pull Request                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ![仓库概览](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/repo-overview.png) | ![Pull Request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/pull-request.png) |
+
+| Issue                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- |
+| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/issue.png) |
 
 ## 安装
 
@@ -56,7 +70,7 @@ pnpm --filter forgejo-toolkit package
 
 ## 命令
 
-所有命令都可以从命令面板（`Ctrl+Shift+P`，前缀 `Forgejo Toolkit`）调用；部分命令也出现在编辑器右键菜单和状态栏中。
+除两条 Pull Request 评审评论命令外，所有命令都可以从命令面板（`Ctrl+Shift+P`，前缀 `Forgejo Toolkit`）调用；那两条命令位于评论与编辑器右键菜单中，另有部分命令也出现在编辑器右键菜单、源代码管理视图或状态栏中。
 
 | 命令                        | 作用                                                                                                                           |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -72,13 +86,15 @@ pnpm --filter forgejo-toolkit package
 | 删除审查评论                | 删除光标处的评审评论。                                                                                                         |
 | 为 Agents 窗口复制 MCP 配置 | 写入或复制一份可直接使用的 Agents 窗口 MCP 配置（用户级 `mcp.json`、工作区 `.vscode/mcp.json` 或剪贴板；见 MCP Server 一节）。 |
 | 写入 Copilot 指令           | 在已链接仓库的 `.github/copilot-instructions.md` 中写入（或更新）一小段 Forgejo 说明；文件其余内容不会被改动。                 |
+| 复制轮询诊断信息            | 把当前窗口的通知轮询与租约状态（已脱敏的 JSON）复制到剪贴板，用于提交 bug 报告。                                               |
 
 ## 兼容性
 
-- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404（见 KNOWN_ISSUES）。
+- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展对每个实例版本跨窗口只提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404（见 KNOWN_ISSUES）。
 - **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证，最低版本与验证目标为同一系列。
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
-- **Actions 的 1.19 下限低于支持下限** —— Actions API 最早出现在 Forgejo 1.19，扩展会把探测到的服务端版本与这条下限比较：早于 1.19 的服务端会在请求时被拒绝，给出本地化错误「该功能需要 Forgejo 1.19 或更高版本，当前服务器版本为 <版本>。」，而不是拿到裸 404。从 1.21 时代起的版本（含 v7–v16 现代版本序列）都高于 1.19——这道闸门只可能对 1.18 及更早的版本触发——因此在 Forgejo 15 实例上闸门不会触发，那里缺失的 Actions 子端点会返回服务端自己的 404（见 KNOWN_ISSUES）。Actions 相关界面本身仍然显示，被拒绝的是请求。探测不到版本的服务端不会因此被拦（闸门失败时放行）。
+- **多个 VS Code 窗口** —— 通知轮询在窗口之间做协调：同一时刻只有一个窗口轮询并弹出提醒，任务会转移到你正在使用的窗口（`forgejoToolkit.multiWindowLease`，默认开启）。每个窗口打开视图时仍会加载通知，无法使用该协调机制的窗口会自行轮询。
+- **Actions 的 1.19 下限低于支持下限** —— Actions API 最早出现在 Forgejo 1.19，扩展会把探测到的服务端版本与这条下限比较：早于 1.19 的服务端会在请求时被拒绝，给出本地化错误「该功能需要 Forgejo 1.19.0 或更高版本，当前服务器版本为 <版本>。」，而不是拿到裸 404。从 1.21 时代起的版本（含 v7–v16 现代版本序列）都高于 1.19——这道闸门只可能对 1.18 及更早的版本触发——因此在 Forgejo 15 实例上闸门不会触发，那里缺失的 Actions 子端点会返回服务端自己的 404（见 KNOWN_ISSUES）。Actions 相关界面本身仍然显示，被拒绝的是请求。探测不到版本的服务端不会因此被拦（闸门失败时放行）。
 - 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
 
 ## MCP Server（AI Agent 集成）
@@ -130,23 +146,9 @@ globalStorage 目录因平台而异：Windows 上是 `%APPDATA%\Code\User\global
 
 最简单的做法是运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令——它可以把片段合并进用户级 `mcp.json` 或工作区 `.vscode/mcp.json`，也可以复制到剪贴板。无论哪种方式，路径都是 shim `mcp-server.js`，而不是真正的 server bundle：扩展每次激活都会重写 shim 指向当前安装目录，所以配置在扩展升级后依然有效（它替代了带版本号的 `cpf23333.forgejo-toolkit-<版本>` 安装路径，后者升级即失效）。
 
-无需任何环境变量：server 会自己发现扩展发布的实例注册表，并通过匹配会话工作区的 git remote 来选择实例（工作目录由会话的工作区决定，与配置文件无关）。如果 `env` 里没有 `FORGEJO_MCP_TOKEN`、且当前没有任何扩展窗口在运行，则以匿名方式只读——只能看到公开数据。零配置版本不含任何秘密，但一般仍建议不要把工作区 `mcp.json` 提交进 git：机器相关的绝对路径（以及一旦你加了 `env` 块后的 token）不属于仓库。
+无需任何环境变量：server 会自己发现扩展发布的实例注册表，并通过匹配会话工作区的 git remote 来选择实例，在工作目录匹配不到任何东西时回落到扩展最近发布的那个工作区状态文件（工作目录由会话的工作区决定，与配置文件无关）。如果 `env` 里没有 `FORGEJO_MCP_TOKEN`、且当前没有任何扩展窗口在运行，则以匿名方式只读——只能看到公开数据。零配置版本不含任何秘密，但一般仍建议不要把工作区 `mcp.json` 提交进 git：机器相关的绝对路径（以及一旦你加了 `env` 块后的 token）不属于仓库。
 
-**无需在配置里写 token 也能认证（broker 模式）**：只要扩展在任一窗口中运行，静态启动的 server 就不会停留在匿名状态——它会透明地转发到扩展宿主进程内的本地 broker（Windows 上是命名管道，其他平台是 unix socket），真正的工具逻辑带着 token 在宿主进程里执行。token 始终不出扩展进程，也不会落进 `mcp.json`；授权转发器的是扩展 globalStorage 里发布的、每次启动随机生成的握手密钥（只有你自己的用户可读）。当没有任何扩展窗口运行时，同一份静态配置仍然可用——只是降级为匿名只读。两种方式都不需要额外配置。
-
-## 截图
-
-| 引导设置                                                                                                      | Dashboard                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| ![引导设置](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/dashboard.png) |
-
-| 仓库概览                                                                                                         | Pull Request                                                                                                        |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| ![仓库概览](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/repo-overview.png) | ![Pull Request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/pull-request.png) |
-
-| Issue                                                                                                 |
-| ----------------------------------------------------------------------------------------------------- |
-| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/issue.png) |
+**无需在配置里写 token 也能认证（broker 模式）**：只要扩展在某个窗口里运行且 MCP 功能处于开启状态（`forgejoToolkit.mcpEnabled`，默认开启），静态启动的 server 就不会停留在匿名状态——它会透明地转发到扩展宿主进程内的本地 broker（Windows 上是命名管道，其他平台是 unix socket），真正的工具逻辑带着 token 在宿主进程里执行。token 始终不出扩展进程，也不会落进 `mcp.json`；授权转发器的是扩展 globalStorage 里发布的、每次启动随机生成的握手密钥（只有你自己的用户可读）。当没有任何扩展窗口运行时，同一份静态配置仍然可用——只是降级为匿名只读。两种方式都不需要额外配置。
 
 ## 已知限制
 
@@ -165,15 +167,16 @@ globalStorage 目录因平台而异：Windows 上是 `%APPDATA%\Code\User\global
 
 ### 包结构
 
-| Package                                                  | 说明                                         |
-| -------------------------------------------------------- | -------------------------------------------- |
-| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code 扩展主体。                           |
-| [`packages/shared`](./packages/shared)                   | 共享请求客户端与通用类型。                   |
-| [`packages/forgejo-api`](./packages/forgejo-api)         | 基于 Forgejo OpenAPI 规范生成的 API 客户端。 |
+| Package                                                  | 说明                                                  |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code 扩展主体。                                    |
+| [`packages/shared`](./packages/shared)                   | 共享请求客户端与通用类型。                            |
+| [`packages/forgejo-api`](./packages/forgejo-api)         | 基于 Forgejo OpenAPI 规范生成的 API 客户端。          |
+| [`tools/*`](./tools)                                     | 工作区工具，目前是独立的 UI 走查工具（`ui-review`）。 |
 
 ### 技术栈
 
-- **Extension host**: TypeScript + esbuild (CJS)
+- **Extension host**: TypeScript + esbuild (ESM)
 - **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **包管理**: pnpm workspaces
 

@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports. It never contains an access token or any other secret.
 - Two design documents for future work: the confirmation model for MCP write
   tools, and a multi-window polling lease.
+- The MCP server gains `get_pr_review_brief`, which answers a whole pull request
+  review in one call: the pull request header, the diff statistics with a
+  per-file additions/deletions table, each reviewer's latest conclusion plus an
+  aggregate summary, and the unresolved inline review comments — replacing the
+  four calls a review used to start with, and marking every part it had to cut
+  short. The `review-pull-request` prompt now starts from it, and the tool
+  surface grows from 29 tools to 30.
 
 ### Changed
 
@@ -50,8 +57,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   falls back to exactly that, so notifications are never silently dropped.
 - Each webview surface downloads only what it renders: the onboarding wizard and
   the review-comment editor have their own entry instead of booting the whole
-  dashboard shell (about 16% and 29% less to load), and a build-time check fails
-  if a panel ever reaches the dashboard again.
+  dashboard shell (the wizard drops from 474,079 B to 398,830 B, about −15.9%,
+  the review-comment editor from 458,135 B to 326,163 B, about −28.8%, and the
+  dashboard itself from 343,758 B to 335,855 B), and a build-time check fails if
+  a panel ever reaches the dashboard again.
+- The webview message catalog is now split by language, so a surface never
+  downloads the language it is not showing: the two catalogs were 49,574 B, 31.3%
+  of the shared chunk every surface loaded, and that chunk is 118,495 B now
+  instead of 158,289 B (about −25%), while the Chinese catalog became a 20,815 B
+  chunk (8,191 B gzip) that no surface preloads. The dashboard drops from
+  339,778 B to 321,398 B (about −5.4%), the review-comment editor from 331,145 B
+  to 311,974 B (about −5.8%); switching language stays atomic, and a build-time
+  check fails if a catalog that must stay lazy turns static.
+- The extension host and the MCP server are now emitted by one ESM build with
+  code splitting, so the dependency graph they had in common ships once: their
+  entries plus the shared chunk come to about 1.56 MB (extension.mjs 230 KB,
+  mcp-server.mjs 11 KB and a 1.33 MB shared chunk) where the two separate bundles
+  took about 2.94 MB (about −47%), and the packaged `.vsix` drops from 1246 KB to
+  891 KB (about −28.5%). The MCP entry's "no `vscode`" guarantee is now enforced
+  against the build's module graph, and the stable-path shim keeps its
+  `mcp-server.js` name.
 - The create-PR status bar asks the server for the branch's pull requests
   instead of reading the whole open list every time (ten requests become one in
   the common case), and its "may be past the list cap" warning now appears only
@@ -61,6 +86,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API failures carry a structured error (status, headers, body), so a
   server-authored message is rendered directly instead of being re-parsed out of
   the message text.
+- A probed Forgejo version is now shared between VS Code windows: it is recorded
+  beside the instance list, so the first window to probe an instance writes the
+  result there and the other windows reuse it instead of probing every instance
+  again on startup. A record older than a minute is treated as unknown and probed
+  again, so a server upgrade or downgrade is never held back until the session
+  ends, and a window that reuses a record does not repeat the too-old-version
+  warning the probing window already raised.
+- Only one window probes an instance at a time, in the normal case. The window
+  that probes first records that it is probing, and a second window that needs the
+  same version waits for that result (up to ten seconds) instead of sending its
+  own request; the wait never blocks a user action indefinitely and falls back to
+  probing if it expires, if the probing window has gone, or if the shared state
+  cannot be read. The too-old-version warning is deduplicated across windows the
+  same way, so it is raised once no matter how many windows are open — including
+  when two windows do end up probing at the same instant, which can still happen
+  because VS Code's shared state offers no way to make that check atomic.
+- The version gate behind the Actions features renews itself when it is used: if
+  the recorded version has expired, the gated call probes for it before deciding,
+  instead of allowing the feature for the rest of the session because the recorded
+  value had gone stale. There is still no background polling, and a version that
+  cannot be determined allows the feature, exactly as before.
+- The local MCP broker is now handed over between VS Code windows without a
+  reload: only the window that binds the per-profile endpoint serves it, and
+  when that window closes or is killed one of the other windows binds the
+  endpoint itself and re-registers, so a client launched from a static
+  `mcp.json` reaches the new owner with no change on its side while the token
+  still never leaves the extension host. A session that was already running
+  when the owner died still exits and has to be started again, after which it
+  forwards through the new owner within a few seconds.
 
 ### Security
 
@@ -77,6 +131,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   When no broker is reachable the extension now publishes no definition at all
   and logs why, instead of registering a server that would answer anonymously
   while the client believed it was authenticated.
+- The local MCP broker was hardened after an independent review: a request
+  whose bytes arrive split across reads is no longer corrupted, one
+  unterminated line is capped at 4 MB and the listener at 64 connections, so a
+  local process can no longer grow the pre-handshake buffer without bound, and
+  the registration file and Unix socket are written owner-only (0600/0700)
+  instead of inheriting the umask. A registration left behind by a crashed
+  window is ignored, and shutting one broker down no longer unlinks a
+  successor's live socket.
 
 ### Fixed
 
@@ -115,6 +177,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which is what it is: the holder plus every window competing for the lease. A
   quiet window that is neither leaves no trace on disk and is not listed; the old
   name read as a complete registry of the profile's windows.
+- In the same report, every `versions.probeCache` row now carries the time its
+  version was probed and whether that record has expired (`probedAt` and
+  `stale`), and `versions.followsInstanceConfig` reports `true`: the probe cache
+  really does live beside the instance configuration and is shared between
+  windows, so the rows a follower window reports are what its feature gates read.
+- A repository, Issue or Pull Request list now shows only the answer to its
+  own request: a reply that arrives late, from an instance you just removed or
+  from a server that has since been replaced, is discarded instead of landing
+  in the list or its cache, whatever order the replies arrive in. The setup
+  wizard follows the same rule.
+- On an editor that provides no MCP server definition API (VS Code forks such
+  as VSCodium), the extension now skips that one registration with a log line
+  instead of risking a failed activation, and the workspace-state sync the
+  static-config MCP path relies on still starts. The FAQ explains how to run
+  the extension and the MCP server on such forks.
 
 ## [0.0.1] - 2026-09-26
 

@@ -7,8 +7,8 @@ Forgejo Toolkit 是一个由人工维护的开源项目。我们欢迎真实用�
 1. 开始大型工作之前，先开启一个 issue 讨论变更。
 2. Fork 仓库并为你的变更创建一个分支。
 3. 做出你的修改。
-4. 运行 `pnpm check` 并修复所有类型错误。
-5. 运行 `pnpm exec oxfmt --check .` 并修复所有格式问题。
+4. 运行 CI 所运行的检查并修复它们报告的问题：`pnpm run lint`、`pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"`、`pnpm run check`、三个仓库审计——`node tools/api-audit/check.mjs`、`node tools/tracking-audit/check.mjs`、`node tools/docs-audit/check.mjs`——以及两个测试套件：`pnpm --filter forgejo-toolkit test` 与 `pnpm --filter @cpf23333-forgejo-toolkit/shared test`。
+5. CI 还会用 `pnpm --filter forgejo-toolkit run build` 构建扩展产物；如果你的改动可能影响构建，请自行运行它。
 6. 开启一个描述清晰的 pull request。
 
 ## CI 与自动化

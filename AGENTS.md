@@ -123,21 +123,47 @@ Keep these documents in sync with the actual codebase. Do not let them drift.
 
 - `TODO.md` — short-term task list. It keeps only unfinished items and the
   context still needed; finished details live in the file's git log, and
-  `ROADMAP.md`'s **已完成** section is the delivered-feature record.
+  `FEATURES.md`'s **已完成** section is the delivered-feature record.
   - Remove an item when it ships — `TODO.md` intentionally has no **已完成**
     section.
   - Record a dropped idea's decision inline in its entry, or remove the item.
-- `ROADMAP.md` — high-level feature overview.
-  - Move completed features to the **已完成** section.
-  - Remove or rephrase items that are no longer planned.
+- `FEATURES.md` — feature inventory of what the plugin does for a user, classified by
+  status: **进行中** / **已完成** / **未完成**, the last one grouped by plan horizon.
+  Engineering, build and release work is not a feature and does not belong here.
+  - A partially delivered feature goes in **进行中** with what is already there and what
+    remains; per-task detail, blockers and next actions stay in `TODO.md`.
+  - Move a feature to **已完成** when it is delivered, and drop entries that are no
+    longer planned.
 - `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` — documented workarounds and platform limitations.
   - Add an entry when a bug or limitation is accepted as "won't fix short-term".
   - Keep both language files in sync: same headings, same structure, equivalent meaning.
   - Explain _what_ happens, _why_, and the current workaround (if any).
+- `docs/design/**` — decision records. They state what was decided and why; they are not a task
+  list, so open work belongs in `TODO.md` (a design document may name the tracking entry, never
+  hold the only copy of a pending item).
+
+Run `node tools/tracking-audit/check.mjs` after touching any of them (CI runs it too). It enforces the
+boundary above: `TODO.md` must have no completed/history heading, no checked boxes and a role header
+(presence only — the audit does not read its wording); `FEATURES.md`'s **已完成** section must hold no open
+work, so no line anywhere in it may carry a `待定`/`待实测`/`待实现`/`剩余`/`未实现`/`尚未实现`/`暂缓` marker, no line
+in it may exceed 600 characters, and it too needs a role header; the two known-issues files must keep the
+same heading count; and nothing anywhere may cite `TODO.md:<line>`, `FEATURES.md:<line>` or
+`KNOWN_ISSUES.md:<line>` — cite the entry's title or a commit instead.
+
+Run `node tools/api-audit/check.mjs` after touching `packages/forgejo-toolkit/src/api/client.ts` or
+`docs/api-verification-checklist.md` (CI runs it too): every endpoint the client calls must appear in
+the checklist, so a new call cannot ship unverified.
+
+Run `node tools/docs-audit/check.mjs` after touching any markdown file (CI runs it too): a cited file must
+exist and a cited line must fit inside it, markdown links and named 「heading」 references must resolve, a
+paired `foo.md`/`foo.zh.md` must keep the same headings/lists/fences/tables, and headings must not repeat
+among siblings or skip a level.
 
 ## Internationalization (i18n)
 
-- Keep all UI strings in JSON files under `packages/forgejo-toolkit/webview/src/i18n/`:
+### Webview strings
+
+- Keep all webview UI strings in JSON files under `packages/forgejo-toolkit/webview/src/i18n/`:
   - `en.json` for English (source of truth)
   - `zh.json` for Chinese
 - Use namespaced keys that reflect the screen or component, e.g. `dashboard.tabs.repositories`, `settings.addInstanceTitle`, `dashboard.detail.openIssue`.
@@ -147,3 +173,7 @@ Keep these documents in sync with the actual codebase. Do not let them drift.
 - Prefer flat, readable keys over deeply nested structures. Three levels (`section.group.key`) is usually enough.
 - When reusing the same concept in multiple places, use a shared key rather than duplicating text.
 - Run `pnpm check` after editing i18n files to catch missing interpolation arguments or type mismatches.
+
+### Host-side strings
+
+- Extension-host user-visible text goes through `vscode.l10n.t(...)`, with the translations in `packages/forgejo-toolkit/l10n/bundle.l10n.json` (English) and `bundle.l10n.zh-cn.json` (Chinese). Manifest strings (setting and command names/descriptions) use `packages/forgejo-toolkit/package.nls.json` and `package.nls.zh-cn.json` instead. Keep both files of a pair complete — add the key to both in the same change — and keep the Chinese translation equivalent to the English source.

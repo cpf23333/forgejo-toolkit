@@ -135,6 +135,19 @@ jobs:
       - name: API checklist coverage
         run: node tools/api-audit/check.mjs
 
+      # The tracking documents drifted once already (a history section grew inside
+      # TODO.md while FEATURES.md's 已完成 filled with open work), so the rules in
+      # AGENTS.md are checked instead of trusted to review.
+      - name: Tracking document audit
+        run: node tools/tracking-audit/check.mjs
+
+      # Structural checks over every markdown file: a cited file must exist and a
+      # cited line must fit it, links and named headings must resolve, paired
+      # language files must keep the same shape, and headings must not repeat
+      # among siblings or skip a level.
+      - name: Documentation audit
+        run: node tools/docs-audit/check.mjs
+
       # packages/shared has its own suite (URL helpers, the request wrapper) that the
       # toolkit configs do not include, so it is run explicitly.
       - name: Test

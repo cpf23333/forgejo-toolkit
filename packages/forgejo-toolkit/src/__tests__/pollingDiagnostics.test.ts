@@ -84,8 +84,16 @@ function input(overrides: Partial<PollingDiagnosticsInput> = {}): PollingDiagnos
       nextScheduledPollAt: NOW + 299_000,
     },
     versions: {
-      instances: [{ id: 'instance-1', url: 'https://forgejo.example.com', version: '16.0.1' }],
-      followsInstanceConfig: false,
+      instances: [
+        {
+          id: 'instance-1',
+          url: 'https://forgejo.example.com',
+          version: '16.0.1',
+          probedAt: NOW - 30_000,
+          stale: false,
+        },
+      ],
+      followsInstanceConfig: true,
     },
     env: {
       extensionVersion: '0.0.1',
@@ -281,7 +289,7 @@ describe('the polling diagnostics payload (§11.1 stage 2)', () => {
             { id: 'a', url: 'https://s3cr3t-token@forgejo.example.com', version: '16.0.1' },
             { id: 'b', url: 'https://alice:s3cr3t-token@forgejo.example.com' },
           ],
-          followsInstanceConfig: false,
+          followsInstanceConfig: true,
         },
       }),
     );
@@ -303,6 +311,53 @@ describe('the polling diagnostics payload (§11.1 stage 2)', () => {
     expect(containsCredentialField({ ...record(), token: '' })).toBe(true);
     expect(containsCredentialField({ ...record(), Authorization: 'x' })).toBe(true);
     expect(containsCredentialField({ ...record(), password: 'x' })).toBe(true);
+  });
+
+  it('reports the shared probe cache’s write time and staleness (§9 route 2)', () => {
+    // The rows come from the cache that lives beside the instance
+    // configuration, so a follower window reports what another window probed —
+    // including the case where that record has expired and may no longer gate.
+    const payload = buildPollingDiagnostics(
+      input({
+        versions: {
+          instances: [
+            { id: 'fresh', url: 'https://fresh.example.com', version: '16.0.1', probedAt: NOW - 1_000, stale: false },
+            {
+              id: 'expired',
+              url: 'https://expired.example.com',
+              version: '15.0.0',
+              probedAt: NOW - 90_000,
+              stale: true,
+            },
+            // No shared entry: the value this window holds in memory alone has
+            // no write time and no TTL, so both stay null rather than invented.
+            { id: 'local', url: 'https://local.example.com', version: '17.0.0' },
+            { id: 'unknown', url: 'https://unknown.example.com' },
+          ],
+          followsInstanceConfig: true,
+        },
+      }),
+    );
+
+    expect(payload.versions.followsInstanceConfig).toBe(true);
+    expect(payload.versions.probeCache).toEqual([
+      {
+        instanceId: 'fresh',
+        url: 'https://fresh.example.com',
+        version: '16.0.1',
+        probedAt: NOW - 1_000,
+        stale: false,
+      },
+      {
+        instanceId: 'expired',
+        url: 'https://expired.example.com',
+        version: '15.0.0',
+        probedAt: NOW - 90_000,
+        stale: true,
+      },
+      { instanceId: 'local', url: 'https://local.example.com', version: '17.0.0', probedAt: null, stale: null },
+      { instanceId: 'unknown', url: 'https://unknown.example.com', version: null, probedAt: null, stale: null },
+    ]);
   });
 
   it('passes the handover, the polling state and the environment through unchanged', () => {

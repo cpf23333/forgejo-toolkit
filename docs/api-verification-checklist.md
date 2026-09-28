@@ -12,7 +12,7 @@
 - [x] 用户与实例
 - [x] Release / Branch / Tag
 - [x] Markdown 渲染
-- [x] 覆盖率核对：客户端实际调用的 94 个端点全部在本清单中有记录（`node tools/api-audit/check.mjs`，2026-09-23）
+- [x] 覆盖率核对：客户端实际调用的端点全部在本清单中有记录（`node tools/api-audit/check.mjs` 退出码 0；2026-09-23 首次核对时为 94 个，今天为 82 个，差异见「核对方法」）
 
 ---
 
@@ -23,7 +23,7 @@
 - Git commit：`62c6d1c782720308d0a973435c62ce50fdebd99f`
 - 本地源码路径：由用户环境决定，后续核对前请提供当前使用的 Forgejo 仓库路径
 - 最近一次核对结论：当前清单中所有端点与该版本 Forgejo 源码一致；上一次 diff 复核（`b4d03e7..62c6d1c`）仅涉及代码格式化、webhook 内部事件调整以及当前未使用的新类型（`IssueSuggestion`、`RepoFundingEntry`），不影响已记录端点的行为。
-- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（`ActionRun` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等，run 名在 `title`；`ActionRunJob` **有** `name`，但没有 `conclusion`/`started_at`/`completed_at`）。现覆盖率 94/94，`check.mjs` 退出码为 0。
+- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（`ActionRun` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等，run 名在 `title`；`ActionRunJob` **有** `name`，但没有 `conclusion`/`started_at`/`completed_at`）。当时覆盖率为 94/94，`check.mjs` 退出码为 0。客户端随后于 2026-09-24 与 2026-09-27 按固定快照重新生成（`d3e4677`、`a301201`），因此今天同一脚本反解出的是 82 个端点，仍全部有记录（退出码 0）：计数只说明客户端调用了多少个端点，端点是否被记录由退出码判定。
 - 生成客户端规格来源：`packages/forgejo-api/kubb.config.ts` 现在读取仓库内的固定快照 `packages/forgejo-api/spec/swagger.v1.json`（2026-09-23 抓取，326 条路径；刷新方式见 `packages/forgejo-api/spec/README.md` 与 `spec:update` 脚本）。快照是 Forgejo `v16.0.0` tag 上 `templates/swagger/v1_json.tmpl` 的逐字节副本，因此文件里的 `info.version` 与 `basePath` 仍是模板占位符 `{{AppVer | JSEscape}}` / `{{AppSubUrl | JSEscape}}/api/v1`（`spec/swagger.v1.json:22,24`）——版本号只能从固定的 tag `v16.0.0` 读取，不能从文件内容推断。因此 `packages/forgejo-api/src/generated` 中的类型对应这份快照，可能仍落后于本清单核对的源码版本。例如 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 的 `step` 查询参数已存在于上游（`routers/api/v1/repo/action.go:1657-1666`），但生成类型 `RepoGetActionJobLogsQueryParams` 只有 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:28-34`）。生成目录首次提交于 2026-06-30（`52e21e8`），随后于 2026-08-11（`8d67aa5`，更新 Forgejo API 至 16）与 **2026-09-24（`d3e4677`，`chore(api): regenerate the client from the pinned snapshot`）** 更新，最近一次即为 `d3e4677`（`git log -1 --date=short -- packages/forgejo-api/src/generated`）。
 
 > 历史核对记录由本文件的 git 日志保存，无需在正文中保留。
@@ -568,6 +568,7 @@
 - [x] 响应 `NotificationThread` 数组，包含 `subject`（含类型和 URL）、`repository`、`unread`、`updated_at`、`pinned`
 - [x] `status-types` 取值：unread / read / pinned
 - [x] 源码位置：`routers/api/v1/notify/user.go:17-91`
+- [x] 扩展侧用法：`NotificationPoller._fetchUnreadSet`（`packages/forgejo-toolkit/src/notifications/notificationPoller.ts`）在服务端报告总数（`X-Total-Count`）时按 `before` 游标翻页——首屏之后每页以「已持有行中最旧的 `updated_at`」作为 `before`，页大小 `POLL_PAGE_LIMIT = 50`，最多 `ceil(total / 50)` 页并受共享列表上限约束；`ForgejoClient.getNotifications`（`packages/forgejo-toolkit/src/api/client.ts`）为此暴露 `before` 参数，webview 的「加载更多」用同一游标。这是扩展侧的取数方式，不构成与服务端实现的差异
 - [x] 差异记录：无
 
 ### `PUT /notifications`
@@ -900,7 +901,7 @@
 - 未发现与源码实现相悖的重大差异。
 - 现有 workaround（PR 详情通过 issues 端点合并 `assets`、PR 级别变更文件改用 compare 端点、webview 图片通过 extension host 代理为 base64）与源码一致，已在 `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` 中记录。
 - 状态枚举映射（compare diff 的 `modified` vs PR files 的 `changed`）已在代码中做兼容处理，无需额外用户侧说明。
-- 2026-09-23 的覆盖率补漏核对（同一 commit）新增 30 个端点小节，并记录了若干**服务端行为与 swagger 注释不符**、以及**扩展侧语义偏差**：
+- 2026-09-23 的覆盖率补漏核对（同一 commit，当时客户端共 94 个端点，重新生成后为 82 个，见「核对方法」）新增 30 个端点小节，并记录了若干**服务端行为与 swagger 注释不符**、以及**扩展侧语义偏差**：
   - `DELETE .../issues/{index}/dependencies` 实际返回 201（注释写 200）；订阅 `PUT`/`DELETE .../subscriptions/{user}` 的 304 实际是 403；`GET .../milestones` 的 `state` 缺省并**不**默认 `open`（会同时返回 open 与 closed）；`DELETE .../actions/runs/{run_id}` 对未完成的 run 返回 500（swagger 声明 400）。
   - `GET .../issues/{index}/dependencies` 在扩展未传 `page`/`limit` 时只返回前 30 条且无总数头 → 依赖超过 30 个会被静默截断；`GET .../issues/{index}/timeline` 的过滤发生在分页之后，配合 `_fetchAllPages` 的「短页即结束」判定，大量行级评论时可能少取。
   - 时间追踪：非 issue 写入者的 `GET .../times` 只返回本人记录，而 UI 把它当作该 issue 的时间汇总；`DELETE .../times/{id}` 只允许记录本人或 site admin，UI 未按作者隐藏按钮；stopwatch 是**每用户全局唯一**，扩展按单个 issue 判断导致「在别的 issue 正计时时启动会静默结束另一条」；`stopwatch/delete` 只取消计时、不记时间，但 host 确认文案写成了「删除已记录的时间」。

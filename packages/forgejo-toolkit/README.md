@@ -13,7 +13,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - **Pull requests**: diff viewer with per-commit diffs, merge (merge / squash / rebase), revert, status checks and merge blockers, create a PR from the current branch in one click from the status bar.
 - **PR review**: inline review comments in VS Code's native diff editor, multi-line comments, pending reviews with Comment / Approve / Request changes.
 - **Worktrees**: check out a PR into a local worktree, or start work on an issue with a dedicated branch.
-- **Notifications**: unread badge, filtering, background polling with VS Code alerts.
+- **Notifications**: unread badge, filtering, background polling with VS Code alerts. With several windows open, only one window polls and raises alerts by default (`forgejoToolkit.multiWindowLease`); every window still loads notifications when opened, and a window that cannot use the coordination falls back to polling on its own.
 - **CI / Actions**: runs, job logs, artifacts download, cancel and trigger workflows.
 - **Publish & clone**: publish a local repository to your instance, or clone through VS Code's Git: Clone with server-side search.
 - **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own read-only MCP server — 30 tools (issues, PRs, PR review briefs, Actions, code browsing, workspace repository detection), prompt templates, and automatic instance matching with zero setup. `forgejoToolkit.mcpEnabled` turns the whole surface off (no server definitions, no workspace mapping, no broker) without a window reload; a client that is already connected keeps its process until the window is reloaded.
@@ -21,7 +21,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 
 ## Commands
 
-Every command lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`): Open Dashboard, Open Setup Guide, Open Settings, Refresh Instances, Copy Permalink, Publish to Forgejo, View Log, Create PR from Current Branch, Add Pull Review Comment, Delete Review Comment, Copy MCP Config for Agents Window, and Write Copilot Instructions. Some also appear in the editor context menu, the SCM view, or the status bar.
+Every command except the two pull-request review-comment commands lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`): Open Dashboard, Open Setup Guide, Open Settings, Refresh Instances, Copy Permalink, Publish to Forgejo, View Log, Create PR from Current Branch, Copy MCP Config for Agents Window, Write Copilot Instructions, and Copy Polling Diagnostics. Add Pull Review Comment and Delete Review Comment live in the comment and editor context menus instead, and some commands also appear in the editor context menu, the SCM view, or the status bar.
 
 ## Screenshots
 
@@ -40,7 +40,7 @@ Every command lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Tool
 ## Notes
 
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
-- Access tokens are stored in VS Code SecretStorage (never in plain settings) and are read only by the extension host. The MCP server definitions the extension registers carry the instance's identity — URL, instance id, workspace mapping — and never a token: the spawned process forwards to a broker inside the extension host, so the token is not written into a definition or into any child process's environment.
+- Access tokens are stored in VS Code SecretStorage (never in plain settings) and are read only by the extension host. The MCP server definitions the extension registers carry the instance's identity — URL, instance id, workspace mapping — and never a token: the spawned process forwards to a broker inside the extension host, so the token is not written into a definition or into any child process's environment. Those definitions need that broker: when it is not reachable the extension publishes none of them and says so in the log, rather than registering a server that would answer anonymously while the client believed it was authenticated.
 - The webview uses `acquireVsCodeApi()` to communicate with the extension host.
 - The MCP server needs VS Code ≥ 1.102 and appears automatically in agent mode (no setup). In the Agents window, extension-contributed servers do not reach Agent Host sessions (a current VS Code limitation) — run **"Copy MCP Config for Agents Window"** from the Command Palette to write the user-level `mcp.json` (or a workspace `.vscode/mcp.json`) pointing at a stable, upgrade-proof path instead. **"Write Copilot Instructions"** writes the workspace → `<instance>/<owner>/<repo>` mapping into the linked checkout's `.github/copilot-instructions.md`, appending to an existing file rather than replacing it. `forgejoToolkit.mcpEnabled` (on by default) turns the whole MCP surface off — no server definitions, no workspace mapping, no local broker — without a window reload.
 

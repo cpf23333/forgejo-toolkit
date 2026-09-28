@@ -7,8 +7,8 @@ Forgejo Toolkit is a human-maintained open source project. We welcome contributi
 1. Open an issue to discuss the change before starting large work.
 2. Fork the repository and create a branch for your change.
 3. Make your changes.
-4. Run `pnpm check` and fix any type errors.
-5. Run `pnpm exec oxfmt --check .` and fix any formatting issues.
+4. Run the checks CI runs and fix what they report: `pnpm run lint`, `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"`, `pnpm run check`, the three repository audits — `node tools/api-audit/check.mjs`, `node tools/tracking-audit/check.mjs`, `node tools/docs-audit/check.mjs` — and both test suites: `pnpm --filter forgejo-toolkit test` and `pnpm --filter @cpf23333-forgejo-toolkit/shared test`.
+5. CI also builds the extension bundle with `pnpm --filter forgejo-toolkit run build`; run it if your change can affect the build.
 6. Open a pull request with a clear description.
 
 ## CI and automation

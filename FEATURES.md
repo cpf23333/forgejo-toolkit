@@ -1,4 +1,10 @@
-# Forgejo Toolkit 功能规划
+# Forgejo Toolkit 功能清单
+
+功能清单：按状态分类（进行中 / 已完成 / 未完成），只列插件面向用户的能力；功能级的现状在这里，具体待办、阻塞与下一步动作在 `TODO.md`。
+
+## 进行中
+
+- **多窗口轮询租约**：机制已交付并默认开启（`forgejoToolkit.multiWindowLease`）——同一时间只有持有者窗口轮询与提示，其余窗口保持安静，任何不确定都退化为全速轮询，不可信时的正确降级是完全不换手；仍待定稿的是去抖、防乒乓、加速接管、心跳重试与降级阈值这几组参数（按真实观测定稿），仍待按平台验证的是逐窗口焦点保真度（多显示器、最小化、锁屏、同 profile 双窗口）。见 `TODO.md` 的「多窗口轮询租约」条目。
 
 ## 已完成
 
@@ -167,7 +173,7 @@
 
 ### MCP Server
 
-- 通过 VS Code `contributes.mcpServerDefinitionProviders` 将每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition，label 为 `Forgejo: <实例名>`），供 Copilot agent mode 等 MCP 客户端使用，零配置（VS Code ≥ 1.102）。
+- 通过 VS Code `contributes.mcpServerDefinitionProviders` 将每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition，label 为 `Forgejo: <实例名>`；两个实例的 label 相同时——同名，或同一主机上的两个账号——只给相撞的那些追加 `<用户名或实例 id>` 判别符，保证列表里可区分），供 Copilot agent mode 等 MCP 客户端使用，零配置（VS Code ≥ 1.102）。
 - token **不再经进程环境变量注入 stdio 子进程**：每个 definition 的 `env` 只有身份（实例 URL / 实例 id / 同步开关 / 本窗口工作区状态文件 / 可选代理）加 `FORGEJO_MCP_BROKER_ONLY=true`——VS Code 会把已注册定义的全部内容（含 `env`）以明文持久化到 profile 的 workspace storage，写进 token 就等于把凭据落在 SecretStorage 旁边的磁盘上。子进程改为转发到扩展宿主内的本地 broker，由宿主用 SecretStorage 里的 token 执行工具调用；broker 对握手里显式给出的实例 id 解析不到带 token 的实例时**拒绝该会话**。**没有存活的 broker 时不下发任何 definition 并记录原因**（宁可不提供，也不发布一个看起来已认证、实际匿名读取的 server）。无实例或无 token 时静默不注册（无 token 的实例逐个跳过并记 debug 日志），实例增删后自动重解析。token 不出现在定义、工具 schema / 结果 / 日志中。
 - 工作区 → 仓库映射工具 `get_workspace_repository`：宿主把当前工作区链接到的仓库按窗口写入 `globalStorage/mcp-workspace-<pid>-<nonce>.json`（复用检测的共享扫描缓存，串行化的原子写入，不含凭据），路径经 `FORGEJO_MCP_STATE_FILE` 传给 MCP 子进程；子进程每次调用实时重读，按实例 id（旧版宿主回退到实例 URL）过滤，并能把属于其他实例的仓库指向对应的服务器。AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。
 - Phase 1 只读工具集（全部标记 `readOnlyHint`，大字段截断保护上下文）：
@@ -186,39 +192,47 @@
 
 - **MCP 开关**：`forgejoToolkit.mcpEnabled`（默认开）。关闭时不注册 MCP server 定义、不维护 shim / 实例注册表 / 工作区映射，并停掉本地 broker；共享的 shim 与注册表文件保留（其他窗口可能仍开着），已连接的客户端继续使用它已启动的进程直到重载窗口。运行时切换即刻生效，不留陈旧监听。
 - **Copilot 指令生成命令**：`forgejoToolkit.writeCopilotInstructions` 走既有归因路径解析工作区仓库，在 `<仓库根>/.github/copilot-instructions.md` 创建 / 追加 / 原地更新一段声明（只声称只读能力），标记不完整或重复时**完全不写入**并警告，URL 去凭据、原子写入。
-- **Webview 入口按面拆分**：dashboard / onboarding / 评论编辑器各自一份 HTML 与入口模块，面板不再下载 dashboard 外壳（onboarding −15.9%、评论面板 −28.8%），并加构建期图断言：面板一旦触达 `App.vue`/router/vue-router 或未使用的 `@vscode-elements` 模块即构建失败。
-- **消息目录按语言拆分**：三面共用的 vendor chunk 里，两份目录实测占 31.3%（49,574 B）；改为 `en` 静态作基语言与回退、`zh` 动态导入成独立 chunk（20,815 B，任何面都不预加载）后，vendor chunk 158,289 → 118,495 B，dashboard −5.4%、评论面板 −5.8%。语言切换仍是原子的：先加载目录再发布、被取代的请求丢弃、加载期间显示旧语言、失败保留旧语言。
-- **MCP broker 窗口间自动交接**：让位窗口每 5 s 检查注册文件里的 pid，持有者正常关闭或被强杀后自行重新绑定（`listen` 即仲裁，无文件锁/无选举），失败一律不重试；定时器 `unref` 且随停用/关闭开关清理。之前「关掉持有窗口后其余窗口永不接管、必须重载或切换设置」的行为由此消除，令牌始终不出 SecretStorage/扩展宿主。
-- **多窗口轮询租约：阶段 0（不接线）**：`src/lease/` 落地常量、类型、**纯决策函数**与 IO 层（唯一仲裁 `fs.open(path,'wx',0o600)`；心跳重试 3 次/250 ms，连续失败 >2× 过期才降级；任何不确定都退化为全速轮询），配 88 个用例——含**反向守卫**（模块内出现 `globalState` 或单窗口分支即失败）与 **5 个并发者的真实文件系统互斥**（主线程 + 4 个 `worker_threads`，会合屏障后同时抢占，25 轮恰好一个赢）。
-- **harness：共享 profile 双窗口模式**：`tools/ui-review/src/dual.ts` 在既有「每次 launch 一个隔离 profile」之上加第二窗口（运行实例内 `Ctrl+Shift+N`；`code --new-window` 只会重载，实测无效），两窗口分别可按 target id 寻址、可单独杀掉自己的扩展宿主、日志按窗口抓取。真机验证通过，并因此修掉三个缺陷（CDP 的 `id` 被读成 `targetId`、本版 VS Code 的扩展宿主进程形态、失败启动留下孤儿窗口）。
-- **多窗口轮询租约：阶段 1（影子接线）**：`leaseSupervisor.ts` 接入 `extension.ts`（仅 start/dispose，14 行；轮询与提示路径零改动），真实参与选主、心跳、让位与 `releaseStale`，并按 §7.1 打日志、影子记录焦点。**行为零变化**由两层保证：每行日志都带 `polling=unchanged`，且结构性守卫禁止租约被 `notifications/**` 引用、禁止出现抑制轮询的导出。真机双窗口实测：一个 leader 每 10 s 心跳、另一个 follower，杀掉持有者后幸存窗口 **11–13 s** 接管（pid 探测短路了原以为要等的 35 s 过期）。
-- **多窗口轮询租约：阶段 1 的两处 soak 修复**：真机双窗口跑出两个只有实测才能发现的缺陷并修掉——加速接管的陈旧阈值（5 s）**低于心跳周期**（10 s），健康持有者常态被判陈旧，改为 **30 s = 3 × 心跳**并让加速路径同时受 N 约束；**让位守卫写反**（自己不聚焦时反而保持），在同实例两窗口都自报 focused 的形态下导致每 ~17 s 换手一次（90 s 内 12 claims / 10 yields），改为「只有自己不聚焦时才让位」。同时记录平台事实：逐窗口焦点保真度需按平台验证，不可信时的正确降级是**完全不换手**（什么都不丢）。**2026-09-27 追加发现（休眠分支）**：在出厂常量下 `follower-takeover-accelerated` **不可达**——该分支要起作用只能落在「心跳已陈旧、但尚未过期」的那个窗口里，而它的宽度只有 `LEASE_EXPIRY_MS − LEASE_ACCELERATED_STALE_MS = 35 s − 30 s = 5 s`；一个已聚焦的 follower 却要先等去抖 `H = 12.5 s` 才发出第一个请求，再累积 `K = 3` 次未获响应（2 s 一次 tick，约 6 s）才升级，合计 18.5 s > 5 s，记录总是先过期。因此今天真正生效的接管路径是「文件消失」与「过期」，加速臂是一条**保持正确但休眠**的分支（实施者把这条算术写进了 `leasePollingGate.test.ts` 的断言）；只有将来重调 H/N/K 或心跳周期时它才可能活过来，在那之前**不要为此改常量**。
-- **多窗口轮询租约：阶段 2（默认开启）**：新增设置 `forgejoToolkit.multiWindowLease`（默认 `true`）；机制健康时**只有持有者轮询与提示**，follower 停止轮询/提示且在被接管后**立即**轮询一轮；**任何不确定一律退化为全速轮询**（失败即放行的安全轨，poller 只是纯增量接入）。配套交付：机制不可用时的一次性提示（可一键复制诊断或关闭设置）、`Forgejo Toolkit: Copy Polling Diagnostics` 命令（schemaVersion 1 的七组字段，硬脱敏：无令牌/授权头/SecretStorage 值）、`KNOWN_ISSUES`×2 改写、两份 `CHANGELOG` 一致地标注**默认行为变化**。
-- **精确截断**：`X-Total-Count` 贯通到全部列表方法（含 11 个此前只返回裸数组的方法新增 `<name>WithTotal` 形式）与 MCP 工具结果，恰好 500 条的完整列表不再被说成截断，真实被截断时报出真实数字；`get_pr_review_brief` 的 `reviewStatus.truncated` 同样按服务端总数判断。
+- **Webview 入口按面拆分**：dashboard / onboarding / 评论编辑器各自一份 HTML 与入口模块，面板不再下载 dashboard 外壳，并加构建期图断言：面板一旦触达 `App.vue`/router/vue-router 或未使用的 `@vscode-elements` 模块即构建失败。
+- **消息目录按语言拆分**：`en` 保持静态作为基语言与回退，`zh` 改为动态导入的独立 chunk、任何面都不预加载；语言切换仍是原子的：先加载目录再发布、被取代的请求丢弃、加载期间显示旧语言、失败保留旧语言。
+- **MCP broker 窗口间自动交接**：持有窗口正常关闭或被强杀后，其余窗口自行重新绑定 broker，不再需要重载或切换设置；令牌始终不出 SecretStorage/扩展宿主。
+- **多窗口轮询租约：阶段 0（不接线）**：`src/lease/` 落地常量、类型、**纯决策函数**与 IO 层（唯一仲裁为 `fs.open(path,'wx',0o600)`，任何不确定都退化为全速轮询），配反向守卫（模块内出现 `globalState` 或单窗口分支即失败）与真实文件系统并发互斥测试。
+- **harness：共享 profile 双窗口模式**：`tools/ui-review/src/dual.ts` 在既有「每次 launch 一个隔离 profile」之上加第二窗口（运行实例内 `Ctrl+Shift+N`；`code --new-window` 只会重载），两窗口可按 CDP target id 分别寻址、可单独杀掉自己的扩展宿主、日志按窗口抓取；真机验证通过，并因此修掉三个实测缺陷。
+- **多窗口轮询租约：阶段 1（影子接线）**：`leaseSupervisor.ts` 接入 `extension.ts`（仅 start/dispose；轮询与提示路径零改动），真实参与选主、心跳、让位与 `releaseStale`，并按设计打日志、影子记录焦点。**行为零变化**由两层保证：每行日志都带 `polling=unchanged`，且结构性守卫禁止租约被 `notifications/**` 引用、禁止出现抑制轮询的导出；真机双窗口实测确认持有者被杀后由幸存窗口接管。
+- **多窗口轮询租约：阶段 1 的两处 soak 修复**：真机双窗口跑出两个只有实测才能发现的缺陷并修掉——加速接管的陈旧阈值原先低于一个心跳周期（会把健康持有者误判为陈旧），改为「心跳周期的整数倍」，并让加速路径同时受 N（防乒乓）约束；**让位守卫写反**（自己不聚焦时反而保持），在同实例两窗口都自报 focused 的形态下造成周期性换手，改为「只有自己不聚焦时才让位」。同时记录平台事实：逐窗口焦点保真度需按平台验证（多显示器、最小化/后台、锁屏、同 profile 双窗口），不可信时的正确降级是**完全不换手**（什么都不丢，提示只留在租约所在窗口）。
+- **多窗口轮询租约：阶段 2（默认开启）**：新增设置 `forgejoToolkit.multiWindowLease`（默认 `true`）；机制健康时**只有持有者轮询与提示**，follower 停止轮询/提示且在被接管后**立即**轮询一轮；**任何不确定一律退化为全速轮询**（失败即放行）。配套交付：机制不可用时的一次性提示（可复制诊断或关闭设置）、`Forgejo Toolkit: Copy Polling Diagnostics` 命令（脱敏诊断字段）、`KNOWN_ISSUES`×2 与两份 `CHANGELOG` 一致标注**默认行为变化**。
+- **共享版本探测缓存**：版本探测结果跨窗口共享——首个探测的窗口把版本记在实例列表旁，其它窗口在记录新鲜时复用，不再各自发请求；过期记录按「未知」重新探测。配套交付：探测单飞标记（45 s TTL、10 s 等待上限、fail-open），低版本提示记在共享记录上、只由真正探测的窗口弹出，受 Actions 版本闸门保护的调用点在记录过期时按需补探（仍无后台定时器）。
+- **首次运行引导单飞**：多个窗口同时启动时，引导页只在其中一个窗口打开，不再每个窗口各开一次；没有配置实例的 profile 仍会照旧继续提供引导，添加实例或走完引导后不再自动出现。
+- **精确截断**：`X-Total-Count` 贯通到全部列表方法（此前只返回裸数组的方法新增 `<name>WithTotal` 形式）与 MCP 工具结果，完整列表不再被说成截断，真实被截断时报出真实数字；`get_pr_review_brief` 的 `reviewStatus.truncated` 同样按服务端总数判断。
 - **结构化错误契约**：`shared/request` 抛 `RequestError{status,statusText,headers,body}`（消息格式不变），宿主从字段分类与渲染服务端消息，正则只作为外来错误回退。
 - **列表回包按请求归属**：三个列表命令（`getRepositories`/`getMyIssues`/`getMyPullRequests`）请求带 `_requestId`、宿主原样回显、webview 严格按 id 归属——被替换服务器的迟到回包在**任意到达顺序**下都不会再写进列表或缓存；向导面板同样回显。
 - **多窗口通知基线合并**：已读基线改为「只覆盖本窗口拥有的条目」的合并写，删除也要求「配置里没有了 且 本窗口拥有」，窗口之间不再互相清空基线。
 - **凭据轮换后重新提示**：401/403 提示的去重键折入所失败凭据的指纹（SHA-256 前缀 + 长度），同一 URL 换了令牌会重新提示，令牌本身不入日志、不入提示。
-- **创建 PR 状态栏按分支查询**：改用拉取列表的 `head` 过滤 + 命中即停的分页（常见的首页命中 10 次请求 → 1 次），"可能超出上限"的警告只在真的没找到时出现。
-- **可访问性与播报**：16 处进度环改用本地化的 `aria-label`（此前每次都播报英文 "Loading"）；Test/Save 结果进 live region；视图过滤控件不再冒充 tab 关系；`openDashboard` 不再重挂载与重复播报；依赖/反应/标签等失败不再伪装成空结果；计时器状态读不到时不再显示为"未运行"。
+- **创建 PR 状态栏按分支查询**：改用拉取列表的 `head` 过滤 + 命中即停的分页，常见的首页命中不再翻满上限，"可能超出上限"的警告只在真的没找到时出现。
+- **可访问性与播报**：进度环改用本地化的 `aria-label`（此前每次都播报英文 "Loading"）；Test/Save 结果进 live region；视图过滤控件不再冒充 tab 关系；`openDashboard` 不再重挂载与重复播报；依赖/反应/标签等失败不再伪装成空结果；计时器状态读不到时不再显示为"未运行"。
 - **MCP shim 修复**：`91b7650` 改 ESM 后 shim 写成驱动器路径，Windows 上被 ESM 加载器拒绝（外部启动器完全起不来）；改用 `pathToFileURL` 生成的 `file://` 说明符，并补一条真正解析该说明符的测试。
-- **两份设计文档**（实现待定）：`docs/design/mcp-write-tools-confirmation.md`（写工具的人类确认模型）与 `docs/design/multi-window-polling-lease.md`（多窗口轮询租约）。
+- **设计文档**：`docs/design/mcp-write-tools-confirmation.md`（写工具的人类确认模型）与 `docs/design/multi-window-polling-lease.md`（多窗口轮询租约）。
+- **走查与实测**：①–⑧ 分批在隔离 dev host 上跑完（delete 确认双向、通知全部已读、Actions 分页、导入损坏 JSON、pushurl 拦截用真实 git 仓库、MCP 入参校验），做法、证据与 harness 限制见 `tools/ui-review/README.md`；另有两次实测决定了后来的设计——真实 profile 上判定「暂不虚拟化」封顶列表、双窗口 soak 找到并修掉加速陈旧阈值低于一个心跳周期与让位守卫写反两处缺陷。
+- **MCP 功能走查**：主窗口与 Agents 窗口两条路径都实测通过——每实例一个 server、`get_workspace_repository` 归因、`get_ci_failure_summary` 对真实失败 run、Agents 窗口的复制配置命令与经 broker 认证的 Agent Host 会话、匿名只读提示；另有 Linux headless（WSL）全量 typecheck 与测试通过，私有 CI 修复两处测试自身问题后全绿。
+- **MCP 可发现性**：dev host 实测 VS Code 不会仅因扩展贡献 `mcpServerDefinitionProviders` 就为取定义而激活它，因此 `activationEvents` 补了 `onStartupFinished`，不开 Dashboard 也会在启动时激活；代价见 `TODO.md` 的已知平台代价。
 
-## 后续迭代
+## 未完成
 
-### 设置与数据
+### 近期
 
-- 设置同步（可选 VS Code Settings Sync）。
+- 设置同步：可选接入 VS Code Settings Sync。
+- PR 描述生成：按 diff 与提交列表生成描述草稿，填入创建 PR 表单。
+- Issue 分诊建议：按内容建议标签与负责人。
+- AI 预评审（draft-only）：在 PR diff 视图生成预评审意见，只落成待人工逐条确认的评审草稿。
+- 通知讨论摘要：在通知列表总结讨论时间线。
+- MCP Server Phase 2 写操作工具：确认模型设计已交付，实现尚未开工，首批为 `create_issue_comment` 与 `submit_pull_review`；见 `TODO.md` 的「MCP Phase 2 写工具的实现」条目。
 
-### 旧版本 Forgejo / Gitea 兼容
+### 等上游
 
-- 测试并兼容不同 Forgejo 版本（如 1.x、7.x、9.x）的 API 差异。
-- 评估对 Gitea 的兼容支持，处理 API 路径、字段、认证方式的差异。
-- 在设置中允许用户手动声明服务器版本（自动探测已交付：激活时会探测每个已配置实例的版本，用于功能闸门并在版本低于支持下限时给出软提示；目前缺少的只是手动覆盖入口）。
+- CI / Actions：Workflow / job 重新运行（rerun）与按 job 过滤日志，两者都等 Forgejo v17 的相关接口；见 `TODO.md` 的「等上游版本」条目。
 
-## 长期可能
+### 长期
 
+- 旧版本 Forgejo / Gitea 兼容：兼容不同 Forgejo 版本（如 1.x、7.x、9.x）的 API 差异，并评估对 Gitea 的兼容支持（API 路径、字段、认证方式的差异）。
+- 手动声明服务器版本：在设置中允许用户手动声明服务器版本（自动探测已交付，缺的只是手动覆盖入口）。
 - 多账号权限管理：区分只读 / 读写 token。
-- MCP Server Phase 2：写操作工具（默认关闭、逐项开启）。
 - 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
-- 构建工具统一：将 extension host 打包从 esbuild 迁移到 Rolldown。已评估：可行但收益有限，暂缓实施；需验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。

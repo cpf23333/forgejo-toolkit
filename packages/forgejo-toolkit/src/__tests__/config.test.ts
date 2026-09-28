@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import * as path from 'path';
 import { ConfigManager } from '../config';
+import { clearServerVersions, setServerVersion } from '../api/serverVersion';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function createFakeContext() {
@@ -56,6 +57,12 @@ describe('ConfigManager', () => {
   beforeEach(() => {
     fake = createFakeContext();
     config = new ConfigManager(fake.context as never);
+  });
+
+  afterEach(() => {
+    // The probe cache is process-global; each test here gets a fresh store, so
+    // the in-memory half has to be dropped too or it would leak across tests.
+    clearServerVersions();
   });
 
   it('stores tokens in SecretStorage and never in globalState', async () => {
@@ -440,6 +447,30 @@ describe('ConfigManager', () => {
     await config.removeInstance(instance.id);
     expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
     expect(config.getInstances()).toHaveLength(0);
+  });
+
+  it('records probed versions in the shared key beside the instance list', () => {
+    // §9 route 2: the manager hands the probe cache the store it lives in, so a
+    // probe lands in globalState under its own key instead of staying in one
+    // window's memory. The instance list itself is not touched by a probe.
+    setServerVersion(instance.url, '16.0.1');
+
+    expect(fake.store.get('forgejoToolkit.serverVersions')).toEqual({
+      [instance.url]: { version: '16.0.1', writtenAt: expect.any(Number) },
+    });
+    expect(fake.store.get('forgejoToolkit.instances')).toBeUndefined();
+  });
+
+  it('drops the shared probe result when the instance is removed', async () => {
+    // A probed version is a property of an instance: it goes when the instance
+    // does, which is the "same cleanup semantics as the instance list" half of
+    // §9 route 2.
+    await config.addInstance(instance);
+    setServerVersion(instance.url, '16.0.1');
+
+    await config.removeInstance(instance.id);
+
+    expect(fake.store.get('forgejoToolkit.serverVersions')).toEqual({});
   });
 
   it('restores the token when the instance-list write fails during removal', async () => {

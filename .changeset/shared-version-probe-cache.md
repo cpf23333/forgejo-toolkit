@@ -1,0 +1,5 @@
+---
+'forgejo-toolkit': patch
+---
+
+Share probed server versions between VS Code windows (the last decided-but-unimplemented element of the multi-window polling lease). The probe cache now lives beside the instance list in `globalState` (`forgejoToolkit.serverVersions`, next to `forgejoToolkit.instances`) instead of one Map per extension host, so a window that starts later reuses the first window's result instead of probing every instance again: `probeServerVersion` reads the shared entry before it reaches the network and probes only when it is missing or older than the one-minute TTL, and `getServerVersion` treats an expired entry as unknown (fail open) rather than as a value, because that cache gates the low-version features. Writes use the repository's narrow-the-window pattern — re-read immediately before writing, merge by normalized instance URL, replace only this window's entry — and a store that is missing, unreadable or read-only degrades to the previous process-local behaviour. The polling diagnostics report now reports real `probedAt`/`stale` values for each instance and `versions.followsInstanceConfig: true`.

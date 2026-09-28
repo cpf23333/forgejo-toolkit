@@ -17,7 +17,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 - **PR diff and merge**: changed-file list, per-commit diffs, merge status with blocking reasons, CI status checks, and merge / squash / rebase / revert support.
 - **PR Worktree**: check out `refs/pull/<index>/head` into a local worktree with configurable open mode and cache directory; Start Work on Issue creates an issue branch the same way.
 - **Publish and create PRs**: publish a local repository or branch to Forgejo, clone through the Git: Clone quick pick, and create PRs from the status bar button.
-- **Notifications**: unread badge, background polling with toast alerts, filters, and mark-as-read.
+- **Notifications**: unread badge, background polling with toast alerts, filters, and mark-as-read. With several windows open, only one window polls and raises alerts by default (`forgejoToolkit.multiWindowLease`); every window still loads notifications when opened, and a window that cannot use the coordination falls back to polling on its own.
 - **Global search**: search repositories, Issues, and PRs across instances.
 - **CI / Actions**: run history, job logs, artifact downloads, run cancellation, and workflow dispatch with inputs.
 - **MCP Server**: exposes your Forgejo instance to Copilot agent mode and other MCP clients with zero configuration — read-only tools for issues, PRs, Actions, and code browsing (VS Code ≥ 1.102).
@@ -73,7 +73,7 @@ release page instead.
 
 ## Commands
 
-All commands are available from the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`); some also appear in editor context menus and the status bar.
+Every command except the two pull-request review-comment commands is available from the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`); those two live in the comment and editor context menus, and several other commands also appear in editor context menus, the SCM view, or the status bar.
 
 | Command                           | What it does                                                                                                                                          |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,13 +89,15 @@ All commands are available from the Command Palette (`Ctrl+Shift+P`, prefix `For
 | Delete Review Comment             | Deletes the review comment under the cursor.                                                                                                          |
 | Copy MCP Config for Agents Window | Writes or copies a ready-to-use MCP config for the Agents window (user-level `mcp.json`, workspace `.vscode/mcp.json`, or clipboard; see MCP Server). |
 | Write Copilot Instructions        | Writes (or updates) a short Forgejo section in the linked repository's `.github/copilot-instructions.md`; the rest of the file is never touched.      |
+| Copy Polling Diagnostics          | Copies a redacted JSON report of this window's notification polling and lease state to the clipboard, for bug reports.                                |
 
 ## Compatibility
 
-- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a one-time warning per session and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server (see KNOWN_ISSUES).
+- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a warning once per instance version across windows and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server (see KNOWN_ISSUES).
 - **Primary target: Forgejo v16.x** — the extension is developed and validated against the latest Forgejo stable release (currently the v16 series); the minimum and the validation target are the same series.
 - **VS Code ≥ 1.102** — enforced via the extension's `engines.vscode` field.
-- **The Actions 1.19 floor sits below the supported minimum** — the Actions API first appeared in Forgejo 1.19 and the extension compares the probed server version against that floor: a server older than 1.19 is refused with a localized "This feature requires Forgejo 1.19 or newer, but this server reports version &lt;version&gt;." error instead of a bare 404. Every version from the 1.21 era onward, including the modern v7–v16 series, compares above 1.19 — the gate can only fire for 1.18 and older — so on a Forgejo 15 instance it never fires and the Actions sub-endpoints missing there answer with the server's own 404 (see KNOWN_ISSUES). The Actions UI itself stays visible; it is the request that is refused. A server whose version cannot be probed is never blocked (the gate fails open).
+- **Multiple VS Code windows** — notification polling is coordinated between windows: only one window polls and raises alerts at a time, and the job moves to the window you are working in (`forgejoToolkit.multiWindowLease`, on by default). Every window still loads notifications when you open the view, and a window that cannot use the coordination polls on its own.
+- **The Actions 1.19 floor sits below the supported minimum** — the Actions API first appeared in Forgejo 1.19 and the extension compares the probed server version against that floor: a server older than 1.19 is refused with a localized "This feature requires Forgejo 1.19.0 or newer, but this server reports version &lt;version&gt;." error instead of a bare 404. Every version from the 1.21 era onward, including the modern v7–v16 series, compares above 1.19 — the gate can only fire for 1.18 and older — so on a Forgejo 15 instance it never fires and the Actions sub-endpoints missing there answer with the server's own 404 (see KNOWN_ISSUES). The Actions UI itself stays visible; it is the request that is refused. A server whose version cannot be probed is never blocked (the gate fails open).
 - Future endpoints from newer Forgejo releases (e.g. the v17 rerun API) are gated per feature the same way and do not raise the overall minimum version either.
 
 ## MCP Server (AI Agent Integration)
@@ -147,9 +149,9 @@ Three files can carry this snippet, and different consumers read them:
 
 The easiest way to write one is the **Forgejo Toolkit: Copy MCP Config for Agents Window** command — it merges the snippet into the user-level `mcp.json` or the workspace `.vscode/mcp.json`, or copies it to the clipboard. Either way the path is the shim `mcp-server.js`, not the real server bundle: the extension rewrites the shim on every activation to point at the current installation, so the configuration survives extension upgrades (the versioned `cpf23333.forgejo-toolkit-<version>` install path it replaces would not).
 
-No environment variables are needed: the server discovers the extension's published instance registry on its own and picks the instance by matching the session workspace's git remote (the working directory is decided by the session's workspace, not by the config file). Without a `FORGEJO_MCP_TOKEN` in `env`, and with no extension window running, it reads anonymously — only public data is visible. The zero-configuration variant contains no secrets, but as a general rule don't commit a workspace `mcp.json` into git: machine-specific absolute paths (and tokens, if you ever add an `env` block) don't belong in the repository.
+No environment variables are needed: the server discovers the extension's published instance registry on its own and picks the instance by matching the session workspace's git remote, falling back to the most recent workspace state file the extension published when the working directory matches nothing (the working directory is decided by the session's workspace, not by the config file). Without a `FORGEJO_MCP_TOKEN` in `env`, and with no extension window running, it reads anonymously — only public data is visible. The zero-configuration variant contains no secrets, but as a general rule don't commit a workspace `mcp.json` into git: machine-specific absolute paths (and tokens, if you ever add an `env` block) don't belong in the repository.
 
-**Authenticated without a token in the config (broker mode)**: while the extension is running in any window, the statically launched server does not stay anonymous — it transparently forwards into a local broker inside the extension host (a named pipe on Windows, a unix socket elsewhere), where the real tools run with the token. Your token never leaves the extension process and never lands in the `mcp.json` file; a per-launch handshake secret published in the extension's globalStorage (readable only by your own user) is what authorizes the forwarder. When no extension window is running, the same static configuration still works — it just falls back to anonymous, read-only access. Nothing to configure either way.
+**Authenticated without a token in the config (broker mode)**: while the extension is running in any window with its MCP feature enabled (`forgejoToolkit.mcpEnabled`, on by default), the statically launched server does not stay anonymous — it transparently forwards into a local broker inside the extension host (a named pipe on Windows, a unix socket elsewhere), where the real tools run with the token. Your token never leaves the extension process and never lands in the `mcp.json` file; a per-launch handshake secret published in the extension's globalStorage (readable only by your own user) is what authorizes the forwarder. When no extension window is running, the same static configuration still works — it just falls back to anonymous, read-only access. Nothing to configure either way.
 
 ## Known Limitations
 
@@ -168,15 +170,16 @@ This is a pnpm workspace monorepo.
 
 ### Package Structure
 
-| Package                                                  | Description                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code extension host.                                      |
-| [`packages/shared`](./packages/shared)                   | Shared request client and common types.                      |
-| [`packages/forgejo-api`](./packages/forgejo-api)         | API client generated from the Forgejo OpenAPI specification. |
+| Package                                                  | Description                                                                |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code extension host.                                                    |
+| [`packages/shared`](./packages/shared)                   | Shared request client and common types.                                    |
+| [`packages/forgejo-api`](./packages/forgejo-api)         | API client generated from the Forgejo OpenAPI specification.               |
+| [`tools/*`](./tools)                                     | Workspace tooling; currently the isolated UI-review harness (`ui-review`). |
 
 ### Tech Stack
 
-- **Extension host**: TypeScript + esbuild (CJS)
+- **Extension host**: TypeScript + esbuild (ESM)
 - **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **Package management**: pnpm workspaces
 

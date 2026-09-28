@@ -80,12 +80,17 @@ reply is routed by the fields it echoes rather than by an id (`getRepoIssues` â†
 
 ## Notifications (no request)
 
-The host also pushes messages the webview never asked for, including
-`initialState`, `instances`, `refreshData`, `openSettings`, `openDashboard`,
+The host also pushes messages the webview did not have to request: `initialState`,
+`instances`, `setLocale` and `setDebug` (a settings change made in the settings UI or
+in another panel), `refreshData`, `openSettings`, `openDashboard`,
 `openNotifications`, `openCreatePullRequest`, `openNewIssue`,
-`openPullRequestDetail`, `worktreesList`, `worktreeOpened`, `worktreeError`,
-`worktreeCancelled`, `worktreeRemoved`, `polledNotifications` and
-`openPullReviewCommentEditor`.
+`openPullRequestDetail`, `linkedRepository`, `worktreesList`, `worktreeOpened`,
+`worktreeError`, `worktreeCancelled`, `worktreeRemoved`, `worktreeOpenMode`,
+`worktreeCacheDirectory`, `polledNotifications` and `openPullReviewCommentEditor`.
+A few of these are replies on their normal path (`linkedRepository`,
+`worktreeOpenMode`, `worktreeCacheDirectory`); the complete set of host-to-webview
+variants is the `HostToWebviewMessage` union in
+`packages/shared/src/webview/messages.ts`.
 
 On load each panel posts one `initialState` message (`_reply('initialState', â€¦)` in
 `viewProvider.ts`, `onboardingPanel.ts`, `pullReviewCommentPanel.ts`): public

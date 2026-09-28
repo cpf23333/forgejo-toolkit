@@ -43,8 +43,9 @@ types `Client`, `RequestConfig`, `ResponseConfig`, `RequestFetch`,
 It does **not** inject authentication headers, resolve an instance URL, or log
 requests and responses — all of that lives in `ForgejoClient` (below). The shared
 package exposes only these subpaths (`packages/shared/package.json`):
-`./request`, `./webview/messages`, `./git/url`, `./limits`. There is no
-`createClient`, no `getUserRepos`, and no barrel `@cpf23333-forgejo-toolkit/shared`.
+`./request`, `./webview/messages`, `./git/url`, `./mcp/workspaceState`, `./limits`.
+There is no `createClient`, no `getUserRepos`, and no barrel
+`@cpf23333-forgejo-toolkit/shared`.
 
 Using a generated operation directly, with the shared client as transport:
 

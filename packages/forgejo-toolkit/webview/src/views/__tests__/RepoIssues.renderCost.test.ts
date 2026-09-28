@@ -59,14 +59,15 @@ import { createTestI18n } from '../../__tests__/helpers/test-utils';
 /**
  * Measurement, not a behaviour test: the dashboard renders a whole page of 500
  * issues without virtualization, and the numbers below decide whether that is
- * acceptable or needs windowing (see TODO.md, "走查与实测").
+ * acceptable or needs windowing — they are recorded here and in the commit that
+ * added this test, not in TODO.md.
  *
  * The cheap numbers (rows, elements) are asserted as change detectors, not as
  * performance thresholds: if the list starts virtualizing, if a card loses or
  * gains an element, or if a page stops rendering all 500 items, the recorded
  * decision is no longer describing this code and the test must fail. Anything
- * that changes the DOM must therefore update the constants here and in TODO.md
- * in the same change. Rendering time is printed for the record but deliberately
+ * that changes the DOM must therefore update the constants here in the same
+ * change. Rendering time is printed for the record but deliberately
  * not asserted — it is machine-dependent and would only produce flaky failures.
  *
  * Measured on 2026-09-23 (jsdom): 500 rows, 5,536 elements, ~200 ms. Re-measured

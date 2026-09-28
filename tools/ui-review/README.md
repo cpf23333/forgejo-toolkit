@@ -12,7 +12,9 @@ the repo root type-checks this package too.
 
 - `code` on PATH.
 - The extension built (`packages/forgejo-toolkit/out` + webview assets) — the
-  dev host loads the built output, so rebuild after code changes.
+  dev host loads the built output, so rebuild after code changes. **The rebuild
+  is the maintainer's step**: `AGENTS.md` forbids the agent from running build
+  commands, so the harness only ever consumes an existing `out/`.
 - No Playwright browser download needed; only `connectOverCDP` is used.
 
 ## Commands
@@ -29,10 +31,13 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review kill                   # stop 
 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui click <x> <y> [name] [waitMs]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui rclick <x> <y> [name] [waitMs]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scroll <x> <y> <deltaY> [name]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui drag <x1> <y1> <x2> <y2> [name]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui hover <x> <y> [name]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui type <text> [name]  # types into the focused element
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui key <key> [name]    # e.g. Escape, Enter, Tab
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval <js>           # evaluates in the workbench page, prints the result
 
 # Equivalent, from the harness directory (the `src/...` paths below assume it):
 cd tools/ui-review
@@ -96,6 +101,7 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual windows             # eac
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual logs <1|2|all> [--preset extension|exthost|mcp|any] [--grep X] [--tail N] [--follow]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual kill <1|2> [--print-command]  # Stop-Process -Force that window's exthost
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual close               # stop the dev host, drop the session state
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual state               # print the recorded session state as JSON
 ```
 
 `dual launch` records the session in `dual-window.json` (gitignored), which is what
@@ -130,7 +136,8 @@ What this is for (§10.2, §11.2): **which window is polling/leader**, **whether
 handover happened and how long it took**, and **whether the survivor kept working**
 — the three questions the lease work has to answer with evidence.
 
-1. **Clean start.** Rebuild, then make sure no dev host is left over:
+1. **Clean start.** Rebuild (the maintainer's step — see Prerequisites), then make
+   sure no dev host is left over:
    `pnpm kill` (it stops only Code.exe processes whose command line mentions this
    directory), and remove a stale `dual-window.json` with `dual close`.
 2. **Launch.** `dual launch D:\code\forgejo-toolkit`. Expect both windows to open
@@ -146,9 +153,10 @@ handover happened and how long it took**, and **whether the survivor kept workin
    number of processes it _classifies_ as window roots is printed as a note rather
    than enforced: measured, a dev host is **one** root process (plus one renderer per
    window), so that count being one is expected and not a problem (see "Still
-   unproven"). `dual targets` should list exactly two workbench pages, each
-   marked `recorded` — an id mismatch there means the mode is talking about different
-   windows than it launched.
+   unproven"). `dual targets` should list exactly two workbench pages, labelled
+   `window1` / `window2` from the ids `dual launch` recorded; a third line reading
+   `page[N] (unrecorded)` means the mode is looking at a window it did not launch
+   (matching is by recorded id, never by position).
 4. **Watch the two windows separately.** Each window's logs are under
    `profile/logs/<session>/window<N>/`; `window<N>` is VS Code's own numbering
    (the second window can be `window4`, which is why the mode maps label → directory
@@ -159,7 +167,9 @@ handover happened and how long it took**, and **whether the survivor kept workin
    `dual logs 1 --preset extension --grep "poll" --follow` in one terminal and
    `dual logs 2 ...` in another is the intended way to watch a handover live.
    `--preset exthost` reads `exthost.log` (activation and termination lines),
-   `--preset mcp` the `mcpServer.*.log` sinks the broker section above describes.
+   `--preset mcp` the `mcpServer.*.log` sinks described under "Verifying what
+   VS Code's own MCP client does" in **Known blind spots** below (the broker itself is
+   documented in `docs/architecture/mcp-server.md`, not in this README).
 5. **Read the evidence.** Where to look, per question:
    - _who is leader_ — the lease line in the window's own channel, per `§7.1` of the
      design doc, with a fixed field order: `role=<leader|follower|degraded>`, then
@@ -186,8 +196,9 @@ handover happened and how long it took**, and **whether the survivor kept workin
      line only appears once an MCP client connects, and the endpoint is derived from
      the _user_ profile (`sha256(username + homedir)`), not from `--user-data-dir` —
      so next to a running real VS Code the dev host steps aside and the line never
-     appears in either window. Redirect `USERPROFILE`/`HOME` before launching (as the
-     broker section above says) if this is the check you want. What the dual-window
+     appears in either window. Redirect `USERPROFILE`/`HOME` before launching (as
+     "Broker verification needs its own home directory" in **Known blind spots** below
+     says) if this is the check you want. What the dual-window
      run _does_ show without any broker is that both windows activate the extension
      independently — `ExtensionService#_doActivateExtension cpf23333.forgejo-toolkit`
      plus its own `Extension host with pid <n> started` in **each** window's
@@ -210,7 +221,7 @@ handover happened and how long it took**, and **whether the survivor kept workin
    That takeover does **not** wait out the 35 s expiry: the implementation treats a
    dead holder pid as immediately stale, so the survivor claims on its next 2 s tick,
    with the 35 s expiry left as the fallback for a holder whose pid cannot be probed.
-   Measured, and recorded in `§11.2`'s hard-kill bullet: **14.1 s after the holder's
+   Measured, and recorded in `docs/design/multi-window-polling-lease.md` §11.2's hard-kill bullet: **14.1 s after the holder's
    last heartbeat, ~11–13 s after the kill**, the pid probe short-circuiting the
    expiry wait; the acceptance run behind stage 2 measured **4.754 s** from the kill
    to the first post-takeover poll (0.894 s of that after the harness command
@@ -278,11 +289,21 @@ handover happened and how long it took**, and **whether the survivor kept workin
   helpers and this mode all match Code.exe by _this directory_ in the command line,
   not by pid, so a second dev host started from the same harness makes the pairing
   ambiguous. Kill extras first.
-- **The state file pins the session.** `dual logs`/`windows`/`verify` read
-  `dual-window.json` and never fall back to another session — if it is missing they
-  use the newest session, which may belong to a different host; that is why they
-  print the session they resolved. Trust the printed session name, not the fact that
-  output appeared.
+- **The state file pins the session; `logs` and `targets` are the two commands that
+  look past it.** `dual windows`, `dual verify`, `dual kill` and `dual state` call
+  `requireState` and **fail** when `dual-window.json` is missing ("run 'dual launch'
+  first") — deliberately, since each is a statement about _the_ session this mode
+  launched, and the newest session on disk may belong to a completely different host.
+  Two commands tolerate the missing file instead, both via `readState`: `dual targets`
+  (it also prints a note that nothing is recorded) and `dual logs`, which falls back to
+  the newest session under `profile/logs/` — that fallback is what makes `dual logs`
+  usable for a host started by plain `pnpm launch` (no state file at all). Know what
+  each command tells you about the session it resolved: `dual windows` prints
+  `session <name>` first, `dual verify` prints its `log dirs: <windowN, …>` line (no
+  session name, and the state-file path above it), and `dual logs` prints
+  **neither** — only the per-window `--- windowN …`
+  headers. So check `dual targets`/`dual windows` or the state file itself before
+  trusting a `dual logs` fallback.
 - **Window2 starts from the first launch's arguments.** `--locale` (from
   `UI_LOCALE`), `--extensionDevelopmentPath` and the profile come from the launch,
   so the second window does localize and does load the extension — the mode checks
@@ -324,7 +345,8 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   channel of this run: no MCP client connected, and the endpoint is derived from the
   user profile rather than `--user-data-dir`, so with the user's own VS Code running
   the dev host would step aside by design. Verifying it needs `USERPROFILE`/`HOME`
-  redirected before the launch (the broker section above describes this).
+  redirected before the launch (see "Broker verification needs its own home
+  directory" in **Known blind spots**).
 - **The lease's own soak numbers.** Stage 2 ships the lease and its `§7.1` lines
   (`forgejoToolkit.multiWindowLease`, default on), so "which window is leader" and
   "how long the handover took" are readable today, not reviewed against the design.
@@ -388,7 +410,9 @@ localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] �
 ## Release walkthrough checklist
 
 Rebuild first — the dev host loads `out/`, so a walkthrough against a stale build
-verifies the wrong code. Which build matters:
+verifies the wrong code. **The rebuild is the maintainer's step** (`AGENTS.md`
+forbids the agent from running build commands), so ask for it and then check the
+build time rather than running it yourself. Which build matters:
 
 - **mock-backed walkthroughs** (everything below except the push-target and MCP
   items): `pnpm --filter forgejo-toolkit build:extension`, i.e. esbuild _without_
@@ -399,7 +423,11 @@ verifies the wrong code. Which build matters:
   `pnpm --filter forgejo-toolkit build`, and point an instance at a real server.
 
 Then run through the flows below; each one covers behaviour that unit tests
-cannot observe (native modals, real git, real MCP clients).
+cannot observe (native modals, real git, real MCP clients). Numbers a walkthrough
+produces (bundle size, render cost, activation time and the like) are recorded in
+the commit that made the change and in that change's `CHANGELOG` entry, not in
+`FEATURES.md`'s delivered list; a design document keeps only the measurements that
+drove one of its decisions.
 
 1. **Dirty PR worktree confirmation.** In an opened PR worktree leave an
    uncommitted edit (or make a local commit), then click "Open in Worktree" for

@@ -8,7 +8,7 @@ Forgejo Toolkit is a VS Code extension with a Webview-based user interface. It i
 
 - `packages/forgejo-toolkit` — VS Code extension host.
 - `packages/forgejo-api` — Generated Forgejo API client.
-- `packages/shared` — Shared HTTP client and common types.
+- `packages/shared` — Shared HTTP client and common types, plus the wire schemas both sides of a boundary have to agree on: the webview message union (`src/webview/messages.ts`), the MCP on-disk records (`src/mcp/workspaceState.ts` — `McpWorkspaceStateFile`, `McpInstanceRegistryFile`, `McpBrokerRegistryFile`), `src/git/url.ts` and `src/limits.ts`.
 
 ## Extension host
 
@@ -43,9 +43,13 @@ See [api-client.md](./api-client.md) for how the generated API client is used an
 
 See [mcp-server.md](./mcp-server.md) for the implemented MCP server (embedded in the extension, `packages/forgejo-toolkit/mcp/`) that exposes configured instances to AI agents.
 
+## Window coordination
+
+See [window-coordination.md](./window-coordination.md) for the two mechanisms that coordinate several windows on one machine: the notification-polling lease that lets exactly one window poll and alert (`forgejoToolkit.multiWindowLease`, on by default), and the shared server-version probe cache.
+
 ## Design documents
 
-Documents under [`docs/design/`](../design/) record decisions that are **not implemented yet** — the problem, the chosen approach, the rejected alternatives and the evidence that would change the decision. The architecture pages above describe what is actually shipped; when one of these designs lands, its content belongs in the matching architecture page and the design document should be reduced to a pointer.
+Documents under [`docs/design/`](../design/) record decisions **at the moment they are made** — the problem, the chosen approach, the rejected alternatives and the evidence that would change the decision. A design document is a decision record, not a status field: some of those decisions have since shipped, and the architecture pages above are where the shipped behaviour is described. A shipped design is not reduced to a pointer: the matching architecture page describes the mechanism the code now implements, while the design document stays the decision record and the home of its own measurements — the soak numbers and symbol-level assertions in [multi-window-polling-lease.md](../design/multi-window-polling-lease.md), for example, are cited by [window-coordination.md](./window-coordination.md) rather than repeated there.
 
-- [MCP Phase 2 write tools: the confirmation model](../design/mcp-write-tools-confirmation.md) — per-tool settings defaulting to off, no `readOnlyHint` (VS Code's own tool approval becomes the first gate), refusal instead of anonymous fallback when no extension host is running, idempotency, dry-run, audit trail.
-- [Multi-window "one window leads" polling lease](../design/multi-window-polling-lease.md) — a `globalStorage` lease file claimed with an atomic `fs.open(…, 'wx')` instead of a `globalState` timestamp, heartbeat/expiry versus the poll interval, handover on `deactivate()`, and the rule that every failure degrades towards polling rather than towards silently not notifying.
+- [MCP Phase 2 write tools: the confirmation model](../design/mcp-write-tools-confirmation.md) — per-tool settings defaulting to off, no `readOnlyHint` (VS Code's own tool approval becomes the first gate), refusal instead of anonymous fallback when no extension host is running, idempotency, dry-run, audit trail. Decided but not implemented.
+- [Multi-window "one window leads" polling lease](../design/multi-window-polling-lease.md) — **implemented**, see [window-coordination.md](./window-coordination.md): a `globalStorage` lease file claimed with an atomic `fs.open(…, 'wx')` instead of a `globalState` timestamp, heartbeat/expiry versus the poll interval, handover on `deactivate()`, and the rule that every failure degrades towards polling rather than towards silently not notifying.

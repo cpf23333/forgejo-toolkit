@@ -1,20 +1,30 @@
 # 多窗口「一个窗口主导」租约（polling lease）
 
-- 状态：**设计（未实现）**；**维护者已于 2026-09-27 裁决完 §12 的全部开放问题**，结论写进本文各处、
+- 状态：**阶段 0–2 已交付**——`src/lease/**` 已接入激活路径（`src/extension.ts` 的
+  `startPollingLease` / `disposePollingLease`），设置项 `forgejoToolkit.multiWindowLease` 默认 `true`
+  （`packages/forgejo-toolkit/package.json` 的 `contributes.configuration`），交付记录见 §11.1、§12.7 与
+  `FEATURES.md` 的「已完成」；**本文不再是"未实现"的设计稿，但也没有全部落地**：机制与 §9 的两条路线
+  （路线 1 的跨窗口半边、路线 2）都已交付，仍开放的是 §12 末段的两条——逐窗口焦点保真度按平台验证
+  与实测值定稿；文中另有三处**从未实现、且已于 2026-09-28 决定不做**：§7.1 的
+  `showPollingLeader`、§7.2 的 `forgejoToolkit.forcePollingLeadership` 与 §8.1.3 的"轮询饥饿
+  看门狗"（决定与理由就地记在这三节里，并由 `TODO.md` 的「多窗口轮询租约」条目汇总）；而 §9 标注为
+  可选、不属于租约本体的首次运行向导单飞**已交付**（§9 已改写成交付记录）。
+  **维护者已于 2026-09-27 裁决完 §12 的全部开放问题**，结论写进本文各处、
   并由 §12 汇总（§12 已从「开放问题」改写为「决定记录」）。已定的事项：默认值 `true`（§2 决策 6）、
   机制为**焦点跟随领导权**（§2.2 决策 + §2.3 实现要点，含两条必备前提）、**选主禁止 `globalState`**
   （§2 决策 1、§3.1、§12.2）、不做状态栏但退化时给一次性提示（§7.1、§12.3）、诊断字段清单已定稿
   （§11.1 阶段 2）、**不做单窗口优化**（§12.4）、版本探测结果跨窗口共享并放在实例配置旁（§9 路线 2、
-  §12.5）、强制接管立即轮询一次（§7.2、§12.8）、心跳写失败与焦点跟随参数照建议采纳（§4.1、§8、§12.9、
-  §12.10）。**仍然开放的只有"实测值"**：H/N/K 与陈旧阈值、心跳失败重试次数，等 §11.2 的 soak 数据
-  定稿（见 §12 末条）
+  §12.5）、强制接管立即轮询一次（§7.2、§12.8——该命令本身则已于 2026-09-28 决定不做）、心跳写失败与焦点跟随参数照建议采纳（§4.1、§8、§12.9、
+  §12.10）。**仍然开放的两条都在 §12 末段**：逐窗口焦点保真度需按平台验证，H/N/K 与陈旧阈值、心跳失败
+  重试次数等实测值也等 §11.2 的 soak 数据定稿；三处从未实现的条目见本节开头的状态说明。
 - 关联：`TODO.md` 的 P4 条目（「多窗口轮询租约」）、`KNOWN_ISSUES.md` 的
-  "Every window polls and probes each instance on its own"（及 `KNOWN_ISSUES.zh.md` 对应条目）、
-  `ROADMAP.md` 的「多窗口通知基线合并」（已交付，它修掉的正是本文初版误判为缺口的那个竞态）
-- 基线代码：HEAD `c5118a6`，行号按**当前工作树**核对（本次逐条重核，见 §13）
+  「Notification polling, version probes and the first-run guide are coordinated between windows」条目（及 `KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目）、
+  `FEATURES.md` 的「多窗口通知基线合并」（已交付，它修掉的正是本文初版误判为缺口的那个竞态）
+- 基线代码：实现侧断言在 **2026-09-27 的复核**里逐条重开代码确认过一次，位置写成**符号名 / 标题**
+  （见 §13）；上一轮留下的行号没有在那一轮逐条复查，已经不再作为断言依据
 
 > 工作树里可能有其他 agent 的在途改动，行号会漂移，所以每条断言都同时给出**可搜索的标识符 /
-> 代码片段**；以标识符为准，行号只用于加速定位。核对清单见 §13。
+> 代码片段**；**以标识符为准**，行号只用于加速定位——本文的引用已尽量只留标识符。核对清单见 §13。
 >
 > 本次修订（2026-09-27）的背景：broker 的窗口间自动交接已交付并端到端实测（§3.5），
 > 且仓库里已经有一套"改动前先量"的实测习惯。本文按同一标准重核：**改对了 3 处事实错误、
@@ -23,7 +33,10 @@
 > **同一轮的第二部分（2026-09-27）：维护者裁决了 §12 的全部开放问题，本文把它们从"建议/倾向"
 > 改成"决定"**，并同步了被这些决定影响的每一节（§2 / §2.2 / §3.1 / §4.1 / §5 / §7.1 / §7.2 / §8 /
 > §9 / §10.1 / §10.2 / §10.3 / §11.1 / §11.2）。被取代的旧口径都按"原先是 X，现决定 Y"记录，
-> 没有静默删除。§12 现在是**决定记录**，唯一仍然开放的是其末条列出的**实测值**。
+> 没有静默删除。§12 现在是**决定记录**，仍未关闭的是末段的逐窗口焦点保真度按平台验证与**实测值**定稿；
+> §7.1 / §7.2 的两条命令与 §8.1.3 的看门狗**已决定不做**（2026-09-28，理由就地记在这三节里，
+> 汇总见 `TODO.md` 的「多窗口轮询租约」条目）；§9 的向导单飞（标注为可选、不属于租约本体）
+> **已交付**。
 
 ---
 
@@ -31,34 +44,36 @@
 
 ### 1.1 现状：每个窗口各跑一份
 
-`onStartupFinished` 是**按窗口**生效的激活事件（`packages/forgejo-toolkit/package.json:344-349`
-的 `activationEvents`，除它以外还有三条 `onFileSystem:` / `onView:` 事件），而它存在的原因是 MCP
-服务器需要可发现性（`TODO.md:45` 与 `TODO.md:21` 记录了这一平台代价）。于是激活路径上三件
+`onStartupFinished` 是**按窗口**生效的激活事件（`packages/forgejo-toolkit/package.json` 的
+`activationEvents`，除它以外还有三条 `onFileSystem:` / `onView:` 事件），而它存在的原因是 MCP
+服务器需要可发现性（`TODO.md` 的「已知的平台代价」条目记录了这一平台代价）。于是激活路径上三件
 "应该全机器只做一次"的事，每个窗口都做了一次：
 
-1. **版本探测**：`src/extension.ts:96-98` 对每个实例各 `void probeServerVersion(...)`。
-   探测结果写进**进程内**的 Map（`src/api/serverVersion.ts:65-67` 的 `serverVersions`），
+1. **版本探测**：`src/extension.ts` 的激活路径对每个实例各 `void probeServerVersion(...)`。
+   探测结果写进**进程内**的 Map（`src/api/serverVersion.ts` 的模块级 `serverVersions`），
    所以窗口之间不共享，10 个窗口就是 10 倍请求。
-   `src/api/versionProbe.ts:40-42` 在版本过低时会 `notifyUnsupportedInstance`，而那条提示的去重集
-   也是进程内的（`src/api/vscodeClientHost.ts:13-15` 的 `shownUnsupportedVersionUrls`，
-   去重判断在 `vscodeClientHost.ts:182-186`）——**同一个"版本过低"警告会每窗口弹一次**。
-2. **通知轮询**：`src/extension.ts:124-126` 构造并启动 `NotificationPoller`。轮询节奏见
-   `src/notifications/notificationPoller.ts:188-197`（`_scheduleAll` 里的 `setInterval`，间隔
+   `src/api/versionProbe.ts` 在版本过低时调 `notifyUnsupportedInstance`，而那条提示的去重集
+   也是进程内的（`src/api/vscodeClientHost.ts` 的模块级 `shownUnsupportedVersionUrls`，
+   去重判断在同一个类里）——**同一个"版本过低"警告会每窗口弹一次**。
+2. **通知轮询**：`src/extension.ts` 里 `new NotificationPoller(...)` 的装配点构造并启动它。轮询节奏见
+   `src/notifications/notificationPoller.ts` 的 `_scheduleAll`（里面的 `setInterval`，间隔
    `getNotificationPollingInterval() * 1000` 毫秒），配置范围 60–3600 秒、默认 300 秒
-   （`src/config.ts:15-17` 的常量、`config.ts:425-433` 的钳制、
-   `packages/forgejo-toolkit/package.json:119-125` 的设置项）。
-   一轮里对每个实例并发发一次请求（`notificationPoller.ts:263-274` 的 `Promise.all`）。
-   **每个窗口都会为新通知弹一次聚合提示**（`notificationPoller.ts:546-574` 的
+   （`src/config.ts` 的 `DEFAULT_INTERVAL_SECONDS` / `MIN_INTERVAL_SECONDS` / `MAX_INTERVAL_SECONDS`、
+   `getNotificationPollingInterval` 里的钳制、
+   `packages/forgejo-toolkit/package.json` 的 `forgejoToolkit.notificationPolling*` 两个设置项）。
+   一轮里对每个实例并发发一次请求（`notificationPoller.ts` 里 `_pollAll` 的 `Promise.all`）。
+   **每个窗口都会为新通知弹一次聚合提示**（`notificationPoller.ts` 的
    `_showAggregatedNotification`）。
-3. **首次运行向导标记**：`src/extension.ts:104-108` 调 `maybeShowWelcomeOnboarding`，其实现是
-   典型的 read-then-write（`src/welcome.ts:35-48`）；`KNOWN_ISSUES.zh.md:212` 已经如实记录了
-   "同时恢复的多个窗口可能各自打开一次该面板"。
+3. **首次运行向导标记**：`src/extension.ts` 里的 `maybeShowWelcomeOnboarding` 调用点，其实现是
+   典型的 read-then-write（`src/welcome.ts` 的 `maybeShowWelcomeOnboarding`）；`KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目
+   此前如实记录了"同时恢复的多个窗口可能各自打开一次该面板"——该竞态已由 §9 的向导单飞
+   （offer token）解决，而永久标记的写入语义未变。
 
 ### 1.2 现状：`globalState` 的跨窗口语义（必须诚实的部分）
 
 - `globalState` 没有跨窗口变更事件。仓库自己在两处写明了这一点：
-  `src/config.ts:351-358`（"globalState 没有跨窗口变更事件，所以另一个窗口可能已更新列表"）与
-  `notificationPoller.ts:494-509`（`_mergeBaselineForWrite` 的说明：存储的 map 与每个窗口共享，
+  `src/config.ts` 的 `_writeInstancesMerged`（"globalState 没有跨窗口变更事件，所以另一个窗口可能已更新列表"）与
+  `notificationPoller.ts` 的 `_mergeBaselineForWrite`（说明：存储的 map 与每个窗口共享，
   且 `get`→`update` 不是原子的）。
 - `context.globalState.update(key, value)` 是**整键覆盖**，核心上是一个 Map 的赋值。它**没有**
   compare-and-swap、没有多键事务、也没有"仅当仍等于我读到的值时才写入"的形式。
@@ -67,21 +82,20 @@
 - 于是"读 → 改 → 写"在跨窗口时**不是原子的**，两次调用之间有一个真实的窗口期。仓库对此的
   既有处置是"缩小窗口期 + 合并式写回"，而不是假装原子：
   - 实例列表：`_writeInstancesMerged` 在写之前紧邻着重读一次
-    （`src/config.ts:366-383`），注释自认"merge 无法完全关闭竞态（get→update 不是原子的），
+    （`src/config.ts`），注释自认"merge 无法完全关闭竞态（get→update 不是原子的），
     只是把窗口缩到两次调用之间的同步跨度"。
-  - worktree 列表：同样在写回前重读（`src/worktree/worktreeManager.ts:193-204`），
+  - worktree 列表：同样在写回前重读（`src/worktree/worktreeManager.ts` 的写回路径），
     并明确写出"队列只序列化**本**扩展宿主，而两个窗口是共享同一批 globalState 键的两个进程"。
   - 通知已读基线：同样是"重读 + 只覆盖本窗口拥有的条目"的合并写
-    （`notificationPoller.ts:430-492` 的 `_reconcileSeenIds`、
-    `notificationPoller.ts:514-533` 的 `_mergeBaselineForWrite`，写入点在 `:464-469`、
-    以及 `:522-525` 的"本窗口未落盘条目优先"覆盖）。
+    （`notificationPoller.ts` 的 `_reconcileSeenIds`、
+    `_mergeBaselineForWrite`，以及其中"本窗口未落盘条目优先"的覆盖）。
 
 > **一处必须纠正的旧判断。** 本文初版把通知已读基线列为"整表覆盖"的真实缺口，并据此在
 > §9/§12.6 提出"顺带修基线"的后续项。**这条已经过时且当时就是错的**：那个竞态在本文初版
 > 之前就已由 `9a041b0`（"let the extension activate, settle every state write, and keep two
-> windows' baselines"）修掉，`ROADMAP.md:195` 也把它记在了「已完成」里。现在写入的数据源是
-> `_getAllSeenIds()` **在队列内**读回的那一份（`notificationPoller.ts:447-451`），本窗口只覆盖
-> 自己拥有的条目，删除还要求"配置里没有了 **且** 本窗口拥有"（`notificationPoller.ts:526-531`）。
+> windows' baselines"）修掉，`FEATURES.md` 的「多窗口通知基线合并」条目也把它记在了「已完成」里。现在写入的数据源是
+> `_getAllSeenIds()` **在队列内**读回的那一份（`notificationPoller.ts` 的 `_reconcileSeenIds`），本窗口只覆盖
+> 自己拥有的条目，删除还要求"配置里没有了 **且** 本窗口拥有"（同处的 `_ownedSeenInstanceIds` 判断）。
 > 那个"少一次提示"的场景已不成立，§9 与 §12.6 相应改写。
 
 ### 1.3 结论
@@ -100,16 +114,16 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 1. **租约放在文件里，不放 `globalState`。** 位置：扩展的 `globalStorageUri` 目录下的固定名
    `mcp-leader-lease.json`（与既有的 `mcp-broker.json` / `mcp-instances.json` 同目录、
-   同一套权限约定，见 `src/mcpWorkspaceState.ts:59-75`、`src/mcpBroker.ts:42-49`、
-   `src/mcpBroker.ts:270-272`）。
+   同一套权限约定，见 `src/mcpWorkspaceState.ts` / `src/mcpBroker.ts` 里各自的固定名路径函数与
+   `mkdir(0o700)` + `writeFileAtomically(..., { mode: 0o600 })` 写法）。
    理由见 §3：`globalState` 的读改写不原子，而 `fs.open(path, 'wx')` 在同机同文件系统上是
    **真正的互斥**（内核把"不存在则创建"实现为一次原子检查并创建），这把"抢占"从概率问题变成
    确定问题。
    **2026-09-27 决定：`globalState` 不参与选主，选主是文件专属的。** 原先是"本文主张只用 `wx`
    文件，若维护者认为 `globalState` 可接受则需重写 §3、§4"（§12.2 的开放问题）；现在**不是偏好，
-   是决定**——因为 `globalState` 的读改写不原子（§1.2，`config.ts:351-358` 是仓库自己的书面
-   承认），用它选主会把"谁主导"变成概率问题。实现里出现任何"用 `globalState` 抢租约"的代码路径，
-   按 §10.3 直接判失败。
+   是决定**——因为 `globalState` 的读改写不原子（§1.2，`src/config.ts` 的 `_writeInstancesMerged`
+   注释是仓库自己的书面承认），用它选主会把"谁主导"变成概率问题。实现里出现任何"用 `globalState`
+   抢租约"的代码路径，按 §10.3 直接判失败。
 2. **心跳 10 秒，过期 35 秒**（3 个心跳），与轮询间隔（≥ 60 秒）解耦。
 3. **`deactivate()` 主动让位**（删租约文件），崩溃/强杀则靠过期超时接管；接管竞争由
    `wx` 文件创建裁决，输家继续当 follower。
@@ -118,9 +132,13 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 5. **主导者可见**：日志 + 一条只读的查询命令告诉用户"哪个窗口在轮询"，并提供"本窗口强制接管"。
    **2026-09-27 决定：不做常驻状态栏项**（原先是"倾向不做，§12.3 待定"）；但机制**降级为全速轮询时
    给一次性提示**，否则用户永远不知道租约没在工作（§7.1、§12.3）。
+   **交付现状（2026-09-27 复核）**：查询入口交付的是"复制诊断信息"命令；`forgejoToolkit.showPollingLeader`
+   与 `forgejoToolkit.forcePollingLeadership` **两条命令都没有实现**（`package.json` 的
+   `contributes.commands` 里没有它们，`src/**` 也没有引用），并已于 **2026-09-28 决定两条都不做**
+   （理由见 §7.1 / §7.2）。
 6. **默认开启**（2026-09-27 决定，取代原先"默认关闭 + 证据门槛"的口径）：设置项
-   `forgejoToolkit.multiWindowLease` 默认 `true`（先例：`packages/forgejo-toolkit/package.json:114-125`
-   的两个轮询设置）。理由见 §2.1 末两条：**失败方向是安全的**（任何不确定一律退化为全速轮询，
+   `forgejoToolkit.multiWindowLease` 默认 `true`（先例：`packages/forgejo-toolkit/package.json` 的
+   `forgejoToolkit.notificationPollingEnabled` / `notificationPollingInterval`）。理由见 §2.1 末两条：**失败方向是安全的**（任何不确定一律退化为全速轮询，
    最坏情况 = 今天的行为），而焦点跟随（§2.2/§2.3）已消掉"提示弹在别的窗口"这条主要代价。
    代价是放弃原阶段 1 的"一周影子数据"门槛，改为**发布前的自测压测 + 报障取证**（§11.1、§11.2
    ——注意本扩展**没有回传通道**，用户侧数据不会自己回来，详见 §2.1 对应条目）。
@@ -131,10 +149,12 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 一句话：**同一台机器上同时开着多个 VS Code 窗口时，只让其中一个真正去轮询实例并弹通知，
 其余窗口保持安静**——但"安静"仅指不主动轮询/不弹提示，**不是**"看不到数据"。
 
-- **它在解决什么浪费**：轮询是**按窗口**启动的（`src/extension.ts:124-126`），每个窗口都会对
-  **每个实例**各发一次请求，并各自弹一次聚合提示（`notificationPoller.ts:546-574`）。
+- **它在解决什么浪费**：轮询是**按窗口**启动的（`src/extension.ts` 里 `new NotificationPoller(...)`
+  的装配点），每个窗口都会对
+  **每个实例**各发一次请求，并各自弹一次聚合提示（`notificationPoller.ts` 的 `_showAggregatedNotification`）。
   三个窗口 + 四个实例 = 3 倍的重复请求 + 3 份内容相同的提示。用户在
-  `KNOWN_ISSUES.zh.md:210-214` 里看到的现有规避方法（少开窗口、调大间隔、直接关掉轮询）
+  `KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目里看到的现有手段
+  （调大 `forgejoToolkit.notificationPollingInterval`、用 `forgejoToolkit.notificationPollingEnabled` 关掉轮询，或关掉租约本身）
   都是"用手工换省流量"；这个选项是把那件事自动化。
 - **开启后**：抢到租约的窗口（"主导者"）照常轮询与提示；其余窗口（"follower"）**停止轮询与
   自动提示**。**follower 仍然能看数据**：手动打开通知视图或仪表盘会即时读取（§5 末行），
@@ -170,14 +190,16 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 `packages/forgejo-toolkit/package.nls.json`
 
 ```json
-"config.multiWindowLease.description": "Poll Forgejo instances and raise notification alerts from only one VS Code window at a time instead of every open window, handing that job to whichever window you are working in. The other windows stay quiet but still load notifications when you open the view. Turn this off to let every window poll and alert on its own, which uses more requests but is the behaviour before this setting existed."
+"config.multiWindowLease.description": "Poll Forgejo instances and raise notification alerts from only one VS Code window at a time instead of every open window. The mode tries to hand that job to whichever window you are working in; if VS Code's focus state cannot be trusted on your platform, the current holder keeps the lease and the alerts stay with the lease-holding window, and no alert is lost. The other windows stay quiet but still load notifications when you open the view. Turn this off to let every window poll and alert on its own, which uses more requests but is the behaviour before this setting existed."
 ```
 
 `packages/forgejo-toolkit/package.nls.zh-cn.json`
 
 ```json
-"config.multiWindowLease.description": "同一时间只让一个 VS Code 窗口轮询 Forgejo 实例并弹出通知提示，并把这个角色交给你正在使用的窗口；其余窗口保持安静，但手动打开通知视图时仍会即时读取。关闭后每个窗口各自轮询与提示——请求更多，但那是此设置存在之前的行为。"
+"config.multiWindowLease.description": "同一时间只让一个 VS Code 窗口轮询 Forgejo 实例并弹出通知提示，并尝试把这个角色交给你正在使用的窗口；如果 VS Code 的焦点状态在你的平台上不可信，则现任继续持有租约、提示留在租约所在窗口，不会漏掉任何通知。其余窗口保持安静，但手动打开通知视图时仍会即时读取。关闭后每个窗口各自轮询与提示——请求更多，但那是此设置存在之前的行为。"
 ```
+
+> **2026-09-27 文案修订（已落地）**：上面两段是本节的**原定稿**；实际发布的文案把"把角色交给正在使用的窗口"改成了"**尝试**交给…"，并补了一句"焦点在你的平台上不可信时，现任继续持有、提示留在租约所在窗口、不漏通知"——因为逐窗口焦点保真度尚未按平台验证（§12 末条），原文案把意图写成了承诺。
 
 `package.json`（`forgejoToolkit` 配置段，与 `mcpEnabled` 相邻）：
 
@@ -195,8 +217,8 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 - **轮询驱动的提示 → 弹在主导者窗口，而不是"用户正在操作的那个窗口"。** 具体机制：
   聚合提示是该窗口自己的扩展宿主调 `vscode.window.showInformationMessage(...)`
-  （`notificationPoller.ts:546-574`，调用点 `:561`），点「Open」执行的
-  `openNotifications()`（`:564`）也在**同一个窗口**打开通知视图。VS Code 没有"让另一个窗口弹 toast"
+  （`notificationPoller.ts` 的 `_showAggregatedNotification`，"Open" 按钮回调里执行的
+  `openNotifications()`）也在**同一个窗口**打开通知视图。VS Code 没有"让另一个窗口弹 toast"
   的 API。因此租约开启时：**窗口 A 先开并成为主导者，之后在窗口 B 里操作，B 触发的
   *轮询类*提示会弹到 A 去**——这正是 §2.1 记下的代价，也是这条设计最可能被用户判定为
   "丢了通知"的地方。
@@ -221,12 +243,15 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 ### 2.3 焦点跟随领导权：实现要点
 
-- **触发**：`vscode.window.onDidChangeWindowState`（仓库目前 **0 处**使用，`window.state.focused`
-  同理，已核对）中，`e.focused === true` 且**持续聚焦 ≥ H 秒**才发起抢占。**H 的起始值定为
-  10–15 s**（见下面"参数"一条），目的只有一个：alt-tab 快速来回不算"用户在这个窗口工作"。
+- **触发**：`vscode.window.onDidChangeWindowState`（**阶段 2 起由租约自己使用**：
+  `src/lease/leaseSupervisor.ts` 的 `vscodeWindowLeaseHost`，`window.state.focused` 也在同一个端口里读；
+  本文初版记的"仓库 0 处使用"已随之失效）中，`e.focused === true` 且**持续聚焦 ≥ H 秒**才发起抢占。
+  **H 的起始值定为 10–15 s**（见下面"参数"一条），目的只有一个：alt-tab 快速来回不算"用户在这个窗口工作"。
 - **`wx` 抢不了已存在的文件，所以必须让现任让位**——这是本方案唯一的新协议：
-  1. 想接管的窗口写一个**自己的请求文件**（**文件名为 `<lease>.claim.<pid>`，与租约同目录**，
-     内容 = pid + 时间戳 + 随机 token），**绝不写主导者的租约文件**（那会破坏 §4 的互斥）；
+  1. 想接管的窗口写一个**自己的请求文件**（**文件名 `<lease>.claim.<pid>.<token>`，与租约同目录**，
+     内容 = `version` + `pid` + `focused` + 时间戳 `at`（可选 `windowId`）；**随机 token 在文件名里**，
+     不在内容里，见 `src/lease/leaseStore.ts` 的 `claimRequestPath` / `writeClaimRequest`），
+     **绝不写主导者的租约文件**（那会破坏 §4 的互斥）；
      **一名请求者最多一个请求文件**：发布前先回收自己上一个（重读、确认是自己的才删，删不掉也照样
      发布），规则与理由见 §12.10；
   2. 现任主导者在**每次心跳/tick 时顺带读一次请求**，并只在**同时**满足下面四条时主动让位：
@@ -264,31 +289,49 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
      周期），仍按 holder token 校验。**2026-09-27 决定：`fs.watch` 只作为这项优化的实现手段**
      （原先的开放问题是"是否引入"）——它可以把反应降到毫秒级，但**同步目录/网络盘可能不触发**，
      所以 **tick 兜底是强制的**，`fs.watch` 只是优化，不许成为唯一路径。
-- **有界的最坏延迟（K 的起始值定为 3，2026-09-27 采纳）**：请求者**聚焦且连续 K 次请求未被响应**
-  时，不再等完整过期，而按"心跳已陈旧"（**陈旧阈值 = 3 × 心跳周期 = 30 s**，见下表与 §4.1）
-  判定现任失联并接管；**但不得在现任接手后的 N 秒内触发**（同 §2.3 的防乒乓，2026-09-27 双窗口
-  soak 修正，见 §4.1/§11.2）。代价是可能出现**短暂双主导 → 一次重复提示**，方向安全
-  （**宁可重复，绝不少通知**）；它买到的是"在过期接管之前、最多提前一个心跳周期"接管
-  （30 s < 35 s），而不是原来那句"从 35 s 压到 K 个 tick ≈ 6 s"——那条说法与 5 s 陈旧阈值一起被
-  实测推翻了（阈值低于一个心跳周期时，健康的现任也会被判失联）。即使让位与加速降级都失败，
+- **有界的最坏延迟（K 的起始值定为 3，2026-09-27 采纳；2026-09-28 定释放规则）**：请求者**聚焦且
+  连续 K 次请求未被响应**时，不再等完整过期，而按"心跳已陈旧"（**陈旧阈值 = 3 × 心跳周期 = 30 s**，
+  见下表与 §4.1）判定现任失联并**尝试**接管；**但不得在现任接手后的 N 秒内触发**（同 §2.3 的防乒乓，
+  2026-09-27 双窗口 soak 修正，见 §4.1/§11.2）。代价是可能出现**短暂双主导 → 一次重复提示**，
+  方向安全（**宁可重复，绝不少通知**）。这个臂的原意是买到"在过期接管之前、最多提前约 5 s"的接管
+  （30 s < 35 s，早先写作"最多提前一个心跳周期"）；**2026-09-28 的真机实测证明按当时的释放规则它
+  买不到**——分支发得了火，却删不掉一个还活着的现任（§11.2 的实测与根因），**维护者同日裁决并落地了
+  它自己的释放阈值（§4.1 第 3 点）**，这个"提前"的意图由该协议改动恢复，**并已按改动后的代码真机复测
+  （2026-09-28：同一个"活着但沉默"的场景在心跳年龄 31.1 s / 32.8 s 处完成接管，见 §11.2 的复测条目）**。
+  至于原来那句"从 35 s 压到 K 个 tick ≈ 6 s"，它与 5 s 陈旧阈值一起被 2026-09-27 的实测推翻
+  （阈值低于一个心跳周期时，健康的现任也会被判失联）。即使让位与加速接管都失败，
   最终兜底仍是过期接管（≤35 s），因此不存在"永远卡住"。
-  **2026-09-27 追加更正（休眠分支）**：这条加速路径在**出厂常量下不可达**，所以今天"有界的最坏
-  延迟"实际由另外两条路径给出——文件消失（立即接管）与过期接管（≤35 s）。理由是算术而非判断：
-  加速分支只能在 `[3 × 心跳, 过期)` 即 `[30 s, 35 s)` 这 5 s 宽的窗口里生效，而已聚焦的请求者
-  要先等 `H = 12.5 s` 才发出第一个请求、再累积 `K = 3` 次未获响应（2 s tick，约 6 s）才升级，
-  18.5 s > 5 s，记录总是先过期。该分支**保持正确并保留**，等 §11.2 用实测把 H/N/K 或心跳周期
-  重调进这个窗口时才会生效；`leasePollingGate.test.ts` 已用断言把这条算术钉住（参数一旦变到
-  它可触发，断言就会失败并要求补一个真正跑通该路径的用例）。
+  **2026-09-27 追加更正（休眠分支）**：这条加速路径**对从零累积起来的请求连串**是休眠的，所以 2026-09-27
+  当天"有界的最坏延迟"实际由另外两条路径给出——文件消失（立即接管）与过期接管（≤35 s）。当时给的理由是
+  算术：加速分支只能在 `[3 × 心跳, 过期)` 即 `[30 s, 35 s)` 这 5 s 宽的窗口里生效，而已聚焦的请求者要先等
+  `H = 12.5 s` 才发出第一个请求、再累积 `K = 3` 次未获响应（2 s tick，约 6 s）才升级，
+  18.5 s > 5 s，从零开始的连串总是等到记录先过期。**2026-09-28 的真机实测指出真正卡住它的是另一层：
+  释放规则**——决策返回的加速 claim 带 `mustReleaseStale`，而 `leaseStore.ts` 的 `releaseStale` 只删
+  `isLeaseStale` 认账的记录（活 pid 要求心跳年龄 ≥ 35 s），所以它**发得了火、拿不下租约**（实测：claim 在
+  597 ms / 1.321 s 内发出，随后 `release-stale outcome=not-owner`、`wx` 得 `contended`，真正的接管要等到
+  4.6 s / 5.3 s 后的过期路径；完整日志与根因见 §11.2）。**决策可达、接管在当时不可达**：连串只在一处归零
+  （`leaseSupervisor.ts` 的 `resetFollowerRequestState()`，五处调用：本窗口停止选主、自己让位、
+  自己降级让位、成功 claim 成为 leader、demote 时记录已不属于自己），**焦点变化不重置它**，
+  因此一个**早已攒到 K** 的连串若遇上一个"pid 还活着、心跳却已静默"的现任（心跳超过 30 s、
+  记录尚未到 35 s 而过期），下一个 2 s tick 就会打出 `action=claim reason=follower-takeover-accelerated`。
+  **2026-09-28 决定并落地：加速 claim 按它自己的陈旧阈值释放**（`LeaseClaimPlan.staleRelease` →
+  `releaseStale(now, expectation)` 的"身份 + 重读年龄"两道复核，见 §4.1 第 3 点），于是它能在 ~30 s
+  而不是 35 s 拿下"活着但沉默"的现任，本节上面那个"最多提前约 5 s"的意图由这次协议改动兑现；
+  **§11.2 里 2026-09-28 那组数字描述的是改动前的 build；改动后的复测已完成，同一个场景在心跳年龄
+  31.1 s / 32.8 s 处完成接管（§11.2 的复测条目）**。
+  `leasePollingGate.test.ts` 已用断言把这条算术钉住（参数一旦变到从零连串也能命中，断言就会失败并要求
+  补一个真正跑通该路径的用例）。
   **K 的计数器由调用方持有（内存，不落盘）**——窗口重启即归零，这是安全的方向（最坏退回等过期）；
   若日后发现"重启后接管太慢"，再考虑写进请求文件，当前不落盘以免给租约文件加一个会腐烂的字段
   （阶段 0 的实现结论）。
   说明：这里的 **2 s tick** 是请求者的请求节奏，与"心跳 10 s / 过期 35 s"（§2 决策 2）不是同一层，
   实现时不要合并成一个常量。
-- **与已读基线的耦合（已核对代码，结论安全）**：`notificationPoller.ts:462` 的
+- **与已读基线的耦合（已核对代码，结论安全）**：`notificationPoller.ts` 的
   `_ownedSeenInstanceIds` 是「**谁轮询谁取得所有权**」，不是钉死在某窗口；基线存在 `globalState`
-  （同 profile 跨窗口共享），新主导者读到的是**已持久化基线**（`:447`、`:455-459`），因此
+  （同 profile 跨窗口共享），新主导者读到的是**已持久化基线**（`_getAllSeenIds` 与
+  `_reconcileSeenIds` 里的重读），因此
   **不会把历史通知当新通知重报**。唯一窄窗：旧主导者最后一次写**失败**、条目只留在它的内存
-  （`_unpersistedSeenIds`，`:475-481`）时交接，会让那一轮通知重报一次——与既有"写失败最坏多报
+  （`_unpersistedSeenIds`）时交接，会让那一轮通知重报一次——与既有"写失败最坏多报
   一次"的代价同级，可接受。
 - **指标随之改写**：§11.2 的「10 分钟内 owner 变化为 0」必须改成「**非有意交接**的 owner 变化
   为 0」；并新增一条正向指标：**聚焦窗口 B 之后，B 成为轮询者的时延**（目标值 = H + 一次心跳量级，
@@ -299,16 +342,17 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 **参数总表（2026-09-27 决定，数值待 §11.2 的 soak 确认，见 §12 末条）：**
 
-| 参数                       | 符号 / 名称           | 起始值               | 状态                                                          |
-| -------------------------- | --------------------- | -------------------- | ------------------------------------------------------------- |
-| 去抖（持续聚焦多久才抢占） | H                     | 10–15 s              | 采纳为起始值，待实测                                          |
-| 防乒乓（接手后多久不让位） | N                     | 15 s                 | 采纳为起始值，待实测                                          |
-| 加速降级的未响应请求数     | K                     | 3                    | 采纳为起始值，待实测                                          |
-| 判定"现任失联"的心跳陈旧度 | 陈旧阈值              | **30 s（3 × 心跳）** | **2026-09-27 soak 实测定稿**（原起始值 5 s 低于一个心跳周期） |
-| 请求文件                   | `<lease>.claim.<pid>` | 与租约同目录         | **已定**（命名与位置）                                        |
-| 让位前的二次确认           | —                     | 不做                 | **已定**                                                      |
-| `fs.watch`                 | —                     | 仅优化               | **已定**，tick 兜底强制                                       |
-| 无人聚焦时                 | —                     | 现任继续轮询         | **已定**                                                      |
+| 参数                       | 符号 / 名称                   | 起始值                                     | 状态                                                                                      |
+| -------------------------- | ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 去抖（持续聚焦多久才抢占） | H                             | 10–15 s                                    | 采纳为起始值，待实测                                                                      |
+| 防乒乓（接手后多久不让位） | N                             | 15 s                                       | 采纳为起始值，待实测                                                                      |
+| 加速降级的未响应请求数     | K                             | 3                                          | 采纳为起始值，待实测                                                                      |
+| 判定"现任失联"的心跳陈旧度 | 陈旧阈值                      | **30 s（3 × 心跳）**                       | **2026-09-27 soak 实测定稿**（原起始值 5 s 低于一个心跳周期）                             |
+| 加速 claim 的陈旧释放阈值  | 加速释放阈值                  | **30 s（= `LEASE_ACCELERATED_STALE_MS`）** | **2026-09-28 决定并落地**（按 `staleRelease` 的身份 + 重读年龄复核释放，见 §4.1 第 3 点） |
+| 请求文件                   | `<lease>.claim.<pid>.<token>` | 与租约同目录                               | **已定**（命名与位置；token 在文件名里）                                                  |
+| 让位前的二次确认           | —                             | 不做                                       | **已定**                                                                                  |
+| `fs.watch`                 | —                             | 仅优化                                     | **已定**，tick 兜底强制                                                                   |
+| 无人聚焦时                 | —                             | 现任继续轮询                               | **已定**                                                                                  |
 
 **对设计的影响**：方案已定（焦点跟随，§2.2 决策 + §2.3 实现要点），默认值也已定为 `true`
 （§2 决策 6）。仍必须收的证据是**落点实测**（"提示出现在另一个窗口时用户会不会漏掉"）——
@@ -326,19 +370,21 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 ### 3.1 位置与权限
 
 - 路径：`path.join(context.globalStorageUri.fsPath, 'mcp-leader-lease.json')`。
-- 目录按既有约定收紧到 `0700`，文件 `0600`：先例 `src/mcpBroker.ts:270-272`
+- 目录按既有约定收紧到 `0700`，文件 `0600`：先例 `src/mcpBroker.ts` 写注册文件的那段
   （`mkdir(mode 0o700)` + `chmod` + `writeFileAtomically(..., { mode: 0o600 })`）。
   **注意这两项在 Windows 上基本是空操作**：Node 的 `mode` 只映射到 POSIX 位，
   Windows 上的实际访问控制来自目录 ACL（`%APPDATA%` 下的用户目录默认只有本人可读）。
   权限承诺要按平台分别陈述，不要写成"跨平台 0600 强制生效"。
 - **`wx` 是本设计唯一的原子原语，而它不是仓库里的 `writeFileAtomically`。**
-  `src/utils/atomicWrite.ts:33-65` 的实现是"写 `<target>.part` → `fsync` → `rename` 覆盖"，
-  它**不创建目标文件**，因此**任何窗口都能调用它**（`fs.rename` 对已存在的目标是无条件替换，
-  见该文件 `:60`）。两者分工必须写清：
+  `src/utils/atomicWrite.ts` 的实现是"写 `<target>.part` → `fsync` → `rename` 覆盖"，
+  它**不创建目标文件**，因此**任何窗口都能调用它**（`fs.rename` 对已存在的目标是无条件替换）。
+  两者分工必须写清：
   - **互斥创建**（`claim()`）：只能用 `fs.promises.open(leasePath, 'wx', 0o600)`；
-  - **心跳刷新**（已是 owner）：可以用 `writeFileAtomically`，它不会重新创建文件，
-    因此不会破坏互斥语义，并且会保留既有权限位（`atomicWrite.ts:50-58` 先 `stat` 目标、
-    把目标 mode 复制到 `.part`）。
+  - **心跳刷新**（已是 owner）：用同形的"写 `.part` → `fsync` → `rename`"。
+    实现里这是 `src/lease/leaseStore.ts` 的 `writeLeaseAtomically`，**刻意不调
+    `src/utils/atomicWrite.ts` 的 `writeFileAtomically`**：`.part` 用 `wx` 创建、关闭后才 rename，
+    免得这段代码自己制造实测到的 Windows `EPERM`（§13.1）。它不会创建或二次创建租约文件，
+    因此不破坏互斥语义，并保留既有权限位。
 - **为什么不用 `globalState`（2026-09-27 决定：禁止）**：见 §1.2——`get`→`update` 不是原子的，
   用它选主等于把"谁主导"交给一个已知有竞态的原语。另外 `globalState` 是编辑器的状态库，用户清缓存
   （Profile / "清除工作区状态"）会让租约莫名消失——那其实是**安全**的失败方向（会退化成
@@ -347,9 +393,9 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
   则需要重写 §3、§4"（§12.2），现决定：不接受，选主是文件专属的；`globalState` 在这条路径上
   只承担与选主无关的缓存角色（版本探测，见 §9 路线 2）。**
 - **不把 `mcp-broker.json` 复用为选主器**：broker 确实是"全机器唯一的管道监听者"，
-  也确实是强互斥（`src/mcpBroker.ts:230-247`，`EADDRINUSE` 让位），但 (a) broker 只在一个
+  也确实是强互斥（`src/mcpBroker.ts` 的 `attemptMcpBrokerStart`：`EADDRINUSE` 即让位），但 (a) broker 只在一个
   窗口里跑，意图是"提供 MCP 转发"，不是"代表轮询"；(b) broker 的注册表在
-  `docs/architecture/mcp-server.md:265-273` 描述的语义下是"描述一个活着的监听器"，
+  `docs/architecture/mcp-server.md` 的「Broker mode」一节描述的语义下是"描述一个活着的监听器"，
   把轮询主导权塞进它会同时改两个子系统的语义。**保持两件事分开**——但它的 pid 存活判定与
   定时器生命周期可以直接借鉴（§3.5）。
 
@@ -372,12 +418,12 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 字段只用 JSON 基本类型（与仓库其他文件一致的风格）。**不写 token、不写 URL 凭据**：
 `ownerNonce` 是本地随机量，不是凭据；`instancesFingerprint` 只用于判断"租约是否描述了我关心的
 那批实例"，不含用户名/地址（可用 `instance.id` 的排序拼接后哈希，id 本身不是秘密但没必要
-外泄地址）。`pid + ownerNonce` 的组合与 `mcpWorkspaceState.ts:41-48` 的
-"pid + per-window nonce" 是同一个理由：pid 会被回收。`appVersion` 与 `instancesFingerprint` 由
-接入点（`extension.ts`）提供：前者是 `context.extension.packageJSON.version`，后者是
+外泄地址）。`pid + ownerNonce` 的组合与 `src/mcpWorkspaceState.ts` 里
+"pid + per-window nonce" 的固定名文件是同一个理由：pid 会被回收。`appVersion` 与 `instancesFingerprint` 由
+接入点（`src/extension.ts` 的 `startPollingLease` 调用）提供：前者是 `context.extension.packageJSON.version`，后者是
 `config.getInstances().map(i => i.id)` 的排序哈希——不另造一套"实例身份"，就用配置自己的 `id`。
 
-**同目录的请求文件（`<lease>.claim.*`）不是本记录的一部分，但有一条身份规则要在这里点名：一个请求者
+**同目录的请求文件（`<lease>.claim.<pid>.<token>`）不是本记录的一部分，但有一条身份规则要在这里点名：一个请求者
 最多一个请求文件，就地替换。** 文件名里的随机 token 每次发布都会换，所以"发一个新的、留一个旧的"
 只会累积；主导者可以清理"超过请求时效（`LEASE_CLAIM_REQUEST_MAX_AGE_MS`）且 pid 已死"的残留。
 规则、反例与预期稳态见 §12.10。
@@ -400,9 +446,9 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 - 租约里记一个实例集合指纹。**指纹变化不触发重新选主**：主导者在下一次心跳时把指纹更新到
   最新即可（它的职责是"代表本机轮询所有已配置实例"，实例增删由本窗口的
-  `config.onInstancesChanged` 驱动，`notificationPoller.ts:137-147` 已经在监听）。
+  `config.onInstancesChanged` 驱动，`notificationPoller.ts` 里已经订阅了它）。
 - follower 发现指纹不同**不** takeover。理由：两个窗口共享同一份
-  `forgejoToolkit.instances`（`src/config.ts:13` 的 `INSTANCES_KEY`），指纹不同的窗口期通常只是
+  `forgejoToolkit.instances`（`src/config.ts` 的 `INSTANCES_KEY`），指纹不同的窗口期通常只是
   "另一个窗口刚写完而我还没重读"。为它触发选主只会制造抖动。
   **阶段 0 把这条做成了结构性保证**：指纹根本不在决策函数的输入里（不是"进了决策再跳过"），
   因此它**在类型层面**就无法影响选主；并有测试钉住这一点。
@@ -417,53 +463,54 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 
 ### 3.4 候选方案对比（为什么不用别的）
 
-| 方案                                                               | 结论                 | 理由                                                                                                                                                                                                                                             |
-| ------------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `globalState` 读改写 + 时间戳                                      | **不采用为唯一机制** | 竞态真实存在，见 §1.2。仓库自己的注释也这么说（`config.ts:351-358`）。                                                                                                                                                                           |
-| `globalState` 两阶段"写候选 → 等一个 settle 期 → 重读确认自己还在" | 不采用               | 概率性、需要引入魔法延时，而且在"重读时看到的是我还是别人"上仍依赖写入落盘顺序。                                                                                                                                                                 |
-| 复用 broker 的命名管道/Unix socket 绑定当互斥                      | **不作为选主器**     | 它确实原子（`src/mcpBroker.ts:230-247`），但 broker 只有"扩展宿主需要转发 MCP"时才启动，且默认路径就是"第一个窗口赢"——把轮询主导权绑上去会让"关掉 MCP 前端"意外改变轮询拓扑。**借鉴它的 pid 存活判定与定时器写法（§3.5），不绑定它的生命周期。** |
-| 用 `wx` 独占创建文件                                               | **采用**             | 同机同文件系统上"不存在则创建"由内核裁决；失败即 `EEXIST`，语义清晰。见 §3.1 的分工说明。                                                                                                                                                        |
-| 用 `LockFile` 类库 / `flock`                                       | 不采用               | Node 无跨平台的 `flock`；引依赖违背"能不加就不加"的既有取向。                                                                                                                                                                                    |
+| 方案                                                               | 结论                 | 理由                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `globalState` 读改写 + 时间戳                                      | **不采用为唯一机制** | 竞态真实存在，见 §1.2。仓库自己的注释也这么说（`src/config.ts` 的 `_writeInstancesMerged`）。                                                                                                                                                                                                |
+| `globalState` 两阶段"写候选 → 等一个 settle 期 → 重读确认自己还在" | 不采用               | 概率性、需要引入魔法延时，而且在"重读时看到的是我还是别人"上仍依赖写入落盘顺序。                                                                                                                                                                                                             |
+| 复用 broker 的命名管道/Unix socket 绑定当互斥                      | **不作为选主器**     | 它确实原子（`src/mcpBroker.ts` 的 `attemptMcpBrokerStart`：绑定失败即 `EADDRINUSE`），但 broker 只有"扩展宿主需要转发 MCP"时才启动，且默认路径就是"第一个窗口赢"——把轮询主导权绑上去会让"关掉 MCP 前端"意外改变轮询拓扑。**借鉴它的 pid 存活判定与定时器写法（§3.5），不绑定它的生命周期。** |
+| 用 `wx` 独占创建文件                                               | **采用**             | 同机同文件系统上"不存在则创建"由内核裁决；失败即 `EEXIST`，语义清晰。见 §3.1 的分工说明。                                                                                                                                                                                                    |
+| 用 `LockFile` 类库 / `flock`                                       | 不采用               | Node 无跨平台的 `flock`；引依赖违背"能不加就不加"的既有取向。                                                                                                                                                                                                                                |
 
 ### 3.5 同类问题的先行实现：broker 的窗口间自动交接
 
 先交付的是**近亲问题**，不是同一个问题：broker 需要"全机唯一的监听者"。它的实现
-（`src/mcpBroker.ts`，架构描述见 `docs/architecture/mcp-server.md:304-330`，
-用户可见行为见 `KNOWN_ISSUES.zh.md:228-234`）与本文的关系要精确切开——
+（`src/mcpBroker.ts`，架构描述见 `docs/architecture/mcp-server.md` 的「Broker mode」一节，
+用户可见行为见 `KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目）与本文的关系要精确切开——
 
 **可以直接借鉴（且已被实测证明够用）的部分：**
 
 - **注册文件 + pid 存活探测**：让位窗口每次 tick 读固定的注册文件，用
   `process.kill(pid, 0)` 判断持有者还在不在；`EPERM` 计为"活着"
-  （`mcpBroker.ts:413-420` 的 `isProcessAlive`、`:430-448` 的
-  `brokerRegistrationOwnerIsAlive`）。这与 `mcpWorkspaceState.ts:287-297` 的
+  （`mcpBroker.ts` 的 `isProcessAlive` 与它上面的
+  `brokerRegistrationOwnerIsAlive`）。这与 `mcpWorkspaceState.ts` 的
   `isPidAlive` 是同一规则，两处刻意重复（注释说明了理由）。**"文件消失"与"文件在但 pid 死了"
   都要视为可接管**——本文 §5 的两个场景正好对应这两条。
-- **5 秒轮询 + 生命周期收口**：`BROKER_TAKEOVER_POLL_MS = 5_000`（导出，`:88`）、
-  `setInterval` + `timer.unref()`（`:338-348`）、单飞守卫防重入（`:366-371`）、
-  `cleanupMcpBroker()` 先清定时器再等 in-flight 尝试（`:589-604`）。
+- **5 秒轮询 + 生命周期收口**：`BROKER_TAKEOVER_POLL_MS = 5_000`（导出常量）、
+  `setInterval` + `timer.unref()`（`startMcpBrokerTakeoverWatcher`）、单飞守卫防重入、
+  `cleanupMcpBroker()` 先清定时器再等 in-flight 尝试。
   **定时器必须 `unref()` 且随停用/关闭设置清理**，否则一个已经让位的窗口会被一个恢复用定时器
   留在进程里。
 - **健康时保持沉默**：持有者健在时，让位窗口一个 tick 只做"读文件 + 探 pid"，**不写日志**
-  （`:373-375`）。实测：持有者健在的 20 秒内注册文件零变化、看门狗零日志（`TODO.md:9`）。
+  （`checkBrokerTakeover` 的"健在即返回"分支）。实测：持有者健在的 20 秒内注册文件零变化、看门狗零日志（提交 `52ede35`/`c5118a6`）。
   本文 §7.1 的"follower 只在状态变化时写日志"就是抄这一条。
 - **"接管 = 走一遍正常启动路径"**：接管成功后的注册内容与首次绑定**没有区别**——自己的活 pid、
-  重新生成的 per-launch 密钥、同一条 info 日志（`mcpBroker.ts:210-284` 的
+  重新生成的 per-launch 密钥、同一条 info 日志（`mcpBroker.ts` 的
   `attemptMcpBrokerStart`）。这样客户端侧不需要知道发生过交接。本文的接管也应如此：
   新主导者不做任何特殊标记。
 - **失败不重试**：非 `EADDRINUSE` 的失败（`EACCES`）记一次 info、**不启动看门狗**
-  （`mcpBroker.ts:236-247`）；接管时"能拿到端点但写不出注册"则**停止看门狗**，
-  因为每 5 秒重复一次注定失败的写只会重复同一条日志（`:379-383`）。
+  （`attemptMcpBrokerStart` 的错误分支）；接管时"能拿到端点但写不出注册"则**停止看门狗**，
+  因为每 5 秒重复一次注定失败的写只会重复同一条日志（同函数的注册写失败分支）。
 
 **不能借鉴、必须自己论证的部分：**
 
 - **仲裁者不同。** broker 的互斥是**内核仲裁的资源**：多个窗口一起 `listen`，恰好一个成功，
   其余拿到 `EADDRINUSE` 并继续等待——所以它**刻意没有文件锁、没有选举协议**，
-  连"误判持有者已死"都只值一次失败的 `listen`（`mcpBroker.ts:301-306` 的原话）。
+  连"误判持有者已死"都只值一次失败的 `listen`（`mcpBroker.ts` 里 `startMcpBrokerTakeoverWatcher`
+  上方注释的原话）。
   **租约文件不是这种资源。** 两个窗口同时 `wx` 创建租约，同样只有一个成功，
   但"陈旧租约会永久挡住接管"这件事内核不管：没有 `listen` 这样的二次仲裁替我们兜底。
   因此本文的抢占协议（§4：只读过期才 `unlink`、**绝不在 `EEXIST` 后立刻 `unlink` 重试**、
-  follower 的抖动区间）**仍然需要自己的论证与测试**，不能拿 broker 的先例把 §4 一笔带过。
+  follower 的 tick 节奏）**仍然需要自己的论证与测试**，不能拿 broker 的先例把 §4 一笔带过。
 - **代价不同。** broker 交接失败的代价是"这一个 MCP 会话结束"（实测 31 ms 内以一行 info
   退出，退出码 0，见 §11.2）；租约交接失败的代价是"一段时间内没人轮询"。
   两者都不可怕，但不能互相替代论证。
@@ -481,7 +528,7 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 1. 读租约文件。
 2. 若 `ownerNonce` 不是自己（说明有人接管过：时钟跳变、手工接管、旧进程残留）→ **主动降级**为
    follower，打日志，停掉自己的轮询。
-3. 否则用"原子写 + rename"（`writeFileAtomically`，`src/utils/atomicWrite.ts:33`）把
+3. 否则用"原子写 + rename"（`src/lease/leaseStore.ts` 的 `writeLeaseAtomically`）把
    `heartbeatAt` 刷成 `Date.now()`，并顺带更新指纹。
 
 **心跳写失败必须有除"降级"以外的中间档（2026-09-27 决定：按下面这组数采纳）。** 这是本次修订新增的
@@ -532,28 +579,50 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
    在实现里**已删除**——它唯一的使用点就是这条被推翻的规则，留着只会是个陷阱。
    **算术**：阈值必须 `> 1 × 心跳`（否则健康现任也会命中）且 `< 过期周期 35 s`（否则加速分支永远
    轮不到、成了死代码）；3 × 10 s = 30 s 同时满足两者，代价是它只能在过期前的最后一个心跳周期里
-   买到时间（最多提前 ~5 s），而不是原设计写的"压到 K 个 tick ≈ 6 s"。测试把这三条一起钉住
+   买到时间（最多提前 ~5 s；这 5 s 由下面第 3 点的释放规则兑现，见 §11.2），而不是原设计
+   写的"压到 K 个 tick ≈ 6 s"。测试把这三条一起钉住
    （`LEASE_ACCELERATED_STALE_MS === 30_000`、是心跳的整数倍、`< LEASE_EXPIRY_MS`），
    心跳周期一旦重调就会失败而不是静默退化。
-   **第三点，2026-09-27 由实施者逐 tick 追查后补上：这条分支在出厂常量下不可达，是一段休眠的
-   正确代码。** 它只能在 `[30 s, 35 s)` 这个 5 s 宽的窗口里起作用，而请求者要先等
-   `H = 12.5 s` 才发出第一个请求、再要 `K = 3` 次未获响应（2 s tick，约 6 s）才升级，
-   18.5 s > 5 s，记录总是先过期。所以上面那两个不等式（`3 × 心跳 > 心跳`、`3 × 心跳 < 过期`）
-   现在的意义是"代码在**重调参数后**能正确生效"，不是"它此刻在生效"；
-   `leasePollingGate.test.ts` 把这条算术也写成了断言（`5 s < 12.5 s + 6 s`），将来把 H/N/K 或
-   心跳调进这个窗口时那条断言会失败，提醒实现者补一个真正跑通加速路径的用例。
+   **第三点，2026-09-27 由实施者逐 tick 追查后补上：这条分支对从零累积的请求连串是休眠的。**
+   它只能在 `[30 s, 35 s)` 这个 5 s 宽的窗口里**发火**，而请求者要先等 `H = 12.5 s` 才发出第一个请求、
+   再要 `K = 3` 次未获响应（2 s tick，约 6 s）才升级，18.5 s > 5 s，从零开始的连串总是等到记录先过期；
+   `leasePollingGate.test.ts` 把这条算术也写成了断言（`5 s < 12.5 s + 6 s`），将来把 H/N/K 或心跳调进
+   这个窗口时那条断言会失败，提醒实现者补一个真正跑通加速路径的用例。
+   **2026-09-28 的真机实测把"发火"和"接管"分开，并改掉了释放规则**：这个分支**是可达的**——K 计数器只在
+   所有权变化或停止选主时归零（`leaseSupervisor.ts` 的 `resetFollowerRequestState()`），**焦点变化不会
+   重置它**，所以一个早已攒到 K 的连串遇到"pid 还活着、心跳超过 30 s 而记录尚未到 35 s"的现任时，
+   下一个 2 s tick 就打出 `action=claim reason=follower-takeover-accelerated`；但**当时的
+   `releaseStale` 只删 `isLeaseStale` 认账的记录（活 pid 要求心跳年龄 ≥ 35 s），所以它拿不下来**。
+   这一层与上面那条算术无关：加速分支只在 `isLeaseStale` 为假时才可达，而释放前的重读只晚几毫秒，
+   于是加速 claim 只能等到过期早已成立才可能删掉文件——那时赢的已经是普通过期路径（两次注入、
+   日志形状与 4.6 s / 5.3 s 的接管时刻见 §11.2）。**决定（2026-09-28，同日落地）：加速 claim 用自己的
+   陈旧阈值释放**——`LeaseClaimPlan` 增加 `staleRelease`（`leaseTypes.ts` 的 `StaleReleaseExpectation`
+   = `expectedHolder` + `thresholdMs`），`leaseStore.ts` 的 `releaseStale(now, expectation)` 在重读后先
+   比对**身份**（`pid` / `ownerNonce` / `claimedAt` 仍是决策看到的那条记录，否则 `not-owner`），再按
+   `thresholdMs` 重新量**年龄**，加速 claim 传的是 `LEASE_ACCELERATED_STALE_MS`（=30 s）。代价是
+   **心跳超过 30 s 的"活着但沉默"的现任现在可以被加速接管顶掉**，买到的正是上面那个 ~5 s 的提前量，
+   第 1 点那句"最多提前 ~5 s"的意图由这条协议改动兑现；两道复核就是这次降阈值的边界——降阈值永远不会
+   打到一个刚心跳过、或已经被别人重写过的持有者身上。**带 expectation 的重读若读到坏记录
+   （`invalid`，含不可读路径）也一律答 `not-owner`**——决策看到的是有效记录，这份不是它，该由普通过期
+   路径在之后的 tick 清理；只有"文件不在了"仍回 `missing`，让紧随其后的 `wx` 照常进行。于是更严的这次
+   读法**永远不会削弱接管**，最坏只是把它推迟一个 2 s tick。`leaseSupervisor.ts` 的 `release-stale` 行因此带
+   `releaseThresholdMs=30000`，`leaseSupervisor.test.ts` 的用例也改成断言它 `outcome=released` 并真的
+   赢下租约。**这次重测已完成**（2026-09-28 真机：加速 claim 的 `release-stale` 直接给出
+   `outcome=released`、紧随的 `claim` 给出 `outcome=claimed`，接管落在心跳年龄 31.1 s / 32.8 s 处，
+   见 §11.2 的复测条目）；§11.2 里 4.6 s / 5.3 s 与 35.6 s / 36.4 s 那组数字描述的是改动前的 build。
 2. **加速分支同样受 N 约束**：`now - record.claimedAt < N` 时**不**加速——K 买到的是"更早的接管
    尝试"，绝不是"可以顶掉一个刚接手的窗口"的权利。否则 N 就形同虚设（上面那次 1.3 s 顶掉正是
    这么发生的）。
-   由焦点的现任让位（§2.3 步骤 1–3）仍是**快速交接的正路**：K 只是"现任还活着但不回应"时的兜底，
-   所以它的延迟量级应当按过期周期而不是按 tick 来理解。
+   由焦点的现任让位（§2.3 步骤 1–3）仍是**快速交接的正路**：K 原本是"现任还活着但不回应"时的兜底，
+   而 2026-09-28 的实测说明它按旧释放规则给不出这个兜底（第 3 点末的改动把这条路补上）；
+   它的延迟量级同样应当按陈旧阈值 / 过期周期而不是按 tick 来理解。
 
 ### 4.2 follower 的抢占
 
 follower 的状态机：
 
 ```
-每 tick（10 秒，带抖动）:
+每 tick（2 秒，= `LEASE_CLAIM_TICK_MS`；**无抖动**）:
   读租约文件
   ├─ 文件不存在                → 尝试 claim
   ├─ 解析失败 / 字段不合法      → 视为过期，尝试 claim（安全方向：回到全速轮询）
@@ -586,10 +655,16 @@ follower 的状态机：
 3. `unlink` 陈旧租约再 `wx` 创建：**只在"读到过期"这条路径上做**，并且 `unlink` 失败
    （`ENOENT`）直接吞掉继续重试一次。**不要在 `EEXIST` 后立刻 `unlink` 重试**——那会在两个
    follower 同时抢时互相删掉刚被赢家写入的记录。这一点是本协议最需要写进注释的地方。
-4. 抖动：follower tick 间隔取 `[8s, 12s]` 均匀随机，避免 N 个窗口在同一个毫秒一起抢。
-5. **陈旧 `.part` 不构成障碍**（实测）：`writeFileAtomically` 崩溃后留下的
+4. **不做抖动（2026-09-27 复核：原设计的"tick 间隔取 `[8s, 12s]` 均匀随机"已删除）。**
+   实现的 tick 是固定 `LEASE_CLAIM_TICK_MS = 2_000`（`src/lease/leaseConstants.ts`），
+   `src/lease/**` 里没有 `Math.random`，唯一的 `setInterval` 在 `leaseSupervisor.ts` 的
+   `startElection` 里用这个常量。真正避免"多个窗口在同一个毫秒一起抢"的是协议本身：
+   `wx` 恰好让一个成功、其余 `EEXIST` 后回到 follower；请求重发则走
+   `claimRequestBackoffMs` 的指数退避。随机化既没必要，也会让"最坏接管延迟"无法用算术说清。
+5. **陈旧 `.part` 不构成障碍**（实测）：原子写崩溃后留下的
    `mcp-leader-lease.json.part` 与 `wx` 创建的目标名不同名，因此不影响后继 `claim`；
-   它会在下一次心跳时被覆盖，或作为无主文件留在目录里（无害，但可以在接管时顺手清掉）。
+   它会在下一次心跳时被清掉或覆盖（`leaseStore.ts` 的 `clearStalePart`），
+   或作为无主文件留在目录里（无害，但可以在接管时顺手清掉）。
 
 ### 4.3 为什么这个协议是确定的
 
@@ -609,24 +684,25 @@ follower 的状态机：
 
 ## 5. 被主导者关闭时会发生什么（逐场景）
 
-| 场景                                                       | 行为                                                                                                                                                                                                                               | 用户可感知的后果                                                                                                                                                                                                                                                                                 |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **正常关闭**（`deactivate()`）                             | 在 `src/extension.ts:170-178` 的 `deactivate` 里（与 `cleanupMcpBroker` 同处）删掉自己拥有的租约文件；**只有 `ownerNonce` 是自己的才删**，避免删掉继任者的文件（同 `cleanupMcpBroker` 的所有权判断，`src/mcpBroker.ts:589-617`）。 | follower 的下一次 tick（≤12 秒，抖动上限）就能 `claim`。**唯一需要 `deactivate` 可靠执行**；注意 VS Code 不保证 `deactivate` 被 await 到结束（`mcpBroker.ts:56-62` 的 in-flight 等待就是为这个不确定写 的防御），所以删除失败也不影响正确性，只是慢 35 秒。                                      |
-| **崩溃 / 强杀 / 断电**                                     | 租约文件留着，`heartbeatAt` 不再刷新。35 秒后过期，第一个 tick 到的 follower 抢走。                                                                                                                                                | 最长 47 秒（35 + 12 抖动）的轮询空窗。**这是本设计的核心权衡**：这段时间内没有新通知提示；用户看到的只是"晚一点弹"。**类比实测见 §11.2。**                                                                                                                                                       |
-| **两个 follower 同时抢**                                   | `wx` 只有一个赢；输家 `EEXIST` → 重读 → follower。                                                                                                                                                                                 | 无。                                                                                                                                                                                                                                                                                             |
-| **三个以上窗口**                                           | 同上，与窗口数无关。                                                                                                                                                                                                               | 无。                                                                                                                                                                                                                                                                                             |
-| **租约无人认领**（文件不存在）                             | 每个窗口都进入 §4.2 的 claim 分支；赢家立刻开始轮询，输家等下一个 tick 再评估。                                                                                                                                                    | 最多 12 秒（抖动上限）后才有人开始轮询，且这段时间**没有**服务器请求。这是有意的：比"每个窗口都在猜"更省，也比"太久没人轮询"更短。~~若要更保守，可以让窗口数 > 1 时立即 claim（§12.4）~~ **2026-09-27 决定：不做单窗口优化，也不按"窗口数 > 1"分叉**——每个窗口都走同一条协议路径，理由见 §12.4。 |
-| **时间戳过期但主导者其实活着**（时钟跳变、挂起唤醒）       | 新窗口接管；旧主导者下一个心跳（≤10 秒）发现 `ownerNonce` 变了 → 降级。                                                                                                                                                            | 最多 10 秒的双主导者窗口，期间可能多一次请求与一次重复提示。可接受。                                                                                                                                                                                                                             |
-| **主导者心跳写失败但进程仍在**（Windows 上被读句柄占住等） | 见 §4.1（2026-09-27 定档）：每次心跳短重试 3 次、间隔数百毫秒；**连续失败超过 2 × 过期周期（70 s ≈ 7 次心跳）**才降级。期间**继续轮询**。                                                                                          | 可能短暂双轮询；不会无人轮询。                                                                                                                                                                                                                                                                   |
-| **follower 在等租约时用户点开通知视图**                    | 视图的数据来自 `getNotifications` 命令（宿主与 webview 的正常消息路径），与轮询是两条路；follower 的窗口仍能手动刷新看到通知。                                                                                                     | 不丢功能，只少"自动提示"。落地时必须**实测确认**这一点（§11.2 的"无回归证据"一条）。                                                                                                                                                                                                             |
+| 场景                                                       | 行为                                                                                                                                                                                                                     | 用户可感知的后果                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **正常关闭**（`deactivate()`）                             | 在 `src/extension.ts` 的 `deactivate` 里（与 `cleanupMcpBroker` 同处，经 `disposePollingLease`）删掉自己拥有的租约文件；**只有 `ownerNonce` 是自己的才删**，避免删掉继任者的文件（同 `cleanupMcpBroker` 的所有权判断）。 | follower 的下一次 tick（≤ 2 秒，一个 tick）就能 `claim`。**唯一需要 `deactivate` 可靠执行**；注意 VS Code 不保证 `deactivate` 被 await 到结束（`mcpBroker.ts` 的 in-flight 等待就是为这个不确定写的防御），所以删除失败也不影响正确性，只是慢 35 秒。                                           |
+| **崩溃 / 强杀 / 断电**                                     | 租约文件留着，`heartbeatAt` 不再刷新。**持有者 pid 已死**这一条让记录**立即**视为陈旧（`isLeaseStale` 的 `holderPidAlive === false` 分支），幸存者在下一个 tick 就能接手；35 秒过期只是"pid 探不出来"时的兜底。          | 轮询空窗的下界是一个 tick（2 秒）；pid 探测生效时实测为**最后一次心跳后 14.1 s / 杀进程后约 11–13 s**（§11.2），上界是探不到 pid 时的 35 秒。**这是本设计的核心权衡**：这段时间内没有新通知提示；用户看到的只是"晚一点弹"。                                                                     |
+| **两个 follower 同时抢**                                   | `wx` 只有一个赢；输家 `EEXIST` → 重读 → follower。                                                                                                                                                                       | 无。                                                                                                                                                                                                                                                                                            |
+| **三个以上窗口**                                           | 同上，与窗口数无关。                                                                                                                                                                                                     | 无。                                                                                                                                                                                                                                                                                            |
+| **租约无人认领**（文件不存在）                             | 每个窗口都进入 §4.2 的 claim 分支；赢家立刻开始轮询，输家等下一个 tick 再评估。                                                                                                                                          | 最多一个 tick（2 秒）后才有人开始轮询，且这段时间**没有**服务器请求。这是有意的：比"每个窗口都在猜"更省，也比"太久没人轮询"更短。~~若要更保守，可以让窗口数 > 1 时立即 claim（§12.4）~~ **2026-09-27 决定：不做单窗口优化，也不按"窗口数 > 1"分叉**——每个窗口都走同一条协议路径，理由见 §12.4。 |
+| **时间戳过期但主导者其实活着**（时钟跳变、挂起唤醒）       | 新窗口接管；旧主导者下一个心跳（≤10 秒）发现 `ownerNonce` 变了 → 降级。                                                                                                                                                  | 最多 10 秒的双主导者窗口，期间可能多一次请求与一次重复提示。可接受。                                                                                                                                                                                                                            |
+| **主导者心跳写失败但进程仍在**（Windows 上被读句柄占住等） | 见 §4.1（2026-09-27 定档）：每次心跳短重试 3 次、间隔数百毫秒；**连续失败超过 2 × 过期周期（70 s ≈ 7 次心跳）**才降级。期间**继续轮询**。                                                                                | 可能短暂双轮询；不会无人轮询。                                                                                                                                                                                                                                                                  |
+| **follower 在等租约时用户点开通知视图**                    | 视图的数据来自 `getNotifications` 命令（宿主与 webview 的正常消息路径），与轮询是两条路；follower 的窗口仍能手动刷新看到通知。                                                                                           | 不丢功能，只少"自动提示"。落地时必须**实测确认**这一点（§11.2 的"无回归证据"一条）。                                                                                                                                                                                                            |
 
 > **近亲问题的实测（可作预期，但不是本设计的证据）。** broker 的同类场景已端到端测过
-> （`TODO.md:9`、`KNOWN_ISSUES.zh.md:230-234`）：两个窗口共享同一 profile，持有者被硬杀后
+> （提交 `52ede35`/`c5118a6`、`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目）：两个窗口共享同一 profile，持有者被硬杀后
 > **1,400 ms** 完成接管（另一次交接 **124 ms**），新持有者用自己的活 pid 与新的 per-launch
 > 密钥重新注册，之后启动的客户端 **4/4** 认证通过，全程**不重载、不改设置**。
 > 差别在于 broker 的探测周期是 5 秒且没有"过期"概念（pid 一死即可接管），
 > 所以 1,400 ms 不能直接当作"租约接管也是秒级"的证据——租约的乐观情形是"`deactivate` 可靠"
-> （≤12 秒），悲观情形是"崩溃"（35–47 秒）。
+> （下一次 tick，≤ 2 秒），悲观情形是"持有者 pid 探不出来、只能等过期"（35 秒）；
+> 实测的崩溃接管是 14.1 s（§11.2），介于两者之间，因为 pid 存活探测短路了过期等待。
 
 ---
 
@@ -639,13 +715,13 @@ follower 的状态机：
   `heartbeatAt`；follower 在同一时刻醒来时，若它先 tick，可能读到"距今 > 35 秒"的旧值并尝试
   接管。两种结果都不坏：抢到了 → 新主导者立即轮询，旧主导者 10 秒内降级；没抢到 → 继续
   follower。真正的风险是"唤醒后 35 秒内**没有任何人**轮询"——如果所有窗口的计时器都因为休眠
-  被节流，这正是 §8 兜底要覆盖的情形（见 §8.1 的轮询饥饿看门狗）。
+  被节流，这正是 §8 兜底要覆盖的情形（§8 的兜底是闸门的"不确定即放行"规则，见 §8.1）。
 - **时钟回拨**：`heartbeatAt` 变小会让过期判断**更保守**（更不容易被抢）。安全方向。
 - **时钟前跳**（手工改表、NTP 大跳）：可能触发一次假接管；由 §4.1.2 的"每心跳校验 owner"在
   10 秒内收敛。
 - **实现上必须避免**用 `performance.now()` / `process.hrtime()` 做跨窗口比较：它们只在进程内
   有意义，与 §3.2 的 epoch 字段混用会造成"永远不过期"或"立刻过期"这类灾难性错误。
-  单进程内的计时（心跳间隔、抖动）用 `setTimeout` / `setInterval` 就够，不需要额外时钟。
+  单进程内的计时（心跳间隔、tick）用 `setTimeout` / `setInterval` 就够，不需要额外时钟。
 
 ---
 
@@ -653,15 +729,40 @@ follower 的状态机：
 
 ### 7.1 可见性
 
-- **日志**：主导者启动/接管/降级各写一条 info，内容含 `pid`、`ownerNonce` 前 8 位、
-  触发原因（`claimed` / `takeover-expired` / `stepped-down-owner-changed` / `lease-unavailable`）。
-  follower 只在**状态变化**时写（避免每 10 秒刷屏）——这正是 broker 看门狗的做法，
-  它健在时实测**零日志**（§3.5、`TODO.md:9`）；轮询本身已有
-  `notificationPoller.ts:309` 的 debug 行可对照。
-- **一个查询入口**：加命令 `forgejoToolkit.showPollingLeader`（或用既有的
-  `forgejoToolkit.showLog`，`packages/forgejo-toolkit/package.json:182-183`），读租约文件并展示
-  "哪个窗口（pid / 工作区名）在轮询、心跳距今多少毫秒"。这是用户回答"为什么这个窗口不弹提示 /
-  为什么那个窗口弹了两次"的唯一可靠途径。
+- **日志（字段顺序与词表已按实现定稿，2026-09-27）**：每条租约日志都是
+  `lease` + 固定顺序的键值对，由 `src/lease/leaseSupervisor.ts` 的 `formatLeaseLogLine` 渲染：
+  `role=<leader|follower|degraded>` → `action=` → `reason=` → `pid=` → `nonce=`（owner nonce 前 8 位）
+  → `focused=` → `focusedForMs=` → `at=` → 该动作的附加键（`lease=`/`heartbeatAgeMs=`/`holderAlive=`/
+  `requests=`…）→ **`polling=<unchanged|suppressed>` 结尾**。`tools/ui-review/README.md` 的
+  「Smoke scenario: two windows, one profile」一节就是按这个顺序读日志的。
+  - `action` 是实现里的动作名：决策层给出的 `claim` / `inactive` / `keep-and-heartbeat` / `yield` /
+    `step-down` / `degraded-to-full-speed`，加上运维动作 `start` / `stop` / `release` /
+    `heartbeat` / `request` / `release-stale` / `demote` / `polling-gate` / `prune-requests` /
+    `focus-gained` / `focus-lost` / `focus-observed`。
+  - `reason` 在决策路径上是 `src/lease/leaseDecision.ts` 的闭集 `LeaseDecisionReason`：
+    `owner-renew`、`owner-renew-unpublished`、`owner-heartbeat-stale`、`owner-step-down-unwritable`、
+    `owner-yield-focus-request`、`owner-keep-focused`、`owner-keep-requested-unfocused`、
+    `owner-keep-requested-stale`、`owner-keep-hysteresis`、`follower-takeover-absent`、
+    `follower-takeover-expired`、`follower-takeover-accelerated`、`follower-follow`；降级动作的理由是
+    `lease-unavailable`；`demote` 行用 `owner-changed` / `lease-missing`
+    （`leaseSupervisor.ts` 的 `takeoverReason` / `demotionReason`）。**诊断 JSON 里的
+    `focus` / `expiry` / `close` / `force` 是另一套口径**（§11.1 阶段 2 的 `handover.reason`），
+    不要拿它去 grep 日志。
+  - **旧口径的 `claimed` / `takeover-expired` / `stepped-down-owner-changed` 从未实现**
+    （2026-09-27 逐条核对 `src/lease/**`），别按它们 grep。
+  - **follower 只在状态变化时写**（避免每 2 秒刷屏）——这正是 broker 看门狗的做法，
+    它健在时实测**零日志**（§3.5、提交 `52ede35`/`c5118a6`）；轮询本身已有
+    `notificationPoller.ts` 里的 debug 行可对照。
+- **一个查询入口（状态：2026-09-27 复核）**：原设计是加命令 `forgejoToolkit.showPollingLeader`
+  ——**没有实现**（`packages/forgejo-toolkit/package.json` 的 `contributes.commands` 里没有它，
+  `src/**` 也没有引用）。实际交付的查询入口是既有的 `forgejoToolkit.showLog` 与
+  §11.1 阶段 2 的 `forgejoToolkit.copyPollingDiagnostics`：前者打开输出通道、后者把脱敏 JSON
+  放进剪贴板，二者合起来回答"哪个窗口（pid / 工作区名）在轮询、心跳距今多少毫秒"。这是用户回答
+  "为什么这个窗口不弹提示 / 为什么那个窗口弹了两次"的唯一可靠途径。
+  - **决定（2026-09-28）：这条命令不做。** `forgejoToolkit.copyPollingDiagnostics` 已经把
+    "谁在轮询、最近一次交接的原因与耗时"打印到输出通道（并把脱敏 JSON 放进剪贴板，字段清单见
+    §11.1 阶段 2），再开一条 `showPollingLeader` 只是同一个入口的第二份实现——多一个要维护、
+    要测试、要与诊断字段保持同步的出口，而不多回答任何问题。
 - **"复制诊断信息"命令（字段清单已于 2026-09-27 定稿）**：`forgejoToolkit.copyPollingDiagnostics`
   ——把本窗口的轮询/租约状态整理成脱敏 JSON 放进剪贴板。**它在本扩展里不是便利功能，而是唯一的
   取证手段**：本扩展**没有任何遥测**（§2.1），用户机器上的日志不会自己回来，所以"租约为什么没在
@@ -687,6 +788,20 @@ follower 的状态机：
 
 ### 7.2 强制接管
 
+> **决定（2026-09-28）：`forgejoToolkit.forcePollingLeadership` 不做。** 逃逸阀是关掉
+> `forgejoToolkit.multiWindowLease`——关掉后每个窗口各自轮询、各自弹提示，用户不需要理解"谁持有
+> 租约"就能回到此设置存在之前的行为（§2.1）；而一条手工接管命令会把**人的**仲裁引入一个刻意做成
+> 文件与 pid 裁决的选举（§3.1、§4.3）：于是"谁在轮询"多出一条只有点过命令才存在的路径，还要为它
+> 新增一条请求文件协议（下面第 2 步的独立文件）并重新论证"不制造双主导者"。诊断入口
+> （`showLog` + `copyPollingDiagnostics`）继续覆盖"谁在轮询、为什么没轮询"。
+
+**状态（2026-09-28 复核）：这一节描述的是一条没有实现、且已决定不做的命令。**
+`packages/forgejo-toolkit/package.json` 的 `contributes.commands` 里没有
+`forgejoToolkit.forcePollingLeadership`，`src/**` 里也没有任何引用（连同 §7.1 已决定不做的
+`showPollingLeader` 一起）；§2 决策 5、§10.1 第 9 条与 §12.8 记的是"如果做，语义是什么"，
+不是"已经做了"。下面是当初定稿的语义，保留为**设计记录**（它说明当时打算怎么做），
+**不再是待办**——未决状态已由上面的决定关闭，`TODO.md` 的「多窗口轮询租约」条目同步记录了这个决定。
+
 - 命令 `forgejoToolkit.forcePollingLeadership`（可在命令面板搜到，**不做**通知提示）：
   1. 读租约；若自己已经是 owner，什么都不做并提示"本窗口已在轮询"；
   2. 若租约属于别的窗口，写一个 `takeoverRequested` 标记（放在租约文件的一个独立键，
@@ -703,7 +818,7 @@ follower 的状态机：
   "对方仍在心跳，无法接管"，并给出"关闭那个窗口"的建议。**不要**在心跳新鲜时强行删除文件——
   那会制造真正的双主导者。
 - 先例可参考的用户动作：broker 侧的等价物是"重载窗口，或把 `forgejoToolkit.mcpEnabled`
-  关掉再打开"（`KNOWN_ISSUES.zh.md:234`）。本命令的目标是**不**需要这类绕路。
+  关掉再打开"（`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目的规避方法）。本命令的目标是**不**需要这类绕路。
 
 ---
 
@@ -727,18 +842,23 @@ follower 的状态机：
 
 ### 8.1 "少通知"的唯一来源与缓解
 
-唯一可能"少通知"的路径是：**主导者挂了，而所有 follower 都没在 35 秒 + 抖动内跑到 tick**。
-缓解措施（按性价比排序）：
+唯一可能"少通知"的路径是：**主导者挂了，而所有 follower 都没在一个 tick（2 秒）到过期（35 秒）
+之间跑到 tick**。缓解措施（按性价比排序）：
 
 1. 把 leader 的 `deactivate()` 让位做可靠（§5 第 1 行）——覆盖绝大多数关闭场景。
-2. follower 的退避 tick 用 `setInterval` 而不是"一次性 `setTimeout` 链"
+2. follower 的 tick 用 `setInterval` 而不是"一次性 `setTimeout` 链"
    （链条在一次异常后容易断掉；既有 poller 用的就是 `setInterval`，
-   `notificationPoller.ts:194-196`；broker 看门狗同样用 `setInterval` + `unref()`，
-   `mcpBroker.ts:338-348`）。
-3. 在"最近一次成功轮询距现在 > 2 × 轮询间隔"时，无论租约状态如何都**强制轮询一次**
-   （一个"轮询饥饿"看门狗）。它把"所有窗口都以为别人在干活"变成一个可自愈的状态，
-   代价是极端情况下可能重复一次请求。**这条建议加进首版**，它是本设计"宁可多轮询"原则
-   最直接的体现。
+   `notificationPoller.ts` 的 `_scheduleAll`；broker 看门狗同样用 `setInterval` + `unref()`，
+   `mcpBroker.ts` 的 `startMcpBrokerTakeoverWatcher`）。
+3. **"轮询饥饿看门狗"（在"最近一次成功轮询距现在 > 2 × 轮询间隔"时强制轮询一次）——不做
+   （2026-09-28 决定）**（2026-09-27 复核：`src/lease/**` 里没有这样的常量、代码或用例，poller
+   只在每轮前问一次 `LeasePollingGate.mayPoll()`；原设计把它写成"加进首版"，这一条从未落地）。
+   **决定不做的理由**：饥饿要求**每一个窗口**都成为"一个活着却沉默的持有者"的**确认 follower**，
+   而这种形状已由 §4.1 的 35 s 过期与加速接管臂（在已有 K 连串时）覆盖——再加一个定时器只会多一种
+   失效方式（定时器被节流、自己的时钟判断出错），不会多一分覆盖。
+   今天实际承担这条兜底的是闸门本身的"不确定即放行"规则：`src/lease/leasePollingGate.ts`
+   只对"确认的、活的 follower"关闸，其余一切（设置关闭、机制降级、决策未落定、tick 抛错、
+   没有闸门）都放行；失效判据里的 pid 存活探测（死 pid 立即视为陈旧）与 2 秒 tick 是另一半。
 4. 真正的兜底：设置里保留关掉租约的开关（**默认已改为 `true`**，§2 决策 6；回退路径见 §11.1
    阶段 3），并让 `forgejoToolkit.notificationPollingInterval` 继续有效。
 
@@ -747,9 +867,9 @@ follower 的状态机：
 ## 9. 与首次运行向导、版本探测的关系
 
 - **版本探测（2026-09-27 决定：两条路都做——① 去重 + ② 共享缓存）**：主导者的探测结果默认只写在
-  自己的进程内 Map（`src/api/serverVersion.ts:65-67` 的 `serverVersions`），follower 的窗口
+  自己的进程内 Map（`src/api/serverVersion.ts` 的模块级 `serverVersions`），follower 的窗口
   **不会**因此获得版本信息 → 那台窗口的功能闸门会停在"未知版本、一律放行"
-  （`serverVersion.ts:54-63` 的 `isVersionSupported` 对 `undefined`/不可解析都返回 `true`）。
+  （`serverVersion.ts` 的 `isVersionSupported` 对 `undefined`/不可解析都返回 `true`）。
   这意味着 **"版本探测也纳入租约"会顺带削弱 follower 窗口的闸门**。两条路：
   1. 只把"低版本提示"的去重纳入租约（主导者负责提示），探测本身每窗口照做。**照做**（改动最小、
      语义最清楚：避免重复**提示**，探测请求的重复量本来就只有一次/窗口）。
@@ -757,7 +877,7 @@ follower 的状态机：
      细化如下（都是决定，不是建议）：
      - **共享本身已定**：follower 读得到主导者（或任何窗口）写下的版本，闸门不再停在"未知"。
      - **存放位置已定：与实例配置同一处**——即 `globalState` 里、紧挨实例列表
-       （`src/config.ts:13` 的 `INSTANCES_KEY`）的那个键（例如 `forgejoToolkit.serverVersions`）。
+       （`src/config.ts` 的 `INSTANCES_KEY`）的那个键（例如 `forgejoToolkit.serverVersions`）。
        **不**另开一个文件，也**不**塞进租约文件：它不是选主状态，而是"实例的属性"缓存，
        与 `forgejoToolkit.instances` 同生命周期、同清理语义。
      - **为什么这里的竞态可以接受（重要）**：`globalState` 的读改写不原子（§1.2），但**它是一个
@@ -765,7 +885,7 @@ follower 的状态机：
        这与选主禁止 `globalState`（§2 决策 1）并不矛盾：**禁止的是把"谁主导"交给有竞态的原语，
        不是禁止一切跨窗口共享状态**。
      - **写回**沿用仓库既有的"缩小窗口期"写法：写之前紧邻重读一次，按键（实例 URL 的规范化形式）
-       合并，只覆盖本窗口负责的条目（先例 `config.ts:366-383` 的 `_writeInstancesMerged`）。
+       合并，只覆盖本窗口负责的条目（先例 `src/config.ts` 的 `_writeInstancesMerged`）。
      - **follower 读到过期值时必须把它当"未知"**：每个条目带一个**写入时间戳**与一个
        **TTL（起始值 60 s）**；**读到 `now - writtenAt > TTL` 的缓存一律视为"未知"并重新探测**，
        探测结果再合并写回。理由：这个缓存会被当作**闸门**使用（低版本实例要提示/挡住 Actions），
@@ -775,14 +895,73 @@ follower 的状态机：
        拖到会话结束"，不是为了省请求。
      - **探测请求的次数**：主导者照旧负责首次探测与低版本提示；follower 只在
        "缓存缺失 / 超过 TTL"时自己探一次，因此稳态下请求数仍然是"全机一次/实例"。
-- **首次运行向导**：它的问题是 read-then-write（`src/welcome.ts:35-48`），本质上与租约
-  **同类**但**生命周期完全不同**（一次性标记 vs 持续租约）。**不建议**把它塞进租约协议；
-  建议复用同一个原语——用 `fs.open(..., 'wx')` 写一个 `first-run-shown` 标记文件：
-  只有创建成功的那个窗口打开向导，其余窗口静默跳过。这比"再设计一套分布式标记"简单得多。
-  这一条是可选扩展项，不属于租约本体。
+     - **落地状态（2026-09-27 已实现）**：缓存本体在 `src/api/serverVersionCache.ts`，键
+       `forgejoToolkit.serverVersions` 与 `INSTANCES_KEY` **并列声明在 `src/config.ts`**，由
+       `ConfigManager` 的构造函数用 `context.globalState` 装配（激活路径上"先建 config、再探测"的
+       既有顺序因此天然保证探测能看到共享条目）。`probeServerVersion` 在发请求**之前**先读缓存：
+       **新鲜条目直接采用——不发请求、也不重弹低版本提示**（探测者当时已经弹过，提示的去重归
+       §9 路线 1），缺失或过期才探测并合并写回；闸门侧 `getServerVersion` 对过期条目一律返回
+       `undefined`（"未知即放行"），唯一的例外是本窗口**在该条目写入之后**才探测到、且自身仍未过期的
+       结果（那次合并写可能还在途中）。写回沿用"缩小窗口期"的既有写法：写前紧邻重读、按键合并、
+       只覆盖本窗口负责的条目（先例 `_writeInstancesMerged`）。生命周期也照实例列表办：实例被删除时
+       `removeInstance` 顺手删掉它的条目，保存/编辑实例时 `clearServerVersion` 连共享条目一起清
+       （否则下一次探测会被那条"仍然新鲜"的旧记录跳过）；又因为那次删除是**异步**的，本窗口还会记下
+       失效时刻，让紧随其后的那次探测绝不读到刚被作废的旧条目（比失效时刻更晚写入的记录则自动重新
+       可用，所以这条失效不会把该 URL 永久钉在"未知"）。`globalState` 不可用（MCP server 进程、
+       读取抛错、无法写入）时整体退化为进程内 Map，即路线 2 之前的、也仍然正确的本窗口行为。
+       TTL 常量 `SERVER_VERSION_CACHE_TTL_MS` 起始值 **60 s**，与 §12 末条的实测值一起定稿。
+     - **一处必须记下的后果（供 §11.2 判定）**：探测只在激活 / 保存 / 连接测试时发生，没有周期触发，
+       所以 TTL 之后没有任何窗口会再探测，低版本闸门在长会话里会退化为"未知 → 放行"，直到下一次激活
+       或保存。方向是安全的（§8 的总原则），但"闸门要一直有效"与"TTL 要短到不把升级/降级拖到会话
+       结束"在这里是同一个旋钮：两者都要，就得给探测加一个周期性触发（闸门本身读不到 token，无法
+       自己补一次探测）。
+     - **2026-09-27 补记（单飞标记 / 提示归属 / 闸门按需续期）**：
+       ① **单飞**：决定探测前先在**同一槽位**写"在飞标记"（`#inflight`，含 pid 与时刻；**不新开文件、
+       不新开键**）；读到"存活且未过期"的标记就不发请求，改为有界轮询等对方的条目出现并直接采用；
+       超时、属主 pid 已死、标记过期或槽位读不出来时**一律自己探**（fail-open，绝不吊住激活或用户动作）。
+       标记 TTL **45 s**（`SERVER_VERSION_PROBE_MARKER_TTL_MS`，必须长于探测自身的请求超时 30 s，
+       否则"慢但活着"的探测者会被判死）、等待上界 **10 s**（`SERVER_VERSION_PROBE_WAIT_TIMEOUT_MS`）、
+       轮询间隔 **200 ms**（`SERVER_VERSION_PROBE_POLL_INTERVAL_MS`）。**它仍是缓存而非仲裁者**：
+       标记丢失最多多探一次，绝不会判错闸门。
+       ② **提示归探测者**：探测成功后写 `#notices`（`notifiedAt`，同样"重读 + 合并写"）；再次探测
+       ——**包括同一瞬间抢标记失败、因此自己探了一次的窗口**——先重读该记录，同一版本已有通知就不再弹。
+       进程内 `Set` 保留为快路径，键改为 `URL + 版本`（同实例换到另一个仍不受支持的版本会再提示一次）；
+       条目被新版本替换时，通知记录一并清除。
+       ③ **闸门按需续期**：不加周期性定时器；受闸门保护的调用点在评估闸门之前按需探测
+       （`assertActionsSupportedAfterProbe`，`ForgejoClient` 的 9 个 Actions 方法先
+       `await this._assertActions()`），版本缺失或过期才探，探测受 `API_REQUEST_TIMEOUT_MS = 30 s` 约束，
+       失败即"未知 → 放行"。探测同样走 ① 的单飞。
+       **残留（有意保留）**：`get`→`update` 不是原子的（§1.2），"读标记 → 写标记"之间仍有窗口期，
+       所以**同一瞬间各自写标记的两个窗口仍可能都去探测**；已收窄到"判定与写入之间不插入 `await`、
+       写前紧邻重读、死/过期标记立即接管、释放要求仍属自己"。代价是一次幂等的只读请求，
+       不影响闸门与提示（`KNOWN_ISSUES.md`/`.zh.md` 各记了一条）。
+- **首次运行向导（2026-09-28 交付：单飞 offer token，本文原先标注为可选、不属于租约本体）**：
+  它的问题是 read-then-write（`src/welcome.ts` 的 `maybeShowWelcomeOnboarding`），本质上与租约
+  **同类**但**生命周期完全不同**（一次性标记 vs 持续租约）。落地方式**没有**把它塞进租约协议，
+  而是复用同一个原语——`fs.open(..., 'wx')`——由 `src/welcomeMarker.ts` 实现。语义分两层，
+  别把它们混起来：
+  - **永久记录仍然是 `globalState` 的 `forgejoToolkit.hasShownWelcome`**（`WELCOME_SHOWN_KEY`）：
+    只在"已经存在实例"或"用户走完向导"时写入，写入点与语义都没变。于是既有的
+    "没有实例的 profile 会继续提供向导"（直到添加实例或真正走完向导）行为**完全不变**。
+  - **新增的只是一枚短命的 offer token**：profile 的 globalStorage 里的固定名
+    `first-run-guide-offer.json`（`WELCOME_MARKER_FILE_NAME`），以
+    `fs.open(path, 'wx', 0o600)` 原子创建（父目录 `mkdir(..., 0o700)`），内容
+    `{version, pid, at}`。创建成功的那个窗口打开向导，其余窗口在 **offer 仍然可信**时保持安静：
+    属主 pid 存活（`process.kill(pid, 0)`，`EPERM` 计为活——与租约 / broker 同一条规则）**且**
+    `at` 距今小于 `WELCOME_MARKER_MAX_AGE_MS = 30 min`。属主已消失或 token 已过期的 token 由
+    下一个窗口**接管**：先重读确认它确实是死的 / 过期的，删掉后**再赛一次 `wx`**，因此两个窗口
+    同时接管也只有一个赢。
+  - **失败方向两端都安全**：任何创建失败（只读 profile 目录、`EACCES`、目录被文件占位……）除
+    `EEXIST` 外一律**照旧打开向导**（token 是优化，不是闸门）；而一个**删不掉**的 token 让本窗口
+    保持安静，而不是冒险开出第二个面板。
+  - **一处只有并发测试才暴露的坑（实施者记录）**：`wx` 创建成功与 payload 落盘之间有一小段
+    真空，此时另一个窗口读到的是**空文件**。把"解析不出"当成"陈旧"会让两个窗口都接管、都开面板
+    （并发用例正是这么抓到的）。修法：解析不出的 token **重读 3 次 × 20 ms**，仍解析不出就按
+    **mtime** 判定——距今 150 ms 内被写过（`WELCOME_MARKER_WRITE_GRACE_MS`，以上面重读之后的
+    时钟为准）视为"正在写入"（活的），更旧的才当坏残留清掉。
 - **通知已读基线**：**这条已在 `9a041b0` 交付**，不再是本文的后续项。
   `_reconcileSeenIds` 现在是"队列内重读 + 只覆盖本窗口拥有的条目"的合并写
-  （`notificationPoller.ts:430-492`），`ROADMAP.md:195` 记录了它
+  （`notificationPoller.ts`，写回经 `_mergeBaselineForWrite`），`FEATURES.md` 的「多窗口通知基线合并」条目记录了它
   （"窗口之间不再互相清空基线"）。**租约落地后它仍然成立**：多个窗口可以各自写自己的条目，
   租约只减少**请求与提示**的重复，不改变基线的所有权规则。本文初版把它写成"顺带修正确性"
   的收益，是错的——它已经是对的，**不要**把"只有主导者写基线"混进来，那会破坏现有的
@@ -811,24 +990,28 @@ follower 的状态机：
    并**逐轮打印赢家**（六次插桩运行里 worker 赢 5–20/25，证明竞争真实存在）。
 4. **接管状态机**：用可注入的时钟与 fs 门面，模拟"主导者停止心跳"→"follower 在 35 秒后接管"；
    模拟"旧主导者心跳时发现 owner 变了 → 降级"。既有测试的写法可复用：
-   `vi.useFakeTimers()` + 内存 store（`src/notifications/__tests__/notificationPoller.test.ts:63-96`，
-   其中 `createFakeContext` 在 `:63-73`）；broker 侧的同类测试可直接照搬结构
-   （`src/__tests__/mcpBroker.test.ts:399-630`：清理后接管、被杀后靠死 pid 接管、
+   `vi.useFakeTimers()` + 内存 store（`src/notifications/__tests__/notificationPoller.test.ts` 的
+   `createFakeContext`）；broker 侧的同类测试可直接照搬结构
+   （`src/__tests__/mcpBroker.test.ts` 的 `automatic broker takeover` 与
+   `broker takeover watcher lifecycle` 两组：清理后接管、被杀后靠死 pid 接管、
    持有者健在时保持让位、两个让位窗口竞争只有一个赢、`unref` 断言）。
 5. **降级兜底**：让 `open` 抛 `EACCES`，断言窗口**仍然**全速轮询且只记一条失败日志。
-6. **饥饿看门狗**（§8.1.3 已采纳为首版内容）：租约永远读不到时，断言超过 2 × 间隔后会强制轮询一次。
+6. ~~**饥饿看门狗**（§8.1.3 已采纳为首版内容）：租约永远读不到时，断言超过 2 × 间隔后会强制轮询一次。~~
+   **已决定不做**（2026-09-28，理由见 §8.1 第 3 条）：没有这样的常量、代码或用例，也就没有可写的
+   用例；当前兜底是 §8.1 第 3 条说的闸门 fail-open 规则。
 7. **心跳的 `EPERM` 路径**（本次新增，因为实测确认它是可达的）：注入一个"rename 抛
    `EPERM` 一次随后成功"的 fs 门面，断言**先重试、不降级**；再注入"持续 `EPERM`"，
    断言**恰好 3 次重试**、并且要等到**连续失败超过 2 × 过期周期（70 s）**才降级（§4.1 的定档），
    且降级期间本窗口没有停止轮询。
 8. **焦点跟随的纯逻辑**（§2.3，全部可用假时钟 + 注入的门面覆盖）：H 去抖（聚焦 9 s 不请求、
    16 s 请求）、N 防乒乓（接手后 15 s 内不响应请求）、K = 3 次未响应**且心跳陈旧超过
-   3 × 心跳周期（30 s，§4.1）**→ 接管（这组条件在出厂常量下不可达，见 §4.1，但用例仍须保留，它
+   3 × 心跳周期（30 s，§4.1）**→ 接管（从零累积的连串在出厂常量下到不了这组条件，见 §4.1，但用例仍须保留，它
    钉的是决策逻辑而不是今天的时序）、**N 内不加速**（记录再旧、K 已满也不顶掉刚接手的现任）、
    "没人聚焦时**不**让位"（`window.state.focused === false` 的现任继续当 owner）、
    以及**没有第二次确认**（让位只做"重读租约 + 比对 holder token"，读到的不是自己就什么都不做）。
-9. **强制接管立即轮询一次**（§7.2 的定档）：命令成功后断言**恰好**触发一次立即轮询，且随后回到
-   常规节奏（不改变间隔）。
+9. ~~**强制接管立即轮询一次**（§7.2 的定档）：命令成功后断言**恰好**触发一次立即轮询，且随后回到
+   常规节奏（不改变间隔）。~~ **已决定不做**（2026-09-28，§7.2）：
+   `forgejoToolkit.forcePollingLeadership` 这条命令不存在，所以没有可测的对象。
 10. **版本缓存的 TTL 规则**（§9 路线 2）：写入/读取共享缓存（fake `globalState`），断言
     "超过 TTL 的条目被当作**未知**并重新探测"，以及"未过期时不重复探测"。
 11. **降级提示只弹一次**（§7.1）：`open` 持续抛 `EACCES` 时，断言"降级提示"只出现一次
@@ -836,7 +1019,8 @@ follower 的状态机：
 12. **决策的反向守卫**（本轮的"决定"要能被测试钉住，否则实现容易漂回去）：
     (a) 租约管理器**不读 `globalState`**（注入的 `globalState` 被读取时断言失败）；
     (b) **没有**"单窗口直接轮询"的分支（无论租约目录里有没有其它窗口的痕迹，行为一致）；
-    (c) 强制接管只做**一次**立即轮询（§7.2），不会因为同一命令产生第二次。
+    (c) 强制接管**已决定不做**（2026-09-28，§7.2），因此决策路径里不存在"强制接管"这条分支；
+    若日后重启这个想法，它仍只做**一次**立即轮询（§7.2），不会因为同一命令产生第二次。
 
 ### 10.2 覆盖不到、只能人工实测
 
@@ -850,19 +1034,22 @@ follower 的状态机：
   - 杀掉**某个窗口的 extension host**（对 exthost 进程 `Stop-Process -Force`）能让那一个窗口
     下线而应用保留其余窗口——这正是租约崩溃场景与 broker 看门狗要处理的形状。
   - 平台差异会改变"持有者消失"的观感：unix socket 把 broker 的死亡表现为 `ECONNRESET`，
-    Windows 命名管道则是**有序关闭**（见 `mcp/brokerForwarder.ts:148-164` 与
-    `mcp/__tests__/broker.test.ts:486-496`）。租约本身不走 socket，但同一台机器上
+    Windows 命名管道则是**有序关闭**（见 `mcp/brokerForwarder.ts` 里 socket `error` 处理对
+    `ECONNRESET` 的分支，与 `mcp/__tests__/broker.test.ts` 的
+    "treats a post-ack ECONNRESET as the broker closing, not an error"用例）。租约本身不走 socket，但同一台机器上
     "窗口怎么死"的差异是同一批平台差异，值得在两次实测里分别记录。
   - `tools/ui-review/` 的隔离 dev host 用独立的 `--user-data-dir`
-    （`tools/ui-review/README.md:270-272`），因此**需要共享 profile 的双窗口模式**才能制造
+    （`tools/ui-review/README.md` 的开头与「Runtime state」一节），因此**需要共享 profile 的双窗口模式**才能制造
     "两个窗口共享 globalStorage"的真实场景；而 broker 的端点由 `sha256(username + homedir)`
-    派生，**不随 `--user-data-dir` 变化**（`tools/ui-review/README.md:421-435`），
+    派生，**不随 `--user-data-dir` 变化**（`tools/ui-review/README.md` 的「Known blind spots」里
+    "Broker verification needs its own home directory" 一条），
     所以同一用户的**两个 profile** 也会争同一个端点——与"一个 profile 的两个窗口"同类。
     租约没有这一层：它的路径来自 `globalStorageUri`，**逐 profile 独立**。
     **交付项（2026-09-27 决定，同日已实现）：给 `tools/ui-review/` 加一个"共享 profile 双窗口"模式。**
     否则本节与 §11.2 的人工验证只能靠手工复现上面那套手法，很别扭。要落的形态：
   - 现有 dev host 仍然是"每次 launch 一个独立 `--user-data-dir`"的模型
-    （`tools/ui-review/README.md:270-272` 记的就是这个模型），**新模式不动它**，而是提供一条
+    （`tools/ui-review/README.md` 的「Shared-profile dual-window mode」一节开头记的就是这个模型），
+    **新模式不动它**，而是提供一条
     "同一个 profile 再开第二个窗口"的路径，好让两个窗口真的共享 `globalStorage`；
   - 开第二个窗口用**运行中实例内的 Ctrl+Shift+N**——不要用
     `code --new-window <folder>`（对同一 profile 只是把已有窗口带到前台，实测无效）；
@@ -871,11 +1058,15 @@ follower 的状态机：
   - 该模式必须能同时观测两个窗口的日志/诊断输出（否则 §11.2 的"谁接管了、多久接管"无法取证）。
     本节只记决定与形态。**实现已于同日落地**：`tools/ui-review/src/dual.ts`（连同
     `windows.ts`/`winProc.ts`/`logs.ts`/`state.ts`/`config.ts`），入口
-    `pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch|verify|targets|windows|logs|kill|close`，
-    冒烟场景与"未验证项"清单见 `tools/ui-review/README.md` 第 60 行起的
-    "Shared-profile dual-window mode" 一节。**已实现、31 个单测通过，但尚未真机跑过**——跑它需要
-    构建扩展，属维护者授权范围；README 如实列出未验证项：`Ctrl+Shift+N` 在真实 VS Code 上是否产出
-    第二个 workbench page、两窗口是否真共享同一 `--user-data-dir`、exthost↔窗口配对、窗口进程类型判定。
+    `pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch|verify|targets|windows|logs|kill|close|state`，
+    冒烟场景与"未验证项"清单见 `tools/ui-review/README.md` 的
+    「Shared-profile dual-window mode」一节。**该模式已在 2026-09-27 真机端到端跑过一次**
+    （构建由维护者完成）：README 的「What the first real run established」一节里的四个问题中，
+    三个已被实测回答——`Ctrl+Shift+N` 确实产出同 profile 的第二个 workbench page、
+    两窗口确实共享同一个 `--user-data-dir`、窗口能通过自己的 `exthost.log` pid 与 extension host 配对；
+    剩下的"窗口进程类型判定"仍然只是证据而非契约（`dual verify` 把窗口根进程数当 note 打印，
+    README 的「Still unproven」一节如实列出）。测试数是 **42** 个（`tools/ui-review/src/*.test.ts` 的
+    顶层 `test(` 块，用 `tsx --test` 跑；本文早先记的 31 已过时）。
 - **真实睡眠/唤醒**下的计时器节流。
 - **用户可感知的"少一次提示"**：这一条只能靠人工观察日志 + 长时间运行积累，见 §11。
 
@@ -909,14 +1100,15 @@ follower 的状态机：
    恰好一个 leader 每 10 s 心跳、另一个 follower，**每行日志都带 `polling=unchanged`**，杀掉持有者后
    幸存窗口按上一条实测的数字接管。**仍缺**：连续一周的日志（抖动与焦点交接时延的样本量）与 H/N/K 的
    最终取值。
-3. **阶段 2（首次发布即默认开启，2026-09-27 决定）**：`forgejoToolkit.multiWindowLease` 默认
+3. **阶段 2（首次发布即默认开启，2026-09-27 决定；**已交付**）**：`forgejoToolkit.multiWindowLease` 默认
    `true`；follower 停止轮询与提示，并按焦点交接（§2.3）。**默认开启的配套条件是硬要求**：
    §7.1 的诊断入口（谁在轮询 / 最近一次交接的原因与耗时）+ **"复制诊断信息"命令**——
    因为**没有回传通道**，这条命令就是用户报障时唯一的取证手段 + 日志照旧写（`forgejoToolkit.debug`
    / `showLog`，用途同样是取证，不是回传）+ `CHANGELOG` 显式标注"默认行为变化" +
    `KNOWN_ISSUES.md`/`KNOWN_ISSUES.zh.md` 把"每个窗口各自轮询"
-   （现为 `KNOWN_ISSUES.zh.md:210-214`）改写成"默认一个窗口轮询；如遇异常可在设置中关闭"。
+   （现为 `KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目）改写成"默认一个窗口轮询；如遇异常可在设置中关闭"。
    设置用途与双语描述文案见 §2.1。
+   **本阶段之外的收尾（2026-09-28）**：§9 的首次运行向导单飞（原先标注为可选扩展项）**已交付**——多个窗口同时启动时只有创建 offer token 的那个窗口打开向导，其余窗口在那份 offer 仍然可信时保持安静（语义、常量与失败方向见 §9）。
 
    **"复制诊断信息"命令的字段清单——定稿（2026-09-27）。** 命令名
    `forgejoToolkit.copyPollingDiagnostics`，输出一段 JSON 到剪贴板（同时打印到输出通道）。
@@ -930,8 +1122,8 @@ follower 的状态机：
      租约记录本身按 §3.2 就没有 token 字段，定稿 schema 里保留 `containsTokenField: false`
      作为**自检位**（恒为 false，用来证明脱敏没有漏）。实例 URL
      **可以**包含（它是用户自己的地址，且要能对上"哪个实例"）；带凭据的 URL 必须先经既有的
-     `redactInstanceUrl`（= `redactUrlUserinfo`，`src/utils/redactUrlUserinfo.ts:24`，
-     `versionProbe.ts:15` 是它的别名，`:39`/`:49-50` 已在日志里这么用）去掉 userinfo 再输出。
+     `redactInstanceUrl`（`src/api/versionProbe.ts` 里就是 `redactUrlUserinfo` 的别名
+     ——`src/utils/redactUrlUserinfo.ts` 的 `redactUrlUserinfo`——日志里已经这么用）去掉 userinfo 再输出。
    - **可实施性**：所有字段都来自本窗口已有的对象或一次同步/廉价读取（`window.state.focused`、
      `vscode.version`、`process.platform`/`process.arch`、扩展版本、
      `context.globalStorageUri.fsPath`、租约文件读出并解析、一次 `fs.access` 或
@@ -1006,7 +1198,7 @@ follower 的状态机：
        // - takeover/expiry（记录过期）：`heartbeatAt + LEASE_EXPIRY_MS`，磁盘上的时间戳，精确；
        // - takeover/expiry（K 加速）：本窗口**第一个**未获回应的请求时刻（不是第 K 个，
        //   也不是对前任的猜测）；若这串请求是在"发现持有者已消失"之后才开始，则改用发现
-       //   消失的时刻；（该分支在出厂常量下不可达，见 §4.1，但取值规则按此实现）
+       //   消失的时刻；（从零累积的连串在出厂常量下到不了这个分支，见 §4.1，但取值规则按此实现）
        // - takeover/close（文件已消失）：**不可知**——释放方没留下任何时间戳，报 null；
        // - step-down/focus：请求方自己写入的 `at`，即本窗口的反应时间；
        // - step-down/expiry：本窗口决定让位的那一刻（写失败连续达到宽限期，或自己的记录
@@ -1033,14 +1225,14 @@ follower 的状态机：
          {
            "instanceId": "…",
            "url": "https://forgejo.example.com",
-           "version": "16.0.1",
-           "probedAt": null, // 路线 2 未落地：本阶段是进程内缓存，没有写入时刻
-           "stale": null, // 同上：没有 TTL 也就无所谓「陈旧」
+           "version": "16.0.1", // 过期条目也照样报出它存的值，是否可用由 stale 说明
+           "probedAt": 1767225600000, // 该条目的写入时刻（Date.now()）；只有进程内回退值才报 null
+           "stale": false, // now - probedAt > TTL；没有共享条目（进程内回退值）时报 null
          },
        ],
-       "followsInstanceConfig": false, // 阶段 2 如实报 false：§9 路线 2 的共享缓存尚未实现，
-       // 字段当前来自进程内的 getServerVersion()；路线 2 落地后
-       // 才为 true（那时 probedAt/stale 也才有值）
+       "followsInstanceConfig": true, // §9 路线 2 已落地：缓存确实与实例配置同处（globalState 里紧挨实例
+       // 列表的独立键），不再是逐窗口的进程内 Map，因此 follower 也报得出别的窗口探测到的版本；
+       // 探测被跳过的窗口沿用缓存值时不会重弹低版本提示（提示去重归 §9 路线 1）。
      },
      "env": {
        "extensionVersion": "0.0.1",
@@ -1058,9 +1250,10 @@ follower 的状态机：
    ID，所以：
    - 诊断里用 **`pid` + `ownerNoncePrefix`** 作为主键（与 §3.2 的租约字段一致、与日志一致）；
    - `vscode.env.sessionId` 是 VS Code 暴露的**逐窗口会话标识**（同一窗口内稳定、重开窗口会变），
-     作为**辅助**标识输出。仓库目前 **0 处**使用它，因此**实现时要先按仓库当前的
-     `@types/vscode`（现为 `~1.102.0`）核对该成员是否可用**；不可用就退回
-     `pid + workspaceName`，不要为了它去引入不稳定 API；
+     作为**辅助**标识输出。**2026-09-27 复核：它已经落地并在用**——
+     `src/commands/copyPollingDiagnostics.ts` 的 `collectPollingDiagnostics` 直接读
+     `vscode.env.sessionId`（也是 `window.focused` 在没有 supervisor 快照时的回退读所在处），
+     仓库当前的 `@types/vscode` 有该成员，所以不必再退回 `pid + workspaceName`；
    - `workspaceName` / `workspaceFolders` 只作**人类可读**补充，多个窗口打开同一个文件夹时会重名，
      因此不单独作为身份。
      **日志侧继续用 pid + nonce 前 8 位**（§7.1 第一条），两边字段名保持一致，否则用户贴回来的
@@ -1092,7 +1285,7 @@ follower 的状态机：
 
 1. **双窗口不再靠手工复现**：§10.2 新增的"共享 profile 双窗口"harness 模式是这个清单的**执行前提**
    （原先是"运行中的实例里 `Ctrl+Shift+N` + 硬杀用 `Stop-Process -Force`"，现改由 harness 提供，
-   §12.7）；在 harness 落地之前，手工手法仍然照 §10.2 执行。
+   §12.7）；该模式**已落地并在 2026-09-27 真机跑过**（§10.2），手工手法只在 harness 用不了时兜底。
 2. **"复制诊断信息"的字段清单已定稿**（§11.1 阶段 2），所以下面每条要收的数据都必须能从那份
    JSON 或日志里读出来；若某条读不出，那是字段清单的缺陷，要补字段而不是靠人回忆。
 
@@ -1103,7 +1296,7 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
   无"机制不可用"记录（除非环境真的不可写）。同时收一条正向指标：**聚焦某个 follower 窗口之后，
   它成为轮询者的时延**（目标 = 去抖阈值 H + 一次心跳量级，用 soak 日志标定）。
   _样板_：broker 侧测过"持有者健在时，四个轮询间隔内注册文件逐字节不变、看门狗零日志"
-  （`TODO.md:9`）——"健康时绝对安静"是可以量出来的，不是感觉。
+  （提交 `52ede35`/`c5118a6`）——"健康时绝对安静"是可以量出来的，不是感觉。
 - **阶段 1 的首次真实双窗口 soak 已经抓到一条规则 bug（2026-09-27，本清单的第一个实际收获）。**
   两个窗口、同一 profile、影子模式，时间戳都是 UTC，日志原样如下（只留相关几行）：
   - `12:21:12.633` window1（pid 4836，聚焦）以 `follower-takeover-expired` 接管（顺带清掉了上一轮
@@ -1141,8 +1334,66 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
     否聚焦"在 Windows 的多窗口形态下**没有被证明**（至少这一轮没有）：可能两个都真为 true（平台语义），
     也可能是事件漏发、或 `window.state.focused` 的取值不随窗口切换变化。**这直接决定 §2.2 那句承诺能否
     成立**（"提示跟着用户的焦点走"）——在按平台/窗口形态验证之前，§2.2 只是意图，不是已成立的性质；
-    §12 末条为此单列了一条记录。**好消息是失败方向安全**：焦点不可信时本修复给出的行为正是
+    §12 末条为此单列了一条记录。**2026-09-28 的复测给这一条补上了 Windows 11 的正证**：两个窗口的
+    `focus-lost` / `focus-gained reason=window-state` 会在失去焦点的那个窗口自己的日志里可靠出现并带
+    `focused=0`，两窗口除启动最初一小段外互斥，`focusedForMs` 属实；差距是焦点事件最多比窗口管理器的
+    切换晚约 6 s（它落在 2 s tick 上），锁屏有意未测，其他平台仍未验证（详见 §12 的必测项与
+    `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` 的同名条目）。**好消息是失败方向安全**：焦点不可信时本修复给出的行为正是
     "**完全不让位**"——现任继续持有、继续轮询，什么都不丢，提示只是留在租约所在的那个窗口。
+- **加速接管臂"发火但拿不下租约"（2026-09-28，Windows 11，同一 profile 两个窗口，`out/extension.mjs`
+  620,113 B）**：这一段描述的是**改释放规则之前那个 build** 的行为。这一轮把"已有 K 连串的 follower
+  遇上活着但沉默的现任"直接造了出来——先把 follower 的请求连串预热到 K = 3（该计数器不因焦点变化
+  归零），再手工把租约记录的 `heartbeatAt` 往前挪约 31 s，`pid` / `ownerNonce` / `claimedAt` 原样保留，
+  即"pid 活着、心跳年龄落在 `(30 s, 35 s)`"。两次独立注入（第二次两个窗口的角色对调）结果一致：
+  - follower 在下一个 2 s tick 打出 `action=claim reason=follower-takeover-accelerated`，距那次编辑
+    **597 ms**（第一次）/ **1.321 s**（第二次），行上带 `heartbeatAgeMs=31619` / `32332`、
+    `holderAlive=1`、`mustReleaseStale=1`；
+  - 这次 claim **输了**：紧邻的 `action=release-stale reason=follower-takeover-accelerated` 给出
+    `outcome=not-owner`，随后的 `wx` 创建打出 `outcome=contended`（第一次连输两次，心跳年龄 31.6 s
+    与 33.6 s）；
+  - 真正的接管发生在编辑后 **4.617 s / 5.343 s**，理由是 **`follower-takeover-expired`**，心跳年龄
+    **35,636 ms / 36,351 ms**；输的一方随即 `demote reason=owner-changed`；
+  - 输掉的 follower 只放开了一轮轮询闸门就重新安静；现任那边**没有**任何针对这次加速尝试的让位记录。
+  - **根因（逐行核对代码：结构性的，不是时序巧合）**：`leaseDecision.ts` 的加速分支条件是
+    `now - heartbeatAt > LEASE_ACCELERATED_STALE_MS`（30 s）而**没有上界**，但它返回的 plan 带
+    `mustReleaseStale`；`leaseStore.ts` 的 `releaseStale` 在重读后只按 `isLeaseStale` 删除，而对活着的
+    pid 这要求 `heartbeatAgeMs >= LEASE_EXPIRY_MS`（35 s）。该分支只可能在 `isLeaseStale` 为假时被走到
+    （否则 `decideAsFollower` 早已返回 `follower-takeover-expired`），释放前的重读又只晚几毫秒，
+    所以它只在"过期已经成立"时才可能删掉文件并成功——而那次成功归属于普通过期路径，不是加速臂。
+    **结论：按这个 build 的释放规则，K 这套升级既买不到更早的交接，也没有缩短最坏情况。**
+    **决定（2026-09-28，同日落地）**：加速 claim 改用它自己的陈旧阈值释放（`LeaseClaimPlan.staleRelease`
+    → `releaseStale` 的"身份 + 重读年龄"复核，见 §4.1 第 3 点），这条臂由此真的买到那 ~5 s；
+    **本条的实测数字描述的是改动前的 build；已按改动后的代码重测，结果见下一条。**
+- **加速接管臂复测（2026-09-28，Windows 11，同一 profile 两个窗口，`out/extension.mjs` 622,641 B /
+  2026-09-28 01:42 local）**：上一条那个 build 之后，加速 claim 改用了它自己的陈旧阈值释放
+  （§4.1 第 3 点，`LEASE_ACCELERATED_STALE_MS = 30 s`），这一轮在改动后的 build 上按**同一方法**重测，
+  上一条末尾欠的那次复测由此结清。方法逐字相同：只重写 profile 里 `mcp-leader-lease.json`
+  的 `heartbeatAt`，`pid` / `ownerNonce` / `claimedAt` 保持逐字节不变（写完重读核对过，文件长度不变），
+  造出一个 pid 活着、心跳年龄落在 `(30 s, 35 s)` 的持有者。
+  - **热 K 连串，两次独立注入（第二次两个窗口的角色对调）**：follower 的下一个 2 s tick 打出
+    `action=release-stale reason=follower-takeover-accelerated … outcome=released releaseThresholdMs=30000`，
+    紧接一行 `action=claim reason=follower-takeover-accelerated … outcome=claimed`，带 `holderAlive=1`、
+    `mustReleaseStale=1`、`heartbeatAgeMs=31074` / `32813`；距那次注入 **24 ms** / **1.765 s**（第一次的
+    tick 恰好落在写入后 24 ms）；旧持有者在 **+1.859 s** / **+0.125 s** 后记 `demote reason=owner-changed`。
+    **与上一条对照**：同样的布置在旧 build 上得到 `not-owner` + `contended`、租约最后由普通过期路径赢下；
+    改动后加速臂第一跳就自己赢下了。
+  - **负对照 A：冷连串（K = 0），同样把心跳挪到约 31 s 前**：`(31 s, 35 s)` 区间里**没有任何** claim；
+    接管发生在注入后 **5.906 s**、心跳年龄 **36,952 ms** 处，理由是 **`follower-takeover-expired`**，
+    那条 `release-stale` 行上**没有** `releaseThresholdMs`，claim 行是 `requests=0`——冷连串走的仍是
+    35 s 过期路径，与上一条描述的旧行为一致。
+  - **负对照 B：年龄刚好在阈值之下（28,051 ms）配热连串**：年龄真正越过 30 s 之前什么都没发生；
+    第一条 claim 出现在年龄 **31,955 ms** 处，理由是 accelerated、带 `releaseThresholdMs=30000`，
+    即注入后 **3.904 s**（= 年龄从 28.05 s 长到 30 s，再加一个 tick）——加速臂只在年龄**真的**陈旧时
+    才接手，不会被"快到 30 s"提前触发。
+  - **上一条的 35.6 s / 36.4 s 由此作废**：那是改动前 build 的数字。这个 build 上同一场景在心跳年龄
+    **31.1 s / 32.8 s** 就完成接管；35 s 那条路现在只服务**冷连串**（负对照 A）与"pid 探不出来"的兜底。
+  - **副作用与 §8 的预期一致**：接管与 claim 在同一个 tick 里就轮询了一次（那一轮提示没被漏掉）；
+    双主导窗口只重叠 **0.125–1.99 s**，被降级的那一方在重叠期内没有发出任何一次轮询（因此也没有产生
+    重复提示）；被降级的一方在下一个 tick 就恢复（`action=request` 在 4 ms 后，闸门仍是抑制）。
+  - **一条必须写下来的前提**：这一轮的三个会话里，两个窗口都报 `focused=1`、一条 `focus-lost` 都没有，
+    所以"请求者聚焦"这个前提是自动满足的、本身没有被变动——这一轮量的是 **K 连串**与**记录年龄**两个变量。
+  - **方法注记**：注入必须落在持有者刚心跳过之后——否则持有者自己那个 10 s 心跳会把改过的值盖回去
+    （有一次尝试就是这样被抹掉、因而完全没有发生接管）。
 - 人工实测**关闭主导窗口**后，follower 在下一次 poll 间隔内接管（用命令查询 pid 变化作为证据）。
   _样板_：broker 侧的正常关闭接管。
 - 人工实测**强杀**（对 exthost 进程 `Stop-Process -Force`，见 §10.2）。**阶段 1 已在真实双窗口上量过
@@ -1150,9 +1401,11 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
   以 `reason=follower-takeover-expired` 抢占、随即 `release-stale` 成功——即**心跳后 14.1 s /
   杀进程后约 11–13 s**，**不是**原先预期的 35–47 s。原因：pid 存活探测让"宿主已死"**短路了过期等待**，
   实际下界由幸存者的 2 s tick 与操作系统回收该 pid 的时间决定。_样板_：broker 侧硬杀后 **1,400 ms**
-  接管、第二次 **124 ms**（`TODO.md:9`）。**继续按这个粒度观测**：该数字若显著变大，说明 pid 探测或
+  接管、第二次 **124 ms**（提交 `52ede35`/`c5118a6`）。**继续按这个粒度观测**：该数字若显著变大，说明 pid 探测或
   tick 出了问题，而不是"过期设计生效了"。
-- 人工实测"轮询饥饿看门狗"路径：人为让所有窗口都不主导，断言 2 × 间隔后有人开始轮询。
+- ~~人工实测"轮询饥饿看门狗"路径：人为让所有窗口都不主导，断言 2 × 间隔后有人开始轮询。~~
+  **没有这条可测的路径**（§8.1 第 3 条：看门狗已决定不做）。要收的是它的替代证据：人为让所有窗口
+  都不主导后，观察被抑制的窗口是否按闸门的 fail-open 规则照样轮询（这一点由闸门自身的放行用例覆盖）。
 - **阶段 2 的验收跑（2026-09-27，真实双窗口 + 两个真实实例，实例走 UI 添加）**：① 杀持有者 →
   **首轮接管后轮询 4.754 s**（harness 命令返回到首轮仅 0.894 s；claim → gate 打开 **11 ms**），
   且那一轮不是等 300 s 定时器（定时器 29.5 s 后才响，轮询来自 gate 的 `false→true`）；
@@ -1173,7 +1426,7 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
 - 一个**反证据**也要收：跟随者窗口在"另一个窗口正在轮询"时，其徽标/通知视图是否会在合理时间
   内更新到最新（因为推送路径按窗口独立）。若这里出现明显延迟，代价可能大于收益。
 - **交付时的收尾行为也要量**：broker 侧测过"持有者死亡时已在转发的会话 31 ms 后以一行 info
-  结束、退出码 0、**不降级为匿名**"（`TODO.md:9`、`KNOWN_ISSUES.zh.md:232`）。
+  结束、退出码 0、**不降级为匿名**"（提交 `52ede35`/`c5118a6`、`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目）。
   租约的对应物是**follower 窗口在接管前后会不会漏弹一次提示**——按本文设计 follower 本来
   就不弹，所以这里要量的是"接管后第一轮轮询是否在预期时间内发生"，而不是"有没有报错"。
 - **提示落点必须实测（§2.2）**：租约开启、A 主导、用户在 B 操作时，新通知的提示弹在 A。
@@ -1186,8 +1439,8 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
 ### 11.3 什么证据会推翻整份设计
 
 1. **多窗口轮询的实际开销远低于预期**（例如用户实测"3 个窗口、4 个实例、5 分钟间隔"的额外
-   请求量可以忽略）→ 那么正确做法是删掉这个机制，改为文档里建议调大间隔/关轮询
-   （`KNOWN_ISSUES.zh.md:214` 已经给出这两条规避方法）。
+   请求量可以忽略）→ 那么正确做法是删掉这个机制，改为文档里建议的手工手段
+   （`KNOWN_ISSUES.zh.md` 的「通知轮询、版本探测与首次运行向导都在窗口之间协调」条目的规避方法栏写的是"不需要"，并给出调大 `forgejoToolkit.notificationPollingInterval`、用 `forgejoToolkit.notificationPollingEnabled` 关轮询、或关掉租约本身这三条杠杆）。
 2. **`wx` 在用户实际使用的 globalStorage 位置上不可靠**（网络 profile、被同步的目录）→
    退回"不选主"；或者只保留"重复提示去重"这一半——那也需要一个共享标记，只是不需要完整的
    租约协议（同一个 `wx` 原语，用一次性的"本实例已提示过"文件即可）。
@@ -1216,7 +1469,7 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
    选主是**文件专属**的：`fs.open(path, 'wx')` 创建 + 心跳 + 过期（§2 决策 1、§3.1、§4）。
    原先是"本文主张只用 `wx` 文件，如果维护者认为 `globalState` 可接受（例如为了少一个文件），
    需要重写 §3、§4"——**这条分支现被否决**，理由是 §1.2：`globalState` 的 `get`→`update`
-   不原子（`config.ts:351-358` 是仓库自己的书面承认），用它选主会把"谁主导"变成概率问题。
+   不原子（`src/config.ts` 的 `_writeInstancesMerged` 注释是仓库自己的书面承认），用它选主会把"谁主导"变成概率问题。
    边界：**这条禁令只约束选主**；版本探测缓存是缓存不是仲裁者，允许走 `globalState`（§9 路线 2、
    §10.3 的守卫说明）。实现里出现任何"用 `globalState` 抢租约"的代码路径即判失败（§10.3）。
 3. ~~**状态栏入口**~~ **已决定（2026-09-27）：不做常驻状态栏项**，但**机制降级为全速轮询时给
@@ -1235,7 +1488,7 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
    口径也一并改成两条都做。**
    - 共享本身已定：follower 读得到别的窗口写下的版本，闸门不再停在"未知"；
    - **存放位置已定：与实例配置同一处**——`globalState` 里紧挨实例列表的键
-     （`config.ts:13` 的 `INSTANCES_KEY` 是那份配置），**不另开文件、也不塞进租约文件**；
+     （`src/config.ts` 的 `INSTANCES_KEY` 是那份配置），**不另开文件、也不塞进租约文件**；
      **原先是**"写进一个共享文件（租约文件的一个 `versions` 字段，或同目录
      `server-versions.json`）"，现改为跟随实例配置；
    - **竞态按"这是缓存，不是仲裁者"接受**：丢失一次更新只导致**多探测一次**，不会导致"没人轮询"
@@ -1243,23 +1496,27 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
    - **follower 读到过期值 → 按"未知"处理并重新探测**：每条缓存带写入时间戳与 **TTL（起始
      60 s）**，`now - writtenAt > TTL` 一律视为未知、重探、合并写回。理由：这个缓存被当作**闸门**
      使用，过期的"高版本"会让 follower 一路放行到会话结束（污染闸门）；而"未知即放行"是既有的
-     安全缺省（`serverVersion.ts:54-63` 对 `undefined` 返回 `true`），所以重探是安全方向。
+     安全缺省（`src/api/serverVersion.ts` 的 `isVersionSupported` 对 `undefined` 返回 `true`），所以重探是安全方向。
 6. ~~顺带修 `seenNotificationIds` 的整表覆盖~~ **已作废**：该竞态已由 `9a041b0` 修掉
-   （§1.2 的纠正、`ROADMAP.md:195`）。除非有新的证据，租约**不应**改动基线的所有权规则
+   （§1.2 的纠正、`FEATURES.md` 的「多窗口通知基线合并」条目）。除非有新的证据，租约**不应**改动基线的所有权规则
    （理由见 §9 末尾）。
 7. ~~**harness 支持**：`tools/ui-review/` 目前每次 launch 用独立 `--user-data-dir`。要不要加一个
    "共享 profile 的双窗口"模式，让多窗口场景可以走查？~~ **已决定（2026-09-27）：加**，
-   作为可走查的交付项（§10.2），**同日已实现**（`tools/ui-review/src/dual.ts` 等，31 个单测通过，尚未真机跑），否则 §10.2 / §11.2 的人工验证太别扭。形态：现有的
-   "每次 launch 一个独立 `--user-data-dir`"模型（`tools/ui-review/README.md:270-272`）保持不变，
+   作为可走查的交付项（§10.2），**同日已实现**（`tools/ui-review/src/dual.ts` 等；
+   该模式随后已在 2026-09-27 真机端到端跑过一次，测试数 42，见 §10.2），否则 §10.2 / §11.2 的人工验证太别扭。形态：现有的
+   "每次 launch 一个独立 `--user-data-dir`"模型（`tools/ui-review/README.md` 的
+   「Shared-profile dual-window mode」一节）保持不变，
    新模式在其上提供"同一个 profile 再开一个窗口"；开第二窗口用**运行中实例内的 Ctrl+Shift+N**
    （`code --new-window` 对同一 profile 只会把已有窗口带到前台，实测无效）；"让一个窗口掉线"用
    **对该窗口的 extension host 进程 `Stop-Process -Force`**；并要能同时观测两个窗口的日志/诊断。
-   **harness 的实现已于同日落地**（`tools/ui-review/src/dual.ts` 等，见 §10.2），但仍**未真机跑过**；
+   **harness 的实现已于同日落地并在真实双窗口上跑过**（`tools/ui-review/src/dual.ts` 等，见 §10.2）；
    本文只负责记录决定与形态，harness 自身的用法与未验证项在 `tools/ui-review/README.md` 里。
 8. ~~**强制接管的语义**：用户点"强制接管"时，是否应当**立即**轮询一次再走正常流程？~~
    **已决定（2026-09-27）：立即轮询一次，然后回到正常流程**（§7.2）。用户点这条命令就是在等结果，
    "接管了但要等下一个间隔"会让命令看起来没生效；代价明确——**租约未定时会多出一次请求**，
-   这是该命令独有的一次性开销。
+   这是该命令独有的一次性开销。**但这条命令本身没有实现，而且已于 2026-09-28 决定不做**（§7.2）：`package.json` 的
+   `contributes.commands` 里没有 `forgejoToolkit.forcePollingLeadership`，`src/**` 也没有引用，
+   所以这条决定的适用对象今天不存在；未交付这件事已记在 `TODO.md` 的「多窗口轮询租约」条目里。
 9. ~~**心跳写失败的中间档**（§4.1）：短重试几次、阈值定多长？~~ **已决定（2026-09-27）：采纳
    建议值**——每次心跳短重试 **3 次**、间隔数百毫秒；**连续失败超过 2 × 过期周期（70 s）才降级**
    （按 10 s 心跳 ≈ 第 8 次心跳处），期间不停轮询（§4.1、§8 的失败表）。背景是实测：Windows 上
@@ -1271,13 +1528,17 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
       与 H 一起由实测标定）；
     - 加速降级 **K = 3** 次未响应；判定"心跳陈旧"的阈值 **= 3 × 心跳 = 30 s**
       （2026-09-27 由首次双窗口 soak 定稿，取代原先的"**> 5 s**"——那个值低于一个心跳周期，
-      会误判健康的现任，见 §4.1/§11.2）；
+      会误判健康的现任，见 §4.1/§11.2）；**加速 claim 的释放阈值也用它（2026-09-28 决定，
+      见 §4.1 第 3 点）**——这是一次协议改动，代价是心跳超过 30 s 的"活着但沉默"的现任可以被顶掉；
     - **现任让位只在"自己此刻不聚焦"时发生**（2026-09-27 由第二次双窗口 soak 修正：原实现写成了
       "自己聚焦才让位"，是反的；见 §2.3 第 2 条 iv 与 §11.2 的抖动时间线）。配套的理由名：
       `owner-yield-focus-request`（真的让位）、`owner-keep-focused`（自己是聚焦的，不让）、
       `owner-keep-requested-unfocused`（请求者不聚焦，不让）、`owner-keep-hysteresis`（N 内不让）、
       `owner-keep-requested-stale`（请求不比租约新，不让）；
-    - 请求文件 **`<lease>.claim.<pid>`，与租约同目录**（内容 = pid + 时间戳 + 随机 token）。
+    - 请求文件 **`<lease>.claim.<pid>.<token>`，与租约同目录**（内容 = `version` + `pid` +
+      `focused` + 时间戳 `at`，可选 `windowId`；**随机 token 在文件名里，不在内容里**——
+      `src/lease/leaseStore.ts` 的 `claimRequestPath` / `writeClaimRequest`，
+      `src/lease/leaseTypes.ts` 的 `ClaimRequest` / `ClaimRequestObservation`）。
       **身份规则（2026-09-27 补，阶段 1 验收的发现）：一名请求者最多一个请求文件，就地替换。**
       名字里的随机 token 每次发布都会换，所以"发一个新的、留一个旧的"会让一个**每个 tick 都被拒绝**的
       窗口一天往 globalStorage 里堆几千个小文件——这正是本轮焦点修复造成的稳态：两个窗口都自称聚焦，
@@ -1305,7 +1566,10 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
 `focus-lost` 事件**（§11.2）。因此：
 
 - **在验证之前，把 §2.2 当作意图而不是已成立的性质**：它没有反证，但也还没有正证（"切换窗口后只有
-  新窗口为 true、旧窗口收到 `focused === false`"尚未在任何平台上被观测到）。
+  新窗口为 true、旧窗口收到 `focused === false`"尚未在任何平台上被观测到）。**2026-09-28 更新**：
+  Windows 11 + 同 profile 双窗口已给出这条正证（`focus-lost` 在失去焦点的窗口自己的日志里带
+  `focused=0`，两窗口除启动最初一小段外互斥，见 §11.2 与 `KNOWN_ISSUES.md` 的同名条目），差距是
+  事件最多可能晚约 6 s；**本条仍未关闭**——其他平台与锁屏仍未验证。
 - **验证方式**：至少覆盖 Windows 多显示器、最小化/后台、锁屏、以及"两个窗口同 profile"这一形态；
   判据是"切换焦点后，旧窗口能在**一个 tick 内**读到 `focused === false`"（这正是 §2.3 前提 1 的兜底
   读要量的东西）。
@@ -1323,57 +1587,67 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
   **已经落定的一项**：加速接管的"心跳陈旧度"由首次真实双窗口 soak（2026-09-27，§11.2 的时间线）
   定稿为 **30 s = 3 × 心跳周期**，且加速分支同样受 N 约束——5 s 那个起始值被实测推翻，不再是待定
   参数。其余各项（H / N / K、心跳重试次数与 70 s 降级阈值）仍按 §11.2 的清单继续收。
-  **另需记入的一项（2026-09-27）**：该加速分支在出厂常量下**不可达**（它只有 5 s 宽的
-  窗口，而 `H = 12.5 s` 加 `K = 3` 次未获响应的约 6 s 合计 18.5 s，见 §4.1），因此它不是当前
-  生效的兜底，而是一段"保持正确、待重调参数后启用"的代码。H / N / K 的实测标定因此多了一个约束：
-  要么让它在某个参数组合下真正可触发，要么明确保留它休眠，并在本表里写清是哪一种。
+  **另需记入的一项（2026-09-27 提出，2026-09-28 关闭）**：该加速分支**对从零累积的请求连串**在出厂
+  常量下是休眠的（它只有 5 s 宽的窗口，而 `H = 12.5 s` 加 `K = 3` 次未获响应的约 6 s 合计 18.5 s，
+  见 §4.1）；2026-09-28 的真机实测又指出：当时的释放规则（`releaseStale` 只删 `isLeaseStale` 认账的
+  记录，活 pid 要求 35 s）让这条臂"能发火、拿不下租约"，**靠 H/N/K 或心跳 / 过期常量的重调并不能让它
+  接管**（加速与释放用的是同一个 `isLeaseStale`，见 §4.1 第 3 点）。**维护者同日裁决并落地：给加速
+  claim 它自己的释放阈值 `LEASE_ACCELERATED_STALE_MS`**，让它真的在 ~30 s 而不是 35 s 拿下"活着但
+  沉默"的现任；这是一次协议改动（代价：心跳超过 30 s 的活现任可被顶掉），实现是
+  `LeaseClaimPlan.staleRelease` → `releaseStale(now, expectation)` 的身份与阈值两道复核，
+  `leaseSupervisor.ts` 的 claim 分支负责传下去。**接管时刻已按改动后的代码真机复测**（2026-09-28，
+  见 §11.2 的复测条目：同一个"活着但沉默"的场景在心跳年龄 31.1 s / 32.8 s 就完成接管），§11.2 的
+  2026-09-28 数字（心跳年龄 35.6 s / 36.4 s 处的过期接管）描述的是改动前的行为。
 
 ---
 
 ## 13. 事实核对清单
 
-本次逐条重核（HEAD `c5118a6`；重核时工作树干净，本次决定记录落盘时工作树里另有在途改动，行号
-以标识符为准）。**标 ⚠ 的是本次修订改动的行号或结论。**
+**引用一律以符号名与标题为准。** 2026-09-27 的这一轮只重核了**实现侧**的断言：每条都重新打开
+代码确认过一次，并把位置改成**符号名 / 标题**（行号会随在途改动漂移，符号名不会）。**上一轮
+（HEAD `c5118a6`）留下的行号没有在这一轮逐条复查**，因此下表不再给行号——要定位就按符号名搜。
+**标 ⚠ 的是本次修订改动过结论或位置的条目。**
 
-| 断言                                                                  | 位置                                                                                                 |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 激活事件按窗口生效                                                    | `packages/forgejo-toolkit/package.json:344-349` ⚠                                                    |
-| 每个窗口都探测版本                                                    | `packages/forgejo-toolkit/src/extension.ts:96-98`                                                    |
-| 版本缓存在进程内 Map                                                  | `packages/forgejo-toolkit/src/api/serverVersion.ts:65-67` ⚠                                          |
-| 版本过低提示                                                          | `packages/forgejo-toolkit/src/api/versionProbe.ts:40-42`                                             |
-| 该提示的去重集是进程内的（判断在 `:182-186`）                         | `packages/forgejo-toolkit/src/api/vscodeClientHost.ts:13-15`                                         |
-| 每个窗口都启动通知轮询                                                | `packages/forgejo-toolkit/src/extension.ts:124-126`                                                  |
-| 轮询用 `setInterval`（`_scheduleAll`）                                | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts:188-197` ⚠                         |
-| 每实例并发一次请求                                                    | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts:263-274` ⚠                         |
-| 每窗口各自弹聚合提示                                                  | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts:546-574` ⚠                         |
-| 轮询间隔常量与钳制                                                    | `packages/forgejo-toolkit/src/config.ts:15-17`、`:425-433`                                           |
-| 轮询设置项与范围                                                      | `packages/forgejo-toolkit/package.json:114-125` ⚠                                                    |
-| 轮询开关的读取                                                        | `packages/forgejo-toolkit/src/config.ts:421-423`                                                     |
-| 首次运行标记是 read-then-write                                        | `packages/forgejo-toolkit/src/welcome.ts:35-48`                                                      |
-| 首次运行挂载点                                                        | `packages/forgejo-toolkit/src/extension.ts:104-108`                                                  |
-| 已读基线是"队列内重读 + 只覆盖本窗口条目"的合并写（**不是**整表覆盖） | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts:430-492`、`:514-533`、`:447-451` ⚠ |
-| 该修复的交付记录                                                      | `ROADMAP.md:195`                                                                                     |
-| 首轮无基线时的抑制分支                                                | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts:455-459` ⚠                         |
-| `globalState` 无跨窗口变更事件                                        | `packages/forgejo-toolkit/src/config.ts:351-358`                                                     |
-| 实例列表写回是"紧邻重读 + 合并"，且自认非原子                         | `packages/forgejo-toolkit/src/config.ts:366-383`                                                     |
-| worktree 写回同样重读，并写明队列只序列化本宿主                       | `packages/forgejo-toolkit/src/worktree/worktreeManager.ts:193-204`                                   |
-| 原子写实现（`.part` + rename + fsync + 保权限位，**不创建目标**）     | `packages/forgejo-toolkit/src/utils/atomicWrite.ts:33-65`                                            |
-| 队列/串行化既有先例                                                   | `packages/forgejo-toolkit/src/worktree/worktreeManager.ts:42-52` ⚠                                   |
-| globalStorage 里已有的固定名文件与权限约定                            | `packages/forgejo-toolkit/src/mcpWorkspaceState.ts:59-75`、`src/mcpBroker.ts:42-49`、`:270-272` ⚠    |
-| "第一个窗口赢"的既有原子原语（broker 绑定）                           | `packages/forgejo-toolkit/src/mcpBroker.ts:230-247` ⚠                                                |
-| 陈旧 socket 的"探测再接管"先例                                        | `packages/forgejo-toolkit/mcp/brokerServer.ts:415-451` ⚠                                             |
-| 所有权判断后才删除（避免删掉继任者文件）                              | `packages/forgejo-toolkit/src/mcpBroker.ts:589-617` ⚠                                                |
-| 陈旧状态文件的 pid 存活探测先例（`isPidAlive`）                       | `packages/forgejo-toolkit/src/mcpWorkspaceState.ts:287-297` ⚠                                        |
-| 单测里可共享的内存 `globalState` + fake timers                        | `packages/forgejo-toolkit/src/notifications/__tests__/notificationPoller.test.ts:63-96` ⚠            |
-| `deactivate()` 的位置                                                 | `packages/forgejo-toolkit/src/extension.ts:170-178`                                                  |
-| dev host 用独立 `--user-data-dir`（broker 端点不吃它）                | `tools/ui-review/README.md:270-272`、`:421-435` ⚠                                                    |
-| 平台代价与规避方法的既有记录                                          | `KNOWN_ISSUES.md:210-214`、`KNOWN_ISSUES.zh.md:210-214`                                              |
-| P4 条目                                                               | `TODO.md:18` ⚠                                                                                       |
-| broker 交接的交付记录与实测数字                                       | `TODO.md:9`、`ROADMAP.md:191`、`KNOWN_ISSUES.zh.md:228-234`                                          |
-| broker 看门狗常量与测试                                               | `packages/forgejo-toolkit/src/mcpBroker.ts:88`、`src/__tests__/mcpBroker.test.ts:399-630`            |
-| 架构页对 broker 交接的描述（可作术语与写法的参照）                    | `docs/architecture/mcp-server.md:304-330`                                                            |
-| MCP 启动日志的现行措辞（本文若引用旧措辞须改）                        | `packages/forgejo-toolkit/mcp/server.ts:47-49`                                                       |
-| 设计文档入口（引用本文）                                              | `docs/architecture/README.md:51`                                                                     |
+| 断言                                                                  | 位置（符号 / 标题）                                                                                                                                                                                                  |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 激活事件按窗口生效                                                    | `packages/forgejo-toolkit/package.json` 的 `activationEvents` ⚠                                                                                                                                                      |
+| 每个窗口都探测版本                                                    | `packages/forgejo-toolkit/src/extension.ts` 的 `probeServerVersion` 调用点                                                                                                                                           |
+| 版本缓存在进程内 Map                                                  | `packages/forgejo-toolkit/src/api/serverVersion.ts` 的模块级 `serverVersions` ⚠                                                                                                                                      |
+| 版本过低提示                                                          | `packages/forgejo-toolkit/src/api/versionProbe.ts` 的 `notifyUnsupportedInstance` 调用                                                                                                                               |
+| 该提示的去重集是进程内的                                              | `packages/forgejo-toolkit/src/api/vscodeClientHost.ts` 的 `shownUnsupportedVersionUrls` 与 `notifyUnsupportedInstance`                                                                                               |
+| 每个窗口都启动通知轮询                                                | `packages/forgejo-toolkit/src/extension.ts` 里 `new NotificationPoller(...)` 的装配点                                                                                                                                |
+| 轮询用 `setInterval`（`_scheduleAll`）                                | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_scheduleAll` ⚠                                                                                                                               |
+| 每实例并发一次请求                                                    | 同上，`_pollAll` 的 `Promise.all` ⚠                                                                                                                                                                                  |
+| 每窗口各自弹聚合提示                                                  | 同上，`_showAggregatedNotification` ⚠                                                                                                                                                                                |
+| 轮询间隔常量与钳制                                                    | `packages/forgejo-toolkit/src/config.ts` 的 `DEFAULT_INTERVAL_SECONDS` / `MIN_INTERVAL_SECONDS` / `MAX_INTERVAL_SECONDS` 与 `getNotificationPollingInterval`                                                         |
+| 轮询设置项与范围                                                      | `packages/forgejo-toolkit/package.json` 的 `forgejoToolkit.notificationPollingEnabled` / `notificationPollingInterval` ⚠                                                                                             |
+| 轮询开关的读取                                                        | `packages/forgejo-toolkit/src/config.ts` 的 `isNotificationPollingEnabled`                                                                                                                                           |
+| 首次运行标记是 read-then-write                                        | `packages/forgejo-toolkit/src/welcome.ts` 的 `maybeShowWelcomeOnboarding`                                                                                                                                            |
+| 首次运行挂载点                                                        | `packages/forgejo-toolkit/src/extension.ts` 里的 `maybeShowWelcomeOnboarding` 调用点                                                                                                                                 |
+| 已读基线是"队列内重读 + 只覆盖本窗口条目"的合并写（**不是**整表覆盖） | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_reconcileSeenIds`、`_mergeBaselineForWrite`、`_getAllSeenIds`、`_ownedSeenInstanceIds` ⚠                                                     |
+| 该修复的交付记录                                                      | `FEATURES.md` 的「多窗口通知基线合并」条目                                                                                                                                                                           |
+| 首轮无基线时的抑制分支                                                | `packages/forgejo-toolkit/src/notifications/notificationPoller.ts` 的 `_unpersistedSeenIds` 分支 ⚠                                                                                                                   |
+| `globalState` 无跨窗口变更事件                                        | `packages/forgejo-toolkit/src/config.ts` 的 `_writeInstancesMerged` 注释                                                                                                                                             |
+| 实例列表写回是"紧邻重读 + 合并"，且自认非原子                         | `packages/forgejo-toolkit/src/config.ts` 的 `_writeInstancesMerged`                                                                                                                                                  |
+| worktree 写回同样重读，并写明队列只序列化本宿主                       | `packages/forgejo-toolkit/src/worktree/worktreeManager.ts` 的 `globalStateWriteQueue` / `enqueueGlobalStateWrite` 与它的写回路径                                                                                     |
+| 原子写实现（`.part` + rename + fsync + 保权限位，**不创建目标**）     | `packages/forgejo-toolkit/src/utils/atomicWrite.ts` 的 `writeFileAtomically`                                                                                                                                         |
+| 队列/串行化既有先例                                                   | `packages/forgejo-toolkit/src/worktree/worktreeManager.ts` 的 `enqueueGlobalStateWrite` ⚠                                                                                                                            |
+| globalStorage 里已有的固定名文件与权限约定                            | `packages/forgejo-toolkit/src/mcpWorkspaceState.ts` / `src/mcpBroker.ts` 的固定名路径函数与 `mkdir(0o700)` + `writeFileAtomically(..., { mode: 0o600 })` ⚠                                                           |
+| "第一个窗口赢"的既有原子原语（broker 绑定）                           | `packages/forgejo-toolkit/src/mcpBroker.ts` 的 `attemptMcpBrokerStart`（`EADDRINUSE` 即让位）⚠                                                                                                                       |
+| 陈旧 socket 的"探测再接管"先例                                        | `packages/forgejo-toolkit/mcp/brokerServer.ts` 的 `listenOrProbeStaleSocket` / `unlinkIfSameFile` ⚠                                                                                                                  |
+| 所有权判断后才删除（避免删掉继任者文件）                              | `packages/forgejo-toolkit/src/mcpBroker.ts` 的 `cleanupMcpBroker` ⚠                                                                                                                                                  |
+| 陈旧状态文件的 pid 存活探测先例（`isPidAlive`）                       | `packages/forgejo-toolkit/src/mcpWorkspaceState.ts` 的 `isPidAlive` ⚠                                                                                                                                                |
+| 单测里可共享的内存 `globalState` + fake timers                        | `packages/forgejo-toolkit/src/notifications/__tests__/notificationPoller.test.ts` 的 `createFakeContext` ⚠                                                                                                           |
+| `deactivate()` 的位置                                                 | `packages/forgejo-toolkit/src/extension.ts` 的 `deactivate`（内部调 `disposePollingLease`）                                                                                                                          |
+| dev host 用独立 `--user-data-dir`（broker 端点不吃它）                | `tools/ui-review/README.md` 的「Shared-profile dual-window mode」/「Runtime state」与「Known blind spots」⚠                                                                                                          |
+| 平台代价与规避方法的既有记录                                          | `KNOWN_ISSUES.md` 的「Notification polling, version probes and the first-run guide are coordinated between windows」条目、`KNOWN_ISSUES.zh.md` 的同名条目                                                            |
+| P4 条目                                                               | `TODO.md` 的「多窗口轮询租约」条目 ⚠                                                                                                                                                                                 |
+| 加速 claim 的释放阈值（2026-09-28 决定并落地）                        | `packages/forgejo-toolkit/src/lease/leaseTypes.ts` 的 `StaleReleaseExpectation` / `LeaseClaimPlan.staleRelease`、`leaseStore.ts` 的 `releaseStale`、`leaseSupervisor.ts` 的 claim 分支；复测见 §11.2 的条目 ⚠        |
+| broker 交接的交付记录与实测数字                                       | 提交 `52ede35`/`c5118a6`、`FEATURES.md` 的「MCP broker 窗口间自动交接」条目、`KNOWN_ISSUES.zh.md` 的「同一时间只有一个窗口能持有 MCP broker」条目                                                                    |
+| broker 看门狗常量与测试                                               | `packages/forgejo-toolkit/src/mcpBroker.ts` 的 `BROKER_TAKEOVER_POLL_MS` / `startMcpBrokerTakeoverWatcher` 与 `src/__tests__/mcpBroker.test.ts` 的 `automatic broker takeover` / `broker takeover watcher lifecycle` |
+| 架构页对 broker 交接的描述（可作术语与写法的参照）                    | `docs/architecture/mcp-server.md` 的「Broker mode」一节                                                                                                                                                              |
+| MCP 启动日志的现行措辞（本文若引用旧措辞须改）                        | `packages/forgejo-toolkit/mcp/server.ts` 里的启动日志文案                                                                                                                                                            |
+| 设计文档入口（引用本文）                                              | `docs/architecture/README.md` 的「Design documents」一节                                                                                                                                                             |
 
 ### 13.1 本次新增的实测条目（在本机 Windows 上跑的一次性 node 探针，非仓库测试）
 

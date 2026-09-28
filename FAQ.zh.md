@@ -14,7 +14,7 @@ Forgejo 和 Gitea 有共同的 API 历史，因此许多功能在 Gitea 实例�
 
 可以——从 [Release 页面](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 安装 `.vsix` 即可（目前尚未发布到 [Open VSX](https://open-vsx.org/)）；除 AI 集成外的一切功能都相同：Dashboard、Issue、PR、worktree、Actions、通知。
 
-差异在 MCP server 的消费端。VS Code 内置的消费端是 Copilot agent mode，只在微软官方构建中提供。在分支编辑器上，你需要用**第三方 agent**（Cline、Continue 等）或任意 MCP 客户端来驱动这个 MCP server：把它指向稳定路径 shim（扩展 globalStorage 里的 `mcp-server.js`，确切路径见下文「Agents 窗口里能用这个 MCP server 吗？」）。零配置实例匹配和带认证的 broker 在那里都能用，因为它们由扩展自身实现，不依赖 VS Code 的聊天功能。也不需要禁用任何东西：如果编辑器等价地完全没有 MCP 定义 API，扩展只会跳过那一个注册，其余功能照常运行。
+差异在 MCP server 的消费端。VS Code 内置的消费端是 Copilot agent mode，只在微软官方构建中提供。在分支编辑器上，你需要用**第三方 agent**（Cline、Continue 等）或任意 MCP 客户端来驱动这个 MCP server：把它指向稳定路径 shim（扩展 globalStorage 里的 `mcp-server.js`，确切路径见下文「Agents 窗口里能用这个 MCP server 吗？」）。零配置实例匹配和带认证的 broker 在那里都能用，因为它们由扩展自身实现，不依赖 VS Code 的聊天功能。也不需要禁用任何东西：如果编辑器完全没有 MCP 定义 API，扩展只会跳过那一个注册，其余功能照常运行。
 
 ### 这个扩展会把数据发到哪里去吗？
 
@@ -74,8 +74,9 @@ MCP Server 只有在满足以下全部条件时才会注册：
 - 扩展中至少配置了一个 Forgejo 实例。
 - 该实例保存了 access token。
 - `forgejoToolkit.mcpEnabled` 处于开启状态（默认即开启）。
+- 扩展宿主内的本地 broker 正在运行——它随 MCP 功能一起启动；扩展提供的定义自身不携带 token，没有 broker 就无法完成认证。
 
-任一条件不满足时扩展会静默跳过注册——请先检查这几点。把 `forgejoToolkit.mcpEnabled` 关掉会立即撤销 server 定义（无需重载窗口），同时停止工作区仓库映射与本地 broker；而**已经连接**的客户端会继续使用 VS Code 为它启动的 server 进程，直到你重载窗口，因为该进程从来不由扩展持有。
+任一条件不满足时都不会注册 server，并且扩展会在日志里说明原因，而不是静默跳过：缺少 broker 会以 info 级别记录 "MCP server definitions withheld"。这种情况下静态 `mcp.json` 路由仍然可用——没有窗口运行时它以匿名方式只读、仅能看到公开数据。把 `forgejoToolkit.mcpEnabled` 关掉会立即撤销 server 定义（无需重载窗口），同时停止工作区仓库映射与本地 broker；而**已经连接**的客户端会继续使用 VS Code 为它启动的 server 进程，直到你重载窗口，因为该进程从来不由扩展持有。
 
 ### 怎么告诉 agent 当前工作区对应哪个仓库？
 
@@ -108,11 +109,11 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 （macOS 上目录是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`；Insiders 版本把 `Code` 换成 `Code - Insiders`。）这段配置放在哪里：推荐用户级 `<profile>/User/mcp.json`（VS Code 的注册表——对当前 profile 的所有工作区生效，并会转发给 Agent Host 会话）；工作区 `.vscode/mcp.json` 只对单个工作区生效。工作区根目录的 `.mcp.json` 只有 Agent Host 原生读——VS Code 会忽略它，而工作树隔离的会话根本看不到它。可以手动写文件，也可以运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令，把片段合并进用户级 `mcp.json`、工作区 `.vscode/mcp.json`，或复制到剪贴板。路径是 shim `mcp-server.js` 而不是带版本号的安装目录：扩展每次激活都会重写它，所以升级后依然有效。
 
-无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例。只要有任一扩展窗口在运行，server 还会转发到扩展宿主进程内的本地 broker，无需在此文件里写 token 即可获得认证能力；没有窗口运行时为匿名只读（仅公开数据），除非你设置 `FORGEJO_MCP_TOKEN`。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
+无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例，在工作目录匹配不到任何东西时回落到扩展最近发布的那个工作区状态文件。只要有任一开启了 MCP 功能的扩展窗口在运行，server 还会转发到扩展宿主进程内的本地 broker，无需在此文件里写 token 即可获得认证能力；没有窗口运行时为匿名只读（仅公开数据），除非你设置 `FORGEJO_MCP_TOKEN`。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
 
 ### 为什么在 Agents 窗口里 `whoami` 等账户级调用报「Invalid or expired credentials」？
 
-因为那个 server 当前不带 token 运行——现在这只会在**没有任何运行着扩展的 VS Code 窗口**时发生。只要有任一扩展窗口打开，静态启动的 server 就会转发到扩展宿主进程内的本地 broker，由 broker 带着 token 在宿主进程里执行工具，所以 Agents 窗口里的 `whoami` 无需在配置文件里写 token 也能工作。如果你确实在那里看到凭据错误，先确认有激活了 Forgejo Toolkit 的 VS Code 窗口在运行（broker 在扩展激活时启动）。
+因为那个 server 当前不带 token 运行——这会在**没有任何运行着扩展的 VS Code 窗口**时发生，也会在 `forgejoToolkit.mcpEnabled` 关闭时发生，因为 broker 属于该功能。只要有任一开启了 MCP 功能的扩展窗口打开，静态启动的 server 就会转发到扩展宿主进程内的本地 broker，由 broker 带着 token 在宿主进程里执行工具，所以 Agents 窗口里的 `whoami` 无需在配置文件里写 token 也能工作。如果你确实在那里看到凭据错误，先确认有激活了 Forgejo Toolkit 的 VS Code 窗口在运行，并且 `forgejoToolkit.mcpEnabled` 处于开启状态——broker 随 MCP 功能启动，而不是仅随扩展激活启动。
 
 背景：从静态 `mcp.json` 启动的 MCP server 由 VS Code 的 Agent Host 拉起，不经过扩展——而只有扩展宿主被允许从 VS Code SecretStorage 读取 token。它**不会**把 token 交给任何子进程：VS Code 会把每个已注册的 server 定义（含 `env`）持久化到 profile 的 workspace storage，所以扩展提供的定义只携带实例身份——URL、实例 id、工作区映射——绝不带凭据，扩展也不会把凭据放进任何启动环境。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。broker 的意义正是在不破坏这个边界的前提下桥接它：token 不出扩展宿主进程；转发器只是通过扩展 globalStorage 里发布的、每次启动随机生成的握手密钥，证明自己是同用户的本地进程，并声明自己这个定义是为哪个实例创建的，由宿主（而不是子进程）决定哪个账号来服务这个会话。你自己写进 `mcp.json` `env` 块里的 token 是你自己的文件、你自己的选择，不是本扩展生成或读取的东西。
 

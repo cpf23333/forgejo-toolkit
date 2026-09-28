@@ -7,8 +7,9 @@ This document describes how to publish Forgejo Toolkit.
 The order below is what a release uses. 0.0.1 is already out: the Marketplace
 listing is live, and the `v0.0.1` release exists on the self-hosted Forgejo
 (`origin`). Still open: the Codeberg release (no runner on Codeberg, and a tag
-can be pushed and the release created by hand without one) and the Open VSX
-listing (publisher credentials needed). The sections after it explain each step.
+can be pushed and the release created by hand without one). Open VSX is not
+pending work but a decision: the extension is deliberately not published there
+(section 5 explains when that changes). The sections after it explain each step.
 
 1. **Write the changelog section.** The root `CHANGELOG.md` is the authoritative
    release-notes source: the release workflow extracts the section whose heading
@@ -17,8 +18,10 @@ listing (publisher credentials needed). The sections after it explain each step.
    under `## [Unreleased]`, which the workflow falls back to; that heading is
    renamed to `## [<version>] - <date>` at release time (post-release step 7).
    `pnpm run version-packages` maintains `packages/forgejo-toolkit/CHANGELOG.md`
-   instead, a mechanical per-package record that is only a fallback for the
-   release body — the curated root section is still the one to write.
+   instead, a mechanical per-package record. That file is not an independent
+   source of release notes: it is kept byte-for-byte identical to this root file
+   (post-release step 7 copies one over the other and a test enforces it), so
+   writing the curated root section is what a release needs.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
    `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
@@ -40,9 +43,11 @@ listing (publisher credentials needed). The sections after it explain each step.
 5. **Publish the Codeberg release.** Dispatch the same workflow with `dry_run`
    off; it validates, packages, creates the release for `v<version>` at the
    dispatched commit and attaches the `.vsix`.
-6. **Publish to the stores.** VS Code Marketplace and Open VSX, both manual (they
-   need publisher credentials) — see sections 4 and 5. Neither listing exists yet;
-   this is the step that creates them.
+6. **Publish to the stores.** The VS Code Marketplace is live and is updated
+   manually (it needs publisher credentials) — see section 4. Open VSX is
+   deliberately not published; section 5 keeps the steps for the day that
+   decision changes. Each further Marketplace publish updates the existing
+   listing.
 7. **Backfill the docs.** Rename the released section in `CHANGELOG.md` from
    `## [Unreleased]` to `## [<version>] - <date>` (edit the root file and copy it
    over `packages/forgejo-toolkit/CHANGELOG.md` — a test keeps the two byte for
@@ -196,10 +201,12 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
    `packages/forgejo-toolkit/package.json`, and the tag is pinned to the
    dispatched commit rather than the branch head.
 
-The release body comes from the root `CHANGELOG.md` first — the section whose
-heading names the released version, then `## [Unreleased]` — and then from
-`packages/forgejo-toolkit/CHANGELOG.md`, the record
-`@changesets/apply-release-plan` maintains, with the same two headings. The
+The release body comes from the root `CHANGELOG.md`: the section whose heading
+names the released version, then `## [Unreleased]`. The step then tries
+`packages/forgejo-toolkit/CHANGELOG.md` with the same two headings, but that file
+is not an independent source: post-release step 7 copies the root file over it
+and a test keeps the two byte-identical, so the second attempt only reads the
+same text back (or, if the copy was skipped, a stale copy). The
 step logs which file and section it used. A heading is matched by the version
 inside it, so both spellings work: the root file's Keep-a-Changelog
 `## [0.0.1] - <date>` and changesets' plain `## 0.0.1`. Only if all four are

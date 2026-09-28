@@ -325,9 +325,13 @@ Forgejo instance REST API
   SDK binds a server to a single transport — built from a `ForgejoClient`
   carrying the resolved instance's token; a session's explicit `syncApiUrls`
   flag overrides that instance's configured value, since the broker cannot read
-  the editor settings the definition came from. The version gate reuses the
-  extension host's existing probe cache (activation already probes every
-  instance), so the broker never probes again. The state file
+  the editor settings the definition came from. The version gate goes through that
+  client like any other caller: it reads the shared probe cache the extension host
+  writes (activation probes every instance) and re-probes on demand whenever that
+  entry is unknown or past its 60 s TTL, so the broker does probe again — once per
+  stale window, and never while the entry is fresh. Its failure direction is
+  unchanged: an unknown version allows the call. Both the lease and the probe cache
+  are described in [window-coordination.md](./window-coordination.md). The state file
   passed to `get_workspace_repository` is the session's explicit `stateFile`
   when the launch named one (an extension-provided definition always does — it
   is the providing window's own file), and otherwise follows the session's cwd:
@@ -391,9 +395,11 @@ Forgejo instance REST API
   refused — the instance is gone or has lost its token — exits 1 with a stderr
   message instead, because being served a different account is not an option.
   `FORGEJO_MCP_BROKER_ONLY=true`, which the extension sets alongside the id,
-  additionally forbids the direct-server fallback when no registration exists at
-  all; it is what keeps a definition that reaches a window with no broker from
-  answering anonymously under the label of an authenticated server.
+  additionally forbids the direct-server fallback whenever no broker session was
+  established — no registration discovered, or a registration whose forwarding
+  failed before the handshake — registration present or not; it is what keeps a
+  definition that reaches a window with no broker from answering anonymously under
+  the label of an authenticated server.
 
 ### Security model (broker)
 
