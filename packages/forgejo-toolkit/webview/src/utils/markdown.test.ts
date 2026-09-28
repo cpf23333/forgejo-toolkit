@@ -180,4 +180,28 @@ describe('sanitizeMarkdownHtml', () => {
       expect(sanitizeMarkdownHtml(html)).toBe(html);
     });
   });
+
+  // The sanitizer is only as good as the traversal underneath it, so this test
+  // pins the traversal itself, not one rule. DOMPurify walks the tree with
+  // `document.createNodeIterator(...)` *while removing* forbidden nodes, so a
+  // node removed mid-walk must not stop the walk. The payload is therefore
+  // deliberately shaped with the allowed `<p>` first and every forbidden piece
+  // later — a nested `style` attribute, then `<script>`, then an `onerror`
+  // image — because that ordering is exactly what a broken `NodeIterator`
+  // (happy-dom 20.14.5, see `webview/vitest.config.mts`) gets wrong: it
+  // sanitizes the leading nodes and gives up, leaving the rest raw. A payload
+  // whose first node is already dangerous would stay green either way.
+  it('sanitizes everything after the first removal, not only the first node', () => {
+    const html =
+      '<p>ok</p><p>outer<span style="color:red">inner</span></p>' +
+      '<script>alert(1)</script><img src="x" onerror="alert(2)">';
+    const result = sanitizeMarkdownHtml(html);
+    expect(result).toContain('<p>ok</p>');
+    expect(result).toContain('outer');
+    expect(result).toContain('inner');
+    expect(result).not.toContain('style=');
+    expect(result).not.toContain('<script');
+    expect(result).not.toContain('onerror');
+    expect(result).not.toContain('<style');
+  });
 });
