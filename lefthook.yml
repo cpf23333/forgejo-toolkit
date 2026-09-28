@@ -2,10 +2,10 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      glob: '*.{js,ts,mjs,cjs,vue}'
+      glob: '*.{js,mjs,cjs,mts,ts,vue}'
       run: node node_modules/oxlint/bin/oxlint --vue-plugin {staged_files}
     format:
-      glob: '*.{js,ts,mjs,cjs,vue}'
+      glob: '*.{js,mjs,cjs,mts,ts,vue}'
       run: node node_modules/oxfmt/bin/oxfmt --check {staged_files}
     # Each typecheck runs a whole-package compiler, so the glob only decides
     # whether a change under that package is worth running it. It is a directory

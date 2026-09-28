@@ -9,10 +9,33 @@ const clientMocks = vi.hoisted(() => ({
   probeRepository: vi.fn(),
 }));
 
-vi.mock('child_process', () => ({
-  exec: mocks.exec,
-  execFile: mocks.execFile,
-}));
+vi.mock('child_process', async () => {
+  const { promisify } = await import('node:util');
+  // The real cp.execFile carries its own promisify.custom, and promisify
+  // prefers that over its promise-detecting fallback. Without one, the doubles
+  // below whose implementation returns a Promise instead of calling back (the
+  // abort/timeout simulations) make promisify(mocks.execFile) warn with DEP0174
+  // at every call site. This adapter hands the mock the same trailing callback
+  // the fallback appended and resolves with the same first callback value, so
+  // each double keeps answering with the { stdout, stderr } shape it already
+  // passes and no assertion changes.
+  Object.assign(mocks.execFile, {
+    [promisify.custom]: (...args: unknown[]) =>
+      new Promise((resolve, reject) => {
+        (mocks.execFile as unknown as (...callArgs: unknown[]) => void)(
+          ...args,
+          (error: Error | null, stdout: unknown) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(stdout);
+            }
+          },
+        );
+      }),
+  });
+  return { exec: mocks.exec, execFile: mocks.execFile };
+});
 
 vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {

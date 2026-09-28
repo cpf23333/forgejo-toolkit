@@ -8,7 +8,7 @@
 // elements (the tree, the context menu, the select, …) and its shell (`App.vue`,
 // the router) are not reachable from here at all;
 // `src/__tests__/entryGraph.test.ts` and the assertion in
-// `webview/vite.config.ts` pin that.
+// `webview/vite.config.mts` pin that.
 import '@vscode-elements/elements/dist/vscode-button/index.js';
 import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import '@vscode-elements/elements/dist/vscode-radio/index.js';

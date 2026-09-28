@@ -123,7 +123,7 @@ jobs:
       # js/ts/vue, and this workflow validates code rather than prose), so the
       # glob covers every hand-written source file without gating on markdown.
       - name: Format check
-        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"
+        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"
 
       - name: Typecheck
         run: pnpm run check

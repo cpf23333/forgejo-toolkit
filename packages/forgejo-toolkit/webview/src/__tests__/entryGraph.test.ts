@@ -5,9 +5,9 @@ import { VSCODE_ELEMENT_TAGS } from './helpers/vscodeElements';
  * Pins the per-surface webview entries.
  *
  * Each surface — the sidebar dashboard and the two standalone panels — is its
- * own Vite entry with its own HTML document (see `webview/vite.config.ts`), so
+ * own Vite entry with its own HTML document (see `webview/vite.config.mts`), so
  * opening the setup wizard or the review comment editor no longer downloads and
- * parses the dashboard shell. `webview/vite.config.ts` asserts the same
+ * parses the dashboard shell. `webview/vite.config.mts` asserts the same
  * properties over the built bundle graph; this test is the half that runs
  * without a build, and it is what fails first when an entry grows a dependency
  * it must not have.
@@ -131,7 +131,7 @@ const ELEMENT_MODULE = /@vscode-elements\/elements\/dist\/(vscode-[a-z0-9-]+)\//
  * graph. The other one is reached through a dynamic `import()` in
  * `src/i18n/locales.ts` and becomes a chunk the surface fetches when that
  * language is selected (see the locale assertions at the bottom of this file
- * and `webview/vite.config.ts`, which fails the build if a surface ships both).
+ * and `webview/vite.config.mts`, which fails the build if a surface ships both).
  */
 const CATALOG_LOCALES = ['en', 'zh'] as const;
 const BASE_LOCALE = 'en';
@@ -399,7 +399,7 @@ describe('webview entry per surface', () => {
 
 /**
  * The message catalogs are the largest single item in the chunk every surface
- * downloads (see `webview/vite.config.ts` for the same assertion over the built
+ * downloads (see `webview/vite.config.mts` for the same assertion over the built
  * bundle). These pin the split: the base catalog is bundled everywhere, the
  * other is a dynamic import in `src/i18n/locales.ts` — and nothing else.
  */
@@ -430,7 +430,7 @@ describe('locale catalogs across the surface entries', () => {
     // base catalog is registered lazily too (the registry lists every locale),
     // but it is also imported statically by `src/i18n/index.ts` — which is what
     // puts it in the bundle, and which the per-surface assertion below and the
-    // build assertion in `vite.config.ts` both hold.
+    // build assertion in `vite.config.mts` both hold.
     expect(lazy).toEqual(
       CATALOG_LOCALES.filter((locale) => locale !== BASE_LOCALE)
         .map((locale) => `src/i18n/${locale}.json`)

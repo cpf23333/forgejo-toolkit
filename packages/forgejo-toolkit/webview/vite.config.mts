@@ -60,7 +60,7 @@ function specifiersOf(source: string): string[] {
 
 /** Element modules an entry declares, read from its own source (its import list). */
 function declaredElementModules(entry: string): Set<string> {
-  const source = fs.readFileSync(path.resolve(__dirname, entry), 'utf8');
+  const source = fs.readFileSync(path.resolve(import.meta.dirname, entry), 'utf8');
   const elements = new Set<string>();
   for (const specifier of specifiersOf(source)) {
     const element = ELEMENT_MODULE.exec(specifier);
@@ -317,29 +317,32 @@ export default defineConfig({
     {
       name: 'copy-codicons',
       closeBundle() {
-        copyCodicons(path.resolve(__dirname, '..', 'out', 'webview'));
+        copyCodicons(path.resolve(import.meta.dirname, '..', 'out', 'webview'));
       },
     },
     assertSurfaceGraph(),
   ],
-  root: path.resolve(__dirname),
+  root: path.resolve(import.meta.dirname),
   base: './',
   resolve: {
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue'],
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(import.meta.dirname, 'src'),
     },
   },
   css: {
     transformer: 'lightningcss',
   },
   build: {
-    outDir: path.resolve(__dirname, '..', 'out', 'webview'),
+    outDir: path.resolve(import.meta.dirname, '..', 'out', 'webview'),
     emptyOutDir: true,
     assetsInlineLimit: 1024 * 1024,
     rollupOptions: {
       input: Object.fromEntries(
-        SURFACES.map((surface) => [surface.html.replace(/\.html$/, ''), path.resolve(__dirname, surface.html)]),
+        SURFACES.map((surface) => [
+          surface.html.replace(/\.html$/, ''),
+          path.resolve(import.meta.dirname, surface.html),
+        ]),
       ),
     },
   },

@@ -65,7 +65,7 @@ export function buildContentSecurityPolicy(
 /**
  * The document each webview surface loads.
  *
- * The three surfaces are separate Vite entries (see `webview/vite.config.ts`),
+ * The three surfaces are separate Vite entries (see `webview/vite.config.mts`),
  * so the sidebar dashboard's shell (`App.vue`, the router, the elements only it
  * renders) is not in a panel's entry graph and a panel is not in the sidebar's.
  * Before the split every surface loaded `index.html`, which is how opening the
@@ -124,7 +124,7 @@ export function getWebviewContent(
 
   // vscode-elements' <vscode-icon> copies the codicon stylesheet into its
   // shadow DOM by looking up this exact link id. The css + font are copied
-  // next to the bundle at build time (see webview/vite.config.ts), so this
+  // next to the bundle at build time (see webview/vite.config.mts), so this
   // works in the packaged extension where node_modules does not exist.
   const codiconLink = `<link rel="stylesheet" href="${baseUri}/codicon.css" id="vscode-codicon-stylesheet">`;
 

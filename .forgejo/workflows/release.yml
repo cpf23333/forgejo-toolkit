@@ -145,7 +145,7 @@ jobs:
       # Without this step a formatting regression would pass release and be
       # caught only by the next manual verify run, after the tag exists.
       - name: Format check
-        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"
+        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"
 
       - name: Typecheck
         run: pnpm run check
@@ -208,7 +208,7 @@ jobs:
           # index.html, the wizard and the review-comment editor have their own)
           # and the codicon assets the webview only
           # links at runtime (copied next to the bundle by the `copyCodicons`
-          # closeBundle hook in webview/vite.config.ts — if that hook stops
+          # closeBundle hook in webview/vite.config.mts — if that hook stops
           # running, the webview build stays green while every icon disappears).
           #
           # NOTICE is in the list because it is not only attribution: it carries

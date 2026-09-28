@@ -4,7 +4,7 @@
 // (`src/entries/onboarding.ts`, `src/entries/pullReviewComment.ts`) loaded by
 // their own HTML documents, so this entry never reaches them — and they never
 // reach `App.vue`, the router, or the elements only the dashboard renders.
-// `src/__tests__/entryGraph.test.ts` and the assertion in `webview/vite.config.ts`
+// `src/__tests__/entryGraph.test.ts` and the assertion in `webview/vite.config.mts`
 // pin that.
 //
 // One `@vscode-elements/elements` module per component the dashboard actually

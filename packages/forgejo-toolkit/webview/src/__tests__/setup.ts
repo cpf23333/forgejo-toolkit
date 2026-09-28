@@ -15,7 +15,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Stubs for the `<vscode-*>` elements the webview renders. They are compiled as
-// custom elements (`vite.config.ts` sets `isCustomElement` for every `vscode-`
+// custom elements (`vite.config.mts` sets `isCustomElement` for every `vscode-`
 // tag), so Vue never resolves them as components and these entries do not
 // actually replace them today; what keeps the list complete is the drift guard
 // in `__tests__/helpers/vscodeElements.test.ts`. The stub markup is kept so a

@@ -181,14 +181,14 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
    `extension/out/webview/codicon.ttf`. The list lives in the "Check the
    packaged .vsix" step of `.forgejo/workflows/release.yml`; a missing entry
    fails the run. Each webview surface has its own document, because the panels
-   must not download the dashboard shell (`webview/vite.config.ts` builds one
+   must not download the dashboard shell (`webview/vite.config.mts` builds one
    input per surface and asserts the resulting graph), so a build that stopped
    emitting one of them would ship a panel that opens empty. The two entry
    bundles are ESM and share almost all of their
    code through `extension/out/chunks/` (one esbuild build with `splitting`),
    so that directory is checked as a whole rather than by its hashed file
    names. The two codicon assets are checked because the webview only
-   links them at runtime: `webview/vite.config.ts`'s `copyCodicons` hook copies
+   links them at runtime: `webview/vite.config.mts`'s `copyCodicons` hook copies
    them next to the bundle, so a build in which that hook stops running still
    succeeds while shipping no icons at all. `NOTICE` is checked because it is not
    only attribution: it carries the Apache-2.0 license text of DOMPurify, the one

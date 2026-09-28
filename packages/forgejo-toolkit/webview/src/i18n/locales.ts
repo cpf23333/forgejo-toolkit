@@ -28,7 +28,7 @@ export const localeCatalogLoaders: Record<Locale, () => Promise<{ default: Recor
  * (`…/i18n/zh.json` in a built chunk, `./zh.json` in a source import).
  *
  * Both the i18n module (to find its own dynamic import) and
- * `webview/vite.config.ts` (to assert which catalogs a surface bundles) derive
+ * `webview/vite.config.mts` (to assert which catalogs a surface bundles) derive
  * the catalog paths from this, so a new language does not have to be added in
  * several places.
  */

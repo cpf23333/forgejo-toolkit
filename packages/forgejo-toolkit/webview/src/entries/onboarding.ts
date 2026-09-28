@@ -6,7 +6,7 @@
 // (`views/ImportPreview.vue`). The dashboard's elements (the tree, the context
 // menu, the progress ring, …) and its shell (`App.vue`, the router) are not
 // reachable from here at all; `src/__tests__/entryGraph.test.ts` and the
-// assertion in `webview/vite.config.ts` pin that.
+// assertion in `webview/vite.config.mts` pin that.
 import '@vscode-elements/elements/dist/vscode-button/index.js';
 import '@vscode-elements/elements/dist/vscode-checkbox/index.js';
 import '@vscode-elements/elements/dist/vscode-icon/index.js';

@@ -7,7 +7,7 @@ import zh from '../zh.json';
  * Pins the split between the catalog every surface ships and the one that
  * arrives as a chunk.
  *
- * `webview/vite.config.ts` asserts the same property over the built bundle (a
+ * `webview/vite.config.mts` asserts the same property over the built bundle (a
  * surface whose static graph carries a non-base catalog fails the build) and
  * `src/__tests__/entryGraph.test.ts` asserts it over the import graph. This test
  * is the one that exercises the split's behaviour: what a switch does while the

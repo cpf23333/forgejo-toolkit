@@ -2,7 +2,7 @@
  * The `<vscode-*>` custom elements the webview renders, with the stub markup a
  * test would use for them.
  *
- * `webview/vite.config.ts` compiles every `vscode-` tag as a custom element
+ * `webview/vite.config.mts` compiles every `vscode-` tag as a custom element
  * (`isCustomElement: (tag) => tag.startsWith('vscode-')`), so Vue never resolves
  * them as components and `config.global.stubs` cannot actually replace them in a
  * test: a component that starts rendering an element jsdom knows nothing about

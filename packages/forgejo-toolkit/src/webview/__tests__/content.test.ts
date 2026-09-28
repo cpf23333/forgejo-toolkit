@@ -118,7 +118,7 @@ describe('getWebviewContent', () => {
   });
 
   it('loads each surface its own entry document', () => {
-    // The three surfaces are separate Vite entries (see webview/vite.config.ts),
+    // The three surfaces are separate Vite entries (see webview/vite.config.mts),
     // so a panel document must never be the dashboard's: loading index.html from
     // a panel is exactly the regression that made a panel download the whole
     // dashboard shell.

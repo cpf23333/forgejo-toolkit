@@ -5,7 +5,7 @@ import { VSCODE_ELEMENT_TAGS } from './vscodeElements';
  * Keeps {@link VSCODE_ELEMENT_TAGS} in step with the custom elements the webview
  * actually renders.
  *
- * The `<vscode-*>` tags are compiled as custom elements (see `vite.config.ts`),
+ * The `<vscode-*>` tags are compiled as custom elements (see `vite.config.mts`),
  * so a tag nobody registered in a test renders as an inert element: the
  * component's v-model and event handlers silently do nothing and the test still
  * passes. This guard turns that into a failure naming the tag and the file that

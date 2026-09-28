@@ -70,7 +70,7 @@ rendered Markdown before it is displayed.
 
 Build- and test-only dependencies (Vite, Vitest, esbuild, TypeScript, `@vscode/vsce`,
 jsdom, msw, and `lightningcss`, which Vite uses as its CSS transformer because
-`webview/vite.config.ts` sets `css.transformer: 'lightningcss'`) are not bundled into
+`webview/vite.config.mts` sets `css.transformer: 'lightningcss'`) are not bundled into
 the shipped files and are not part of the extension's runtime. They do appear in
 `pnpm licenses list --prod` because pnpm walks the whole workspace graph — see
 "Lightning CSS" below.
@@ -81,7 +81,7 @@ Visual Studio Code Codicons
 This extension ships the Visual Studio Code Codicons icon font
 (https://github.com/microsoft/vscode-codicons) as the copied files
 `out/webview/codicon.css` and `out/webview/codicon.ttf`
-(`webview/vite.config.ts`'s `copyCodicons`).
+(`webview/vite.config.mts`'s `copyCodicons`).
 
 Copyright (c) Microsoft Corporation. All rights reserved.
 
@@ -97,7 +97,7 @@ Lightning CSS (build-time only, not shipped)
 dependency:
 
   - it is neither imported by any source file nor present in the shipped bundles —
-    `packages/forgejo-toolkit/webview/vite.config.ts:44` only names it as Vite's CSS
+    `packages/forgejo-toolkit/webview/vite.config.mts:334` only names it as Vite's CSS
     transformer, and it is declared in the extension's `devDependencies`;
   - `packages/forgejo-toolkit/.vscodeignore` excludes `node_modules/**`, so no
     lightningcss code or binary can end up in the `.vsix`;
@@ -107,7 +107,7 @@ dependency:
 
 No license obligation follows from running a build tool, and nothing of it is
 distributed. Fixing the manifest graph itself (so `--prod` stops flagging it) would
-mean dropping `css.transformer: 'lightningcss'` from `webview/vite.config.ts` and
+mean dropping `css.transformer: 'lightningcss'` from `webview/vite.config.mts` and
 using Vite's default esbuild CSS transformer instead; that is a build-config change
 that needs a build to verify, so it is deliberately not made here.
 
