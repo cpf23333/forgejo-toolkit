@@ -815,8 +815,62 @@ implying a capability the tools do not have. Registration lives in
 - Manual: VS Code agent mode smoke test ("list my issues") against a real
   instance — done for Phase 1 before release. The two stage-1 acceptance checks
   for the write path — that VS Code really shows its confirmation dialog on the
-  installed build, and what "Always Allow" actually persists — are still
-  pending: both need a real MCP client session in a built extension host.
+  installed build, and what "Always Allow" actually persists — were measured on
+  2026-09-28 (next bullet): an installed extension plus a real agent session was
+  enough, no dev host was needed.
+- **Which of VS Code's own gates a write call passes (measured, not inferred).**
+  Run 2026-09-28 on VS Code 1.139.1 with the packaged
+  `forgejo-toolkit-0.0.1.vsix` against a real instance, in agent mode in the
+  editor window, through the **static user `mcp.json`** route: server `forgejo` →
+  the stable-path shim → the extension-host broker, which is what the audit
+  line's `caller` shows (`extension host (broker session, cwd …)`). The UI locale
+  was `zh-cn`, so the strings below are quoted verbatim as they appeared with a
+  bracketed English gloss; no English-locale run was made, so the glosses are not
+  the English originals.
+  - A tool that declares no `readOnlyHint` (`create_issue_comment`) is **not**
+    stopped by a native modal dialog. VS Code renders an **inline card in the
+    Chat view**, headed `运行 create_issue_comment - forgejo (MCP 服务器)` [Run
+    create_issue_comment - forgejo (MCP server)], showing the tool's description,
+    `显示更多` [Show more], `输入` [Input] plus the call's JSON,
+    `查看更多` [View more],
+    `请注意，MCP 服务器或恶意对话内容可能会尝试通过工具滥用 "Code"。` [note that
+    MCP servers or malicious conversation content may try to misuse "Code"
+    through tools], and `⚠ Adds a comment to issue #9 — changes server state.`
+    Its buttons are `在此会话中允许` [Allow in this session] — a split button
+    whose `∨` chevron opens the rest — and `跳过` [Skip]. The chevron offers
+    three per-**tool** scopes (`允许和审阅一次` [allow and review once],
+    `允许并跳过审阅结果` [allow and skip reviewing the result],
+    `此工作区中允许` [allow in this workspace], `始终允许` [always allow]) and
+    three per-**server** ones (`允许此会话中来自 forgejo-toolkit 的工具` /
+    `允许此工作区中来自 forgejo-toolkit 的工具` /
+    `始终允许来自 forgejo-toolkit 的工具`).
+  - **`始终允许` (the per-tool "always") does not write `settings.json`** — that
+    file was byte-identical before and after the click. It writes the **profile**
+    state store's memento (`globalStorage/state.vscdb` under the VS Code user
+    directory) `chat/autoconfirm`, as `{"mcp_<serverId>_<tool>":true}` — observed
+    `{"mcp_forgejo-tool3_create_issue_comment":true}`, i.e. keyed by server id
+    plus tool name. VS Code's own record of the auto-approved call is
+    `isConfirmed:{"type":3,"scope":"profile"}`. The **next call of the same
+    tool** in the same session (`dryRun: true`) then ran with **no card at
+    all**, so the scope is profile-wide and per tool — not per session and not
+    per workspace.
+  - A write therefore costs **two** prompts on this build, and both live in the
+    Chat view. Once the tool has run, a **second** card asks to approve its
+    _result_: `审批工具结果 - 已运行 create_issue_comment` [approve tool result -
+    create_issue_comment has run], buttons `在此会话中允许，无需审核` [allow in
+    this session, no review] and `跳过` [skip]. That one persists to the
+    **workspace** state store's memento (`workspaceStorage/<hash>/state.vscdb`)
+    `chat/servers/autoconfirm-post`, keyed by extension id plus server label; the
+    label embeds the configured instance URL, so the value is not reproduced
+    here.
+  - **Not exercised by that run** — do not read any of these as verified: the
+    extension-provided definition (only the static `mcp.json` route was driven,
+    although the extension's own definitions were listed in the Chat tool
+    picker), cross-window and cross-workspace stickiness of either rule, what the
+    per-server "always" persists, the 403 missing-scope path (the token had write
+    access, so the real call returned `ok`), and the
+    `forgejoToolkit.mcpWriteAuditToFile` file (that setting was left at its
+    default `false`, so no JSONL file existed).
 
 ## Future directions
 
