@@ -1,6 +1,8 @@
 # MCP Phase 2 写工具的确认模型
 
-- 状态：**设计（未实现）**，实现前需维护者裁决本文末尾的开放问题
+- 状态：**设计已定稿（未实现）**——2026-09-28 维护者已裁决 §13 的全部十个问题（§13 因此从「开放问题」
+  改写为决定记录）；本文仍然**没有任何实现**，剩余工作全部记在 `TODO.md` 的
+  「P2 MCP Phase 2 写工具的实现」条目里（设计文档只指向跟踪条目，不持有待办项的唯一副本）
 - 关联：`TODO.md` 的「AI / MCP 规划」条目；`docs/architecture/mcp-server.md` 见
   [MCP Server Integration](../architecture/mcp-server.md) 的 "Security model" 与
   "Future directions" 两节
@@ -63,10 +65,16 @@ Phase 2 要加写工具，第 1、3 条同时失效：只要有一个工具不�
 3. **首批只做两个工具**：`create_issue_comment`、`submit_pull_review`。
    "重跑 workflow"**在本仓库当前依赖下无法实现**（§4.1，`swagger.v1.json` 里没有该端点，
    `KNOWN_ISSUES.md` 的「Re-running an action run is not exposed through the REST API」条目已把它记为平台限制），推迟到依赖 Forgejo ≥ 17 的版本闸门。
+   2026-09-28 定稿：保留这两个下划线名（否决 `add_issue_comment`，§13.7），`cancel_action_run`
+   **不在首批**（它是第二批的第一个候选，§13.3）。
 4. **dry-run 值得做**，但只作为工具参数（`dryRun`），不作为第三种运行模式；默认 `false`，
-   工具描述要求 agent 在批量提交前先跑一次 dry-run 并把计划念给用户。
-5. **审计**落在 `Forgejo Toolkit` Output Channel：调用方、实例、仓库、目标编号、正文字节数与
-   摘要哈希、结果、耗时。**不落**评论正文全文。
+   工具描述要求 agent 在批量提交前先跑一次 dry-run 并把计划念给用户。（2026-09-28 定稿：
+   它**不需要**单独开关，§13.9。）
+5. **审计**默认落在 `Forgejo Toolkit` Output Channel：调用方、实例、仓库、目标编号、正文字节数与
+   摘要哈希、结果、耗时。**不落**评论正文全文。2026-09-28 的决定追加：新增**窗口级**布尔设置
+   `forgejoToolkit.mcpWriteAuditToFile`（默认 `false`，所以默认行为就是"只进 Output Channel"），
+   打开后把**同一条记录**以 JSON Lines **追加**到扩展 `context.logUri` 下的
+   `mcp-write-audit.jsonl`，并在通道里打印一行指明该路径；1 MB 上限 + 两个滚动文件（§8、§13.5）。
 
 ---
 
@@ -119,9 +127,9 @@ MCP 的 `ToolAnnotations` 是提示位，不是保证。VS Code 用 `readOnlyHin
   `src/mcpServerProvider.ts` 的 `isMcpServerEnabled`，开关的实时语义
   （关闭即撤销注册、停掉 broker 与工作区映射）见同文件的 `registerMcpServerProvider`。
   新开关应当与它同一层命名。
-- 建议**按工具**而不是一个大开关：`forgejoToolkit.mcpWriteTools.createIssueComment`
+- **按工具**而不是一个大开关（2026-09-28 定稿，§13.2）：`forgejoToolkit.mcpWriteTools.createIssueComment`
   与 `...submitPullReview`，默认 `false`。理由是 Codeberg 那条约束（§3.6）要求"人明确同意某个
-  具体副作用"，一个总开关做不到这一点。
+  具体副作用"，一个总开关做不到这一点；首批因此只设**两个**开关（尚未实现，见 §9 阶段 0）。
 - `src/mcpServerProvider.ts` 在 `provideMcpServerDefinitions` 里读开关（同处已有读 `http.proxy`
   的先例），把关照的开关写进 `env`（如 `FORGEJO_MCP_WRITE_TOOLS=createIssueComment`；
   宿主构造 definition `env` 的构造点在那里 —— 注意它现在**只放身份**，token 不出宿主，所以
@@ -233,9 +241,11 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 
 **决策**：首批 = `create_issue_comment` + `submit_pull_review`。
 `rerun_action_run` 作为**依赖阻塞项**登记（等 v17 端点 + 复现验证），不占首版范围。
-如果维护者坚持首版就要一个"Actions 侧"的写工具，唯一现在就成立的是 `cancel_action_run`
-（`src/api/client.ts` 的 `cancelActionRun`，`POST .../cancel` 在 spec 里存在），但它与"重跑"的语义不同，
-且用户侧已有按钮，收益不明显——列为备选而非首批。
+**2026-09-28 定稿（§13.3、§13.4）**：首批**只有**这两个内容生产工具；`cancel_action_run`
+（`src/api/client.ts` 的 `cancelActionRun`，`POST .../cancel` 在 spec 里存在）**不在首批**，
+它是**第二批的第一个候选**，并且会带自己的开关。原先"如果维护者坚持首版就要一个 Actions 侧
+写工具"的分支随之关闭：它语义上是"取消"而不是"重跑"，且用户侧已有按钮，收益不明显。rerun 的
+推迟被接受：等 Forgejo ≥ 17 走版本闸门，**不写手写 web 路由**（那会绕开被审计的 API 面）。
 
 ### 4.2 两个首批工具各自需要什么
 
@@ -291,7 +301,8 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 - 拒绝时的返回必须是**成功的工具结果 + 明确的拒绝文本**，而不是 `isError: true`：
   `callTool` 的错误路径（`mcp/tools.ts` 里 `callTool` 的 catch/`isError` 分支）会把消息渲染成 `isError`，agent 容易把它读成
   "重试一下可能就好"。用普通结果说明"本会话未启用写工具，原因是 <没有扩展宿主 / 开关未开启>，
-  请用户在扩展设置里开启"，让 agent 停下来问人。
+  **并点名要打开哪个设置**（如 `forgejoToolkit.mcpWriteTools.createIssueComment`；2026-09-28
+  定稿，§13.8），请用户在扩展设置里开启"，让 agent 停下来问人，而不是原地重试。
 - **绝不做**的事：子进程自己去读 SecretStorage / `state.vscdb` / OS keychain。
   `docs/architecture/mcp-server.md` 的「Security model」一节已经把这条边界写成设计决定（"从外部进程伸手进凭据存储
   正是凭据窃取的样子"），本文不改变它。
@@ -312,7 +323,9 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
    own MCP server instance" 那段，所以表的生命周期正好等于一个
    会话，也正好等于该 broker 会话所连的那个窗口的寿命——交接发生时旧会话结束，表随之消失，
    这正是我们想要的：新会话不该继承旧会话的幂等记录）。条目内容：key → { tool, 目标三元组,
-   结果摘要, 完成时间 }；TTL 建议 10 分钟，容量上限（如 32 条）防止 agent 刷爆内存。
+   结果摘要, 完成时间 }；TTL **10 分钟**、容量上限 **32 条**（2026-09-28 定稿：就用这两个值，
+   且**不在设置里暴露**——没有人会去调这个旋钮，而拒绝文案已经承担了"告诉调用方等待"的职责，
+   见 §13.6）防止 agent 刷爆内存。
 3. **命中时的行为分两种**，必须区分：
    - 同一 key **且** 目标与正文摘要一致 → 返回"这是重复调用"的说明 + 上一次的结果，不重发请求；
    - 同一 key 但目标或正文不同 → 返回错误，要求换 key（说明 agent 的复用方式错了）。
@@ -328,7 +341,8 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 
 ## 7. 要不要 dry-run / plan 模式
 
-**要，但只是工具参数，不是第三种运行模式。**
+**要，但只是工具参数，不是第三种运行模式。**（2026-09-28 定稿：`dryRun` **不设单独开关**——
+它没有副作用，而"仓库是否存在"用只读工具本来就查得到，见 §13.9。）
 
 理由：
 
@@ -359,17 +373,29 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 Output Channel 记一条结构化日志，格式与既有日志一致（`src/logger.ts` 的实例由
 `src/extension.ts` 的激活路径装配，即那里的 `logger.watch()` / `dispose()`）。
 
-字段：
+**2026-09-28 定稿（§13.5）**：Output Channel 仍是**默认**落点，另加一个**窗口级**布尔设置
+`forgejoToolkit.mcpWriteAuditToFile`（默认 `false`，所以默认行为就是"只进 Output Channel"）。
+打开后，**同一条记录**以 **JSON Lines**（一行一个 JSON 对象）**追加**到扩展 `context.logUri`
+下的 `mcp-write-audit.jsonl`（VS Code 的 "Open Logs Folder" 可以打开这个目录），通道里同时打印
+**一行**指明该路径。轮转：**1 MB 上限 + 两个滚动文件**，所以文件不会无界增长。通道里的文本与
+文件里的文本**完全相同**。这个设置**用户可见**，所以实现时要在 `package.nls.json` 与
+`package.nls.zh-cn.json` 里同时加条目。**以上全部是决定，不是实现**——本文不声称任何一项已经落地。
 
-- 时间戳、工具名、`dryRun`、幂等键**前缀**（前 8 字符，便于关联但不记录全量以免被当成凭据）；
-- 实例**名称**与 id（不写 token；URL 走既有 `redactUrlUserinfo` 规则：
+字段（固定的字段集，含义如下）：
+
+- `at` 时间戳、`tool` 工具名、`dryRun`；
+- `caller` 调用方（扩展宿主，或哪个 broker 会话）；
+- `instance` 实例**名称**与 id（不写 token；URL 走既有 `redactUrlUserinfo` 规则：
   `src/api/versionProbe.ts` 把它导出为 `redactInstanceUrl` 别名）；
-- 目标：`owner/repo#index`（review 再加 `reviewId`）；
-- 正文：**字节数 + 内容摘要哈希**（sha256 前 12 位）。**不记正文全文**——评论可能含用户粘贴的
+- `repo` 与 `target`：仓库与目标编号（`owner/repo#index`，review 再加 `reviewId`）；
+- `bytes` 与 `sha256`：正文**字节数 + 内容摘要哈希**。**不记正文全文**——评论可能含用户粘贴的
   敏感内容，而 Output Channel 是用户会随手复制粘贴到 issue 里的东西；
-- 结果：`ok` / `http:<status>` / `refused:<reason>` / `duplicate`，以及服务端返回的对象 id 与
+- `result`：`ok` / `http:<status>` / `refused:<reason>` / `duplicate`，以及服务端返回的对象 id 与
   `html_url`；
-- 耗时毫秒数。
+- `ms` 耗时毫秒数。
+
+（本文原先的草案里还有"幂等键**前缀**"与"sha256 前 12 位"两条：固定字段集里没有幂等键，
+`sha256` 也不再规定截断长度。）
 
 **必须承认的缺口**：
 
@@ -379,9 +405,10 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
   让这句话更严重一层：持有窗口本身会在会话之间变化（§3.4），所以同一个静态 `mcp.json` 配置的
   两次会话，日志可能分别落在两个不同窗口的 Output Channel 里。这一点要写进 FAQ 而不是假装日志
   是全局的。
-- 日志默认只在 Output Channel 里，**不落盘**、不跨会话保留（`logger.ts` 是 OutputChannel
-  包装）。如果维护者要求"可审计的持久记录"，那需要新的设计（append-only 文件 + 轮转），
-  见 §13 开放问题。
+- 落盘是**可选**的（2026-09-28 决定，见上）：默认 `false`，打开后同一条记录才会以 JSON Lines
+  追加到 `context.logUri` 下的 `mcp-write-audit.jsonl`（1 MB 上限 + 两个滚动文件），
+  通道里同时打印一行该路径。默认不开时日志不落盘、不跨会话保留（`logger.ts` 是 OutputChannel
+  包装）。
 - 工具结果里返回 `html_url` 是有意的第二重审计：用户可以在 Forgejo 网页界面看到 agent 到底
   写了什么，这比本地产的日志更权威。
 
@@ -402,14 +429,19 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
   在开关关闭时**不在**工具列表里（或存在但一律返回拒绝，二选一需固定语义）。
 - **点击实测降级为"顺手做"**：阶段 0 不再以"本机实测确认对话框会弹"为开工门槛（§11.1 已由官方
   文档回答，§3.2 记录了证据强度）。如果顺手做了实测且它与文档冲突，则以实测为准，阶段 1/2 停，
-  回落到阶段 3 的宿主侧确认。
+  回落到阶段 3 的宿主侧确认（2026-09-28：两件遗留事项挂在**阶段 1 的验收**上，见阶段 1）。
 
 ### 阶段 1 — `create_issue_comment`
 
 - 先做"人类确认成本最低"的那一个：单次追加、无状态机、结果可直接在网页界面核对。
-- 需要：handler + schema + 描述（§3.5 六项）+ dry-run + 幂等表 + 审计日志。
+- 需要：handler + schema + 描述（§3.5 六项）+ dry-run + 幂等表 + 审计日志
+  （含 `forgejoToolkit.mcpWriteAuditToFile` 的落盘路径、JSON Lines 与轮转，§13.5）。
+- **验收项（2026-09-28 从 §13.1 移入，不是开工门槛）**：① 在已安装的 VS Code 版本上用 dev host
+  点一次，确认对话框真的会出现；② 查清 "Always Allow" 实际持久了什么（按工具？按会话？永久？）。
+  回退照旧：如果实测与官方文档矛盾，阶段 1/2 停下并回落到阶段 3 的宿主侧确认。
 - 测试必须钉住：
   - 关闭开关 → 拒绝，且**没有发出任何 HTTP 请求**（用 MSW 断言请求数为 0，而不是只看返回文本）；
+  - 关闭开关时的拒绝文本**点名要打开的设置键**（§5、§13.8）；
   - 打开开关但无宿主来源标记 → 拒绝，同样断言零请求；
   - 打开开关 + 有标记 → 走 `createIssueComment`，返回含 id 与 url；
   - 同 key 重放 → 只发一次请求（MSW 计数），返回重复说明；
@@ -438,7 +470,9 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 1. 解决"在哪个窗口问"——需要把会话按 `findBrokerStateMatch`（`src/mcpBroker.ts`）路由到
    会话所属窗口，并有一个"该窗口不可用"的兜底。**自动交接（§3.4）把这一条从"更干净的做法"变成
    硬性前置**：持有 broker 的窗口会在会话之间变化，所以"交给当时的持有窗口"不再是一个稳定的
-   近似，而是一条真的会弹错窗口的路径；
+   近似，而是一条真的会弹错窗口的路径。**维护者的取舍（2026-09-28，§13.10）**：模态框**路由到
+   会话所属窗口**；如果这套跨窗口路由的代价被证明太高，正确的降级是**拒绝这次写**，而不是把
+   模态框弹在错误的窗口里——阶段 3 本身仍然要单独批准；
 2. 解决"无人响应"——模态框必须有超时，超时等于拒绝，且这个语义要写进工具结果；
 3. 有实测证据表明 VS Code 的逐次审批在真实会话里确实会弹（§11.1 已由官方文档给出答案，所以
    这一条不再是"阶段 1/2 的阻塞项"；对阶段 3 它退化为一次"本机版本与文档一致"的抽查——但如果
@@ -487,8 +521,10 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
    `KNOWN_ISSUES.md` 的「Re-running an action run is not exposed through the REST API」条目与 `KNOWN_ISSUES.zh.md` 的「重新运行 Actions 运行记录未在 REST API 中暴露」条目、`TODO.md` 的「等上游版本」
    条目；**注意**：`FEATURES.md` 没有这条版本闸门记录，本文原先对 `FEATURES.md` 的引用经核对是错的，
    见 §4.1），同时按 §9 的模式给它单独一个开关。
-4. **如果出现"持久审计日志"的硬需求**（合规、多用户机器），阶段 1 之前要先设计落盘审计
-   （append-only + 轮转 + 与 `docs/release.md` 的数据保留说明对齐）。
+4. **如果出现"持久审计日志"的硬需求**（合规、多用户机器）：2026-09-28 的决定给出了**可选**的
+   落盘方案（`forgejoToolkit.mcpWriteAuditToFile`，append-only 追加 + 轮转，§13.5），但那是
+   "用户自己打开"的便利设施；合规级硬需求要重估的是保留期、是否默认打开，以及与
+   `docs/release.md` 的数据保留说明对齐。
 5. **如果 MCP 规范或 VS Code 引入"需要人类确认"的正式注解位**（而不是只靠不标只读），本文的
    §3.2 与 §3.4 应当收敛到那一个机制上，删掉自定义的便利设施。
 6. **broker 归属不再是会话级固定（2026-09-27 交付的自动交接）**：一个让位窗口会在持有者消失后
@@ -551,31 +587,66 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 
 ---
 
-## 13. 留给维护者的开放问题
+## 13. 决定记录（原「留给维护者的开放问题」）
 
-1. **`readOnlyHint` 的实测结论是什么？** 官方文档已经回答了主要部分（§11.1，2026-09-27：不标
+**维护者已于 2026-09-28 裁决完本节的全部十条。** 本节保留原有编号（本文各处按 `§13.x` 引用它们），
+逐条写成"决定"；原先的提问以删除线保留，不静默删除——问过什么本身是记录的一部分。裁决只有三种
+去向：**已决定**、**推迟到阶段 3 并先记下取舍**、**移入阶段 1 的验收**。**本文没有任何实现**：
+所有实现工作记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里。
+
+1. ~~**`readOnlyHint` 的实测结论是什么？** 官方文档已经回答了主要部分（§11.1，2026-09-27：不标
    `readOnlyHint` 的工具会显示确认对话框、只读工具不会），所以这**不再是本文的阻塞性前提**。
    剩下两件次要的事：(a) 在本机装的 VS Code 版本上做一次 dev host 点击实测并留证，确认对话框
    真的会弹；(b) "Always Allow" 的有效范围——文档只提到存在该选项，没说能否永久放行，而且那句
    话出自扩展工具的确认流程而不是 MCP 工具对话框小节。若 (a) 与文档冲突，以实测为准，阶段 1/2
-   停下并回落到阶段 3 的宿主侧确认。
-2. **开关粒度**：逐工具（本文建议）还是"写工具总开关"？逐工具更贴合 Codeberg 那条约束，
-   但设置页要放 2–N 个开关。
-3. **首批是否包含 `cancel_action_run`**（唯一现在就能做的 Actions 写操作，语义是"取消"而不是
-   "重跑"）？如果包含，它是第三个开关。
-4. **`rerun_action_run` 是否接受"依赖 Forgejo ≥ 17 + 版本闸门"的推迟**，还是要求现在就用手写
-   web 路由实现（本文与 `KNOWN_ISSUES.md` 的「Re-running an action run is not exposed through the REST API」条目都反对）？
-5. **审计要不要落盘**（跨会话、可检索），还是 Output Channel 足够？如果落盘，数据保留与
-   `docs/release.md` 的说明需要一起改。
-6. **幂等键 TTL 与容量**（本文给 10 分钟 / 32 条）是否合适？是否需要在设置里暴露？
-7. **工具命名**：`create_issue_comment` / `submit_pull_review` 是否与既有 30 个工具（下划线、
+   停下并回落到阶段 3 的宿主侧确认。~~ **移入阶段 1 的验收（2026-09-28）**：它**不再是阻塞性
+   前提**（官方文档已回答主要问题），上面那两件小事改挂在**阶段 1 的验收**上，而不是开工门槛；
+   回退照旧——如果实测与官方文档矛盾，阶段 1/2 停下并回落到阶段 3 的宿主侧确认
+   （§9 阶段 1）。
+2. ~~**开关粒度**：逐工具（本文建议）还是"写工具总开关"？逐工具更贴合 Codeberg 那条约束，
+   但设置页要放 2–N 个开关。~~ **已决定（2026-09-28）：逐工具**，按本文的建议；首批因此只设
+   **两个**开关（默认 `false`，§3.3）。
+3. ~~**首批是否包含 `cancel_action_run`**（唯一现在就能做的 Actions 写操作，语义是"取消"而不是
+   "重跑"）？如果包含，它是第三个开关。~~ **已决定（2026-09-28）：不含。** 首批只保留两个
+   **内容生产**工具；`cancel_action_run` 是**第二批的第一个候选**，并且要带它自己的开关（§4.1）。
+4. ~~**`rerun_action_run` 是否接受"依赖 Forgejo ≥ 17 + 版本闸门"的推迟**，还是要求现在就用手写
+   web 路由实现（本文与 `KNOWN_ISSUES.md` 的「Re-running an action run is not exposed through the REST API」条目都反对）？~~ **已决定（2026-09-28）：接受推迟。**
+   等 Forgejo ≥ 17 并走版本闸门；**不写手写 web 路由**——那会绕开被审计的 API 面，
+   `KNOWN_ISSUES.md` 的对应条目已经把这条平台限制记在案（§4.1）。
+5. ~~**审计要不要落盘**（跨会话、可检索），还是 Output Channel 足够？如果落盘，数据保留与
+   `docs/release.md` 的说明需要一起改。~~ **已决定（2026-09-28）：Output Channel 仍是默认**，
+   另加一个**窗口级**布尔设置 `forgejoToolkit.mcpWriteAuditToFile`（默认 `false`，所以默认行为
+   就是 Output-Channel-only）。打开后，**同一条记录**以 **JSON Lines**（一行一个 JSON 对象）
+   **追加**到扩展 `context.logUri` 下的 `mcp-write-audit.jsonl`（VS Code 的 "Open Logs Folder"
+   可以打开这个目录），通道里同时打印**一行**指明该路径。轮转：**1 MB 上限 + 两个滚动文件**，
+   所以文件不会无界增长。通道里的文本与文件里的文本**完全相同**，字段集固定为 `at`、`caller`
+   （扩展宿主或 broker 会话）、`instance`、`repo`、`target`、`tool`、`dryRun`、`bytes`、
+   `sha256`（正文的哈希）、`result`、`ms`，**永远不记评论 / review 正文全文**（§2.5 已经这么
+   要求）。字段含义与"硬需求出现时要重估什么"见 §8 与 §11.4。该设置**用户可见**，所以实现时
+   要在 `package.nls.json` 与 `package.nls.zh-cn.json` 里同时加条目。
+6. ~~**幂等键 TTL 与容量**（本文给 10 分钟 / 32 条）是否合适？是否需要在设置里暴露？~~
+   **已决定（2026-09-28）：就用 10 分钟 / 32 条，且不在设置里暴露。** 没有人会去调这个旋钮，
+   而既有的拒绝文案已经承担了"告诉调用方等待"的职责（§6）。
+7. ~~**工具命名**：`create_issue_comment` / `submit_pull_review` 是否与既有 30 个工具（下划线、
    动词在前）风格一致，还是应当叫 `add_issue_comment`（与扩展内部命令
-   `addPullReviewComment` 对齐）？命名一旦发布就是对外契约。
-8. **要不要在阶段 1 之前把"写工具未启用"的拒绝文案做成 prompt 模板的一部分**，让 agent 在遇到
-   拒绝时自动转向"请用户在设置里开启"，而不是反复重试？
-9. **`dryRun` 是否也需要单独开关？** 本文认为不需要（它不产生副作用），但它确实是一条可以
-   用来探测仓库存在性的路径——如果维护者认为这算信息泄露，可以把它也纳入开关。
-10. **如果将来真要做宿主侧模态框（阶段 3），它是"由当时持有 broker 的窗口弹"还是"必须路由到
+   `addPullReviewComment` 对齐）？命名一旦发布就是对外契约。~~
+   **已决定（2026-09-28）：保留 `create_issue_comment` 与 `submit_pull_review`。**
+   否决 `add_issue_comment`：它对齐的是一个**用户永远看不到的内部命令名**，而已发布的工具面用的
+   是**下划线、动词在前**（`create_…`）。
+8. ~~**要不要在阶段 1 之前把"写工具未启用"的拒绝文案做成 prompt 模板的一部分**，让 agent 在遇到
+   拒绝时自动转向"请用户在设置里开启"，而不是反复重试？~~ **已决定（2026-09-28）：拒绝文案必须
+   点名要打开的设置键**（如 `forgejoToolkit.mcpWriteTools.createIssueComment`），让调用方能直接
+   告诉用户该开哪个开关，而不是原地重试；实现与测试要求见 §5 与 §9 阶段 1。
+9. ~~**`dryRun` 是否也需要单独开关？** 本文认为不需要（它不产生副作用），但它确实是一条可以
+   用来探测仓库存在性的路径——如果维护者认为这算信息泄露，可以把它也纳入开关。~~
+   **已决定（2026-09-28）：不设单独开关。** 它没有副作用，而"仓库是否存在"用只读工具本来就能
+   查到（§7）。
+10. ~~**如果将来真要做宿主侧模态框（阶段 3），它是"由当时持有 broker 的窗口弹"还是"必须路由到
     会话所属窗口"？** 自动交接（§3.4）之后"当时的持有窗口"会随会话变化，甚至与上一会话不是
     同一个窗口；本文的倾向是后者（路由），但代价是新增一套跨窗口 UI 路由。需要维护者在动手前
-    明确取舍。
+    明确取舍。~~ **推迟到阶段 3 自己的批准（2026-09-28），取舍先记下：路由到"会话所属窗口"**；
+    如果这套跨窗口路由的代价被证明太高，正确的降级是**拒绝这次写**，而不是把模态框弹在错误的
+    窗口里（§9 阶段 3）。
+
+**本节至此十条全部关闭，没有新增开放问题。** 实现工作与验收要求收敛在 `TODO.md` 的
+「P2 MCP Phase 2 写工具的实现」条目与 §9 的分阶段计划里。
