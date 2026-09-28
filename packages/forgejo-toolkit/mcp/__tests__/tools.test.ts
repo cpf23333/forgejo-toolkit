@@ -2539,4 +2539,58 @@ describe('tool descriptions and schemas', () => {
     expect(config?.description).toContain('unreadableReviewCount');
     expect(config?.inputSchema?.includeDiffStats?.description ?? '').toContain('default: true');
   });
+
+  it('carries the whole write-tool contract in the two write descriptions', () => {
+    // §3.5: the description is the only contract the agent is guaranteed to
+    // read, so the side effect, the gate, the scope, the retry semantics and the
+    // dry run all have to be in it — for both tools, or the second one ships
+    // less safe than the first.
+    const comment = captureConfigs().get('create_issue_comment')?.description ?? '';
+    const review = captureConfigs().get('submit_pull_review')?.description ?? '';
+
+    for (const [tool, description] of [
+      ['create_issue_comment', comment],
+      ['submit_pull_review', review],
+    ] as const) {
+      expect(description, tool).toMatch(/^Write operation:/);
+      expect(description, tool).toContain('changes server state');
+      expect(description, tool).toMatch(/403/);
+      expect(description, tool).toContain('idempotencyKey');
+      expect(description, tool).toContain('dryRun');
+      expect(description, tool).toContain('confirmed by the user in VS Code');
+    }
+    expect(comment).toContain('`forgejoToolkit.mcpWriteTools.createIssueComment`');
+    expect(review).toContain('`forgejoToolkit.mcpWriteTools.submitPullReview`');
+    // §9 stage 2: the verdicts and what the consequential one means.
+    expect(review).toContain('COMMENT');
+    expect(review).toContain('APPROVED');
+    expect(review).toContain('REQUEST_CHANGES');
+    expect(review).toMatch(/formal approval/);
+    expect(review).toMatch(/branch protection/);
+    // Only a pending review can be submitted, and only this tool submits one.
+    expect(review).toContain('pending');
+    // The server's own synonym is named as *not* accepted, which is what stops
+    // a model from reaching for it.
+    expect(review).toMatch(/spelled exactly as Forgejo stores it/);
+  });
+
+  it('accepts only the three verdict spellings Forgejo itself recognises', () => {
+    // §4.2: the client library's `APPROVE` default is a Go-constant name, not a
+    // wire value — the server's `switch` compares against `ReviewStateType`, so
+    // sending `APPROVE` leaves the review pending with a 422. The enum is the
+    // only guard, and it carries no synonym for the two spellings that matter.
+    const config = captureConfigs().get('submit_pull_review');
+    const event = config?.inputSchema?.event;
+    const schema = event as unknown as { options?: string[]; _def?: { values?: string[] } };
+
+    expect(schema.options ?? schema._def?.values).toEqual(['COMMENT', 'APPROVED', 'REQUEST_CHANGES']);
+    const description = event?.description ?? '';
+    for (const spelling of ['COMMENT', 'APPROVED', 'REQUEST_CHANGES']) {
+      expect(description).toContain(spelling);
+    }
+    // `APPROVE` is a prefix of `APPROVED`, so the guard is a word boundary: no
+    // spelling may end in the bare constant name.
+    expect(description).not.toMatch(/APPROVE(?![A-Z])/);
+    expect(description).not.toContain('CHANGES_REQUESTED');
+  });
 });

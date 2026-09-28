@@ -8,11 +8,13 @@ import { passthroughTranslate } from '../../src/api/translate';
 import { createMcpServer } from '../mcpServer';
 import type { WorkspaceContextOptions } from '../tools';
 import type { McpWriteAuditRecord, McpWriteAuditSink } from '../writeTools';
+import { formatMcpWriteAuditRecord } from '../../src/mcpWriteAudit';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../src/test/mocks/server';
 import {
   mockIssueDetail,
   mockPullRequestDetail,
   mockPullRequestCommit,
+  mockPullReview,
   mockTimelineComment,
   mockRepository,
 } from '../../src/test/mocks/data';
@@ -64,8 +66,8 @@ const READ_ONLY_TOOLS = [
   'whoami',
 ] as const;
 
-/** Tools that change server state; §13.7 fixed the names (stage 2 adds the second). */
-const WRITE_TOOLS = ['create_issue_comment'] as const;
+/** Tools that change server state; §13.7 fixed the names (both first-batch tools). */
+const WRITE_TOOLS = ['create_issue_comment', 'submit_pull_review'] as const;
 
 /**
  * A workspace context that passes both write gates: the provenance marker (the
@@ -77,6 +79,46 @@ const WRITE_ALLOWED: WorkspaceContextOptions = {
   enabledWriteTools: ['create_issue_comment'],
   writeCaller: 'extension host (test session)',
 };
+
+/**
+ * The same for the stage-2 tool. The provenance marker carries **tool names**,
+ * so a session established for the review tool advertises only that one; a
+ * request for the comment tool in it is refused as unprovenanced, which is the
+ * per-tool half of "the host established *this* write".
+ */
+const REVIEW_WRITE_ALLOWED: WorkspaceContextOptions = {
+  instanceId: 'instance-1',
+  writeTools: ['submit_pull_review'],
+  enabledWriteTools: ['submit_pull_review'],
+  writeCaller: 'extension host (test session)',
+};
+
+/** The endpoint `submit_pull_review` posts to, for a request counter. */
+const SUBMIT_REVIEW_URL = 'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id';
+
+/** Arguments that pass `submit_pull_review`'s own validation. */
+function reviewArgs(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    owner: 'demo-user',
+    repo: 'demo-repo',
+    index: 2,
+    reviewId: mockPullReview.id,
+    event: 'COMMENT',
+    body: 'Reviewed the changes.',
+    ...overrides,
+  };
+}
+
+/** A pending review's answer to `POST …/pulls/:index/reviews/:id`. */
+function mockSubmittedReview(options: { event?: string; body?: string; state?: string } = {}) {
+  return {
+    ...mockPullReview,
+    state: options.state ?? options.event ?? mockPullReview.state,
+    body: options.body ?? mockPullReview.body,
+    official: true,
+    html_url: 'https://forgejo.example.com/demo-user/demo-repo/pulls/2#issuecomment-100',
+  };
+}
 
 /** Records what the tool surface audits, without an Output Channel. */
 function collectAudit(): { entries: McpWriteAuditRecord[]; sink: McpWriteAuditSink } {
@@ -282,7 +324,7 @@ describe('MCP server over InMemoryTransport', () => {
       const replay = resultJson(second) as { duplicate?: boolean; result?: { id?: number }; message?: string };
       expect(replay.duplicate).toBe(true);
       expect(replay.result?.id).toBe(mockTimelineComment.id);
-      expect(replay.message).toMatch(/no new comment was created/i);
+      expect(replay.message).toMatch(/nothing new was created/i);
 
       // The same key with a different body is a caller bug, not a replay.
       const mismatched = (await client.callTool({
@@ -363,6 +405,254 @@ describe('MCP server over InMemoryTransport', () => {
     } finally {
       setForgejoClientHost(previousHost);
     }
+  });
+
+  it('refuses submit_pull_review without provenance, naming its own setting', async () => {
+    // Same shape as stage 1's refusal: a successful result, not `isError`, and
+    // the stage-2 setting rather than the stage-1 one (§13.8).
+    const result = await callTool('submit_pull_review', reviewArgs());
+    expect(result.isError).toBeFalsy();
+    const refusal = JSON.parse(result.content[0].text as string) as { refused?: boolean; message?: string };
+    expect(refusal.refused).toBe(true);
+    expect(refusal.message).toContain('forgejoToolkit.mcpWriteTools.submitPullReview');
+    expect(refusal.message).not.toContain('createIssueComment');
+    expect(refusal.message).toContain('not established by the Forgejo Toolkit extension host');
+  });
+
+  it('refuses submit_pull_review when the marker covers it but its switch is off', async () => {
+    const result = await callTool('submit_pull_review', reviewArgs(), {
+      instanceId: 'instance-1',
+      writeTools: ['submit_pull_review'],
+      enabledWriteTools: [],
+    });
+    expect(result.isError).toBeFalsy();
+    const refusal = JSON.parse(result.content[0].text as string) as { reason?: string; message?: string };
+    expect(refusal.reason).toBe('disabled');
+    expect(refusal.message).toContain('forgejoToolkit.mcpWriteTools.submitPullReview');
+    expect(refusal.message).toContain('not enabled in this session');
+  });
+
+  it('submits a review when both gates pass, and audits it without the body', async () => {
+    let posts = 0;
+    let sent: { event?: string; body?: string } = {};
+    mockServer.use(
+      http.post(SUBMIT_REVIEW_URL, async ({ request }) => {
+        posts += 1;
+        sent = (await request.json()) as { event?: string; body?: string };
+        return HttpResponse.json(mockSubmittedReview({ event: sent.event, body: sent.body }), { status: 200 });
+      }),
+    );
+    const { entries, sink } = collectAudit();
+    const body = 'This looks correct.';
+    const result = await callTool('submit_pull_review', reviewArgs({ event: 'APPROVED', body }), {
+      ...REVIEW_WRITE_ALLOWED,
+      writeAudit: sink,
+    });
+
+    expect(posts).toBe(1);
+    // The verdict and the message reach the server verbatim (§9 stage 2 asks
+    // for the request body to be asserted, not just the result).
+    expect(sent).toEqual({ event: 'APPROVED', body });
+    const submitted = resultJson(result) as { ok?: boolean; id?: number; state?: string; html_url?: string };
+    expect(submitted.ok).toBe(true);
+    expect(submitted.id).toBe(mockPullReview.id);
+    expect(submitted.state).toBe('APPROVED');
+    expect(submitted.html_url).toContain('/pulls/2');
+
+    expect(entries).toHaveLength(1);
+    const entry = entries[0];
+    expect(entry.tool).toBe('submit_pull_review');
+    expect(entry.result).toBe('ok');
+    expect(entry.dryRun).toBe(false);
+    expect(entry.repo).toBe('demo-user/demo-repo');
+    // The shared target keeps its `owner/repo#index` meaning; the review's own
+    // number travels beside it (§8).
+    expect(entry.target).toBe('demo-user/demo-repo#2');
+    expect(entry.reviewId).toBe(mockPullReview.id);
+    expect(entry.caller).toBe('extension host (test session)');
+    expect(entry.instance).toBe('instance-1');
+    expect(entry.bytes).toBe(Buffer.byteLength(body, 'utf8'));
+    expect(entry.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(typeof entry.ms).toBe('number');
+    // Never the text — the audit line is what users paste into bug reports.
+    expect(JSON.stringify(entry)).not.toContain(body);
+
+    // …and the line the sinks actually receive (the Output Channel text and the
+    // JSONL file line are this one string) carries the same fields, with
+    // `reviewId` beside the shared target and none of the message.
+    const serialized = formatMcpWriteAuditRecord(entry);
+    expect(serialized).not.toContain('\n');
+    const line = JSON.parse(serialized) as Record<string, unknown>;
+    expect(Object.keys(line)).toEqual([
+      'at',
+      'caller',
+      'instance',
+      'repo',
+      'target',
+      'reviewId',
+      'tool',
+      'dryRun',
+      'bytes',
+      'sha256',
+      'result',
+      'ms',
+    ]);
+    expect(line.reviewId).toBe(mockPullReview.id);
+    expect(serialized).not.toContain(body);
+  });
+
+  it('sends nothing for a review dry run and reports the plan and the verdict', async () => {
+    let posts = 0;
+    mockServer.use(
+      http.post(SUBMIT_REVIEW_URL, () => {
+        posts += 1;
+        return HttpResponse.json(mockSubmittedReview(), { status: 200 });
+      }),
+    );
+    const { entries, sink } = collectAudit();
+    const body = 'Please change the retry handling.';
+    const result = await callTool('submit_pull_review', reviewArgs({ event: 'REQUEST_CHANGES', body, dryRun: true }), {
+      ...REVIEW_WRITE_ALLOWED,
+      writeAudit: sink,
+    });
+
+    expect(posts).toBe(0);
+    const planned = resultJson(result) as {
+      dryRun?: boolean;
+      plan?: Record<string, unknown>;
+      note?: string;
+    };
+    expect(planned.dryRun).toBe(true);
+    expect(planned.plan).toMatchObject({
+      tool: 'submit_pull_review',
+      instance: 'instance-1',
+      repo: 'demo-user/demo-repo',
+      target: 'demo-user/demo-repo#2',
+      reviewId: mockPullReview.id,
+      event: 'REQUEST_CHANGES',
+      bodyCharacters: body.length,
+      bytes: Buffer.byteLength(body, 'utf8'),
+      api: `POST /repos/demo-user/demo-repo/pulls/2/reviews/${mockPullReview.id}`,
+    });
+    expect(planned.plan?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    // §9 stage 2: the plan carries the extra wording the verdict deserves.
+    expect(String(planned.plan?.consequence)).toMatch(/request for changes/i);
+    // §7: a dry run must not promise that the server would accept the call.
+    expect(planned.note).toMatch(/accepting/i);
+    expect(entries[0].dryRun).toBe(true);
+    expect(entries[0].result).toBe('ok');
+    expect(entries[0].reviewId).toBe(mockPullReview.id);
+  });
+
+  it('replays a repeated review idempotency key instead of submitting twice', async () => {
+    let posts = 0;
+    mockServer.use(
+      http.post(SUBMIT_REVIEW_URL, async ({ request }) => {
+        posts += 1;
+        const sent = (await request.json()) as { event?: string; body?: string };
+        return HttpResponse.json(mockSubmittedReview({ event: sent.event, body: sent.body }), { status: 200 });
+      }),
+    );
+    const server = createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'), {
+      ...REVIEW_WRITE_ALLOWED,
+      writeAudit: collectAudit().sink,
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: 'mcp-test-client', version: '0.0.0' });
+    await client.connect(clientTransport);
+    try {
+      const args = reviewArgs({ event: 'COMMENT', body: 'once', idempotencyKey: 'review-key-1' });
+      const first = (await client.callTool({ name: 'submit_pull_review', arguments: args })) as TextToolResult;
+      const second = (await client.callTool({ name: 'submit_pull_review', arguments: args })) as TextToolResult;
+
+      expect(posts).toBe(1);
+      expect((resultJson(first) as { id?: number }).id).toBe(mockPullReview.id);
+      const replay = resultJson(second) as { duplicate?: boolean; result?: { id?: number }; message?: string };
+      expect(replay.duplicate).toBe(true);
+      expect(replay.result?.id).toBe(mockPullReview.id);
+      expect(replay.message).toMatch(/nothing new was created/i);
+
+      // The same key with a different body is a caller bug, not a replay.
+      const mismatched = (await client.callTool({
+        name: 'submit_pull_review',
+        arguments: { ...args, body: 'different' },
+      })) as TextToolResult;
+      expect(mismatched.isError).toBe(true);
+      expect(mismatched.content[0].text ?? '').toMatch(/idempotencyKey/);
+      expect(posts).toBe(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it('rejects an event outside the enum before any request', async () => {
+    // §4.2: the spelling is the whole point — `APPROVE` and `CHANGES_REQUESTED`
+    // are the synonyms a model reaches for, and the server leaves the review
+    // pending (422) on anything its own switch does not recognise. The schema is
+    // the only place that can stop the call.
+    let posts = 0;
+    mockServer.use(
+      http.post(SUBMIT_REVIEW_URL, () => {
+        posts += 1;
+        return HttpResponse.json(mockSubmittedReview(), { status: 200 });
+      }),
+    );
+    for (const event of ['APPROVE', 'CHANGES_REQUESTED', 'approve', 'approved', 'PENDING', '']) {
+      const result = await callTool('submit_pull_review', reviewArgs({ event }), REVIEW_WRITE_ALLOWED);
+      expect(result.isError, event).toBe(true);
+      expect(result.content[0].text ?? '', event).toMatch(/event/i);
+    }
+    expect(posts).toBe(0);
+  });
+
+  it('refuses a body-less APPROVED or REQUEST_CHANGES review without sending anything', async () => {
+    // The server's own rule (`preparePullReviewType`: `needsBody` stays true for
+    // both verdicts), enforced here so the caller is told before a confirmation
+    // dialog is ever shown. COMMENT may omit the message.
+    let posts = 0;
+    mockServer.use(
+      http.post(SUBMIT_REVIEW_URL, () => {
+        posts += 1;
+        return HttpResponse.json(mockSubmittedReview(), { status: 200 });
+      }),
+    );
+    const { entries, sink } = collectAudit();
+    const context = { ...REVIEW_WRITE_ALLOWED, writeAudit: sink };
+
+    for (const event of ['APPROVED', 'REQUEST_CHANGES'] as const) {
+      const result = await callTool('submit_pull_review', reviewArgs({ event, body: '   ' }), context);
+      expect(result.isError, event).toBe(true);
+      expect(result.content[0].text ?? '', event).toMatch(/non-empty/);
+    }
+    expect(posts).toBe(0);
+    // Both refusals are still audited (§8).
+    expect(entries.map((entry) => entry.result)).toEqual(['refused:validation', 'refused:validation']);
+  });
+
+  it('keeps the two per-tool switches independent in both directions', async () => {
+    // The whole point of per-tool switches (§13.2): turning one on must not
+    // enable the other, whichever one it is.
+    const commentOnly = await callTool('submit_pull_review', reviewArgs(), {
+      instanceId: 'instance-1',
+      writeTools: WRITE_TOOLS,
+      enabledWriteTools: ['create_issue_comment'],
+    });
+    expect(commentOnly.isError).toBeFalsy();
+    const commentRefusal = JSON.parse(commentOnly.content[0].text as string) as { reason?: string; message?: string };
+    expect(commentRefusal.reason).toBe('disabled');
+    expect(commentRefusal.message).toContain('forgejoToolkit.mcpWriteTools.submitPullReview');
+
+    const reviewOnly = await callTool(
+      'create_issue_comment',
+      { owner: 'demo-user', repo: 'demo-repo', index: 1, body: 'hello' },
+      { instanceId: 'instance-1', writeTools: WRITE_TOOLS, enabledWriteTools: ['submit_pull_review'] },
+    );
+    expect(reviewOnly.isError).toBeFalsy();
+    const reviewRefusal = JSON.parse(reviewOnly.content[0].text as string) as { reason?: string; message?: string };
+    expect(reviewRefusal.reason).toBe('disabled');
+    expect(reviewRefusal.message).toContain('forgejoToolkit.mcpWriteTools.createIssueComment');
   });
 
   it('round-trips list_issues as a paged result with the rows and no total', async () => {

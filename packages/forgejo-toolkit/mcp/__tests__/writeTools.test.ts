@@ -8,6 +8,8 @@ import {
   mcpWriteToolSettingKey,
   hasHostProvenance,
   sessionWriteToolsFromEnvironment,
+  writeAuditRecord,
+  writeInstanceLabel,
   writeRefusalMessage,
   writeRefusalReason,
   WRITE_TOOL_ANNOTATIONS,
@@ -112,6 +114,64 @@ describe('write tool surface', () => {
     // The stage-2 tool's message must name the stage-2 setting, not stage 1's.
     expect(writeRefusalMessage('disabled', 'submit_pull_review')).toContain(
       'forgejoToolkit.mcpWriteTools.submitPullReview',
+    );
+  });
+
+  it('builds one audit record with the fixed field set, for either tool', () => {
+    // §8/§13.5 fix the fields; both tools go through this one builder, so the
+    // set cannot drift between them. The body is never a field: only its byte
+    // count and digest are, and only when the call carried a body at all.
+    const comment = writeAuditRecord(
+      { writeCaller: 'extension host (broker session, cwd demo)', writeInstanceLabel: 'Demo (instance-1)' },
+      {
+        tool: 'create_issue_comment',
+        repo: 'demo-user/demo-repo',
+        target: 'demo-user/demo-repo#12',
+        dryRun: false,
+        bytes: 10,
+        sha256: 'a'.repeat(64),
+      },
+      'ok',
+      42,
+    );
+    expect(Object.keys(comment).sort()).toEqual(
+      ['at', 'bytes', 'caller', 'dryRun', 'instance', 'ms', 'repo', 'result', 'sha256', 'target', 'tool'].sort(),
+    );
+    expect(comment.caller).toBe('extension host (broker session, cwd demo)');
+    expect(comment.instance).toBe('Demo (instance-1)');
+    expect(comment.result).toBe('ok');
+    expect(comment.ms).toBe(42);
+    expect(comment.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(comment).not.toHaveProperty('body');
+
+    // The review tool adds exactly one field, `reviewId`, and with no body the
+    // two body fields are absent rather than zero or an empty digest — a
+    // body-less COMMENT review is a legitimate call.
+    const review = writeAuditRecord(
+      {},
+      {
+        tool: 'submit_pull_review',
+        repo: 'demo-user/demo-repo',
+        target: 'demo-user/demo-repo#12',
+        reviewId: 7,
+        dryRun: true,
+      },
+      'duplicate',
+      0,
+    );
+    expect(Object.keys(review).sort()).toEqual(
+      ['at', 'caller', 'dryRun', 'instance', 'ms', 'repo', 'result', 'reviewId', 'target', 'tool'].sort(),
+    );
+    expect(review.reviewId).toBe(7);
+    expect(review.bytes).toBeUndefined();
+    expect(review.sha256).toBeUndefined();
+    // Defaults: the extension host is where the tool logic runs, and an
+    // unknown instance is named as such rather than left empty.
+    expect(review.caller).toBe('extension host');
+    expect(review.instance).toBe('unknown');
+    expect(writeInstanceLabel({ instanceId: 'instance-9' })).toBe('instance-9');
+    expect(writeInstanceLabel({ writeInstanceLabel: 'Demo (instance-9)', instanceId: 'instance-9' })).toBe(
+      'Demo (instance-9)',
     );
   });
 });

@@ -33,12 +33,10 @@
  */
 
 /**
- * The first-release write tools. `submit_pull_review` is stage 2: it is listed
- * here because the decision record fixes its name and its switch
- * (`forgejoToolkit.mcpWriteTools.submitPullReview`), while its tool, schema and
- * handler are not implemented yet, so the switch is deliberately **not**
- * contributed to `package.json` (a setting whose tool does not exist must not
- * be user-visible).
+ * The first-release write tools, both shipped (§4.2): `create_issue_comment`
+ * (stage 1) and `submit_pull_review` (stage 2). Each has its own switch, and
+ * this list is the single spelling used for the tool names, the settings and
+ * the provenance marker.
  */
 export const MCP_WRITE_TOOL_NAMES = ['create_issue_comment', 'submit_pull_review'] as const;
 
@@ -58,11 +56,11 @@ export type McpWriteTool = (typeof MCP_WRITE_TOOL_NAMES)[number];
 export const MCP_ENV_WRITE_TOOLS = 'FORGEJO_MCP_WRITE_TOOLS';
 
 /**
- * Longest accepted comment body, in UTF-8 bytes. Forgejo itself accepts more,
- * so this is not a server contract: it bounds what one approved tool call can
- * push through the stdio/pipe channel and into the audit line, and it keeps a
- * runaway model from turning a review comment into a megabyte upload. A body
- * over the cap is refused with a validation error before anything is sent.
+ * Longest accepted write body, in UTF-8 bytes. Forgejo itself accepts more, so
+ * this is not a server contract: it bounds what one approved tool call can push
+ * through the stdio/pipe channel and into the audit line, and it keeps a runaway
+ * model from turning a comment or review into a megabyte upload. A body over the
+ * cap is refused with a validation error before anything is sent.
  */
 export const MCP_WRITE_BODY_MAX_BYTES = 64 * 1024;
 
@@ -124,9 +122,11 @@ export interface McpWriteAuditRecord {
   instance: string;
   /** `owner/repo`. */
   repo: string;
-  /** `owner/repo#index` (stage 2 adds the review id). */
+  /** `owner/repo#index`; a review's own number travels in `reviewId` (§8). */
   target: string;
   tool: McpWriteTool;
+  /** The review a `submit_pull_review` call submits; absent on the other tool. */
+  reviewId?: number;
   dryRun: boolean;
   /** UTF-8 bytes of the body; absent when the call carried no body at all. */
   bytes?: number;
@@ -136,6 +136,78 @@ export interface McpWriteAuditRecord {
   result: string;
   /** Wall-clock duration of the call, milliseconds. */
   ms: number;
+}
+
+/**
+ * What the caller asked for, as the audit line and the idempotency table both
+ * see it. Deliberately not the whole audit record: everything in here is known
+ * before the call runs, and `ms`/`result`/`at` are not — so this is what the
+ * idempotency table stores besides the replayable response, and what every
+ * audit line is built from.
+ */
+export interface McpWriteAuditDraft {
+  tool: McpWriteTool;
+  repo: string;
+  target: string;
+  reviewId?: number;
+  dryRun: boolean;
+  bytes?: number;
+  sha256?: string;
+}
+
+/**
+ * Who and where an audit line names. `caller` defaults to the extension host
+ * because that is the process the tool logic runs in — a broker session passes
+ * a more specific string (`extension host (broker session …, cwd …)`), and the
+ * instance is a display label that never carries a token or a URL with userinfo.
+ */
+export function writeAuditRecord(
+  workspaceContext: {
+    writeCaller?: string;
+    writeInstanceLabel?: string;
+    instanceId?: string;
+  },
+  draft: McpWriteAuditDraft,
+  result: string,
+  ms: number,
+): McpWriteAuditRecord {
+  return {
+    ...draft,
+    caller: workspaceContext.writeCaller ?? 'extension host',
+    instance: workspaceContext.writeInstanceLabel ?? workspaceContext.instanceId ?? 'unknown',
+    at: new Date().toISOString(),
+    result,
+    ms,
+  };
+}
+
+/**
+ * The instance the plan and the audit line name. Exported so a dry run can label
+ * the target exactly the way the audit record of the real call would.
+ */
+export function writeInstanceLabel(workspaceContext: { writeInstanceLabel?: string; instanceId?: string }): string {
+  return workspaceContext.writeInstanceLabel ?? workspaceContext.instanceId ?? 'unknown';
+}
+
+/**
+ * The replay text of an idempotency hit. Shared because "this is the same
+ * logical operation as the one that already ran, and here is its result" is the
+ * same sentence for both tools — only the noun differs, and the noun is carried
+ * by the tool that built the response.
+ */
+export const WRITE_IDEMPOTENCY_REPLAY_MESSAGE =
+  'This is a repeat of an earlier call with the same idempotencyKey and the same target and body; ' +
+  'the earlier result is returned and nothing new was created.';
+
+/** The reason an audit line carries when a key was reused for a different call. */
+export const WRITE_IDEMPOTENCY_REUSE_REASON = 'idempotency-key-reused';
+
+/** The error a key reused for a different target, review or body produces. */
+export function writeIdempotencyReuseMessage(key: string): string {
+  return (
+    `idempotencyKey "${key}" was already used in this session for a different target or body. ` +
+    'Generate a new key for a different operation; reuse a key only when retrying the same logical operation.'
+  );
 }
 
 /**

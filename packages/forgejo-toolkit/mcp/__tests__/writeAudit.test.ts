@@ -59,6 +59,27 @@ describe('write audit serialization', () => {
     const line = formatMcpWriteAuditRecord({ ...RECORD, bytes: Buffer.byteLength(secret, 'utf8') });
     expect(line).not.toContain(secret);
   });
+
+  it('carries the review id only for the tool that has one', () => {
+    // The review tool refines `target` with the review it submits; leaving the
+    // field out of the serializer would drop it from both sinks, since both are
+    // written from this one function.
+    const review = formatMcpWriteAuditRecord({
+      ...RECORD,
+      tool: 'submit_pull_review',
+      reviewId: 100,
+      bytes: undefined,
+      sha256: undefined,
+    });
+    const parsed = JSON.parse(review) as Record<string, unknown>;
+    expect(parsed.reviewId).toBe(100);
+    expect(parsed.target).toBe('demo-user/demo-repo#12');
+    expect(parsed.tool).toBe('submit_pull_review');
+    expect(parsed).not.toHaveProperty('bytes');
+    expect(parsed).not.toHaveProperty('sha256');
+    // The stage-1 line is unchanged: no `reviewId` key at all.
+    expect(JSON.parse(formatMcpWriteAuditRecord(RECORD))).not.toHaveProperty('reviewId');
+  });
 });
 
 describe('write audit sink', () => {

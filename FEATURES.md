@@ -5,7 +5,6 @@
 ## 进行中
 
 - **多窗口轮询租约**：机制已交付并默认开启（`forgejoToolkit.multiWindowLease`）——同一时间只有持有者窗口轮询与提示，其余窗口保持安静，任何不确定都退化为全速轮询，不可信时的正确降级是完全不换手；仍待定稿的是去抖、防乒乓、加速接管、心跳重试与降级阈值这几组参数（按真实观测定稿），仍待按平台验证的是逐窗口焦点保真度（多显示器、最小化、锁屏、同 profile 双窗口）。见 `TODO.md` 的「多窗口轮询租约」条目。
-- **MCP 写工具（Phase 2）**：首个写工具 `create_issue_comment` 已可用，默认关闭——开启后 AI 可以通过 MCP 在 Issue / Pull Request 下新增一条评论。两道闸门：VS Code 每次调用都会弹确认框，并且还需要在扩展设置里逐工具开启（`forgejoToolkit.mcpWriteTools.createIssueComment`）。只有**由扩展宿主建立的会话**才能写（扩展提供的 MCP server，或静态 `mcp.json` 经宿主 broker 转发的会话）；只带你自己配置里 token 的会话只能读，写请求会被明确拒绝并指出该打开哪个设置。工具支持 dry-run（先念计划再提交）与幂等键（重试不会重复发评论），每次调用都会留下不含正文的审计记录（默认只进 `Forgejo Toolkit` Output Channel，可用 `forgejoToolkit.mcpWriteAuditToFile` 同时落盘）。**仍待交付**：`submit_pull_review`（评审结论 APPROVE / REQUEST_CHANGES / COMMENT 与对应双重警示文案），以及两个只在真实 MCP 会话里才能做的验收（VS Code 确认框真的会弹、"Always Allow" 实际持久了什么）。设计与决定记录见 `docs/design/mcp-write-tools-confirmation.md`，剩余实现与验收在 `TODO.md` 的「MCP Phase 2 写工具的实现」条目。
 
 ## 已完成
 
@@ -188,6 +187,8 @@
 - MCP broker 模式：静态 `mcp.json`（Agents 窗口 / 第三方 MCP 客户端）拉起的 server 在扩展宿主运行时变成纯转发器——首行握手（每次启动随机生成的密钥，发布在 globalStorage 的 `mcp-broker.json`，同用户可读）后把 stdio 逐行桥接到宿主的命名管道 / unix socket，真正的工具逻辑带 token 在扩展宿主进程里执行，token 不出边界。**扩展自己提供的 definition 也走同一条转发路径**（它同样不带 token），握手里额外带上该 definition 的实例 id、本窗口的工作区状态文件与同步开关。每连接一个独立 MCP server 实例；实例解析**先看握手里的显式实例 id**（解析不到就拒绝会话），没有时按会话 cwd 命中的已链接检出，找不到时用第一个有 token 的实例。多窗口只留第一个绑定成功的 broker，其余静默让位；**静态** `mcp.json` 启动在 broker 不可达时降级到匿名零配置启动，扩展提供的 definition 则带 `FORGEJO_MCP_BROKER_ONLY`，此时记 stderr 日志并以退出码 1 结束（不降级）。
 - 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
 - 面向 agent 上下文预算的 PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部（标题/状态/作者/基头分支/合并阻塞）、diff 统计（文件数与总增删行，外加按文件的增删行表——不含 diff 文本）、每个 reviewer 的最新结论与汇总判断、以及未解决的 inline 评审评论（path/line/作者/时间/正文），替代评审起步时的 `get_pull_request` + `get_pr_diff` + `get_pr_timeline` + `list_pull_reviews` 四次调用；描述注明 diff 文本、描述、commit 与时间线仍需按需回退原工具。评论按 review 逐条读取（上游没有一次取全的端点），以 4 并发有界扇出，单个 review 读取失败只计入 `unreadableReviewCount`；被解决的会话按 Forgejo 只写在首条评论上的 `resolver` 整体排除。各段预分片（文件表 100 行/16 KB，评论 50 条/24 KB、单条正文 1 KB），`truncated`/`truncatedBy`/`bodyTruncated` 标注每处裁剪且总数保持精确，不依赖 `truncateLargeStrings` 兜底。
+- Phase 2 写工具（首批两个，均默认关闭、各自独立开关）：`create_issue_comment` 在 Issue / PR 下新增一条评论；`submit_pull_review` 提交一个已存在的待处理（pending）评审，结论为 `COMMENT` / `APPROVED` / `REQUEST_CHANGES`（拼写与 Forgejo 的 `ReviewStateType` 一致，非法取值在发请求前即被拒），其中 `APPROVED` 可能满足分支保护要求，且 `APPROVED` 与 `REQUEST_CHANGES` 必须有非空正文。两道闸门：VS Code 每次调用弹确认框，并且要在扩展设置里**按工具**开启（`forgejoToolkit.mcpWriteTools.createIssueComment` / `forgejoToolkit.mcpWriteTools.submitPullReview`）；只有**由扩展宿主建立的会话**才能写，只带你自己配置里 token 的会话会被明确拒绝并指出该打开哪个设置。
+- 两个写工具都支持 dry-run（先给出计划，含目标、正文长度与摘要哈希，评审还会说明结论的含义）与幂等键（10 分钟内同一 key 的相同调用只发一次、直接回放上次结果）；每次调用都留下不含正文的审计记录（默认只进 `Forgejo Toolkit` Output Channel，可用 `forgejoToolkit.mcpWriteAuditToFile` 同时落盘，评审记录额外带 `reviewId`）。设计与决定记录见 `docs/design/mcp-write-tools-confirmation.md`。
 
 ### 0.0.1 之后（首个发布版之后的加固与优化）
 
@@ -225,7 +226,6 @@
 - Issue 分诊建议：按内容建议标签与负责人。
 - AI 预评审（draft-only）：在 PR diff 视图生成预评审意见，只落成待人工逐条确认的评审草稿。
 - 通知讨论摘要：在通知列表总结讨论时间线。
-- MCP Server Phase 2 写操作工具：确认模型设计已交付，实现尚未开工，首批为 `create_issue_comment` 与 `submit_pull_review`；见 `TODO.md` 的「MCP Phase 2 写工具的实现」条目。
 
 ### 等上游
 

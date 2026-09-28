@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SHA-256, result and duration — never the comment text. Off by default, the
   records still go to the `Forgejo Toolkit` Output Channel, where they are gone
   when the window closes.
+- The MCP server's second **write** tool, `submit_pull_review`, which submits an
+  existing pending review with the verdict `COMMENT`, `APPROVED` or
+  `REQUEST_CHANGES` (`reviewId` names the review; no other spelling of a verdict
+  is accepted, and `APPROVED` / `REQUEST_CHANGES` need a review message). It is
+  off by default and independent of the comment tool's switch — its own setting
+  is `forgejoToolkit.mcpWriteTools.submitPullReview` — and it is available only
+  in a session the extension host itself established, exactly like
+  `create_issue_comment`. It shares that tool's retry key (a repeat of the same
+  review within ten minutes replays the earlier result), its `dryRun` plan
+  (which also says what the verdict means) and its audit line, which carries
+  `reviewId` beside the target and never the review text.
 - The MCP server gains `get_pr_review_brief`, which answers a whole pull request
   review in one call: the pull request header, the diff statistics with a
   per-file additions/deletions table, each reviewer's latest conclusion plus an

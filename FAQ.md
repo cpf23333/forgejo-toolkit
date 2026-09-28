@@ -86,11 +86,13 @@ The file is created when it does not exist. An existing file keeps all of its ow
 
 ### Can the AI agent modify my repository through this extension?
 
-No. All MCP tools are currently read-only (`readOnlyHint`), so the agent can query issues, PRs, Actions runs, and code, but cannot change anything. Write tools may be added in the future as opt-in features — disabled by default and enabled one by one. Note that VS Code does not ask for confirmation before a read-only tool call, so the guarantee rests on the tool surface itself: every tool is a `GET` (the one exception, `get_workspace_repository`, only reads a local state file the extension publishes), and request-path inputs are validated so a crafted argument cannot reach a different endpoint.
+Only if you deliberately turn it on, one tool at a time. The 30 query tools are read-only (`readOnlyHint`), so with them alone the agent can read issues, PRs, Actions runs and code but cannot change anything. Two **write** tools exist — `create_issue_comment` (one issue or pull request comment) and `submit_pull_review` (submit a pending PR review as `COMMENT`, `APPROVED` or `REQUEST_CHANGES`) — and each is off by default behind its own setting (`forgejoToolkit.mcpWriteTools.createIssueComment` / `forgejoToolkit.mcpWriteTools.submitPullReview`); nothing else is planned or implemented. A write tool declares no `readOnlyHint`, so VS Code asks you to confirm every call and lets you edit the parameters there. It also requires a session **the extension host itself established**: a launch that only carries a token from your own `mcp.json`, or no token at all, gets a plain refusal naming the setting instead of writing.
+
+For the read half, VS Code does not ask for confirmation before a read-only tool call, so the guarantee rests on the tool surface itself: every read tool is a `GET` (the one exception, `get_workspace_repository`, only reads a local state file the extension publishes), and request-path inputs are validated so a crafted argument cannot reach a different endpoint. Every write call is additionally recorded in the `Forgejo Toolkit` Output Channel — caller, instance, repository, target, tool, body size and digest, result and duration, never the text.
 
 ### What does "Configure Model Access" do for this MCP server?
 
-Nothing today. VS Code shows that menu entry for every MCP server; it controls which models a server may use through MCP _sampling_ (server-initiated model calls). This extension's server never requests sampling — it only serves read-only tool calls — so the setting has no effect on it.
+Nothing today. VS Code shows that menu entry for every MCP server; it controls which models a server may use through MCP _sampling_ (server-initiated model calls). This extension's server never requests sampling — it only serves tool calls, read-only ones unless you turned a write switch on — so the setting has no effect on it.
 
 ### Can I use the MCP server in the Agents window?
 

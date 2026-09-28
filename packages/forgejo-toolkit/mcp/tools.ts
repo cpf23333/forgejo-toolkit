@@ -24,10 +24,15 @@ import { resolveWorkspaceRepository } from './workspaceState';
 import {
   decideWriteCall,
   MCP_WRITE_BODY_MAX_BYTES,
+  writeAuditRecord,
+  writeIdempotencyReuseMessage,
+  WRITE_IDEMPOTENCY_REPLAY_MESSAGE,
+  WRITE_IDEMPOTENCY_REUSE_REASON,
+  writeInstanceLabel,
   writeRefusalMessage,
   writeRefusalReason,
   WRITE_TOOL_ANNOTATIONS,
-  type McpWriteAuditRecord,
+  type McpWriteAuditDraft,
   type McpWriteAuditSink,
   type McpWriteTool,
 } from './writeTools';
@@ -140,7 +145,7 @@ export interface ReviewRefArgs extends IssueRefArgs {
   reviewId: number;
 }
 
-/** Input of `create_issue_comment` (stage 1's only write tool). */
+/** Input of `create_issue_comment` (stage 1's write tool). */
 export interface CreateIssueCommentArgs extends IssueRefArgs {
   /** The comment text (Markdown). Non-empty, at most `MCP_WRITE_BODY_MAX_BYTES`. */
   body: string;
@@ -150,6 +155,46 @@ export interface CreateIssueCommentArgs extends IssueRefArgs {
    * session's 10-minute window the same key with the same target and body
    * replays the earlier result instead of writing twice.
    */
+  idempotencyKey?: string;
+  /** Report what would be sent, without sending it. Default: false. */
+  dryRun?: boolean;
+}
+
+/**
+ * The verdicts `submit_pull_review` accepts, spelled exactly as Forgejo's own
+ * `ReviewStateType` spells them — this is what the server's `switch` compares
+ * against, and the review stays pending on anything it does not recognise
+ * (`services/pull/review.go`, `preparePullReviewType`). `APPROVE` is **not**
+ * one of the three: the client library's default parameter literal is not a
+ * wire value, and sending it would leave the review pending with a 422.
+ *
+ * `PENDING` is deliberately absent: this tool submits a review, and the server
+ * refuses "review stay pending" — starting a pending review is a different
+ * operation with no place in a submit tool.
+ */
+export const PULL_REVIEW_EVENTS = ['COMMENT', 'APPROVED', 'REQUEST_CHANGES'] as const;
+
+/** One accepted `submit_pull_review` verdict. */
+export type PullReviewEvent = (typeof PULL_REVIEW_EVENTS)[number];
+
+/** Input of `submit_pull_review` (stage 2's write tool). */
+export interface SubmitPullReviewArgs extends IssueRefArgs {
+  /**
+   * The id of the **pending** review to submit. Only a pending review can be
+   * submitted (`POST /repos/{owner}/{repo}/pulls/{index}/reviews/{id}`);
+   * an already-submitted review is refused by the server with 422.
+   */
+  reviewId: number;
+  /** The verdict: `COMMENT`, `APPROVED` or `REQUEST_CHANGES`. */
+  event: PullReviewEvent;
+  /**
+   * The review's message (Markdown). Required for `APPROVED` and
+   * `REQUEST_CHANGES` (the server rejects those with an empty body); optional
+   * for `COMMENT`, which may instead carry the pending review's inline
+   * comments. At most `MCP_WRITE_BODY_MAX_BYTES`.
+   */
+  body?: string;
+  /** Retry key — same semantics as `create_issue_comment`'s. */
   idempotencyKey?: string;
   /** Report what would be sent, without sending it. Default: false. */
   dryRun?: boolean;
@@ -987,28 +1032,7 @@ function sha256Hex(value: string): string {
 }
 
 /** One audited write call, before `ms` and the outcome are known. */
-interface WriteAuditDraft {
-  tool: McpWriteTool;
-  repo: string;
-  target: string;
-  dryRun: boolean;
-  bytes?: number;
-  sha256?: string;
-}
-
-/**
- * Who and where the audit line names. `caller` defaults to the extension host
- * because that is the process the tool logic runs in — a broker session passes
- * a more specific string (`extension host (broker session …, cwd …)`).
- */
-function writeAuditCaller(workspaceContext: WorkspaceContextOptions): string {
-  return workspaceContext.writeCaller ?? 'extension host';
-}
-
-/** The instance the audit line names: a display label, never a token or URL. */
-function writeAuditInstance(workspaceContext: WorkspaceContextOptions): string {
-  return workspaceContext.writeInstanceLabel ?? workspaceContext.instanceId ?? 'unknown';
-}
+type WriteAuditDraft = McpWriteAuditDraft;
 
 /**
  * Structurally identical to the client's `ApiError` (`toApiError`), which is
@@ -1020,15 +1044,141 @@ interface ApiErrorLike {
   status?: number;
 }
 
-/** One successful write, kept for the session's idempotency table (§6.2). */
+/**
+ * One successful write, kept for the session's idempotency table (§6.2).
+ *
+ * `decision` is the whole of what the caller asked for — tool, target, review
+ * id, body digest — and `sha256` is deliberately absent from an entry for a
+ * body-less call: a body-less `COMMENT` review is a legitimate call, and `''`
+ * would make it indistinguishable from a call that carried an empty body.
+ * A `body === undefined` call therefore never matches one that carried text.
+ */
 interface WriteIdempotencyEntry {
-  tool: McpWriteTool;
-  target: string;
-  sha256: string;
+  decision: WriteIdempotencyDecision;
   /** The `ok` payload, replayed verbatim when the same call comes back. */
   response: Record<string, unknown>;
   /** Completion time, for the TTL sweep. */
   at: number;
+}
+
+/** The identity of one logical write: what a retry has to reproduce exactly. */
+interface WriteIdempotencyDecision {
+  tool: McpWriteTool;
+  target: string;
+  reviewId?: number;
+  sha256?: string;
+}
+
+/** What the session's idempotency table says about this call (§6.3). */
+type WriteIdempotencyLookup =
+  | { kind: 'proceed' }
+  | { kind: 'replay'; response: Record<string, unknown> }
+  | { kind: 'key-reuse'; key: string };
+
+/**
+ * The same key with the same target, review and body digest is a retry of a
+ * call that already succeeded, and gets that call's result back; the same key
+ * with anything different is a caller bug and is refused before any request.
+ *
+ * Both write tools share this table, so the tool name is part of the identity:
+ * one key reused across the comment tool and the review tool is a reuse, not a
+ * replay of the other tool's result.
+ */
+function resolveIdempotency(
+  table: WriteIdempotencyTable,
+  key: string | undefined,
+  decision: WriteIdempotencyDecision,
+): WriteIdempotencyLookup {
+  if (key === undefined) {
+    return { kind: 'proceed' };
+  }
+  const previous = table.lookup(key, Date.now());
+  if (!previous) {
+    return { kind: 'proceed' };
+  }
+  const same =
+    previous.decision.tool === decision.tool &&
+    previous.decision.target === decision.target &&
+    previous.decision.reviewId === decision.reviewId &&
+    previous.decision.sha256 === decision.sha256;
+  return same ? { kind: 'replay', response: previous.response } : { kind: 'key-reuse', key };
+}
+
+/**
+ * The body validation and the two gates, in the order the design fixes (§9):
+ * an empty or oversized body is the caller's own error and is reported even
+ * where writing is disabled, and only a session that both carries the
+ * provenance marker **and** has the tool's switch on may proceed.
+ *
+ * Shared by both write tools rather than copied: the ordering is what the tests
+ * assert (nothing is sent while a gate is closed), and a second copy of it is
+ * exactly where the two tools would drift apart.
+ */
+async function validateWriteCall(
+  workspaceContext: WorkspaceContextOptions,
+  tool: McpWriteTool,
+  body: string | undefined,
+  options: { requireBody: boolean },
+  audit: (result: string, bytes?: number, sha256?: string) => Promise<void>,
+): Promise<{ kind: 'refused'; response: unknown } | { kind: 'ok'; body?: string; bytes?: number; digest?: string }> {
+  const hasBody = typeof body === 'string';
+  const bytes = hasBody ? utf8ByteLength(body) : undefined;
+  const digest = hasBody ? sha256Hex(body) : undefined;
+
+  if (options.requireBody && (!hasBody || body.trim() === '')) {
+    await audit('refused:validation', bytes, digest);
+    throw new Error(
+      'body must be a non-empty review message for this event; the server rejects a body-less APPROVED or REQUEST_CHANGES review. Nothing was sent.',
+    );
+  }
+  if (bytes !== undefined && bytes > MCP_WRITE_BODY_MAX_BYTES) {
+    await audit('refused:validation', bytes, digest);
+    throw new Error(
+      `body is ${bytes} bytes, over the ${MCP_WRITE_BODY_MAX_BYTES}-byte limit of this tool; nothing was sent.`,
+    );
+  }
+
+  const decision = decideWriteCall(tool, {
+    writeTools: workspaceContext.writeTools ?? [],
+    enabledTools: workspaceContext.enabledWriteTools ?? [],
+  });
+  if (decision !== 'allowed') {
+    await audit(`refused:${writeRefusalReason(decision)}`, bytes, digest);
+    return {
+      kind: 'refused',
+      response: {
+        ok: false,
+        refused: true,
+        reason: decision,
+        message: writeRefusalMessage(decision, tool),
+      },
+    };
+  }
+  return { kind: 'ok', ...(hasBody ? { body, bytes, digest } : {}) };
+}
+
+/**
+ * One audit line for one write call, written through the host-supplied sink.
+ *
+ * A session with no sink (the headless child, or a unit test) records nothing —
+ * there is nothing to record to — and a failing sink never fails the tool call:
+ * the audit is a record *about* the call, not part of it. Both tools build the
+ * record through this one function, so the field set cannot drift between them.
+ */
+function writeAuditor(workspaceContext: WorkspaceContextOptions, draft: WriteAuditDraft) {
+  const started = Date.now();
+  return async (result: string, ms = Date.now() - started): Promise<void> => {
+    const sink = workspaceContext.writeAudit;
+    if (!sink) {
+      return;
+    }
+    try {
+      await sink.record(writeAuditRecord(workspaceContext, draft, result, ms));
+      sink.recordFilePath();
+    } catch {
+      // Swallowed on purpose: see above.
+    }
+  };
 }
 
 /**
@@ -1081,7 +1231,7 @@ export const WRITE_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 export const WRITE_IDEMPOTENCY_MAX_ENTRIES = 32;
 
 /**
- * `create_issue_comment`: the one write tool of stage 1.
+ * `create_issue_comment`: the write tool of stage 1.
  *
  * Ordering matters and is asserted by the tests: the body is validated, then
  * both gates are evaluated, then `dryRun` short-circuits, then the idempotency
@@ -1102,57 +1252,28 @@ function createIssueCommentWrite(
     const dryRun = args.dryRun === true;
     const repoRef = `${args.owner}/${args.repo}`;
     const target = `${repoRef}#${args.index}`;
-    const hasBody = typeof args.body === 'string';
-    const bytes = hasBody ? utf8ByteLength(args.body) : undefined;
-    const digest = hasBody ? sha256Hex(args.body) : undefined;
     const draft: WriteAuditDraft = {
       tool: 'create_issue_comment',
       repo: repoRef,
       target,
       dryRun,
-      bytes,
-      sha256: digest,
+      bytes: typeof args.body === 'string' ? utf8ByteLength(args.body) : undefined,
+      sha256: typeof args.body === 'string' ? sha256Hex(args.body) : undefined,
     };
-    const started = Date.now();
-
-    /** One audited outcome; the tool result is the caller's business. */
-    const audit = async (result: string, ms = Date.now() - started): Promise<void> => {
-      await recordWriteAudit(workspaceContext, {
-        ...draft,
-        caller: writeAuditCaller(workspaceContext),
-        instance: writeAuditInstance(workspaceContext),
-        at: new Date().toISOString(),
-        result,
-        ms,
-      });
-    };
+    const audit = writeAuditor(workspaceContext, draft);
 
     // Validation before the gates: an empty or oversized body is the caller's
     // own error and can be reported even where writing is disabled, and it
     // never reaches the network either way.
-    if (!hasBody || args.body.trim() === '') {
-      await audit('refused:validation');
-      throw new Error('body must be a non-empty comment; nothing was sent.');
-    }
-    if (bytes !== undefined && bytes > MCP_WRITE_BODY_MAX_BYTES) {
-      await audit('refused:validation');
-      throw new Error(
-        `body is ${bytes} bytes, over the ${MCP_WRITE_BODY_MAX_BYTES}-byte limit of this tool; nothing was sent.`,
-      );
-    }
-
-    const decision = decideWriteCall('create_issue_comment', {
-      writeTools: workspaceContext.writeTools ?? [],
-      enabledTools: workspaceContext.enabledWriteTools ?? [],
-    });
-    if (decision !== 'allowed') {
-      await audit(`refused:${writeRefusalReason(decision)}`);
-      return {
-        ok: false,
-        refused: true,
-        reason: decision,
-        message: writeRefusalMessage(decision, 'create_issue_comment'),
-      };
+    const validated = await validateWriteCall(
+      workspaceContext,
+      'create_issue_comment',
+      args.body,
+      { requireBody: true },
+      audit,
+    );
+    if (validated.kind === 'refused') {
+      return validated.response;
     }
 
     if (dryRun) {
@@ -1167,12 +1288,12 @@ function createIssueCommentWrite(
           tool: 'create_issue_comment',
           // The same label the audit line uses, so the plan the user is shown
           // and the record of what happened name the instance identically.
-          instance: writeAuditInstance(workspaceContext),
+          instance: writeInstanceLabel(workspaceContext),
           repo: repoRef,
           target,
           bodyCharacters: args.body.length,
-          bytes,
-          sha256: digest,
+          bytes: draft.bytes,
+          sha256: draft.sha256,
           api: `POST /repos/${args.owner}/${args.repo}/issues/${args.index}/comments`,
         },
         note: 'A dry run proves nothing about the server accepting this call: a missing write scope (403), a locked or invisible issue (404/423), rate limiting and validation errors only appear on the real request.',
@@ -1180,29 +1301,27 @@ function createIssueCommentWrite(
     }
 
     const key = args.idempotencyKey;
-    if (key !== undefined) {
-      const previous = table.lookup(key, Date.now());
-      if (previous) {
-        if (previous.tool === 'create_issue_comment' && previous.target === target && previous.sha256 === digest) {
-          await audit('duplicate');
-          return {
-            ok: true,
-            duplicate: true,
-            message:
-              'This is a repeat of an earlier call with the same idempotencyKey and the same target and body; the earlier result is returned and no new comment was created.',
-            result: previous.response,
-          };
-        }
-        await audit('refused:idempotency-key-reused');
-        throw new Error(
-          `idempotencyKey "${key}" was already used in this session for a different target or body. ` +
-            'Generate a new key for a different comment; reuse a key only when retrying the same logical operation.',
-        );
-      }
+    const lookup = resolveIdempotency(table, key, {
+      tool: 'create_issue_comment',
+      target,
+      sha256: draft.sha256,
+    });
+    if (lookup.kind === 'replay') {
+      await audit('duplicate');
+      return {
+        ok: true,
+        duplicate: true,
+        message: WRITE_IDEMPOTENCY_REPLAY_MESSAGE,
+        result: lookup.response,
+      };
+    }
+    if (lookup.kind === 'key-reuse') {
+      await audit(`refused:${WRITE_IDEMPOTENCY_REUSE_REASON}`);
+      throw new Error(writeIdempotencyReuseMessage(lookup.key));
     }
 
     try {
-      const comment = await client.createIssueComment(args.owner, args.repo, args.index, args.body);
+      const comment = await client.createIssueComment(args.owner, args.repo, args.index, validated.body as string);
       const response = {
         ok: true,
         id: comment.id,
@@ -1211,9 +1330,7 @@ function createIssueCommentWrite(
       };
       if (key !== undefined) {
         table.store(key, {
-          tool: 'create_issue_comment',
-          target,
-          sha256: digest as string,
+          decision: { tool: 'create_issue_comment', target, sha256: draft.sha256 },
           response,
           at: Date.now(),
         });
@@ -1229,23 +1346,149 @@ function createIssueCommentWrite(
 }
 
 /**
- * Appends one audit record through the host-supplied sink. A session with no
- * sink (the headless child, or a unit test) records nothing — there is nothing
- * to record to — and a failing sink never fails the tool call: the audit is a
- * record *about* the call, not part of it.
+ * `submit_pull_review`: the write tool of stage 2.
+ *
+ * Same ordering as stage 1's tool, and the same shared helpers implement it
+ * (`validateWriteCall` for the body and the two gates, `resolveIdempotency` for
+ * the retry table, `writeAuditor` for the audit line), so the two tools cannot
+ * drift apart on any of them. What is specific to this one:
+ *
+ * - The call needs a `reviewId`: `client.submitPullReview` submits an existing
+ *   **pending** review (`POST /repos/{owner}/{repo}/pulls/{index}/reviews/{id}`,
+ *   Forgejo's `SubmitPullReviewOptions` takes only `event` and `body`). The
+ *   endpoint cannot answer "state conflict" for a review that was never
+ *   started, so the review id is the one input that makes the call meaningful.
+ * - `event` is validated against `PULL_REVIEW_EVENTS` before anything is sent —
+ *   the schema does that for a call arriving over MCP, and the same list is what
+ *   the dry run and the description use, so all three spell the verdict
+ *   identically. The server leaves the review pending on an event it does not
+ *   recognise, which is why guessing a synonym is not an option (§4.2).
+ * - `APPROVED` and `REQUEST_CHANGES` require a body; a `COMMENT` review does
+ *   not need one (it may carry the pending review's inline comments instead).
  */
-async function recordWriteAudit(workspaceContext: WorkspaceContextOptions, record: McpWriteAuditRecord): Promise<void> {
-  const sink = workspaceContext.writeAudit;
-  if (!sink) {
-    return;
-  }
-  try {
-    await sink.record(record);
-    sink.recordFilePath();
-  } catch {
-    // Swallowed on purpose: see above.
-  }
+function submitPullReviewWrite(
+  client: ForgejoClient,
+  workspaceContext: WorkspaceContextOptions,
+  table: WriteIdempotencyTable,
+) {
+  return async function submit_pull_review(args: SubmitPullReviewArgs): Promise<unknown> {
+    const dryRun = args.dryRun === true;
+    const repoRef = `${args.owner}/${args.repo}`;
+    const target = `${repoRef}#${args.index}`;
+    const reviewId = args.reviewId;
+    const event = args.event;
+    const draft: WriteAuditDraft = {
+      tool: 'submit_pull_review',
+      repo: repoRef,
+      target,
+      // The review's own number travels beside the shared target, exactly as §8
+      // ("review 再加 reviewId") asks; putting it inside `target` would change
+      // the field's meaning for the other tool.
+      reviewId,
+      dryRun,
+      bytes: typeof args.body === 'string' ? utf8ByteLength(args.body) : undefined,
+      sha256: typeof args.body === 'string' ? sha256Hex(args.body) : undefined,
+    };
+    const audit = writeAuditor(workspaceContext, draft);
+
+    const validated = await validateWriteCall(
+      workspaceContext,
+      'submit_pull_review',
+      args.body,
+      // The server refuses a body-less APPROVED / REQUEST_CHANGES review
+      // (`preparePullReviewType`: `needsBody` stays true for both); COMMENT is
+      // the only verdict that may carry no review message.
+      { requireBody: event !== 'COMMENT' },
+      audit,
+    );
+    if (validated.kind === 'refused') {
+      return validated.response;
+    }
+
+    if (dryRun) {
+      await audit('ok');
+      return {
+        ok: true,
+        dryRun: true,
+        message: 'Dry run: nothing was sent to the server.',
+        plan: {
+          tool: 'submit_pull_review',
+          instance: writeInstanceLabel(workspaceContext),
+          repo: repoRef,
+          target,
+          reviewId,
+          event,
+          bodyCharacters: args.body?.length ?? 0,
+          bytes: draft.bytes,
+          sha256: draft.sha256,
+          api: `POST /repos/${args.owner}/${args.repo}/pulls/${args.index}/reviews/${reviewId}`,
+          // The extra wording §9 stage 2 asks for, so the plan a user is shown
+          // before approving says what the verdict actually means.
+          consequence: PULL_REVIEW_EVENT_CONSEQUENCES[event],
+        },
+        note: 'A dry run proves nothing about the server accepting this call: a missing write scope (403), an invisible pull request or review (404), a review that is no longer pending (422) and rate limiting only appear on the real request.',
+      };
+    }
+
+    const key = args.idempotencyKey;
+    const lookup = resolveIdempotency(table, key, {
+      tool: 'submit_pull_review',
+      target,
+      reviewId,
+      sha256: draft.sha256,
+    });
+    if (lookup.kind === 'replay') {
+      await audit('duplicate');
+      return {
+        ok: true,
+        duplicate: true,
+        message: WRITE_IDEMPOTENCY_REPLAY_MESSAGE,
+        result: lookup.response,
+      };
+    }
+    if (lookup.kind === 'key-reuse') {
+      await audit(`refused:${WRITE_IDEMPOTENCY_REUSE_REASON}`);
+      throw new Error(writeIdempotencyReuseMessage(lookup.key));
+    }
+
+    try {
+      const review = await client.submitPullReview(args.owner, args.repo, args.index, reviewId, event, validated.body);
+      const response = {
+        ok: true,
+        id: review.id,
+        state: review.state,
+        html_url: review.html_url,
+        message: `The review was submitted as ${review.state ?? event} on the server; open html_url to read it there.`,
+      };
+      if (key !== undefined) {
+        table.store(key, {
+          decision: { tool: 'submit_pull_review', target, reviewId, sha256: draft.sha256 },
+          response,
+          at: Date.now(),
+        });
+      }
+      await audit('ok');
+      return response;
+    } catch (error) {
+      const status = (toApiError(error) as ApiErrorLike).status;
+      await audit(status === undefined ? 'failed' : `http:${status}`);
+      throw error;
+    }
+  };
 }
+
+/**
+ * What each accepted verdict means, in the words §9 stage 2 asks the tool to
+ * carry: an approval can satisfy branch protection, and a change request blocks
+ * the pull request until it is dismissed or superseded.
+ */
+const PULL_REVIEW_EVENT_CONSEQUENCES: Readonly<Record<PullReviewEvent, string>> = {
+  COMMENT: 'A COMMENT review leaves a public review record without approving or blocking the pull request.',
+  APPROVED:
+    'This counts as a formal approval of the pull request and may satisfy the repository branch protection requirements.',
+  REQUEST_CHANGES:
+    'This counts as a formal request for changes and blocks the pull request until it is dismissed or superseded by a later review.',
+};
 
 /**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
@@ -1264,10 +1507,13 @@ export function buildToolHandlers(
     get_workspace_repository: () =>
       resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl, workspaceContext.instanceId),
 
-    // The one write tool of stage 1. Everything that makes it safe lives in
-    // createIssueCommentWrite: the two gates, the dry run, the session
-    // idempotency table and the audit line.
+    // The two write tools of the first batch (stages 1 and 2). Everything that
+    // makes them safe lives in createIssueCommentWrite / submitPullReviewWrite:
+    // the two gates, the dry run, the session idempotency table and the audit
+    // line.
     create_issue_comment: createIssueCommentWrite(client, workspaceContext, writeIdempotency),
+
+    submit_pull_review: submitPullReviewWrite(client, workspaceContext, writeIdempotency),
 
     // The scope assertion stays in a synchronous arrow so a half-specified
     // scope throws (rather than rejecting) before any request is issued. The
@@ -1703,6 +1949,7 @@ const PAGED_LISTS: Record<ToolName, readonly PagedListSpec[]> = {
   get_workspace_repository: NO_PAGED_LISTS,
   // A write returns one object, not a list; the paged-list note must not fire.
   create_issue_comment: NO_PAGED_LISTS,
+  submit_pull_review: NO_PAGED_LISTS,
   list_issues: PAGED_RESULT,
   get_issue: [{ field: 'comments', totalField: 'commentsTotalCount' }],
   list_pull_requests: PAGED_RESULT,
@@ -1938,9 +2185,10 @@ async function callTool(tool: ToolName, run: () => Promise<unknown>) {
 }
 
 /**
- * Read-only tool surface over the paginated client methods (which carry their
- * own MAX_ITEMS caps). Tool names and descriptions are English literals on
- * purpose — they are read by LLM agents, not by users.
+ * The tool surface: read-only tools over the paginated client methods (which
+ * carry their own MAX_ITEMS caps) plus the two gated write tools. Tool names and
+ * descriptions are English literals on purpose — they are read by LLM agents,
+ * not by users.
  */
 export function registerTools(
   server: McpServer,
@@ -2011,6 +2259,58 @@ export function registerTools(
       annotations: WRITE_TOOL_ANNOTATIONS,
     },
     async (args, extra) => callTool('create_issue_comment', () => handlersFor(extra).create_issue_comment(args)),
+  );
+
+  // The second write tool (stage 2 of docs/design/mcp-write-tools-confirmation.md).
+  // Registered unconditionally for the same reason as stage 1's: the tool list
+  // stays stable and a call that is not allowed comes back as a refusal naming
+  // its own setting. It carries WRITE_TOOL_ANNOTATIONS, not `readOnly`, so VS
+  // Code asks before every call. The `event` enum is the validated list — the
+  // schema is the only place that can stop a model from inventing a synonym,
+  // and a synonym the server does not recognise leaves the review pending.
+  server.registerTool(
+    'submit_pull_review',
+    {
+      description:
+        'Write operation: submit an existing pending pull request review with a verdict. This changes server state — the review becomes a public, permanent record on the instance under the account the configured token belongs to, and it cannot be undone by this tool (it can only be superseded by a later review, or dismissed by a repository admin). `reviewId` must name a review that is still **pending** on the pull request; this tool submits it, so submitting one that is already submitted is refused by the server with 422, and starting a review is a different operation this tool does not perform. `event` is the verdict, spelled exactly as Forgejo stores it: `COMMENT` (a review record with no verdict), `APPROVED` (a formal approval, which may satisfy the repository branch protection requirements) or `REQUEST_CHANGES` (a formal request for changes). Only `COMMENT` may omit `body`; `APPROVED` and `REQUEST_CHANGES` require a non-empty review message, because the server rejects them without one. It needs a token with write access to pull requests (Forgejo answers 403 without it; the extension cannot fix that for this session), 404 when the pull request or the review is not visible to the token, and 422 when the review is no longer pending, the event is unknown or the body is empty where it is required. Every call is confirmed by the user in VS Code first, and it is additionally gated by the extension setting `forgejoToolkit.mcpWriteTools.submitPullReview`, which is off by default; when it is off — or when this session was not established by the Forgejo Toolkit extension host — the call returns a plain explanation naming the setting instead of writing. Idempotency: pass an `idempotencyKey` and reuse the same value when retrying the same logical operation; within 10 minutes a repeat with the same key, target, reviewId and body replays the earlier result instead of submitting twice, while the same key with a different target, review or body is refused. Forgejo itself has no idempotency key on this endpoint, so a retry that does not reuse the key posts a second review. Before a batch of reviews (or any review the user has not read yet), call this tool once with `dryRun: true`, show the user the returned plan and what the verdict means, and only then send the real calls one at a time; a dry run proves the shape of the call, not that the server will accept it.',
+      inputSchema: {
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
+        index: z.number().int().positive().describe('Pull request number.'),
+        reviewId: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            'Id of the pending review to submit, as returned when the review was started (list_pull_reviews shows the reviews of a pull request, including its pending one).',
+          ),
+        event: z
+          .enum(PULL_REVIEW_EVENTS)
+          .describe(
+            'The verdict, exactly one of: COMMENT, APPROVED, REQUEST_CHANGES. No other spelling is accepted, and a value the server does not recognise leaves the review pending. Use APPROVED only when the user asked for an approval: it counts as a formal approval and may satisfy branch protection.',
+          ),
+        body: z
+          .string()
+          .optional()
+          .describe(
+            `The review message (Markdown), at most ${MCP_WRITE_BODY_MAX_BYTES} bytes. Required for APPROVED and REQUEST_CHANGES, optional for COMMENT. It is stored verbatim and is publicly visible on the instance; never include credentials or private data the instance should not hold.`,
+          ),
+        idempotencyKey: z
+          .string()
+          .optional()
+          .describe(
+            'Retry key for this logical write. Reuse the identical value when retrying the same operation; use a new one for a different review or verdict. Within 10 minutes the same key with the same target, review and body returns the earlier result instead of submitting again.',
+          ),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, report what would be sent (target, review id, verdict and what it means, body length, digest) without sending it. Default: false. Recommended before a batch, or whenever the user has not read the exact text yet.',
+          ),
+      },
+      annotations: WRITE_TOOL_ANNOTATIONS,
+    },
+    async (args, extra) => callTool('submit_pull_review', () => handlersFor(extra).submit_pull_review(args)),
   );
 
   server.registerTool(

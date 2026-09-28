@@ -590,10 +590,39 @@ describe('registerMcpServerProvider', () => {
 
     // The marker carries tool names, not setting keys: one spelling end to end.
     expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment');
-    // The stage-2 tool has no switch in package.json and must not leak in.
+    // A switch that is off advertises nothing: the stage-2 tool is a separate
+    // opt-in, and the marker is per session, not per feature.
     expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('submit_pull_review');
     // The token still never appears in a definition.
     expect(JSON.stringify(definitions[0].env)).not.toContain('secret-token');
+  });
+
+  it('advertises each write tool the window switched on, by tool name', async () => {
+    // Both switches are independent (§13.2), so the marker is exactly the set
+    // the window enabled — no more and no less.
+    const getConfiguration = vi.mocked(vscode.workspace.getConfiguration);
+    getConfiguration.mockReturnValue({
+      get: (key: string) => (key === 'mcpWriteTools' ? { submitPullReview: true } : undefined),
+      update: vi.fn(),
+    } as never);
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).toBe('submit_pull_review');
+
+    getConfiguration.mockReturnValue({
+      get: (key: string) =>
+        key === 'mcpWriteTools' ? { createIssueComment: true, submitPullReview: true } : undefined,
+      update: vi.fn(),
+    } as never);
+    const both = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+    expect(both[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment,submit_pull_review');
   });
 
   it('treats a non-boolean switch value as off', async () => {

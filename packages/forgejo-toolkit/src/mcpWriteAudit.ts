@@ -60,13 +60,17 @@ export interface McpWriteAuditLogger {
  */
 export function formatMcpWriteAuditRecord(record: McpWriteAuditRecord): string {
   // Field order is fixed for readability, not for semantics: `at` first (when),
-  // then who/where, then what, then the outcome.
+  // then who/where, then what, then the outcome. `reviewId` sits next to
+  // `target` because it refines it (the pull request *and* the review), and it
+  // is emitted only for the tool that has one — the field set is fixed per
+  // tool, not padded with nulls.
   const ordered: Record<string, unknown> = {
     at: record.at,
     caller: record.caller,
     instance: record.instance,
     repo: record.repo,
     target: record.target,
+    ...(record.reviewId === undefined ? {} : { reviewId: record.reviewId }),
     tool: record.tool,
     dryRun: record.dryRun,
     ...(record.bytes === undefined ? {} : { bytes: record.bytes }),

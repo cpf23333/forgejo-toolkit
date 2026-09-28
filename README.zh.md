@@ -107,14 +107,16 @@ pnpm --filter forgejo-toolkit package
 - **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
 - **仓库上下文**：**Forgejo Toolkit: 写入 Copilot 指令** 命令会在已链接仓库的 `.github/copilot-instructions.md` 里写入一小段带明确分隔标记的说明，注明 `<instance>/<owner>/<repo>` 和只读的 `forgejo-toolkit` 工具，让 agent 知道当前工作区对应哪个仓库。文件不存在时会创建；已存在时追加自己的小节；映射变化时就地更新该小节——文件其余内容逐字节保留。若工作区没有匹配任何已配置实例，则不会写入任何内容。
 - **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
-- **工具概览**：30 个工具，分为四组——
+- **工具概览**：32 个工具，分为五组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
   - **Actions**：运行历史、run 的 job 列表、job 日志、CI 失败摘要与制品（如 `list_action_runs`、`get_action_run_jobs`、`get_action_job_log`、`get_ci_failure_summary`）。
   - **代码读取**：文件内容与目录列表、仓库内文件搜索、分支、标签、提交、文件历史与 PR diff（如 `list_repo_contents`、`get_file_content`、`search_repo_files`、`get_pr_diff`）。
   - **Review 与元数据**：一次调用打包 PR 评审摘要、PR 评审、Release、标签、里程碑与自己的仓库（如 `get_pr_review_brief`、`list_pull_reviews`、`whoami`）。
+  - **写工具**（默认关闭，各自一个开关）：`create_issue_comment` 新增一条 Issue / PR 评论；`submit_pull_review` 以 `COMMENT` / `APPROVED` / `REQUEST_CHANGES` 提交一个待处理（pending）的 PR 评审。两道闸门见下面的「安全说明」。
 - **安全说明**：
-  - 全部工具均为只读（`readOnlyHint`），agent 无法修改实例上的任何数据。
-  - 由于是只读工具，VS Code 不会在每次调用前弹确认框。约束来自工具面本身：每个工具都只映射到 `GET` 接口（唯一例外是 `get_workspace_repository`，它只读取扩展在本地发布的状态文件），且所有会进入请求路径的输入（`owner`、`repo`、文件路径）都做了校验，构造参数无法跳到其他接口。
+  - 30 个只读工具均为只读（`readOnlyHint`），只用它们时 agent 无法修改实例上的任何数据。
+  - 由于是只读工具，VS Code 不会在每次调用前弹确认框。约束来自工具面本身：每个只读工具都只映射到 `GET` 接口（唯一例外是 `get_workspace_repository`，它只读取扩展在本地发布的状态文件），且所有会进入请求路径的输入（`owner`、`repo`、文件路径）都做了校验，构造参数无法跳到其他接口。
+  - 两个**写**工具是例外，且各有两道闸门：它们不声明 `readOnlyHint`，因此 VS Code 每次调用都会让你确认（并允许在那里改参数）；同时每个工具还需要在扩展设置里单独开启——`forgejoToolkit.mcpWriteTools.createIssueComment` 或 `forgejoToolkit.mcpWriteTools.submitPullReview`，均默认关闭且彼此独立。不是由扩展宿主建立的会话（没有 broker，或只带你手写配置里 token 的启动）只能读、永远不能写：调用会以普通结果返回明确拒绝并指出该打开哪个设置，而不是报错。两个工具都支持 `dryRun`（只给计划、不发请求）与 `idempotencyKey`（同一 key 的重试回放上次结果，不会写两次），且每次调用都会留下审计记录，包含调用方、实例、仓库、目标、工具、正文字节数与 SHA-256、结果与耗时——**不含**正文。
   - token 始终不出扩展宿主进程：它从 SecretStorage 读出后就在宿主内使用。本扩展提供的 server 定义（即标准 `mcp.json` 形状的定义）**刻意不携带任何 token**——VS Code 会把每个已注册定义的完整内容（含 `env`）持久化到 profile 的 workspace storage，写进去就等于把一个明文秘密落在磁盘上。实际做法是：VS Code 为该定义启动的进程只是转发器，它通过一次性握手密钥证明自己是同用户的本地进程，并转发到扩展宿主内的 broker，工具带着 token 在宿主里执行。你自己手写的启动配置仍可在自己的 `env` 里放 token（那是你自己的文件、你自己的选择），那条路径的行为完全不变。
   - 因此这些定义依赖 broker：broker 不可达时扩展**不发布**任何定义并在日志里说明，而不是注册一个「客户端以为已认证、实际匿名」的 server。静态 `mcp.json` 路由保持它自己已记录的降级行为（没有扩展窗口运行时匿名只读、仅公开数据）。
   - 过大的响应字段与超长结果会被截断，保护 agent 的上下文窗口。

@@ -16,7 +16,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - **Notifications**: unread badge, filtering, background polling with VS Code alerts. With several windows open, only one window polls and raises alerts by default (`forgejoToolkit.multiWindowLease`); every window still loads notifications when opened, and a window that cannot use the coordination falls back to polling on its own.
 - **CI / Actions**: runs, job logs, artifacts download, cancel and trigger workflows.
 - **Publish & clone**: publish a local repository to your instance, or clone through VS Code's Git: Clone with server-side search.
-- **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own read-only MCP server — 30 tools (issues, PRs, PR review briefs, Actions, code browsing, workspace repository detection), prompt templates, and automatic instance matching with zero setup. `forgejoToolkit.mcpEnabled` turns the whole surface off (no server definitions, no workspace mapping, no broker) without a window reload; a client that is already connected keeps its process until the window is reloaded.
+- **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own MCP server — 32 tools (issues, PRs, PR review briefs, Actions, code browsing, workspace repository detection, plus two write tools that are off by default and gated behind their own settings), prompt templates, and automatic instance matching with zero setup. `forgejoToolkit.mcpEnabled` turns the whole surface off (no server definitions, no workspace mapping, no broker) without a window reload; a client that is already connected keeps its process until the window is reloaded.
 - **Localization**: English and 中文.
 
 ## Commands

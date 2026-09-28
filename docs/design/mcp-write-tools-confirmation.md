@@ -1,8 +1,13 @@
 # MCP Phase 2 写工具的确认模型
 
-- 状态：**设计已定稿（未实现）**——2026-09-28 维护者已裁决 §13 的全部十个问题（§13 因此从「开放问题」
-  改写为决定记录）；本文仍然**没有任何实现**，剩余工作全部记在 `TODO.md` 的
-  「P2 MCP Phase 2 写工具的实现」条目里（设计文档只指向跟踪条目，不持有待办项的唯一副本）
+- 状态：**设计已定稿，首个批次两个工具均已交付**——2026-09-28 维护者已裁决 §13 的全部十个问题
+  （§13 因此从「开放问题」改写为决定记录）；阶段 0（按工具的开关 + 注解骨架 + 来源标记）、
+  阶段 1（`create_issue_comment`）与阶段 2（`submit_pull_review`）都已按本文落地，交付记录见
+  `FEATURES.md` 的「已完成」「MCP Server」一节，实现现状见
+  [MCP Server Integration](../architecture/mcp-server.md) 的 "Write tools" 一节。**仍未实现**的是
+  阶段 3（broker 会话的宿主侧模态框，需要单独批准）；本文其余部分仍按写作时的基线描述，
+  剩余工作全部记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里（设计文档只指向跟踪条目，
+  不持有待办项的唯一副本）
 - 关联：`TODO.md` 的「AI / MCP 规划」条目；`docs/architecture/mcp-server.md` 见
   [MCP Server Integration](../architecture/mcp-server.md) 的 "Security model" 与
   "Future directions" 两节
@@ -135,8 +140,7 @@ MCP 的 `ToolAnnotations` 是提示位，不是保证。VS Code 用 `readOnlyHin
   `package.nls.json` / `package.nls.zh-cn.json` 里对应的双语文案）。`forgejoToolkit.mcpEnabled` **已经落地**
   （`packages/forgejo-toolkit/package.json` 的 `contributes.configuration`，双语文案同样在
   `package.nls.json` / `package.nls.zh-cn.json`；
-  本文原先记为"正在由另一批改动落地"，2026-09-27 核对已交付并记在 `FEATURES.md` 的**已完成**
-  一节「0.0.1 之后（首个发布版之后的加固与优化）」的「MCP 开关」条目里）：读取见
+  本文原先记为"正在由另一批改动落地"，2026-09-27 核对已交付）：读取见
   `src/mcpServerProvider.ts` 的 `isMcpServerEnabled`，开关的实时语义
   （关闭即撤销注册、停掉 broker 与工作区映射）见同文件的 `registerMcpServerProvider`。
   新开关应当与它同一层命名。
@@ -181,8 +185,7 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
   （同文件的 `isProcessAlive` / `brokerRegistrationOwnerIsAlive`），确认"持有者已走"就自己重新绑定，并跑与首次绑定完全相同的那条 post-bind 路径
   （`attemptMcpBrokerStart`，返回 `'owned' | 'contended' | 'failed'`；看门狗由
   `cleanupMcpBroker()` 清理）。实测：持有者被硬杀后让位窗口 **1,400 ms** 内接管，
-  重复一次 **124 ms**（走查记录见提交 `c5118a6` 与 `52ede35`，摘要见 `FEATURES.md` 的
-  「MCP broker 窗口间自动交接」条目；平台行为与"已有会话会随之结束"的残余写在
+  重复一次 **124 ms**（走查记录见提交 `c5118a6` 与 `52ede35`；平台行为与"已有会话会随之结束"的残余写在
   `KNOWN_ISSUES.md` 的「Only one window can own the MCP broker」条目）。对本文的直接影响：宿主侧模态框的"在哪个窗口
   问"因此有**两条**路径而不是一条——即使将来真的实现"由持有 broker 的窗口弹框"，一次接管之后
   持有者就可能是另一个用户没在看的窗口，而在接管发生的那一刻，原持有窗口里正在阻塞等待的模态框
@@ -201,7 +204,7 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 
 1. 这是一次**会改变服务端状态**的写操作，会产生用户可见的持久记录；
 2. 精确的副作用边界（"在 issue/PR 下新增一条评论；不改标题、不改状态、不合并"；
-   "提交一条 review，结论为 COMMENT / APPROVE / REQUEST_CHANGES 之一"）；
+   "提交一条 review，结论为 COMMENT / APPROVED / REQUEST_CHANGES 之一"）；
 3. 需要 `write:issue` 级别的 token scope，缺 scope 时服务端回 403；
 4. 该工具是否受设置开关约束（关闭时返回明确拒绝文本，见 §5）；
 5. 幂等键语义与 retry 建议（§6）；
@@ -220,7 +223,7 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 - 在设置文案与本文里都要提示：VS Code 侧的"总是允许"会绕过逐次审批，那等于把自主权交给 agent，
   与本项目的托管政策相悖，不建议开启。
 - 不做任何"agent 自动 approve / 自动 merge / 自动发 release"的能力。首批两个工具都只产生
-  **人类可读的公开文字**，且提交 review 的 `APPROVE` 结论需要用户在审批对话框里再确认一次
+  **人类可读的公开文字**，且提交 review 的 `APPROVED` 结论需要用户在审批对话框里再确认一次
   （这是 §3.2 的默认效果，不需要额外机制）。
 
 ---
@@ -243,8 +246,10 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
   **本文原先引用 `FEATURES.md` 的行号是错的**（2026-09-27 核对：当时该文件全文没有 rerun / v17
   字样；它的 Actions 已完成清单「CI / Actions」一节里只有"Actions 运行详情页支持取消正在运行的
   记录"）。该文件此后已重排，rerun 现在只记在 `FEATURES.md` 未完成侧的「等上游」一节里
-  （"Workflow / job 重新运行（rerun）与按 job 过滤日志，两者都等 Forgejo v17"）；「近期」一节的
-  「MCP Server Phase 2 写操作工具」条目把首批定为 `create_issue_comment` 与 `submit_pull_review`。
+  （"Workflow / job 重新运行（rerun）与按 job 过滤日志，两者都等 Forgejo v17"）；
+  **2026-09-28 阶段 2 交付后的现状核对**：本文原先在这里引用的那个 FEATURES 条目（首批写工具的
+  待办条目）已随首批两个工具交付而消失，写工具的现状现在记在 `FEATURES.md` 已完成侧
+  「MCP Server」一节的 Phase 2 条目里——本文只记录这次核对，不改写已裁决的决策。
   原先还要求修正的 `TODO.md` 措辞（"首批只开创建评论 / 提交 review / 重跑 workflow"）
   **已经改完**：`TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目现在写的是"首批收窄为
   `create_issue_comment` + `submit_pull_review`（rerun workflow 在当前 swagger 里没有端点，等
@@ -279,6 +284,18 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 （`mcp/tools.ts`）为读侧处理了这个二义性。**写侧必须只用一种拼写**（建议
 `REQUEST_CHANGES`，Forgejo 自己的 `ReviewStateType`），并在工具描述里写明，否则 agent 的
 "要求修改"可能某天变成一个 422。
+
+**拼写勘误（2026-09-28，阶段 2 实现时按已安装的服务端源码核对）**：本文原先在上面这一段的枚举里
+把"批准"写成了 `APPROVE`，**这是错的**。服务端只接受 **`APPROVED`**
+（`modules/structs/pull_review.go`：`ReviewStateApproved ReviewStateType = "APPROVED"`），
+`REQUEST_CHANGES` 原本就是对的；`event` 的枚举因此是 `COMMENT` / `APPROVED` /
+`REQUEST_CHANGES`。`APPROVE` 是 Go 客户端库里那个**参数名**形状的默认值
+（`src/api/client.ts` 的 `submitPullReview(event: string = 'COMMENT')` 原样透传字符串），
+不是服务端认的值：`routers/api/v1/repo/pull_review.go` 的 `preparePullReviewType` 的 `switch`
+只对 `api.ReviewStateApproved` / `api.ReviewStateRequestChanges` / `api.ReviewStateComment` 有分支，
+其余值落到 `default` 的"review stay pending"，随后被以 422 拒绝——也就是一次**看起来像语义错误的
+空转**。本文其余各处出现的 `APPROVE` 值一律按此更正为 `APPROVED`；原先的写法保留在本次勘误记录里，
+不静默改写。
 
 ---
 
@@ -471,9 +488,10 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 
 ### 阶段 2 — `submit_pull_review`
 
-- 需要额外的东西：`event` 的枚举与拼写决策（§4.2）；对 `APPROVE` 的额外文案（"这会算作一次
+- 需要额外的东西：`event` 的枚举与拼写决策（§4.2 及该节末的**拼写勘误**：批准值是 `APPROVED`，
+  不是 `APPROVE`）；对 `APPROVED` 的额外文案（"这会算作一次
   正式批准，可能满足分支保护要求"）；对 `REQUEST_CHANGES` 的额外文案。
-- 额外的测试：`event` 非法值被 schema 拒绝；`APPROVE` 与 `REQUEST_CHANGES` 各自映射到正确的
+- 额外的测试：`event` 非法值被 schema 拒绝；`APPROVED` 与 `REQUEST_CHANGES` 各自映射到正确的
   请求体（用 MSW 读取请求体断言，而不是只看返回）。
 - 建议在阶段 2 交付时同时给 `docs/architecture/mcp-server.md` 的「Security model」/
   「Future directions」两节补上写工具的现状描述（那里现在只是预告）。
@@ -545,7 +563,7 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 6. **broker 归属不再是会话级固定（2026-09-27 交付的自动交接）**：一个让位窗口会在持有者消失后
    自己接管端点（`BROKER_TAKEOVER_POLL_MS = 5_000`，实测 1,400 ms / 重复 124 ms，
    见 `src/mcpBroker.ts` 的 `startMcpBrokerTakeoverWatcher` / `checkBrokerTakeover`；
-   记录见 `FEATURES.md` 的「MCP broker 窗口间自动交接」与提交 `52ede35`/`c5118a6`、
+   记录见提交 `52ede35`/`c5118a6`、
    `KNOWN_ISSUES.md` 的「Only one window can own the MCP broker」条目）。它**加强**了 §3.4 对宿主侧模态框的保留意见，并把"路由到会话
    所属窗口"从优化项升级为前置条件（§9 阶段 3 第 1 条）。它**削弱**的说法只有一个：「broker 的
    宿主窗口在整个会话生命周期内固定」——本文原先隐含了这个假设（例如 §8 说日志记在"持有 broker
@@ -596,7 +614,7 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 | 构建期禁止 mcp 入口引入 `vscode`                                                                                                                                   | `docs/architecture/mcp-server.md` 的「Architecture」一节                                                                                                                                                                                                       |
 | 只读工具不弹确认框 / Phase 2 预告                                                                                                                                  | `docs/architecture/mcp-server.md` 的「Security model」与「Future directions」两节                                                                                                                                                                              |
 | 不从外部进程读凭据存储的设计决定                                                                                                                                   | `docs/architecture/mcp-server.md` 的「Security model」一节                                                                                                                                                                                                     |
-| broker 自动交接的仓库内记录                                                                                                                                        | `KNOWN_ISSUES.md` 的 broker 条目、`FEATURES.md` 的「MCP broker 窗口间自动交接」、提交 `52ede35`/`c5118a6`                                                                                                                                                      |
+| broker 自动交接的仓库内记录                                                                                                                                        | `KNOWN_ISSUES.md` 的 broker 条目、提交 `52ede35`/`c5118a6`                                                                                                                                                                                                     |
 | VS Code 对确认行为的官方说明（外部来源）                                                                                                                           | `code.visualstudio.com/api/extension-guides/ai/mcp` 的 "Tools" / "Tool annotations"、`.../ai/tools` 的 `prepareInvocation`（引文见 §11.1）                                                                                                                     |
 | 走查 harness 的位置与用法                                                                                                                                          | `tools/ui-review/README.md` 的「Release walkthrough checklist」一节                                                                                                                                                                                            |
 
@@ -606,8 +624,10 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 
 **维护者已于 2026-09-28 裁决完本节的全部十条。** 本节保留原有编号（本文各处按 `§13.x` 引用它们），
 逐条写成"决定"；原先的提问以删除线保留，不静默删除——问过什么本身是记录的一部分。裁决只有三种
-去向：**已决定**、**推迟到阶段 3 并先记下取舍**、**移入阶段 1 的验收**。**本文没有任何实现**：
-所有实现工作记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里。
+去向：**已决定**、**推迟到阶段 3 并先记下取舍**、**移入阶段 1 的验收**。**本节的决定已按
+阶段 0/1/2 落地**（逐条实现状态见 `FEATURES.md` 的「已完成」「MCP Server」一节与
+`docs/architecture/mcp-server.md` 的 "Write tools"）；阶段 3 仍未实现，剩余的实现与验收工作记在
+`TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里。
 
 1. ~~**`readOnlyHint` 的实测结论是什么？** 官方文档已经回答了主要部分（§11.1，2026-09-27：不标
    `readOnlyHint` 的工具会显示确认对话框、只读工具不会），所以这**不再是本文的阻塞性前提**。
@@ -693,5 +713,5 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
     如果这套跨窗口路由的代价被证明太高，正确的降级是**拒绝这次写**，而不是把模态框弹在错误的
     窗口里（§9 阶段 3）。
 
-**本节至此十条全部关闭，没有新增开放问题。** 实现工作与验收要求收敛在 `TODO.md` 的
-「P2 MCP Phase 2 写工具的实现」条目与 §9 的分阶段计划里。
+**本节至此十条全部关闭，没有新增开放问题。** 阶段 0/1/2 已按 §9 的分阶段计划交付；阶段 3 的
+实现与验收要求收敛在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目与 §9 阶段 3 里。

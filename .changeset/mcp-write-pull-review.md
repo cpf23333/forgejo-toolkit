@@ -1,0 +1,13 @@
+---
+'forgejo-toolkit': minor
+---
+
+Add the second MCP write tool: `submit_pull_review`, submitting an existing pending review with a verdict, behind its own switch.
+
+The first batch of write tools is now complete. `submit_pull_review` submits a review that is already pending on a pull request — the endpoint is Forgejo's `SubmitPullReviewOptions`, which carries only `event` and `body`, so `reviewId` names the review to submit and starting one stays a different operation. The verdict is `COMMENT`, `APPROVED` or `REQUEST_CHANGES`, spelled exactly as Forgejo's own `ReviewStateType` spells it: the schema rejects every other value before a request is made, because the server leaves a review pending on an event its own validation does not recognise. `APPROVED` and `REQUEST_CHANGES` require a non-empty review message (the server refuses them without one); `COMMENT` may omit it, since a comment review can carry the pending review's inline comments instead. The description states the side effect and what an approval means — it counts as a formal approval and may satisfy branch protection — before the user is asked to confirm the call.
+
+The gating is the same two gates as `create_issue_comment`, with a switch of its own: VS Code still asks before every call (the tool declares no `readOnlyHint`), and the extension setting `forgejoToolkit.mcpWriteTools.submitPullReview` — **off by default and independent of the comment switch** — has to be on as well. Only a session the extension host itself established may write; anything else gets a plain refusal naming that setting, as a normal tool result rather than an error, so an agent stops and asks instead of retrying. Both switches are enforced separately: turning on one never enables the other.
+
+The tool shares the machinery the first one shipped with rather than copying it — the same body validation and gate ordering, the same per-session idempotency table (10 minutes / 32 entries, now keyed by tool, target, review and body digest, so a retry of the same review replays its earlier result instead of submitting twice), the same audit line and the same `dryRun` plan, which additionally names the verdict and what it means. The audit line for a review carries one extra field, `reviewId`, beside the unchanged `owner/repo#index` target; it still records the body's byte count and SHA-256 and never the text.
+
+`cancel_action_run` is the first candidate of a second batch and would bring its own switch; `rerun_action_run` still waits for Forgejo 17 to expose the endpoint. The host-side modal confirmation for broker sessions stays unimplemented and needs its own approval.
