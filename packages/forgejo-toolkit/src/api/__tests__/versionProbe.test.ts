@@ -1,9 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { spawn, type ChildProcess } from 'child_process';
 import { http, HttpResponse } from 'msw';
 import * as vscode from 'vscode';
 import { clearUnsupportedVersionWarnings, probeServerVersion } from '../versionProbe';
 import { clearServerVersion, clearServerVersions, getServerVersion } from '../serverVersion';
 import {
+  isPidAlive,
   readSharedServerVersion,
   readSharedServerVersionNotice,
   SERVER_VERSION_CACHE_TTL_MS,
@@ -230,13 +232,53 @@ describe('probeServerVersion', () => {
      */
     describe('while another window is probing', () => {
       /**
+       * The pid the fabricated markers carry, standing in for the other window.
+       *
+       * It has to name a process that is *really* alive: the wait path decides
+       * "a live window is probing, wait for its entry" from the marker's pid
+       * alone (`isPidAlive`, serverVersionCache.ts), so a guessed pid
+       * (`process.pid + 1`) makes the test's outcome a property of the machine's
+       * pid table. On Linux that pid is usually free — a dead prober, which the
+       * code is right to take over from — and the assertion then flips; on
+       * Windows it happened to be a live sibling. Neither is the path this block
+       * is about. And it cannot be this window's own pid: the wait path reads an
+       * own-pid marker as *this* window's claim and stops waiting
+       * (`waitForSharedServerVersion`), which is a different path entirely.
+       *
+       * A child is alive by construction, is not this window, and `afterAll`
+       * kills it; the 60 s self-timeout means that even if this worker dies
+       * without running the hook, the process exits on its own rather than
+       * lingering as an orphan.
+       */
+      let peer: ChildProcess | undefined;
+      let peerPid = 0;
+
+      beforeAll(() => {
+        peer = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+        peerPid = peer.pid ?? 0;
+      });
+
+      afterAll(() => {
+        peer?.kill();
+      });
+
+      it('has a peer pid that is alive and not this window’s own', () => {
+        // The precondition every test below leans on, asserted rather than
+        // assumed: a failed spawn (pid 0) or an own pid would silently move them
+        // onto the take-over path.
+        expect(peerPid).toBeGreaterThan(0);
+        expect(peerPid).not.toBe(process.pid);
+        expect(isPidAlive(peerPid)).toBe(true);
+      });
+
+      /**
        * A live marker for `url`, as another window would have written it. It is
        * merged into the slot rather than reseeded, so a test can seed the stale
        * entry and the marker together — `seed` replaces the whole slot.
        */
       function withLiveMarker(url: string, at: number = Date.now()): void {
         const raw = (store.raw() ?? {}) as Record<string, unknown>;
-        store.seed({ ...raw, '#inflight': { [url.replace(/\/+$/, '')]: { pid: process.pid + 1, at } } });
+        store.seed({ ...raw, '#inflight': { [url.replace(/\/+$/, '')]: { pid: peerPid, at } } });
       }
 
       it('waits, issues no request, adopts the entry and stays quiet', async () => {
@@ -291,7 +333,10 @@ describe('probeServerVersion', () => {
         const url = 'https://stale-marker.example.com';
         store.seed({
           '#instances': { [url]: { version: '16.0.1', writtenAt: Date.now() - SERVER_VERSION_CACHE_TTL_MS - 1 } },
-          '#inflight': { [url]: { pid: process.pid + 1, at: Date.now() - SERVER_VERSION_PROBE_MARKER_TTL_MS - 1 } },
+          // Written by the same live peer as above: the marker is taken over
+          // because its *timestamp* is past the TTL, not because its pid happens
+          // to be dead, so the expiry rule is what this test exercises.
+          '#inflight': { [url]: { pid: peerPid, at: Date.now() - SERVER_VERSION_PROBE_MARKER_TTL_MS - 1 } },
         });
         const probes = countProbes('17.0.0');
 

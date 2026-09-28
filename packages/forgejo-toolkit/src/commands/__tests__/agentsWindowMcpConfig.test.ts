@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import * as vscode from 'vscode';
 import type { Logger } from '../../logger';
 import {
@@ -144,6 +145,7 @@ describe('copyAgentsWindowMcpConfig', () => {
   let tempDir: string;
   let workspaceDir: string;
   let userDir: string;
+  let extensionDir: string;
   let logger: Logger;
   let context: vscode.ExtensionContext;
 
@@ -152,11 +154,17 @@ describe('copyAgentsWindowMcpConfig', () => {
     workspaceDir = path.join(tempDir, 'workspace');
     fs.mkdirSync(workspaceDir);
     userDir = path.join(tempDir, 'User');
+    // The installed extension directory, named the way VS Code names it but
+    // built from the platform's own path APIs. A hard-coded `D:\...` fixture
+    // is a *relative* path on POSIX, so `pathToFileURL` would resolve it
+    // against the cwd and the "current installation" the shim names would no
+    // longer be this fixture at all.
+    extensionDir = path.join(tempDir, 'extensions', 'cpf23333.forgejo-toolkit-0.0.1');
     logger = makeLogger();
     context = {
       subscriptions: [] as { dispose(): unknown }[],
       globalStorageUri: { fsPath: path.join(userDir, 'globalStorage', 'cpf23333.forgejo-toolkit') },
-      extensionUri: { fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.1' },
+      extensionUri: { fsPath: extensionDir },
     } as unknown as vscode.ExtensionContext;
     vi.clearAllMocks();
     mockRealisticJoinPath();
@@ -179,13 +187,33 @@ describe('copyAgentsWindowMcpConfig', () => {
     await copyAgentsWindowMcpConfig(context, logger);
 
     const shimFilePath = mcpServerShimFilePath(context);
+    // The shim lives in globalStorage; the bundle it names lives in the
+    // versioned install directory. Keep the two apart in this test.
+    expect(shimFilePath).toBe(path.join(context.globalStorageUri.fsPath, 'mcp-server.js'));
     expect(fs.existsSync(shimFilePath)).toBe(true);
+
+    const content = fs.readFileSync(shimFilePath, 'utf8');
     // The specifier is a `file://` URL: a dynamic `import()` is resolved as a
-    // URL, so a Windows drive-letter path is refused by the ESM loader and the
-    // shim this command hands the user could never start the server.
-    expect(fs.readFileSync(shimFilePath, 'utf8')).toMatch(
-      /import\("file:\/\/\/D:\/extensions\/cpf23333\.forgejo-toolkit-0\.0\.1\/out\/mcp-server\.mjs"\)/,
-    );
+    // URL, so a bare path (a Windows drive letter, or anything relative) is
+    // refused by the ESM loader and the shim this command hands the user could
+    // never start the server. The expected URL is derived with the same
+    // function the writer uses instead of being spelled out literally, so the
+    // assertion is about the path rather than about the platform that ran it.
+    const specifier = /^import\((.*)\)\.catch\(/m.exec(content)?.[1];
+    expect(specifier).toBeDefined();
+    const importedUrl = JSON.parse(specifier!) as string;
+    const installedBundlePath = path.join(extensionDir, 'out', 'mcp-server.mjs');
+
+    // Exactly the current installation's bundle, as an absolute `file://` URL.
+    expect(importedUrl).toBe(pathToFileURL(installedBundlePath).href);
+    expect(new URL(importedUrl).protocol).toBe('file:');
+    const importedPath = fileURLToPath(importedUrl);
+    expect(path.isAbsolute(importedPath)).toBe(true);
+    expect(path.dirname(importedPath)).toBe(path.join(extensionDir, 'out'));
+    expect(path.basename(importedPath)).toBe('mcp-server.mjs');
+    // Not the stable shim's own cache directory: the snippet points at the
+    // shim, but the shim must point at the installed extension.
+    expect(importedPath.startsWith(context.globalStorageUri.fsPath)).toBe(false);
   });
 
   it('offers the user-level write first, then the workspace write, then the clipboard', async () => {

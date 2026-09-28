@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import * as vscode from 'vscode';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type {
@@ -263,18 +264,23 @@ describe('writeMcpWorkspaceState', () => {
 
 describe('writeMcpServerShim', () => {
   let tempDir: string;
+  let extensionDir: string;
   let logger: Logger;
   let context: vscode.ExtensionContext;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-shim-test-'));
     logger = makeLogger();
+    // The install directory is named the way VS Code names it, but built from
+    // the platform's own path APIs: the shim is a JS string literal, so
+    // backslashes must not survive into it unescaped — and a hard-coded
+    // `D:\...` fixture is a *relative* path on POSIX, where `pathToFileURL`
+    // would resolve it against the cwd instead of naming this installation.
+    extensionDir = path.join(tempDir, 'extensions', 'cpf23333.forgejo-toolkit-0.0.1');
     context = {
       subscriptions: [] as { dispose(): unknown }[],
       globalStorageUri: { fsPath: path.join(tempDir, 'globalStorage') },
-      // A Windows-style install path on purpose: the shim is a JS string
-      // literal, so backslashes must not survive into it unescaped.
-      extensionUri: { fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.1' },
+      extensionUri: { fsPath: extensionDir },
     } as unknown as vscode.ExtensionContext;
   });
 
@@ -292,9 +298,14 @@ describe('writeMcpServerShim', () => {
     const shimFilePath = mcpServerShimFilePath(context);
     expect(path.basename(shimFilePath)).toBe('mcp-server.js');
     const content = fs.readFileSync(shimFilePath, 'utf8');
-    // A dynamic `import()` specifier is a URL: a Windows drive-letter path is
-    // read as the scheme `d:` and the ESM loader refuses to start the server.
-    expect(content).toMatch(/import\(["']file:\/\/[^"']*mcp-server\.mjs["']\)/);
+    // A dynamic `import()` specifier is a URL: a bare path (a Windows drive
+    // letter, or anything relative) is read as a scheme or resolved against
+    // the cwd, and the ESM loader then refuses to start the server. The
+    // expected URL comes from the same function the writer uses, so the
+    // assertion holds wherever the fixture path is native.
+    const specifier = /^import\((.*)\)\.catch\(/m.exec(content)?.[1];
+    expect(specifier).toBeDefined();
+    expect(JSON.parse(specifier!)).toBe(pathToFileURL(path.join(extensionDir, 'out', 'mcp-server.mjs')).href);
     expect(content).not.toContain('\\');
   });
 
@@ -337,25 +348,27 @@ describe('writeMcpServerShim', () => {
   it('rewrites the shim when the install path changes (extension upgrade)', async () => {
     await writeMcpServerShim(context, logger);
     const shimFilePath = mcpServerShimFilePath(context);
-    (context as { extensionUri: { fsPath: string } }).extensionUri = {
-      fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.2',
-    };
+    const upgradedDir = path.join(tempDir, 'extensions', 'cpf23333.forgejo-toolkit-0.0.2');
+    (context as { extensionUri: { fsPath: string } }).extensionUri = { fsPath: upgradedDir };
 
     await writeMcpServerShim(context, logger);
 
     const content = fs.readFileSync(shimFilePath, 'utf8');
     expect(content).toContain('cpf23333.forgejo-toolkit-0.0.2');
-    expect(content).toMatch(/import\(["']file:\/\/[^"']*mcp-server\.mjs["']\)/);
+    expect(content).toContain(pathToFileURL(path.join(upgradedDir, 'out', 'mcp-server.mjs')).href);
+    expect(content).not.toContain(pathToFileURL(path.join(extensionDir, 'out', 'mcp-server.mjs')).href);
   });
 
   it('keeps a quote in the install path from breaking the shim', () => {
-    (context as { extensionUri: { fsPath: string } }).extensionUri = { fsPath: "/home/it's me/.vscode/extensions" };
+    const installRoot = path.join(tempDir, "it's me", 'extensions');
+    (context as { extensionUri: { fsPath: string } }).extensionUri = { fsPath: installRoot };
 
     const content = buildMcpServerShimContent(context);
 
     // The specifier is a JSON string literal, so the quote is carried verbatim
     // (percent-encoded where a URL cannot carry it) instead of needing an escape
     // the generated file could get wrong.
+    expect(content).toContain(pathToFileURL(path.join(installRoot, 'out', 'mcp-server.mjs')).href);
     expect(content).toMatch(/import\("file:\/\/[^"]*it's[^"]*mcp-server\.mjs"\)/);
     expect(content).not.toContain("\\'");
   });
