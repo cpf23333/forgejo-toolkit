@@ -68,6 +68,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   review within ten minutes replays the earlier result), its `dryRun` plan
   (which also says what the verdict means) and its audit line, which carries
   `reviewId` beside the target and never the review text.
+- The MCP server's third **write** tool, `cancel_action_run`, which cancels a
+  pending or running Actions workflow run. Its own switch,
+  `forgejoToolkit.mcpWriteTools.cancelActionRun`, is off by default and
+  independent of the comment and review switches — one of them being on never
+  enables another. It cancels the run's pending and running jobs; the run then
+  has to be triggered again, which this tool does not do. Because Forgejo's
+  cancel endpoint also answers `204` for a run it leaves alone (one that already
+  finished), the result says the server accepted the cancel request and points
+  at `list_action_runs` for the run's real state, rather than claiming the run
+  was cancelled. Being a request with no body, its audit line carries no size or
+  digest at all, and a repeated cancel within ten minutes replays the earlier
+  result instead of sending a second request. It is available only in a session
+  the extension host itself established, exactly like the other two, and the
+  tool surface grows from 32 tools to 33.
 - The MCP server gains `get_pr_review_brief`, which answers a whole pull request
   review in one call: the pull request header, the diff statistics with a
   per-file additions/deletions table, each reviewer's latest conclusion plus an

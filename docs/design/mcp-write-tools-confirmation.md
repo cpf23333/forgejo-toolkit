@@ -1,8 +1,9 @@
 # MCP Phase 2 写工具的确认模型
 
-- 状态：**设计已定稿，首个批次两个工具均已交付**——2026-09-28 维护者已裁决 §13 的全部十个问题
+- 状态：**设计已定稿，首批两个工具与第二批的第一个候选均已交付**——2026-09-28 维护者已裁决 §13 的全部十个问题
   （§13 因此从「开放问题」改写为决定记录）；阶段 0（按工具的开关 + 注解骨架 + 来源标记）、
-  阶段 1（`create_issue_comment`）与阶段 2（`submit_pull_review`）都已按本文落地，交付记录见
+  阶段 1（`create_issue_comment`）与阶段 2（`submit_pull_review`）都已按本文落地，第二批的第一个
+  候选 `cancel_action_run`（§4.1、§13.3）也已于 **2026-09-28** 交付并带自己的开关，交付记录见
   `FEATURES.md` 的「已完成」「MCP Server」一节，实现现状见
   [MCP Server Integration](../architecture/mcp-server.md) 的 "Write tools" 一节。**仍未实现**的是
   阶段 3（broker 会话的宿主侧模态框，需要单独批准）；本文其余部分仍按写作时的基线描述，
@@ -264,6 +265,15 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 它是**第二批的第一个候选**，并且会带自己的开关。原先"如果维护者坚持首版就要一个 Actions 侧
 写工具"的分支随之关闭：它语义上是"取消"而不是"重跑"，且用户侧已有按钮，收益不明显。rerun 的
 推迟被接受：等 Forgejo ≥ 17 走版本闸门，**不写手写 web 路由**（那会绕开被审计的 API 面）。
+
+**交付记录（2026-09-28）**：上面这个决定**没有被改写**，只是它的候选已经落地——
+`cancel_action_run` 作为第二批的第一个工具交付，带自己的开关
+`forgejoToolkit.mcpWriteTools.cancelActionRun`（默认关闭，与另外两个开关彼此独立），
+复用同一套两道闸门、`dryRun`、共享幂等表与审计行；它没有请求体，因此审计行按既定规则
+**不带** `bytes`/`sha256`（缺失，而不是 0），同一 run 在 10 分钟窗口内的重复调用直接回放
+（第二次取消是同一次逻辑操作），而跨工具复用同一个 key 仍然报错。实现现状见
+[MCP Server Integration](../architecture/mcp-server.md) 的 "Write tools" 一节，还剩的工作
+（阶段 3、`rerun_action_run` 的版本闸门）记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目。
 
 ### 4.2 两个首批工具各自需要什么
 
@@ -674,6 +684,9 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 3. ~~**首批是否包含 `cancel_action_run`**（唯一现在就能做的 Actions 写操作，语义是"取消"而不是
    "重跑"）？如果包含，它是第三个开关。~~ **已决定（2026-09-28）：不含。** 首批只保留两个
    **内容生产**工具；`cancel_action_run` 是**第二批的第一个候选**，并且要带它自己的开关（§4.1）。
+   **交付记录（2026-09-28）：该候选已交付**，带自己的开关
+   `forgejoToolkit.mcpWriteTools.cancelActionRun`；本条的**决定本身不变**——它仍然不属于首批，
+   只是第二批的第一个工具已经落地。
 4. ~~**`rerun_action_run` 是否接受"依赖 Forgejo ≥ 17 + 版本闸门"的推迟**，还是要求现在就用手写
    web 路由实现（本文与 `KNOWN_ISSUES.md` 的「Re-running an action run is not exposed through the REST API」条目都反对）？~~ **已决定（2026-09-28）：接受推迟。**
    等 Forgejo ≥ 17 并走版本闸门；**不写手写 web 路由**——那会绕开被审计的 API 面，

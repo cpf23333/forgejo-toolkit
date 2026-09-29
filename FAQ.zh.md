@@ -86,7 +86,7 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 ### AI agent 能通过这个插件修改我的仓库吗？
 
-不能——除非你主动逐项开启。30 个查询工具是只读的（`readOnlyHint`），只用它们时 agent 可以查询 Issue、PR、Actions 运行记录和代码，但无法改动任何数据。目前存在两个**写**工具：`create_issue_comment`（新增一条 Issue / PR 评论）与 `submit_pull_review`（以 `COMMENT` / `APPROVED` / `REQUEST_CHANGES` 提交一个待处理的 PR 评审），各自默认关闭、各有自己的设置开关（`forgejoToolkit.mcpWriteTools.createIssueComment` / `forgejoToolkit.mcpWriteTools.submitPullReview`），除此之外没有别的写工具。写工具不声明 `readOnlyHint`，因此 VS Code 每次调用都会让你确认，并允许在那里改参数；它还要求会话**由扩展宿主自己建立**：只带你手写 `mcp.json` 里 token（或完全没有 token）的启动会得到一段明确拒绝并点名该打开哪个设置，而不是照写。
+不能——除非你主动逐项开启。30 个查询工具是只读的（`readOnlyHint`），只用它们时 agent 可以查询 Issue、PR、Actions 运行记录和代码，但无法改动任何数据。目前存在三个**写**工具：`create_issue_comment`（新增一条 Issue / PR 评论）、`submit_pull_review`（以 `COMMENT` / `APPROVED` / `REQUEST_CHANGES` 提交一个待处理的 PR 评审）与 `cancel_action_run`（取消一条待处理或正在运行的 Actions workflow 运行记录），各自默认关闭、各有自己的设置开关（`forgejoToolkit.mcpWriteTools.createIssueComment` / `forgejoToolkit.mcpWriteTools.submitPullReview` / `forgejoToolkit.mcpWriteTools.cancelActionRun`），除此之外没有别的写工具。写工具不声明 `readOnlyHint`，因此 VS Code 每次调用都会让你确认，并允许在那里改参数；它还要求会话**由扩展宿主自己建立**：只带你手写 `mcp.json` 里 token（或完全没有 token）的启动会得到一段明确拒绝并点名该打开哪个设置，而不是照写。`cancel_action_run` 是其中唯一效果为「停止」而非新增文字的工具：它取消该 run 的待处理与运行中 job，之后需要重新触发运行。
 
 在读的一半上，VS Code 对只读工具**不会**在调用前弹确认框，因此保证来自工具面本身——每个只读工具都是 `GET`（唯一例外是 `get_workspace_repository`，它只读取扩展在本地发布的状态文件），且会进入请求路径的输入都做了校验，构造参数无法跳到其他接口。每次写调用还会额外记入 `Forgejo Toolkit` Output Channel——调用方、实例、仓库、目标、工具、正文字节数与摘要哈希、结果与耗时，**不含**正文。
 

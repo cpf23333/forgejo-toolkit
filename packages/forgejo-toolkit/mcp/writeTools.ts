@@ -11,7 +11,8 @@
  * What is decided here, following
  * `docs/design/mcp-write-tools-confirmation.md` (2026-09-28 decision record):
  *
- * - **Two gates, in this order.** Every write tool must be opted into per tool
+ * - **Two gates, in this order.** Every write tool — the first batch's two and
+ *   the second batch's `cancel_action_run` alike — must be opted into per tool
  *   (`forgejoToolkit.mcpWriteTools.<name>`, default `false`) *and* run in a
  *   session the extension host itself established. The second gate — the
  *   "provenance marker" — exists because the first one is unenforceable
@@ -33,12 +34,14 @@
  */
 
 /**
- * The first-release write tools, both shipped (§4.2): `create_issue_comment`
- * (stage 1) and `submit_pull_review` (stage 2). Each has its own switch, and
- * this list is the single spelling used for the tool names, the settings and
- * the provenance marker.
+ * The write tools that have shipped, in the order the stages landed: the first
+ * batch's `create_issue_comment` (stage 1) and `submit_pull_review` (stage 2),
+ * then the second batch's first candidate `cancel_action_run`, which the
+ * decision record reserved for its own switch (§4.1, §13.3). Each has its own
+ * switch, and this list is the single spelling used for the tool names, the
+ * settings and the provenance marker.
  */
-export const MCP_WRITE_TOOL_NAMES = ['create_issue_comment', 'submit_pull_review'] as const;
+export const MCP_WRITE_TOOL_NAMES = ['create_issue_comment', 'submit_pull_review', 'cancel_action_run'] as const;
 
 export type McpWriteTool = (typeof MCP_WRITE_TOOL_NAMES)[number];
 
@@ -80,6 +83,7 @@ export interface McpWriteToolSetting {
 export const MCP_WRITE_TOOL_SETTING_KEYS: Readonly<Record<McpWriteTool, string>> = {
   create_issue_comment: 'createIssueComment',
   submit_pull_review: 'submitPullReview',
+  cancel_action_run: 'cancelActionRun',
 };
 
 /** Every write tool with the switch that owns it, in a stable order. */
@@ -192,8 +196,8 @@ export function writeInstanceLabel(workspaceContext: { writeInstanceLabel?: stri
 /**
  * The replay text of an idempotency hit. Shared because "this is the same
  * logical operation as the one that already ran, and here is its result" is the
- * same sentence for both tools — only the noun differs, and the noun is carried
- * by the tool that built the response.
+ * same sentence for every write tool — only the noun differs, and the noun is
+ * carried by the tool that built the response.
  */
 export const WRITE_IDEMPOTENCY_REPLAY_MESSAGE =
   'This is a repeat of an earlier call with the same idempotencyKey and the same target and body; ' +
@@ -202,10 +206,11 @@ export const WRITE_IDEMPOTENCY_REPLAY_MESSAGE =
 /** The reason an audit line carries when a key was reused for a different call. */
 export const WRITE_IDEMPOTENCY_REUSE_REASON = 'idempotency-key-reused';
 
-/** The error a key reused for a different target, review or body produces. */
+/** The error a key reused for a different call produces. */
 export function writeIdempotencyReuseMessage(key: string): string {
   return (
-    `idempotencyKey "${key}" was already used in this session for a different target or body. ` +
+    `idempotencyKey "${key}" was already used in this session for a different call (another tool, ` +
+    'or a different target, review, run or body). ' +
     'Generate a new key for a different operation; reuse a key only when retrying the same logical operation.'
   );
 }

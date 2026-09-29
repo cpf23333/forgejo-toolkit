@@ -201,6 +201,26 @@ export interface SubmitPullReviewArgs extends IssueRefArgs {
 }
 
 /**
+ * Input of `cancel_action_run` (the first tool of the second batch, §4.1).
+ *
+ * Deliberately body-less: the endpoint takes only the path (owner, repo, run
+ * id), so this tool is the one write call whose audit line carries neither
+ * `bytes` nor `sha256` — absent, not zero (§8's rule for a call with no body).
+ */
+export interface CancelActionRunArgs extends RepoRefArgs {
+  /**
+   * The workflow run to cancel, as `list_action_runs` reports it (Forgejo's
+   * `index_in_repo` for the run, which is what the run pages and the cancel
+   * button in the web UI use).
+   */
+  runId: number;
+  /** Retry key — same semantics as `create_issue_comment`'s. */
+  idempotencyKey?: string;
+  /** Report what would be sent, without sending it. Default: false. */
+  dryRun?: boolean;
+}
+
+/**
  * Workspace context the extension host passes down to the MCP child through
  * its launch environment (see src/mcpWorkspaceState.ts). Both fields are
  * optional: the server can also run without them (e.g. in unit tests), in
@@ -1066,6 +1086,13 @@ interface WriteIdempotencyDecision {
   tool: McpWriteTool;
   target: string;
   reviewId?: number;
+  /**
+   * The action run a `cancel_action_run` call names. Like `reviewId` this is an
+   * identity-only field: it never reaches the audit line (which has no run
+   * field — the run number is already the `target`'s suffix and the endpoint
+   * answers with no body to record), only the replay check.
+   */
+  runId?: number;
   sha256?: string;
 }
 
@@ -1080,9 +1107,9 @@ type WriteIdempotencyLookup =
  * call that already succeeded, and gets that call's result back; the same key
  * with anything different is a caller bug and is refused before any request.
  *
- * Both write tools share this table, so the tool name is part of the identity:
- * one key reused across the comment tool and the review tool is a reuse, not a
- * replay of the other tool's result.
+ * All three write tools share this table, so the tool name is part of the
+ * identity: one key reused across the comment tool, the review tool and the
+ * cancel tool is a reuse, not a replay of another tool's result.
  */
 function resolveIdempotency(
   table: WriteIdempotencyTable,
@@ -1100,6 +1127,7 @@ function resolveIdempotency(
     previous.decision.tool === decision.tool &&
     previous.decision.target === decision.target &&
     previous.decision.reviewId === decision.reviewId &&
+    previous.decision.runId === decision.runId &&
     previous.decision.sha256 === decision.sha256;
   return same ? { kind: 'replay', response: previous.response } : { kind: 'key-reuse', key };
 }
@@ -1478,6 +1506,132 @@ function submitPullReviewWrite(
 }
 
 /**
+ * `cancel_action_run`: the first write tool of the second batch (§4.1, §13.3).
+ *
+ * Same ordering and the same shared helpers as the two first-batch tools
+ * (`validateWriteCall` for the two gates, `resolveIdempotency` for the retry
+ * table, `writeAuditor` for the audit line). What is specific to this one:
+ *
+ * - It has **no body**. Forgejo's cancel endpoint takes the run as a path
+ *   parameter and answers `204` with no content, so there is nothing to size or
+ *   digest: `validateWriteCall` is asked for no body at all
+ *   (`requireBody: false`), and the audit line therefore carries neither `bytes`
+ *   nor `sha256` — absent, not zero, which is the same rule a body-less
+ *   `COMMENT` review already follows.
+ * - The endpoint is **idempotent-safe by the server's own design**: it cancels
+ *   the pending or running jobs and answers 204, and a run that already
+ *   finished is left unchanged and still answered with 204. That is why a
+ *   repeated cancel inside the idempotency window may safely replay — the
+ *   retry is the same logical action and a retry that forgot the key would
+ *   still not double-cancel anything.
+ * - The success text is careful for the same reason: a 204 does **not** prove
+ *   that this call cancelled anything, only that the server accepted it, so the
+ *   result says so instead of claiming a state change the tool cannot observe.
+ *   `list_action_runs` is the authority on the run's status, as it is on the
+ *   run number this tool takes.
+ */
+function cancelActionRunWrite(
+  client: ForgejoClient,
+  workspaceContext: WorkspaceContextOptions,
+  table: WriteIdempotencyTable,
+) {
+  return async function cancel_action_run(args: CancelActionRunArgs): Promise<unknown> {
+    const dryRun = args.dryRun === true;
+    const repoRef = `${args.owner}/${args.repo}`;
+    const target = `${repoRef}#${args.runId}`;
+    const runId = args.runId;
+    const draft: WriteAuditDraft = {
+      tool: 'cancel_action_run',
+      repo: repoRef,
+      target,
+      dryRun,
+      // No body fields: this call carries no text, and §8 wants them absent
+      // rather than zero or an empty digest.
+    };
+    const audit = writeAuditor(workspaceContext, draft);
+
+    const validated = await validateWriteCall(
+      workspaceContext,
+      'cancel_action_run',
+      undefined,
+      { requireBody: false },
+      audit,
+    );
+    if (validated.kind === 'refused') {
+      return validated.response;
+    }
+
+    if (dryRun) {
+      // No request and no idempotency entry: a dry run is not the operation
+      // (§7), and the ordering — validation, gates, then dry run — is the same
+      // one the other two tools follow, so a dry run cannot probe past a gate.
+      await audit('ok');
+      return {
+        ok: true,
+        dryRun: true,
+        message: 'Dry run: nothing was sent to the server.',
+        plan: {
+          tool: 'cancel_action_run',
+          instance: writeInstanceLabel(workspaceContext),
+          repo: repoRef,
+          target,
+          runId,
+          api: `POST /repos/${args.owner}/${args.repo}/actions/runs/${runId}/cancel`,
+          consequence:
+            'Pending or running jobs of this run are cancelled; a run that has already finished is left unchanged by the server, and this call changes nothing else.',
+        },
+        note: 'A dry run proves nothing about the server accepting this call: a missing write scope (403), an invisible or unknown run (404), an instance older than Forgejo 16 (404, the Actions endpoints arrived in 16.0.0) and rate limiting only appear on the real request.',
+      };
+    }
+
+    const key = args.idempotencyKey;
+    const lookup = resolveIdempotency(table, key, {
+      tool: 'cancel_action_run',
+      target,
+      runId,
+    });
+    if (lookup.kind === 'replay') {
+      await audit('duplicate');
+      return {
+        ok: true,
+        duplicate: true,
+        message: WRITE_IDEMPOTENCY_REPLAY_MESSAGE,
+        result: lookup.response,
+      };
+    }
+    if (lookup.kind === 'key-reuse') {
+      await audit(`refused:${WRITE_IDEMPOTENCY_REUSE_REASON}`);
+      throw new Error(writeIdempotencyReuseMessage(lookup.key));
+    }
+
+    try {
+      await client.cancelActionRun(args.owner, args.repo, runId);
+      const response = {
+        ok: true,
+        id: runId,
+        target,
+        message:
+          'The server accepted the cancel request for this run (HTTP 204) and nothing else was changed by this call. ' +
+          'The endpoint also answers 204 for a run that had already finished, where it cancels nothing — check the run in the Forgejo web UI, or call list_action_runs, to see what its state actually is.',
+      };
+      if (key !== undefined) {
+        table.store(key, {
+          decision: { tool: 'cancel_action_run', target, runId },
+          response,
+          at: Date.now(),
+        });
+      }
+      await audit('ok');
+      return response;
+    } catch (error) {
+      const status = (toApiError(error) as ApiErrorLike).status;
+      await audit(status === undefined ? 'failed' : `http:${status}`);
+      throw error;
+    }
+  };
+}
+
+/**
  * What each accepted verdict means, in the words §9 stage 2 asks the tool to
  * carry: an approval can satisfy branch protection, and a change request blocks
  * the pull request until it is dismissed or superseded.
@@ -1507,13 +1661,16 @@ export function buildToolHandlers(
     get_workspace_repository: () =>
       resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl, workspaceContext.instanceId),
 
-    // The two write tools of the first batch (stages 1 and 2). Everything that
-    // makes them safe lives in createIssueCommentWrite / submitPullReviewWrite:
-    // the two gates, the dry run, the session idempotency table and the audit
-    // line.
+    // The three write tools of the two batches (stages 1 and 2, then the
+    // second batch's cancel). Everything that makes them safe lives in
+    // createIssueCommentWrite / submitPullReviewWrite / cancelActionRunWrite:
+    // the two gates, the body validation, the dry run, the session idempotency
+    // table and the audit line.
     create_issue_comment: createIssueCommentWrite(client, workspaceContext, writeIdempotency),
 
     submit_pull_review: submitPullReviewWrite(client, workspaceContext, writeIdempotency),
+
+    cancel_action_run: cancelActionRunWrite(client, workspaceContext, writeIdempotency),
 
     // The scope assertion stays in a synchronous arrow so a half-specified
     // scope throws (rather than rejecting) before any request is issued. The
@@ -1950,6 +2107,7 @@ const PAGED_LISTS: Record<ToolName, readonly PagedListSpec[]> = {
   // A write returns one object, not a list; the paged-list note must not fire.
   create_issue_comment: NO_PAGED_LISTS,
   submit_pull_review: NO_PAGED_LISTS,
+  cancel_action_run: NO_PAGED_LISTS,
   list_issues: PAGED_RESULT,
   get_issue: [{ field: 'comments', totalField: 'commentsTotalCount' }],
   list_pull_requests: PAGED_RESULT,
@@ -2186,9 +2344,9 @@ async function callTool(tool: ToolName, run: () => Promise<unknown>) {
 
 /**
  * The tool surface: read-only tools over the paginated client methods (which
- * carry their own MAX_ITEMS caps) plus the two gated write tools. Tool names and
- * descriptions are English literals on purpose — they are read by LLM agents,
- * not by users.
+ * carry their own MAX_ITEMS caps) plus the three gated write tools. Tool names
+ * and descriptions are English literals on purpose — they are read by LLM
+ * agents, not by users.
  */
 export function registerTools(
   server: McpServer,
@@ -2228,7 +2386,8 @@ export function registerTools(
   // a call that is not allowed comes back as a refusal naming the setting to turn
   // on (§9 stage 0 fixes that semantic). It carries WRITE_TOOL_ANNOTATIONS, not
   // `readOnly`, so VS Code shows its per-call confirmation dialog — which is the
-  // first of the two gates, and the reason `readOnlyHint` must stay unset.
+  // first of the two gates, and the reason `readOnlyHint` must stay unset. The
+  // same holds for every write tool registered below.
   server.registerTool(
     'create_issue_comment',
     {
@@ -2311,6 +2470,46 @@ export function registerTools(
       annotations: WRITE_TOOL_ANNOTATIONS,
     },
     async (args, extra) => callTool('submit_pull_review', () => handlersFor(extra).submit_pull_review(args)),
+  );
+
+  // The third write tool, and the first of the second batch
+  // (docs/design/mcp-write-tools-confirmation.md §4.1 / §13.3). Registered
+  // unconditionally, like the two before it: the tool list stays stable and a
+  // call that is not allowed comes back as a refusal naming its own setting. It
+  // carries WRITE_TOOL_ANNOTATIONS — no `readOnlyHint` (so VS Code asks before
+  // every call) and no `destructiveHint` either way, which is the honest shape
+  // for a call that stops running work on the server.
+  server.registerTool(
+    'cancel_action_run',
+    {
+      description:
+        'Write operation: cancel a pending or running Actions workflow run. This changes server state — it stops the run on the instance, so pending or running jobs are cancelled and the run ends as `cancelled` under the account the configured token belongs to. It is a destructive-ish action on the server rather than an append: it does not create a visible record, it changes the state of work that is already running, and it cannot be undone by this tool (the run has to be triggered again, which this tool does not do and which is a separate operation). It changes nothing else about the run. `runId` is the run to cancel, as `list_action_runs` reports it (Forgejo stores this run number as `index_in_repo`); the server answers 204 and leaves a run that has already finished — cancelled, failed, skipped or succeeded — unchanged, so a 204 means the request was accepted, not that this call cancelled anything. It needs a token with write access to the repository Actions (Forgejo answers 403 without it; the extension cannot fix that for this session), 404 when the run is not visible to the token or belongs to another repository, and 404 on an instance older than Forgejo 16, where the Actions endpoints do not exist. Every call is confirmed by the user in VS Code first, and it is additionally gated by the extension setting `forgejoToolkit.mcpWriteTools.cancelActionRun`, which is off by default and independent of the comment and review switches; when it is off — or when this session was not established by the Forgejo Toolkit extension host — the call returns a plain explanation naming the setting instead of cancelling. Idempotency: pass an `idempotencyKey` and reuse the same value when retrying the same logical operation; within 10 minutes a repeat with the same key and the same run replays the earlier result instead of sending a second cancel, while the same key with a different run is refused. A retry that does not reuse the key still cannot cancel the same run twice: the server leaves a finished run unchanged. Because cancelling is immediate and visible to everyone watching the run, call this tool once with `dryRun: true` and show the user the returned plan before the real call; a dry run proves the shape of the call, not that the server will accept it.',
+      inputSchema: {
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
+        runId: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            'Number of the workflow run to cancel, as list_action_runs reports it (Forgejo stores this run number as `index_in_repo`). Use list_action_runs first to confirm the run is still running or pending: cancelling a run that has already finished changes nothing.',
+          ),
+        idempotencyKey: z
+          .string()
+          .optional()
+          .describe(
+            'Retry key for this logical write. Reuse the identical value when retrying the same cancellation; use a new one for a different run. Within 10 minutes the same key with the same run returns the earlier result instead of sending a second cancel.',
+          ),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, report what would be sent (target, run number, endpoint and what cancelling means) without sending it. Default: false. Recommended before a real cancel, since the effect is immediate and visible to everyone watching the run.',
+          ),
+      },
+      annotations: WRITE_TOOL_ANNOTATIONS,
+    },
+    async (args, extra) => callTool('cancel_action_run', () => handlersFor(extra).cancel_action_run(args)),
   );
 
   server.registerTool(

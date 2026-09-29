@@ -17,6 +17,7 @@ import {
   mockPullReview,
   mockTimelineComment,
   mockRepository,
+  mockActionRun,
 } from '../../src/test/mocks/data';
 
 interface TextToolResult {
@@ -66,8 +67,11 @@ const READ_ONLY_TOOLS = [
   'whoami',
 ] as const;
 
-/** Tools that change server state; §13.7 fixed the names (both first-batch tools). */
-const WRITE_TOOLS = ['create_issue_comment', 'submit_pull_review'] as const;
+/**
+ * Tools that change server state: the first batch's two (§13.7 fixed their
+ * names) plus the second batch's first candidate (§4.1, §13.3).
+ */
+const WRITE_TOOLS = ['create_issue_comment', 'submit_pull_review', 'cancel_action_run'] as const;
 
 /**
  * A workspace context that passes both write gates: the provenance marker (the
@@ -95,6 +99,25 @@ const REVIEW_WRITE_ALLOWED: WorkspaceContextOptions = {
 
 /** The endpoint `submit_pull_review` posts to, for a request counter. */
 const SUBMIT_REVIEW_URL = 'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id';
+
+/** The endpoint `cancel_action_run` posts to, for a request counter. */
+const CANCEL_RUN_URL = 'https://*/api/v1/repos/:owner/:repo/actions/runs/:runId/cancel';
+
+/**
+ * A workspace context that passes both gates for the second batch's tool: the
+ * marker covers exactly `cancel_action_run` and exactly that switch is on.
+ */
+const CANCEL_WRITE_ALLOWED: WorkspaceContextOptions = {
+  instanceId: 'instance-1',
+  writeTools: ['cancel_action_run'],
+  enabledWriteTools: ['cancel_action_run'],
+  writeCaller: 'extension host (test session)',
+};
+
+/** Arguments that pass `cancel_action_run`'s schema. */
+function cancelArgs(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { owner: 'demo-user', repo: 'demo-repo', runId: mockActionRun.id, ...overrides };
+}
 
 /** Arguments that pass `submit_pull_review`'s own validation. */
 function reviewArgs(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -653,6 +676,269 @@ describe('MCP server over InMemoryTransport', () => {
     const reviewRefusal = JSON.parse(reviewOnly.content[0].text as string) as { reason?: string; message?: string };
     expect(reviewRefusal.reason).toBe('disabled');
     expect(reviewRefusal.message).toContain('forgejoToolkit.mcpWriteTools.createIssueComment');
+  });
+
+  it('refuses cancel_action_run without provenance, naming its own setting', async () => {
+    // Zero provenance: every route that is not an extension-provided session
+    // lands here, and the refusal is a normal result naming the stage's own
+    // setting (§5, §13.8) — never `isError`, which reads as "retry".
+    const result = await callTool('cancel_action_run', cancelArgs());
+    expect(result.isError).toBeFalsy();
+    const refusal = JSON.parse(result.content[0].text as string) as { refused?: boolean; message?: string };
+    expect(refusal.refused).toBe(true);
+    expect(refusal.message).toContain('forgejoToolkit.mcpWriteTools.cancelActionRun');
+    expect(refusal.message).not.toContain('createIssueComment');
+    expect(refusal.message).not.toContain('submitPullReview');
+    expect(refusal.message).toContain('not established by the Forgejo Toolkit extension host');
+  });
+
+  it('refuses cancel_action_run when the marker covers it but its switch is off', async () => {
+    const result = await callTool('cancel_action_run', cancelArgs(), {
+      instanceId: 'instance-1',
+      writeTools: ['cancel_action_run'],
+      enabledWriteTools: [],
+    });
+    expect(result.isError).toBeFalsy();
+    const refusal = JSON.parse(result.content[0].text as string) as { reason?: string; message?: string };
+    expect(refusal.reason).toBe('disabled');
+    expect(refusal.message).toContain('forgejoToolkit.mcpWriteTools.cancelActionRun');
+    expect(refusal.message).toContain('not enabled in this session');
+  });
+
+  it('cancels the run when both gates pass, and audits a line with no body fields', async () => {
+    let posts = 0;
+    mockServer.use(
+      http.post(CANCEL_RUN_URL, () => {
+        posts += 1;
+        // Forgejo answers 204 with no content, finished run or not.
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { entries, sink } = collectAudit();
+    const result = await callTool('cancel_action_run', cancelArgs(), { ...CANCEL_WRITE_ALLOWED, writeAudit: sink });
+
+    expect(posts).toBe(1);
+    const cancelled = resultJson(result) as { ok?: boolean; id?: number; target?: string; message?: string };
+    expect(cancelled.ok).toBe(true);
+    expect(cancelled.id).toBe(mockActionRun.id);
+    expect(cancelled.target).toBe(`demo-user/demo-repo#${mockActionRun.id}`);
+    // The endpoint answers 204 for a run that had already finished too, so the
+    // text may not claim this call cancelled anything.
+    expect(cancelled.message).toMatch(/accepted the cancel request/);
+    expect(cancelled.message).toMatch(/already finished/);
+
+    expect(entries).toHaveLength(1);
+    const entry = entries[0];
+    expect(entry.tool).toBe('cancel_action_run');
+    expect(entry.result).toBe('ok');
+    expect(entry.dryRun).toBe(false);
+    expect(entry.repo).toBe('demo-user/demo-repo');
+    expect(entry.target).toBe(`demo-user/demo-repo#${mockActionRun.id}`);
+    expect(entry.caller).toBe('extension host (test session)');
+    expect(entry.instance).toBe('instance-1');
+    expect(typeof entry.ms).toBe('number');
+    // This call carries no body at all, so the two body fields are absent
+    // rather than zero — the same rule a body-less COMMENT review follows.
+    expect(entry.bytes).toBeUndefined();
+    expect(entry.sha256).toBeUndefined();
+    expect(entry.reviewId).toBeUndefined();
+    expect(Object.keys(entry).sort()).toEqual(
+      ['at', 'caller', 'dryRun', 'instance', 'ms', 'repo', 'result', 'target', 'tool'].sort(),
+    );
+  });
+
+  it('sends nothing for a cancel dry run and reports the plan', async () => {
+    let posts = 0;
+    mockServer.use(
+      http.post(CANCEL_RUN_URL, () => {
+        posts += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { entries, sink } = collectAudit();
+    const result = await callTool('cancel_action_run', cancelArgs({ dryRun: true }), {
+      ...CANCEL_WRITE_ALLOWED,
+      writeAudit: sink,
+    });
+
+    expect(posts).toBe(0);
+    const planned = resultJson(result) as { dryRun?: boolean; plan?: Record<string, unknown>; note?: string };
+    expect(planned.dryRun).toBe(true);
+    expect(planned.plan).toMatchObject({
+      tool: 'cancel_action_run',
+      instance: 'instance-1',
+      repo: 'demo-user/demo-repo',
+      target: `demo-user/demo-repo#${mockActionRun.id}`,
+      runId: mockActionRun.id,
+      api: `POST /repos/demo-user/demo-repo/actions/runs/${mockActionRun.id}/cancel`,
+    });
+    // The plan says what cancelling means, and does not promise the server would
+    // accept the real call (§7).
+    expect(String(planned.plan?.consequence)).toMatch(/cancelled/);
+    expect(planned.note).toMatch(/accepting/i);
+    expect(entries[0].dryRun).toBe(true);
+    expect(entries[0].result).toBe('ok');
+    expect(entries[0].bytes).toBeUndefined();
+    expect(entries[0].sha256).toBeUndefined();
+  });
+
+  it('replays a repeated cancel instead of sending a second request', async () => {
+    let posts = 0;
+    mockServer.use(
+      http.post(CANCEL_RUN_URL, () => {
+        posts += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const server = createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'), {
+      ...CANCEL_WRITE_ALLOWED,
+      writeAudit: collectAudit().sink,
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: 'mcp-test-client', version: '0.0.0' });
+    await client.connect(clientTransport);
+    try {
+      const args = cancelArgs({ idempotencyKey: 'cancel-key-1' });
+      const first = (await client.callTool({ name: 'cancel_action_run', arguments: args })) as TextToolResult;
+      const second = (await client.callTool({ name: 'cancel_action_run', arguments: args })) as TextToolResult;
+
+      // The second cancel is the same logical action, so it replays rather than
+      // issuing a second request — and the endpoint being a no-op for a
+      // finished run does not make the replay optional.
+      expect(posts).toBe(1);
+      expect((resultJson(first) as { id?: number }).id).toBe(mockActionRun.id);
+      const replay = resultJson(second) as { duplicate?: boolean; result?: { id?: number }; message?: string };
+      expect(replay.duplicate).toBe(true);
+      expect(replay.result?.id).toBe(mockActionRun.id);
+      expect(replay.message).toMatch(/nothing new was created/i);
+
+      // The same key for a different run is a caller bug, not a replay.
+      const mismatched = (await client.callTool({
+        name: 'cancel_action_run',
+        arguments: { ...args, runId: mockActionRun.id + 1 },
+      })) as TextToolResult;
+      expect(mismatched.isError).toBe(true);
+      expect(mismatched.content[0].text ?? '').toMatch(/idempotencyKey/);
+      expect(posts).toBe(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it('tells the caller about a missing write scope on a cancel and audits the status', async () => {
+    mockServer.use(
+      http.post(CANCEL_RUN_URL, () =>
+        HttpResponse.json({ message: 'token does not have at least one of the required scopes' }, { status: 403 }),
+      ),
+    );
+    // As for the comment tool: the host hooks are no-ops in a headless process,
+    // so the tool text is the only place the missing scope can reach the user.
+    const previousHost = getForgejoClientHost();
+    setForgejoClientHost({
+      t: passthroughTranslate,
+      notifyInvalidCredentials: () => undefined,
+      notifyInsufficientScope: () => undefined,
+      notifyUnsupportedInstance: () => undefined,
+    });
+    try {
+      const { entries, sink } = collectAudit();
+      const result = await callTool('cancel_action_run', cancelArgs(), { ...CANCEL_WRITE_ALLOWED, writeAudit: sink });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text ?? '').toMatch(/scope/i);
+      expect(entries[0].result).toBe('http:403');
+      expect(entries[0].bytes).toBeUndefined();
+    } finally {
+      setForgejoClientHost(previousHost);
+    }
+  });
+
+  it('keeps every write switch independent of the other two', async () => {
+    // Per-tool independence is the point of the switches (§13.2), and the second
+    // batch's tool must not become reachable through either earlier switch.
+    for (const enabled of ['create_issue_comment', 'submit_pull_review'] as const) {
+      const result = await callTool('cancel_action_run', cancelArgs(), {
+        instanceId: 'instance-1',
+        writeTools: WRITE_TOOLS,
+        enabledWriteTools: [enabled],
+      });
+      expect(result.isError, enabled).toBeFalsy();
+      const refusal = JSON.parse(result.content[0].text as string) as { reason?: string; message?: string };
+      expect(refusal.reason, enabled).toBe('disabled');
+      expect(refusal.message, enabled).toContain('forgejoToolkit.mcpWriteTools.cancelActionRun');
+    }
+
+    // …and enabling the cancel switch alone leaves both earlier tools refused.
+    const cancelOnly: WorkspaceContextOptions = {
+      instanceId: 'instance-1',
+      writeTools: WRITE_TOOLS,
+      enabledWriteTools: ['cancel_action_run'],
+    };
+    const comment = await callTool(
+      'create_issue_comment',
+      { owner: 'demo-user', repo: 'demo-repo', index: 1, body: 'hello' },
+      cancelOnly,
+    );
+    expect(comment.isError).toBeFalsy();
+    expect((JSON.parse(comment.content[0].text as string) as { message?: string }).message).toContain(
+      'forgejoToolkit.mcpWriteTools.createIssueComment',
+    );
+
+    const review = await callTool('submit_pull_review', reviewArgs(), cancelOnly);
+    expect(review.isError).toBeFalsy();
+    expect((JSON.parse(review.content[0].text as string) as { message?: string }).message).toContain(
+      'forgejoToolkit.mcpWriteTools.submitPullReview',
+    );
+  });
+
+  it('treats one key reused across two write tools as a reuse, not a replay', async () => {
+    // The three tools share one idempotency table, so the tool name is part of
+    // the identity: a key a comment call used is not a licence for a cancel with
+    // the same key, and the caller is told to generate a new one rather than
+    // silently getting the other tool's result back.
+    let posts = 0;
+    mockServer.use(
+      http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/comments', () => {
+        posts += 1;
+        return HttpResponse.json({ ...mockTimelineComment }, { status: 201 });
+      }),
+      http.post(CANCEL_RUN_URL, () => {
+        posts += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const server = createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'), {
+      instanceId: 'instance-1',
+      writeTools: WRITE_TOOLS,
+      enabledWriteTools: WRITE_TOOLS,
+      writeCaller: 'extension host (test session)',
+      writeAudit: collectAudit().sink,
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: 'mcp-test-client', version: '0.0.0' });
+    await client.connect(clientTransport);
+    try {
+      const key = 'shared-key-1';
+      const comment = (await client.callTool({
+        name: 'create_issue_comment',
+        arguments: { owner: 'demo-user', repo: 'demo-repo', index: 1, body: 'once', idempotencyKey: key },
+      })) as TextToolResult;
+      expect(resultJson(comment)).toMatchObject({ ok: true });
+
+      const cancel = (await client.callTool({
+        name: 'cancel_action_run',
+        arguments: cancelArgs({ idempotencyKey: key }),
+      })) as TextToolResult;
+      expect(cancel.isError).toBe(true);
+      expect(cancel.content[0].text ?? '').toMatch(/idempotencyKey/);
+      // The comment was written once; the cancel never reached the server.
+      expect(posts).toBe(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 
   it('round-trips list_issues as a paged result with the rows and no total', async () => {

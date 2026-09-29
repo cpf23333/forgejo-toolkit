@@ -22,14 +22,18 @@ import {
  */
 describe('write tool surface', () => {
   it('names the tools and the settings the decision record fixed', () => {
-    // §13.7: the underscore, verb-first names; §13.2: one switch per tool.
-    expect([...MCP_WRITE_TOOL_NAMES]).toEqual(['create_issue_comment', 'submit_pull_review']);
+    // §13.7: the underscore, verb-first names; §13.2: one switch per tool; the
+    // third name is the second batch's first candidate (§13.3).
+    expect([...MCP_WRITE_TOOL_NAMES]).toEqual(['create_issue_comment', 'submit_pull_review', 'cancel_action_run']);
     expect(MCP_WRITE_TOOL_SETTINGS.map((setting) => setting.settingKey)).toEqual([
       'forgejoToolkit.mcpWriteTools.createIssueComment',
       'forgejoToolkit.mcpWriteTools.submitPullReview',
+      'forgejoToolkit.mcpWriteTools.cancelActionRun',
     ]);
     expect(mcpWriteToolSettingKey('create_issue_comment')).toBe('forgejoToolkit.mcpWriteTools.createIssueComment');
+    expect(mcpWriteToolSettingKey('cancel_action_run')).toBe('forgejoToolkit.mcpWriteTools.cancelActionRun');
     expect(isMcpWriteTool('create_issue_comment')).toBe(true);
+    expect(isMcpWriteTool('cancel_action_run')).toBe(true);
     expect(isMcpWriteTool('get_issue')).toBe(false);
   });
 
@@ -62,6 +66,12 @@ describe('write tool surface', () => {
       'create_issue_comment',
       'submit_pull_review',
     ]);
+    // The third tool travels by the same name-only spelling, and the parsed
+    // list keeps the contract's order rather than the marker's.
+    expect(sessionWriteToolsFromEnvironment('cancel_action_run,create_issue_comment')).toEqual([
+      'create_issue_comment',
+      'cancel_action_run',
+    ]);
     // A tool this build does not know is ignored, not fatal: a newer host may
     // advertise one, and the safe reading of "unknown" is "not enabled here".
     expect(sessionWriteToolsFromEnvironment('create_issue_comment,create_issue')).toEqual(['create_issue_comment']);
@@ -78,6 +88,7 @@ describe('write tool surface', () => {
     }
     expect(hasHostProvenance([])).toBe(false);
     expect(hasHostProvenance(['create_issue_comment'])).toBe(true);
+    expect(hasHostProvenance(['cancel_action_run'])).toBe(true);
   });
 
   it('checks provenance before the per-tool switch', () => {
@@ -114,6 +125,15 @@ describe('write tool surface', () => {
     // The stage-2 tool's message must name the stage-2 setting, not stage 1's.
     expect(writeRefusalMessage('disabled', 'submit_pull_review')).toContain(
       'forgejoToolkit.mcpWriteTools.submitPullReview',
+    );
+
+    // …and the second batch's tool names its own switch, not either of theirs.
+    const cancel = writeRefusalMessage('disabled', 'cancel_action_run');
+    expect(cancel).toContain('forgejoToolkit.mcpWriteTools.cancelActionRun');
+    expect(cancel).not.toContain('createIssueComment');
+    expect(cancel).not.toContain('submitPullReview');
+    expect(writeRefusalMessage('unprovenanced', 'cancel_action_run')).toContain(
+      'forgejoToolkit.mcpWriteTools.cancelActionRun',
     );
   });
 
@@ -173,5 +193,24 @@ describe('write tool surface', () => {
     expect(writeInstanceLabel({ writeInstanceLabel: 'Demo (instance-9)', instanceId: 'instance-9' })).toBe(
       'Demo (instance-9)',
     );
+
+    // The third tool is body-less by construction, so its line carries the base
+    // field set and nothing else — no `reviewId` and, with no body at all, no
+    // `bytes`/`sha256` either. Absent, not zero: §8's rule for a call that
+    // carried no body.
+    const cancel = writeAuditRecord(
+      {},
+      { tool: 'cancel_action_run', repo: 'demo-user/demo-repo', target: 'demo-user/demo-repo#7', dryRun: false },
+      'refused:tool-disabled',
+      3,
+    );
+    expect(Object.keys(cancel).sort()).toEqual(
+      ['at', 'caller', 'dryRun', 'instance', 'ms', 'repo', 'result', 'target', 'tool'].sort(),
+    );
+    expect(cancel.tool).toBe('cancel_action_run');
+    expect(cancel.target).toBe('demo-user/demo-repo#7');
+    expect(cancel.bytes).toBeUndefined();
+    expect(cancel.sha256).toBeUndefined();
+    expect(cancel.reviewId).toBeUndefined();
   });
 });

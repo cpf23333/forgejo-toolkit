@@ -5,9 +5,9 @@ import { registerPrompts } from './prompts';
 import packageJson from '../package.json';
 
 /**
- * Builds the MCP server with the tool surface (read-only tools plus the two
- * gated write tools, which refuse unless the session was established by the
- * extension host and the tool's own switch is on) and its prompt templates.
+ * Builds the MCP server with the tool surface (read-only tools plus the gated
+ * write tools, which refuse unless the session was established by the extension
+ * host and the tool's own switch is on) and its prompt templates.
  * Kept separate from server.ts so tests can connect it over InMemoryTransport
  * instead of stdio.
  *

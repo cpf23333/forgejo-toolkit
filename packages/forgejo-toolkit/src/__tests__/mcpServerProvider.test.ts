@@ -590,11 +590,34 @@ describe('registerMcpServerProvider', () => {
 
     // The marker carries tool names, not setting keys: one spelling end to end.
     expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment');
-    // A switch that is off advertises nothing: the stage-2 tool is a separate
-    // opt-in, and the marker is per session, not per feature.
+    // A switch that is off advertises nothing: the stage-2 tool and the second
+    // batch's cancel are separate opt-ins, and the marker is per session, not
+    // per feature.
     expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('submit_pull_review');
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('cancel_action_run');
     // The token still never appears in a definition.
     expect(JSON.stringify(definitions[0].env)).not.toContain('secret-token');
+  });
+
+  it('advertises the cancel tool alone when only its own switch is on', async () => {
+    // The second batch's tool carries its own marker entry: enabling it must not
+    // advertise — and therefore must not establish a session for — either
+    // first-batch tool (§13.2, §13.3).
+    const getConfiguration = vi.mocked(vscode.workspace.getConfiguration);
+    getConfiguration.mockReturnValue({
+      get: (key: string) => (key === 'mcpWriteTools' ? { cancelActionRun: true } : undefined),
+      update: vi.fn(),
+    } as never);
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).toBe('cancel_action_run');
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('create_issue_comment');
+    expect(definitions[0].env[MCP_ENV_WRITE_TOOLS]).not.toContain('submit_pull_review');
   });
 
   it('advertises each write tool the window switched on, by tool name', async () => {
@@ -623,6 +646,20 @@ describe('registerMcpServerProvider', () => {
       new AbortController().signal as never,
     )) as unknown as CapturedDefinition[];
     expect(both[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment,submit_pull_review');
+
+    getConfiguration.mockReturnValue({
+      get: (key: string) =>
+        key === 'mcpWriteTools'
+          ? { createIssueComment: true, submitPullReview: true, cancelActionRun: true }
+          : undefined,
+      update: vi.fn(),
+    } as never);
+    const all = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+    // The marker's order is the contract's order (MCP_WRITE_TOOL_NAMES), not the
+    // settings object's, so the emitted value is stable across hosts.
+    expect(all[0].env[MCP_ENV_WRITE_TOOLS]).toBe('create_issue_comment,submit_pull_review,cancel_action_run');
   });
 
   it('treats a non-boolean switch value as off', async () => {

@@ -2540,17 +2540,19 @@ describe('tool descriptions and schemas', () => {
     expect(config?.inputSchema?.includeDiffStats?.description ?? '').toContain('default: true');
   });
 
-  it('carries the whole write-tool contract in the two write descriptions', () => {
+  it('carries the whole write-tool contract in the three write descriptions', () => {
     // §3.5: the description is the only contract the agent is guaranteed to
     // read, so the side effect, the gate, the scope, the retry semantics and the
-    // dry run all have to be in it — for both tools, or the second one ships
-    // less safe than the first.
+    // dry run all have to be in it — for every tool, or a later one ships less
+    // safe than the first.
     const comment = captureConfigs().get('create_issue_comment')?.description ?? '';
     const review = captureConfigs().get('submit_pull_review')?.description ?? '';
+    const cancel = captureConfigs().get('cancel_action_run')?.description ?? '';
 
     for (const [tool, description] of [
       ['create_issue_comment', comment],
       ['submit_pull_review', review],
+      ['cancel_action_run', cancel],
     ] as const) {
       expect(description, tool).toMatch(/^Write operation:/);
       expect(description, tool).toContain('changes server state');
@@ -2561,6 +2563,14 @@ describe('tool descriptions and schemas', () => {
     }
     expect(comment).toContain('`forgejoToolkit.mcpWriteTools.createIssueComment`');
     expect(review).toContain('`forgejoToolkit.mcpWriteTools.submitPullReview`');
+    expect(cancel).toContain('`forgejoToolkit.mcpWriteTools.cancelActionRun`');
+    expect(cancel).not.toContain('createIssueComment');
+    expect(cancel).not.toContain('submitPullReview');
+    // The cancel tool's side effect is a stop, not an append, and the server
+    // answers 204 even for a run it left alone — the description has to say both,
+    // or a caller reads a 204 as "this call cancelled it".
+    expect(cancel).toMatch(/cancel a pending or running Actions workflow run/);
+    expect(cancel).toMatch(/leaves a run that has already finished/);
     // §9 stage 2: the verdicts and what the consequential one means.
     expect(review).toContain('COMMENT');
     expect(review).toContain('APPROVED');

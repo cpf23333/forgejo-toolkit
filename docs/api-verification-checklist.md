@@ -676,6 +676,7 @@
 - [x] 取消只作用于未完成的 job：已完成的 job 原样跳过，`NeedApproval` 的 run 会被清掉待批准标记，随后重算 commit status
 - [x] 源码位置：`routers/api/v1/api.go:909`、`routers/api/v1/permissions/req_repo_writer.go:13-23`、`routers/api/v1/repo/action.go:1099-1158`、`services/actions/run.go:17-43`、`services/actions/rerun.go:244-273`、`models/actions/status.go:28-37`
 - [x] 差异记录：`canCancelRun` 的状态白名单为 `['running','waiting','pending','requested']`（`packages/forgejo-toolkit/webview/src/views/ActionRunDetail.vue:354-356`），漏掉了服务端真实状态 `blocked`，「等待批准 / 被阻塞」的 run 在 UI 上看不到取消按钮，而 API 实际可以取消；`pending`/`requested` 并非 Forgejo 状态
+- [x] MCP 写工具 `cancel_action_run`（`mcp/tools.ts`）是这条端点的**写侧**调用点，经 `ForgejoClient.cancelActionRun`（`src/api/client.ts`）发起，对应 `forgejoToolkit.mcpWriteTools.cancelActionRun` 开关（默认关闭，且与其他写开关彼此独立）；该端点是**无请求体的 POST、成功返回 204 无响应体**，因此该工具的审计行不带 `bytes`/`sha256`（按既有规则是「缺失」而非 0）；因为已知「已完成的 run 也返回 204 且不改动」，工具结果只能说明「服务端接受了取消请求」，run 的真实状态以 `list_action_runs` 或网页界面为准；重复取消在 10 分钟幂等窗口内直接回放（同一次逻辑操作），未复用 key 的重试也不会重复取消（端点对已完成 run 是 no-op）。客户端侧的动作版本闸门同样适用：v15 实例上该端点不存在（404）
 
 ### rerun（重新运行 workflow run）—— REST API 不存在（负向核对）
 

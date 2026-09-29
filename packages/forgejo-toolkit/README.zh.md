@@ -16,7 +16,7 @@
 - **通知**：未读角标、筛选、后台轮询并弹出 VS Code 提醒。同时打开多个窗口时，默认只由一个窗口轮询并弹出提醒（`forgejoToolkit.multiWindowLease`）；每个窗口打开时仍会加载通知，无法使用该协调机制的窗口会自行轮询。
 - **CI / Actions**：运行记录、job 日志、制品下载、取消与触发 workflow。
 - **发布与克隆**：把本地仓库发布到实例；通过 VS Code 的 Git: Clone 按关键字在服务端搜索并克隆仓库。
-- **面向 AI agent 的 MCP server**：每个已配置实例都会暴露为 Copilot agent mode 的独立 MCP server——32 个工具（Issue、PR、PR 评审摘要、Actions、代码浏览、工作区仓库识别，外加两个默认关闭、各自需要单独开关的写工具）、prompt 模板、零配置自动匹配实例。`forgejoToolkit.mcpEnabled` 可关闭整个 MCP 面（不注册 server 定义、不维护工作区映射、停止 broker），无需重载窗口；已连接的客户端会继续使用自己的进程，直到窗口重载。
+- **面向 AI agent 的 MCP server**：每个已配置实例都会暴露为 Copilot agent mode 的独立 MCP server——33 个工具（Issue、PR、PR 评审摘要、Actions、代码浏览、工作区仓库识别，外加三个默认关闭、各自需要单独开关的写工具）、prompt 模板、零配置自动匹配实例。`forgejoToolkit.mcpEnabled` 可关闭整个 MCP 面（不注册 server 定义、不维护工作区映射、停止 broker），无需重载窗口；已连接的客户端会继续使用自己的进程，直到窗口重载。
 - **本地化**：English 与中文。
 
 ## 命令
