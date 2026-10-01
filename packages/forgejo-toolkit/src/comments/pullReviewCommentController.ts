@@ -186,8 +186,10 @@ export class PullReviewCommentController implements vscode.Disposable {
           this._onOpenDocument(editor.document);
         }
         // Safety net: if an editor ever loses its decorations without a
-        // visible-editors event, focus changes restore them.
-        this._applyThreadRangeDecorations();
+        // visible-editors event, focus changes restore them. Forced, because
+        // this path exists precisely to repaint what the apply-skip otherwise
+        // trusts to be intact.
+        this._applyThreadRangeDecorations(true);
       }),
       // Threads outlive editor visibility changes; re-apply the range
       // decorations when a document becomes visible in a (new) editor, and
@@ -204,14 +206,79 @@ export class PullReviewCommentController implements vscode.Disposable {
       // ranges, so use that as the trigger and debounce it (scrolling fires
       // it constantly). The small delay also lets the updated collapsible
       // state round-trip from the workbench before we read it.
-      vscode.window.onDidChangeTextEditorVisibleRanges(() => this._scheduleThreadRangeDecorationSync()),
+      //
+      // Only documents this controller decorates may trigger the re-apply.
+      // `onDidChangeTextEditorVisibleRanges` also fires for documents that
+      // can never carry a thread — the output channel and the comment-input
+      // documents — and the re-apply itself writes to the output channel, so
+      // without this filter the debug line below changed the output editor's
+      // visible ranges and re-triggered the very sync that had written it: a
+      // self-sustaining loop that burned CPU and spammed the channel.
+      vscode.window.onDidChangeTextEditorVisibleRanges((event) =>
+        this._scheduleThreadRangeDecorationSync(event?.textEditor?.document),
+      ),
     );
     this._updateActiveEditorContext(vscode.window.activeTextEditor);
   }
 
   private _threadRangeDecorationSyncTimer: ReturnType<typeof setTimeout> | undefined;
 
-  private _scheduleThreadRangeDecorationSync(): void {
+  /**
+   * Exact detail string of the last "Thread range decorations applied per
+   * visible editor" line written to the output channel. The diagnostic may only
+   * be written when it changes: writing it alters the output editor's visible
+   * ranges, and the re-apply that follows produces the identical string, so an
+   * unconditional write was a self-sustaining output/CPU loop (see the
+   * visible-ranges listener).
+   */
+  private _lastRangeDecorationDetail: string | undefined;
+
+  /**
+   * Range signature `setDecorations` was last called with, per editor, so a
+   * re-apply whose computed range sets are unchanged does not repaint. Keyed by
+   * the editor (not its document URI) on purpose: a document can be shown in a
+   * new editor instance whose decorations are not the previous instance's, so
+   * identity is what makes the skip safe. A `WeakMap` releases the entry with
+   * the editor.
+   */
+  private readonly _appliedRangeDecorations = new WeakMap<vscode.TextEditor, string>();
+
+  /** Signature of a range set, stable across re-computation of the same ranges. */
+  private _rangeSetSignature(ranges: readonly vscode.Range[]): string {
+    return ranges
+      .map((range) => `${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`)
+      .sort()
+      .join('|');
+  }
+
+  /**
+   * Whether a visible-range change on `document` can affect these decorations.
+   * Only documents that carry a thread this controller tracks are decorated
+   * (see `_applyThreadRangeDecorations`); everything else — the output channel,
+   * the comment-input documents, ordinary files — must not schedule the sync,
+   * both because the work would be a no-op and because the sync can write to
+   * the output channel, which would then re-trigger itself.
+   */
+  private _shouldSyncDecorationsForDocument(document: vscode.TextDocument | undefined): boolean {
+    if (!document) {
+      // No document on the event (a different VS Code version, or a caller
+      // that passed nothing): keep the old, unconditional behaviour rather
+      // than silently dropping the collapse/expand re-apply.
+      return true;
+    }
+    const uriKey = document.uri.toString();
+    for (const thread of this._threads.values()) {
+      if (thread.uri.toString() === uriKey) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private _scheduleThreadRangeDecorationSync(document?: vscode.TextDocument): void {
+    if (!this._shouldSyncDecorationsForDocument(document)) {
+      return;
+    }
     if (this._threadRangeDecorationSyncTimer !== undefined) {
       clearTimeout(this._threadRangeDecorationSyncTimer);
     }
@@ -268,7 +335,10 @@ export class PullReviewCommentController implements vscode.Disposable {
       dropped = true;
     }
     if (dropped) {
-      this._applyThreadRangeDecorations();
+      // Forced: a sweep removes the ranges of the dropped threads, and the
+      // range set of an editor whose supplement was already absent is
+      // unchanged, so the skip would leave nothing to re-report either.
+      this._applyThreadRangeDecorations(true);
     }
   }
 
@@ -651,7 +721,14 @@ export class PullReviewCommentController implements vscode.Disposable {
   // per line: overlapping threads ending on the same line would otherwise
   // stack the translucent theme color once per thread. Like VS Code's own
   // comment-thread-range decorator, only expanded threads are painted.
-  private _applyThreadRangeDecorations(): void {
+  //
+  // `force` repaints even an unchanged range set, for the few callers that
+  // must not trust the last painted state: the focus-change safety net and the
+  // invisible-thread sweep. The high-frequency callers (the debounced
+  // visible-ranges sync and the visible-editors event) leave it off, so a
+  // repeated computation that produces the same ranges does not call
+  // `setDecorations` at all.
+  private _applyThreadRangeDecorations(force = false): void {
     const lastLineByUri = new Map<string, Map<number, vscode.Range>>();
     for (const thread of this._threads.values()) {
       const range = thread.range;
@@ -673,12 +750,23 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
     for (const editor of vscode.window.visibleTextEditors) {
       const byLine = lastLineByUri.get(editor.document.uri.toString());
-      editor.setDecorations(this._rangeDecoration, byLine ? [...byLine.values()] : []);
+      const ranges = byLine ? [...byLine.values()] : [];
+      // Repainting identical data is what makes a visible-ranges event
+      // expensive for no visible change; only call setDecorations when this
+      // editor's range set actually differs from what it was last given.
+      const signature = this._rangeSetSignature(ranges);
+      if (force || this._appliedRangeDecorations.get(editor) !== signature) {
+        this._appliedRangeDecorations.set(editor, signature);
+        editor.setDecorations(this._rangeDecoration, ranges);
+      }
     }
     // Diagnostics for "multi-line range highlight misses lines" reports: if a
     // user reproduces it with `forgejoToolkit.debug` enabled, this shows
     // whether the decoration reached the affected editor (count per editor
-    // URI) or never matched it (0 / editor absent from the list).
+    // URI) or never matched it (0 / editor absent from the list). Written only
+    // when the detail changes: the line itself alters the output editor's
+    // visible ranges, so a repeated identical write would re-trigger the sync
+    // that wrote it (see the visible-ranges listener).
     if (lastLineByUri.size > 0) {
       const detail = vscode.window.visibleTextEditors
         .map(
@@ -686,7 +774,10 @@ export class PullReviewCommentController implements vscode.Disposable {
             `${editor.document.uri.toString()}=${lastLineByUri.get(editor.document.uri.toString())?.size ?? 0}`,
         )
         .join(', ');
-      this._logger?.debug(`Thread range decorations applied per visible editor: ${detail}`);
+      if (detail !== this._lastRangeDecorationDetail) {
+        this._lastRangeDecorationDetail = detail;
+        this._logger?.debug(`Thread range decorations applied per visible editor: ${detail}`);
+      }
     }
   }
 

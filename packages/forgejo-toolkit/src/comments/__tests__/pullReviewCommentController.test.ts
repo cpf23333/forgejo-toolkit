@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
   openHandlers: [] as Array<(doc: unknown) => unknown>,
   closeHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
-  visibleRangesHandlers: [] as Array<() => unknown>,
+  visibleRangesHandlers: [] as Array<(event?: { textEditor?: { document: unknown } }) => unknown>,
   visibleEditorHandlers: [] as Array<() => unknown>,
   visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
   diffFetches: 0,
@@ -95,7 +95,7 @@ vi.mock('vscode', () => {
         state.visibleEditorHandlers.push(cb);
         return { dispose: vi.fn() };
       }),
-      onDidChangeTextEditorVisibleRanges: vi.fn((cb: () => unknown) => {
+      onDidChangeTextEditorVisibleRanges: vi.fn((cb: (event?: { textEditor?: { document: unknown } }) => unknown) => {
         state.visibleRangesHandlers.push(cb);
         return { dispose: vi.fn() };
       }),
@@ -1556,6 +1556,178 @@ describe('PullReviewCommentController load-failure toast dedup', () => {
       controller.dispose();
     } finally {
       state.diffError = null;
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * The decoration sync used to be triggered by any document's visible ranges and
+ * logged a line every time it painted at least one range. Since the re-apply
+ * writes to the output channel, that line changed the output editor's own
+ * visible ranges and re-triggered the sync that had written it: with
+ * `forgejoToolkit.debug` on and one expanded multi-line thread, the channel
+ * filled up on its own and clearing it started the loop again.
+ */
+describe('PullReviewCommentController range-decoration sync', () => {
+  const MULTI_LINE_COMMENT = [
+    { id: 201, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+  ];
+
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.visibleEditors.length = 0;
+    state.visibleRangesHandlers.length = 0;
+    state.comments = null;
+  });
+
+  function internals(controller: PullReviewCommentController) {
+    return controller as unknown as {
+      _applyThreadRangeDecorations(): void;
+      _shouldSyncDecorationsForDocument(document?: unknown): boolean;
+    };
+  }
+
+  /** An editor that is not a PR document: the output channel, a comment input. */
+  function outputEditor() {
+    const uri = 'output:extension-output-forgejo-toolkit';
+    return {
+      document: { uri: { scheme: 'output', toString: () => uri } },
+      setDecorations: vi.fn(),
+    };
+  }
+
+  function fireVisibleRangeChange(editor: unknown) {
+    for (const handler of state.visibleRangesHandlers) {
+      handler({ textEditor: { document: (editor as { document: unknown }).document } });
+    }
+  }
+
+  it('logs the per-editor detail once while the computed detail is unchanged', async () => {
+    vi.useFakeTimers();
+    try {
+      state.comments = MULTI_LINE_COMMENT;
+      const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+      state.visibleEditors.push(editor);
+      const debug = vi.fn();
+      const controller = new PullReviewCommentController(
+        createConfig(),
+        { fsPath: '/ext' } as never,
+        {
+          debug,
+          info: vi.fn(),
+          error: vi.fn(),
+        } as never,
+      );
+      const openDocument = state.openHandlers[0];
+      await openDocument(makeDocument(false));
+
+      // The first paint carries the diagnostic value the line was added for.
+      expect(debug).toHaveBeenCalledTimes(1);
+      expect(debug.mock.calls[0][0]).toContain('Thread range decorations applied per visible editor:');
+      expect(debug.mock.calls[0][0]).toContain('=1');
+
+      // Identical re-applications — the visible-ranges debounce this very
+      // output used to retrigger — must stay silent.
+      internals(controller)._applyThreadRangeDecorations();
+      internals(controller)._applyThreadRangeDecorations();
+
+      expect(debug).toHaveBeenCalledTimes(1);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('logs again when the computed detail genuinely changes', async () => {
+    vi.useFakeTimers();
+    try {
+      state.comments = MULTI_LINE_COMMENT;
+      const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+      state.visibleEditors.push(editor);
+      const debug = vi.fn();
+      const controller = new PullReviewCommentController(
+        createConfig(),
+        { fsPath: '/ext' } as never,
+        {
+          debug,
+          info: vi.fn(),
+          error: vi.fn(),
+        } as never,
+      );
+      const openDocument = state.openHandlers[0];
+      await openDocument(makeDocument(false));
+      expect(debug).toHaveBeenCalledTimes(1);
+
+      // A new visible editor changes the detail; the user reproducing a
+      // "highlight misses lines" report needs to see the updated counts.
+      state.visibleEditors.push(outputEditor());
+      internals(controller)._applyThreadRangeDecorations();
+
+      expect(debug).toHaveBeenCalledTimes(2);
+      expect(debug.mock.calls[1][0]).toContain('=1');
+      expect(debug.mock.calls[1][0]).toContain('=0');
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not schedule decoration work for a visible-range change on a document it does not decorate', async () => {
+    vi.useFakeTimers();
+    try {
+      state.comments = MULTI_LINE_COMMENT;
+      const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+      state.visibleEditors.push(editor);
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+      await openDocument(makeDocument(false));
+      editor.setDecorations.mockClear();
+
+      const output = outputEditor();
+      expect(internals(controller)._shouldSyncDecorationsForDocument(output.document)).toBe(false);
+      // Collapsing the only multi-line thread would change the painted ranges,
+      // so a scheduled sync could not be silently skipped as identical: the
+      // event must be filtered out before the timer is ever armed.
+      state.createdThreads[0].collapsibleState = 0;
+      fireVisibleRangeChange(output);
+      await vi.advanceTimersByTimeAsync(500);
+
+      // Neither the debounced timer nor an immediate re-apply ran: the output
+      // panel's own visible-range changes (the debug line landing in it) can no
+      // longer drive the decoration sync.
+      expect(editor.setDecorations).not.toHaveBeenCalled();
+
+      // A PR document whose visible ranges changed still syncs: that is how a
+      // user-initiated collapse/expand reaches the controller at all.
+      expect(internals(controller)._shouldSyncDecorationsForDocument(editor.document)).toBe(true);
+      fireVisibleRangeChange(editor);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(editor.setDecorations).toHaveBeenCalledTimes(1);
+      expect(editor.setDecorations.mock.calls[0][1]).toEqual([]);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not call setDecorations again while the computed range set is unchanged', async () => {
+    vi.useFakeTimers();
+    try {
+      state.comments = MULTI_LINE_COMMENT;
+      const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+      state.visibleEditors.push(editor);
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+      await openDocument(makeDocument(false));
+      expect(editor.setDecorations).toHaveBeenCalledTimes(1);
+
+      internals(controller)._applyThreadRangeDecorations();
+
+      expect(editor.setDecorations).toHaveBeenCalledTimes(1);
+      controller.dispose();
+    } finally {
       vi.useRealTimers();
     }
   });
