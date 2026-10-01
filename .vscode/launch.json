@@ -15,7 +15,14 @@
         // "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}/packages/forgejo-toolkit"
       ],
-      "outFiles": ["${workspaceFolder}/packages/forgejo-toolkit/out/**/*.js"],
+      // The extension host bundle is ESM since the migration, so the source-map
+      // glob has to include `.mjs` as well: with only `**/*.js` it matched the
+      // webview assets and none of `out/extension.mjs` / `out/chunks/*.mjs`,
+      // which is why breakpoints in `src/**` never bound under F5.
+      "outFiles": [
+        "${workspaceFolder}/packages/forgejo-toolkit/out/**/*.mjs",
+        "${workspaceFolder}/packages/forgejo-toolkit/out/**/*.js"
+      ],
       "preLaunchTask": "dev",
       "sourceMaps": true
     }
