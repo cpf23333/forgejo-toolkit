@@ -13,8 +13,12 @@ const { stateMock } = vi.hoisted(() => ({
     actionRunTotalCount: { value: new Map<string, number>() },
     actionRunsPage: { value: new Map<string, number>() },
     workflowDispatchInputs: { value: new Map<string, unknown>() },
+    // The ref selector's branch/tag list (see RepoActions.vue): empty here, so
+    // the form keeps its plain ref field.
+    repoRefs: { value: new Map<string, unknown>() },
     lastDispatchCancelled: { value: undefined as string | undefined },
     loadActionRuns: vi.fn(),
+    loadRepoRefs: vi.fn(),
     loadWorkflowDispatchInputs: vi.fn(),
     dispatchWorkflow: vi.fn(),
     openActionRunDetail: vi.fn(),
@@ -29,6 +33,7 @@ vi.mock('../../composables/useAppState', async () => {
     useAppState: () => state,
     ACTION_RUNS_PAGE_LIMIT: 30,
     actionRunsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:actions`,
+    repoRefsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:refs`,
     dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
       `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
     workflowDispatchInputsKey: (instanceId: string, owner: string, repo: string, workflow: string, ref: string) =>

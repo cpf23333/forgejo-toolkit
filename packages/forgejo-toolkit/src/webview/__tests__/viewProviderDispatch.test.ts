@@ -12,6 +12,9 @@ const clientMocks = vi.hoisted(() => ({
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
   getRepoDetail: vi.fn(),
+  getRepoBranches: vi.fn(),
+  getRepoTags: vi.fn(),
+  getRepoReleases: vi.fn(),
   getPullRequestDetail: vi.fn(),
   getUserIssues: vi.fn(),
   getUserPullRequests: vi.fn(),
@@ -50,6 +53,9 @@ vi.mock('../../api/client', () => ({
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
+      getRepoBranches: clientMocks.getRepoBranches,
+      getRepoTags: clientMocks.getRepoTags,
+      getRepoReleases: clientMocks.getRepoReleases,
       getRepoContents: clientMocks.getRepoContents,
       getFileContentResult: clientMocks.getFileContentResult,
       getReadmeEntry: clientMocks.getReadmeEntry,
@@ -312,6 +318,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.editIssue.mockReset();
     clientMocks.replaceIssueLabels.mockReset();
     clientMocks.getRepoDetail.mockReset();
+    clientMocks.getRepoBranches.mockReset();
+    clientMocks.getRepoTags.mockReset();
+    clientMocks.getRepoReleases.mockReset();
     clientMocks.getPullRequestDetail.mockReset();
     clientMocks.getUserIssues.mockReset();
     clientMocks.getUserPullRequests.mockReset();
@@ -1477,6 +1486,32 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'repoContents');
     expect(reply?.entries).toEqual(rawEntries);
+  });
+
+  /**
+   * The refs reply feeds the repository browser's branch and tag tabs and the
+   * Actions form's ref selector, which offers branches *and* tags. Tags reach
+   * the webview only through this reply, so the two lists have to be on it.
+   */
+  it('answers getRepoRefs with the repository branches and tags', async () => {
+    const branches = [{ name: 'main' }, { name: 'release' }];
+    const tags = [{ name: 'v0.0.1' }];
+    clientMocks.getRepoBranches.mockResolvedValue(branches);
+    clientMocks.getRepoTags.mockResolvedValue(tags);
+    clientMocks.getRepoReleases.mockResolvedValue([]);
+
+    fake.send({ command: 'getRepoRefs', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoRefs'));
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'repoRefs');
+    expect(reply).toMatchObject({
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      branches,
+      tags,
+    });
+    expect(reply?.error).toBeUndefined();
   });
 
   it('re-runs the linked repository detection (debounced) when the instance set changes', async () => {

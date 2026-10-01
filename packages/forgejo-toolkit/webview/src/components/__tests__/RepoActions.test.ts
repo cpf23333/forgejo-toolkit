@@ -12,8 +12,12 @@ const { stateMock } = vi.hoisted(() => ({
     actionRunsHasMore: { value: new Map<string, boolean>() },
     actionRunTotalCount: { value: new Map<string, number>() },
     workflowDispatchInputs: { value: new Map<string, unknown>() },
+    // The ref selector's branch/tag list (see RepoActions.vue). Tags come from
+    // this state map, which is what the repository browser's refs reply fills.
+    repoRefs: { value: new Map<string, unknown>() },
     lastDispatchCancelled: { value: undefined as string | undefined },
     loadActionRuns: vi.fn(),
+    loadRepoRefs: vi.fn(),
     loadWorkflowDispatchInputs: vi.fn(),
     dispatchWorkflow: vi.fn(),
     openActionRunDetail: vi.fn(),
@@ -30,6 +34,7 @@ vi.mock('../../composables/useAppState', async () => {
     useAppState: () => state,
     ACTION_RUNS_PAGE_LIMIT: 30,
     actionRunsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:actions`,
+    repoRefsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:refs`,
     dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
       `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
     workflowDispatchInputsKey: (instanceId: string, owner: string, repo: string, workflow: string, ref: string) =>
@@ -46,13 +51,21 @@ const Host = defineComponent({
   props: {
     show: { type: Boolean, default: true },
     instanceId: { type: String, default: 'inst-1' },
+    defaultBranch: { type: String, default: undefined },
+    branches: { type: Array as unknown as () => string[], default: undefined },
   },
   setup(props) {
     return () =>
       h(KeepAlive, null, {
         default: () =>
           props.show
-            ? h(RepoActions, { instanceId: props.instanceId, owner: 'owner', repo: 'repo' })
+            ? h(RepoActions, {
+                instanceId: props.instanceId,
+                owner: 'owner',
+                repo: 'repo',
+                defaultBranch: props.defaultBranch,
+                branches: props.branches,
+              })
             : h('div', 'placeholder'),
       });
   },
@@ -257,6 +270,161 @@ describe('RepoActions dispatch feedback', () => {
 
     expect(wrapper.text()).not.toContain('Loading...');
     expect(wrapper.findAll('vscode-button').some((b) => b.text().trim() === 'Run')).toBe(true);
+    wrapper.unmount();
+  });
+});
+
+/**
+ * The ref field's label promises a branch or a tag, but only branches ever
+ * reached the component: tags live in the repository browser's refs reply, and
+ * nothing loaded it for this form. The selector now offers both kinds, telling
+ * them apart the way the Issue/PR form's own ref selector does, and still
+ * dispatches the plain ref name.
+ */
+describe('RepoActions ref selector', () => {
+  const REFS_KEY = 'inst-1:owner/repo:refs';
+
+  function mountForm(defaultBranch: string, branches: string[]) {
+    return mount(Host, {
+      props: { defaultBranch, branches },
+      global: { plugins: [createTestI18n('en')] },
+    });
+  }
+
+  /** The repository browser's refs reply, which is where the tags come from. */
+  function refsReply(branches: string[], tags: string[]) {
+    const state = useAppState() as unknown as { repoRefs: { value: Map<string, unknown> } };
+    state.repoRefs.value.set(REFS_KEY, {
+      branches: branches.map((name) => ({ name })),
+      tags: tags.map((name) => ({ name })),
+      releases: [],
+    });
+  }
+
+  async function openForm(wrapper: ReturnType<typeof mountForm>) {
+    const trigger = wrapper.findAll('vscode-button').find((button) => button.text().includes('Trigger workflow'));
+    expect(trigger, 'Trigger workflow button').toBeTruthy();
+    await trigger!.trigger('click');
+  }
+
+  /** The ref field is the second one; the first is the workflow file. */
+  function refSelect(wrapper: ReturnType<typeof mountForm>) {
+    return wrapper.findAll('.trigger-field')[1].get('vscode-single-select');
+  }
+
+  /**
+   * The option the control is showing as chosen: `vscode-single-select` keeps
+   * the live selection on its options (`:selected`), which is what the real
+   * element reads to show a label — and what a test can read without an
+   * upgraded custom element.
+   */
+  function selectedRef(wrapper: ReturnType<typeof mountForm>) {
+    return refSelect(wrapper)
+      .findAll('vscode-option')
+      .find((option) => option.attributes('selected') === 'true');
+  }
+
+  function runButton(wrapper: ReturnType<typeof mountForm>) {
+    return wrapper.findAll('vscode-button').find((button) => button.text().trim() === 'Run');
+  }
+
+  /** Types the workflow file and submits, leaving the ref to the test. */
+  async function submitWithWorkflow(wrapper: ReturnType<typeof mountForm>, workflow = 'ci.yml') {
+    const field = wrapper.findAll('vscode-textfield')[0];
+    (field.element as unknown as { value: string }).value = workflow;
+    await field.trigger('input');
+    await runButton(wrapper)!.trigger('click');
+  }
+
+  beforeEach(() => {
+    stateMock.loadActionRuns.mockClear();
+    stateMock.loadRepoRefs.mockClear();
+    stateMock.loadWorkflowDispatchInputs.mockClear();
+    stateMock.dispatchWorkflow.mockClear();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+    const state = useAppState() as unknown as {
+      repoRefs: { value: Map<string, unknown> };
+      workflowDispatchInputs: { value: Map<string, unknown> };
+    };
+    state.repoRefs.value.clear();
+    state.workflowDispatchInputs.value.clear();
+  });
+
+  it('loads the repository refs through the path the repository browser already uses', () => {
+    mountForm('main', ['main']);
+
+    // No new endpoint: the refs reply the 分支/标签 tabs consume carries tags too.
+    expect(stateMock.loadRepoRefs).toHaveBeenCalledWith('inst-1', 'owner', 'repo');
+  });
+
+  it('offers the branches and the tags, each labelled with its kind', async () => {
+    const wrapper = mountForm('main', ['main', 'dev']);
+    refsReply(['main', 'dev'], ['v0.0.1']);
+    await nextTick();
+    await openForm(wrapper);
+
+    const labels = refSelect(wrapper)
+      .findAll('vscode-option')
+      .map((option) => option.text());
+    expect(labels).toEqual(['Select a branch/tag', 'Branch: main', 'Branch: dev', 'Tag: v0.0.1']);
+    // The ref field is a selector, not the plain text field the form falls back
+    // to: the workflow file's is the only text field left.
+    expect(wrapper.findAll('vscode-textfield')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('defaults to the repository default branch and dispatches a chosen tag by its name', async () => {
+    const wrapper = mountForm('main', ['main', 'dev']);
+    refsReply(['main', 'dev'], ['v0.0.1']);
+    await nextTick();
+    await openForm(wrapper);
+
+    const select = refSelect(wrapper);
+    // The repository's default branch, as the form has always seeded itself.
+    expect(selectedRef(wrapper)?.attributes('value')).toBe('main');
+    expect(selectedRef(wrapper)?.text()).toBe('Branch: main');
+
+    // The control reports the plain ref name; only the label names the kind.
+    (select.element as unknown as { value: string }).value = 'v0.0.1';
+    await select.trigger('change');
+    expect(selectedRef(wrapper)?.attributes('value')).toBe('v0.0.1');
+    expect(selectedRef(wrapper)?.text()).toBe('Tag: v0.0.1');
+
+    await submitWithWorkflow(wrapper);
+
+    expect(stateMock.dispatchWorkflow).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'ci.yml', 'v0.0.1', {});
+    wrapper.unmount();
+  });
+
+  it('keeps a chosen ref when the refs list is loaded again', async () => {
+    const wrapper = mountForm('main', ['main']);
+    refsReply(['main'], ['v0.0.1']);
+    await nextTick();
+    await openForm(wrapper);
+
+    const select = refSelect(wrapper);
+    (select.element as unknown as { value: string }).value = 'v0.0.1';
+    await select.trigger('change');
+
+    // A refresh replaces the lists — a new branch, a new tag — without touching
+    // the selection, exactly as the branch list behaves today.
+    refsReply(['main', 'release'], ['v0.0.1', 'v0.0.2']);
+    await nextTick();
+
+    expect(selectedRef(wrapper)?.attributes('value')).toBe('v0.0.1');
+    expect(selectedRef(wrapper)?.text()).toBe('Tag: v0.0.1');
+    await submitWithWorkflow(wrapper);
+    expect(stateMock.dispatchWorkflow).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'ci.yml', 'v0.0.1', {});
+    wrapper.unmount();
+  });
+
+  it('falls back to the plain ref field while no refs are known', async () => {
+    const wrapper = mountForm('main', []);
+    await openForm(wrapper);
+
+    expect(wrapper.findAll('.trigger-field')[1].find('vscode-single-select').exists()).toBe(false);
+    expect(wrapper.findAll('vscode-textfield')).toHaveLength(2);
     wrapper.unmount();
   });
 });

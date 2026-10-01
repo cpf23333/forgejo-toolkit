@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppState, actionRunsKey, dispatchWorkflowKey, workflowDispatchInputsKey } from '../composables/useAppState';
+import {
+  useAppState,
+  actionRunsKey,
+  dispatchWorkflowKey,
+  repoRefsKey,
+  workflowDispatchInputsKey,
+} from '../composables/useAppState';
 import { actionStatusClass as statusClass, actionStatusIcon as statusIcon } from '../utils/actionStatus';
 import type { WorkflowDispatchInputDescriptor, WorkflowDispatchInputsPayload } from '../types/api';
 
@@ -10,6 +16,11 @@ const props = defineProps<{
   owner: string;
   repo: string;
   defaultBranch?: string;
+  /**
+   * The repository detail's branch list: what the ref selector offers until the
+   * repository browser's refs reply (which carries the tags too) arrives, and
+   * what it falls back to when that request fails.
+   */
   branches?: string[];
 }>();
 
@@ -36,6 +47,31 @@ const dispatchKey = computed(() =>
 const dispatchLoading = computed(() => state.loading.get(dispatchKey.value) ?? false);
 const dispatchError = computed(() => state.errors.get(dispatchKey.value));
 const trimmedRef = computed(() => triggerRef.value.trim());
+
+/**
+ * The refs the selector offers. The field's label promises a branch *or* a tag
+ * ("Ref (branch/tag)"), so a tag has to be selectable, and tags are only in the
+ * repository browser's refs reply — the same `getRepoRefs` host path the refs
+ * tabs use (branches, tags and releases in one request), so no endpoint was
+ * added for them. Branches keep coming from the repository detail's own list
+ * until that reply lands (and if it never does, e.g. the refs request failed),
+ * exactly as before.
+ *
+ * A chosen ref stays the plain ref name in `triggerRef` and is dispatched as
+ * such; only the option's text says which kind it is, with the prefixes the
+ * Issue/PR form's own ref selector already uses.
+ */
+const refsKey = computed(() => repoRefsKey(props.instanceId, props.owner, props.repo));
+const repoRefs = computed(() => state.repoRefs.value.get(refsKey.value));
+const branchNames = computed(() =>
+  repoRefs.value
+    ? repoRefs.value.branches.map((branch) => branch.name).filter((name): name is string => Boolean(name))
+    : (props.branches ?? []),
+);
+const tagNames = computed(() =>
+  (repoRefs.value?.tags ?? []).map((tag) => tag.name).filter((name): name is string => Boolean(name)),
+);
+const refNames = computed(() => [...branchNames.value, ...tagNames.value]);
 
 /**
  * The declared inputs of the current selection.
@@ -151,6 +187,9 @@ watch(
       return;
     }
     state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
+    // The ref selector lists branches *and* tags; the refs loader caches, so
+    // this is one request per repository rather than one per visit.
+    state.loadRepoRefs(props.instanceId, props.owner, props.repo);
   },
   { immediate: true },
 );
@@ -598,6 +637,9 @@ onActivated(() => {
   // the current repo is loaded (the loader dedups in-flight requests). Page 1
   // refreshes the accumulated list when the view is re-entered.
   state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
+  // Same reasoning for the refs a repository change skipped while off screen;
+  // the refs loader serves its cache and dedups in-flight requests.
+  state.loadRepoRefs(props.instanceId, props.owner, props.repo);
   // A selection made while the view was off screen never sent its request (the
   // form's watcher is guarded on `isActive`), and a selection that did is read
   // again because the branch may have moved on: the loader dedups in-flight
@@ -670,19 +712,23 @@ onUnmounted(() => {
         <div class="trigger-field">
           <label>{{ t('dashboard.actionRun.ref') }}</label>
           <vscode-single-select
-            v-if="(props.branches ?? []).length > 0"
+            v-if="refNames.length > 0"
+            filter="fuzzy"
             :value="triggerRef"
             :label="t('dashboard.actionRun.ref')"
             @change="onRefChange"
           >
             <vscode-option value="" disabled>{{ t('dashboard.actionRun.selectRef') }}</vscode-option>
             <vscode-option
-              v-for="branch in props.branches"
-              :key="branch"
+              v-for="branch in branchNames"
+              :key="`branch-${branch}`"
               :value="branch"
               :selected="branch === triggerRef"
             >
-              {{ branch }}
+              {{ t('dashboard.form.branchPrefix', { branch }) }}
+            </vscode-option>
+            <vscode-option v-for="tag in tagNames" :key="`tag-${tag}`" :value="tag" :selected="tag === triggerRef">
+              {{ t('dashboard.form.tagPrefix', { tag }) }}
             </vscode-option>
           </vscode-single-select>
           <vscode-textfield

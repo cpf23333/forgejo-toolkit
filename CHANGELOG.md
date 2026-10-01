@@ -110,8 +110,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports its progress while it reads and thinks, with a cancel button; cancelling
   writes nothing. The model it uses is the offered one whose input budget can take
   the request — preferring a model that can take it whole over dropping files —
-  rather than simply the first one VS Code lists. When no chat model is available,
-  or none of the offered ones can hold even the instructions, the action says so
+  rather than simply the first one VS Code lists. When a model's answer is not the
+  JSON the feature asks for, the run asks the next affordable model instead of
+  stopping: at most three models per run, each asked once, and only a contract
+  failure is retried — a failing model call, a cancellation, or a valid answer
+  whose anchors were all dropped still ends the run. Once a model's answer has
+  satisfied the contract in this window, the next run starts from that model
+  rather than from the largest budget. If every attempt falls short, the message
+  names each model and how its answer failed — an empty answer, an answer that is
+  not JSON, or JSON whose shape is wrong, naming the field — instead of one
+  "could not be parsed" for all three; the log names the model by vendor, family
+  and id and describes the answer only by its length, whether it starts with `{`
+  and a short prefix of its first line, never the answer, the brief or the diff.
+  When no chat model is available, or none of the offered ones can hold even the
+  instructions, the action says so
   and stops, naming how many models there were and the largest input budget among
   them; when the request itself does not fit it names the tokens needed, the budget
   available and the switch that shrinks the request. It never falls back to a
@@ -275,6 +287,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of risking a failed activation, and the workspace-state sync the
   static-config MCP path relies on still starts. The FAQ explains how to run
   the extension and the MCP server on such forks.
+- The workflow dispatch form's ref field is labelled "Ref (branch/tag)" and now
+  offers both: it listed the repository's branches alone, so a tag could not be
+  selected or dispatched. Branches and tags come from the same refs request the
+  repository browser already makes for its branch and tag lists (no new
+  endpoint), each option names its kind — "Branch: main", "Tag: v0.0.1" — the
+  way the Issue/PR form's ref selector does, and the value dispatched is still
+  the plain ref name. The field still starts on the repository's default branch,
+  keeps a ref you chose when the lists are loaded again, and filters fuzzily like
+  the repository's branch pickers; the repository detail's branches stand in
+  until the refs request answers, so it never regresses to a bare text box.
 
 ## [0.0.1] - 2026-09-26
 
