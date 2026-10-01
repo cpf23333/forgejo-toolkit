@@ -138,16 +138,21 @@ export interface AiPreReviewExistingReview {
 export const AI_PRE_REVIEW_MAX_COMMENTS = 20;
 
 /**
- * The system half of the prompt. A constant so the tests can assert what the
- * model is actually told, and so the two modes differ only in the user half.
+ * The instruction half of the prompt. A constant so the tests can assert what
+ * the model is actually told, and so the two modes differ only in the user half.
  *
  * Every rule here is load-bearing — the validator drops, and never repairs, a
  * comment that breaks one — so the wording is kept as short as it can be while
- * still stating all of them. It is deliberately *not* moved into the user half:
- * that would not save a single token (both halves are sent on every run), and it
- * would put the contract in the part the file-granularity cut rewrites. The
- * budget that matters is checked with `countTokens` against `maxInputTokens` in
- * `src/aiPreReview.ts`, which also picks a model that can hold this text.
+ * still stating all of them. It travels as the first part of the request's one
+ * `User` message (`buildAiPreReviewPromptMessages`), not as a message of its
+ * own: `@types/vscode` 1.102 declares `LanguageModelChatMessageRole` with only
+ * `User` and `Assistant` and `LanguageModelChatMessage` with no `System`
+ * factory, and the API guide's note still reads "Currently, the Language Model
+ * API doesn't support the use of system messages" — so splitting the contract
+ * off would not buy it a system turn, only a second user turn that a provider's
+ * conversion is free to mishandle. The budget that matters is checked with
+ * `countTokens` against `maxInputTokens` in `src/aiPreReview.ts`, which also
+ * picks a model that can hold this text.
  */
 export const AI_PRE_REVIEW_SYSTEM_PROMPT = [
   'You review a Forgejo pull request and propose line-level review comments.',
@@ -163,6 +168,59 @@ export const AI_PRE_REVIEW_SYSTEM_PROMPT = [
   `- Keep each body under ${PR_REVIEW_MAX_COMMENT_LENGTH} characters.`,
   '- An empty comment list is a valid answer: say nothing when nothing is worth saying.',
 ].join('\n');
+
+/**
+ * One message of one request: the role and the exact text.
+ *
+ * A plain shape rather than a `vscode.LanguageModelChatMessage`, because this
+ * module stays free of `vscode`: the same value is what the host turns into a
+ * real message, what the debug dump prints as "what was sent", and what the
+ * tests can assert without an editor.
+ */
+export interface AiPreReviewPromptMessage {
+  role: 'user';
+  text: string;
+}
+
+/**
+ * The whole text one request sends: the fixed instructions, a blank line, then
+ * the caller's half (the brief, with the diff body when that switch is on).
+ *
+ * This is the string the prompt budget is measured on *and* the string the
+ * request carries, so "what we counted" and "what we sent" cannot drift.
+ */
+export function aiPreReviewPromptText(userPrompt: string): string {
+  return `${AI_PRE_REVIEW_SYSTEM_PROMPT}\n\n${userPrompt}`;
+}
+
+/**
+ * The messages one request sends: **exactly one** `User` message.
+ *
+ * The feature used to send two `User` messages (the instructions, then the
+ * brief). One message is what the API's own facts support:
+ *
+ * - There is no system role to put the instructions in (see the note on
+ *   `AI_PRE_REVIEW_SYSTEM_PROMPT`), and a provider does not receive messages
+ *   verbatim: it gets role + content parts (`LanguageModelChatRequestMessage`)
+ *   and converts them to its own API's roles. The documented conversion maps
+ *   *every* `User` message to the same `user` role, so two `User` messages
+ *   become two consecutive user turns — a shape some providers and the chat
+ *   templates behind them handle loosely, and one that puts the contract in a
+ *   message a conversion is free to drop.
+ * - With one message there is no earlier message to lose: whatever a provider
+ *   does with a single user turn, the model sees both the rules and the pull
+ *   request, or it sees nothing at all and the answer fails the contract loudly.
+ * - The budget is then measured on the exact text that goes out
+ *   (`aiPreReviewPromptText`) rather than on the sum of two separate
+ *   `countTokens` calls, which only approximates the concatenation.
+ *
+ * What does not change: the rules themselves, the two halves of the prompt, and
+ * the validation on the way back. The file-granularity cut still rewrites only
+ * the caller's half.
+ */
+export function buildAiPreReviewPromptMessages(userPrompt: string): AiPreReviewPromptMessage[] {
+  return [{ role: 'user', text: aiPreReviewPromptText(userPrompt) }];
+}
 
 /** Character cap on one body before it is cut, matching the brief's own discipline. */
 export const AI_PRE_REVIEW_MAX_BODY_LENGTH = PR_REVIEW_MAX_COMMENT_LENGTH;

@@ -35,6 +35,10 @@ const { stateMock } = vi.hoisted(() => ({
     previewImportInstances: vi.fn(),
     exportInstances: vi.fn(),
     copyInstancesToClipboard: vi.fn(),
+    // The AI pre-review model row loads its list on mount; this file is about a
+    // removed instance, so the row stays empty here.
+    loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
+    saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
   },
 }));
 

@@ -216,6 +216,7 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.mcpWriteAuditToFile',
       'forgejoToolkit.aiPreReview',
       'forgejoToolkit.aiPreReviewIncludeDiff',
+      'forgejoToolkit.aiPreReviewModel',
     ]);
     const names = [
       'config.mcpWriteTools.createIssueComment.title',
@@ -224,7 +225,9 @@ describe('manifest nls pairs', () => {
       'config.mcpWriteAuditToFile.title',
       'config.aiPreReview.title',
       'config.aiPreReviewIncludeDiff.title',
+      'config.aiPreReviewModel.title',
       'command.aiPreReviewPullRequest.title',
+      'command.aiPreReviewChooseModel.title',
     ];
     for (const key of names) {
       expect(en.get(key), `en: ${key}`).toBeTruthy();

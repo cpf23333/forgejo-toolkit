@@ -173,6 +173,31 @@ export interface LinkedRepository {
   remoteUrl: string;
 }
 
+/**
+ * One chat model the editor offers, as the Settings page has to show it.
+ *
+ * The five fields are the ones a chooser needs to be unambiguous — the display
+ * `name`, the `vendor`/`family` pair two providers can share, the opaque `id`,
+ * and the `maxInputTokens` budget — because the list only exists at runtime
+ * (`vscode.lm.selectChatModels()`), which is exactly why the manifest's setting
+ * cannot be a dropdown and the choice needs a UI of its own.
+ */
+export interface AiPreReviewChatModelOption {
+  name: string;
+  vendor: string;
+  family: string;
+  id: string;
+  maxInputTokens: number;
+  /**
+   * The value `forgejoToolkit.aiPreReviewModel` stores for this model, in the
+   * `vendor/family` (or `vendor/id`) form that setting accepts, or absent when
+   * no accepted form can name the model. A chooser must not offer a model
+   * without one: the value it wrote would match nothing on the next run, which
+   * is the silent substitution the setting exists to prevent.
+   */
+  value?: string;
+}
+
 /** Events accepted by the Forgejo API when submitting a pending pull review. */
 export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
@@ -836,6 +861,22 @@ export type HostToWebviewMessage =
     }
   | { command: 'worktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
+  // The AI pre-review chat models this editor offers, for the Settings page's
+  // chooser. `configured` is `forgejoToolkit.aiPreReviewModel` exactly as it is
+  // stored (`''` means "ask me"), and `reason` is the localized explanation the
+  // page shows instead of an empty dropdown when there is nothing to offer —
+  // no language model API, a listing that failed, or no model at all.
+  | {
+      command: 'aiPreReviewChatModels';
+      models: AiPreReviewChatModelOption[];
+      configured: string;
+      reason?: string;
+      _requestId: string;
+    }
+  // The choice was stored (or not). `error` is localized by the host, and
+  // `value` is the value the write was attempted with, so the page can say what
+  // it did without re-reading the configuration.
+  | { command: 'aiPreReviewChatModelSaved'; value: string; error?: string; _requestId: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string }
   | { command: 'linkedRepository'; linked?: LinkedRepository; all?: LinkedRepository[] }
@@ -1176,6 +1217,12 @@ export type WebviewToHostMessage =
     }
   | { command: 'setLocale'; locale: string }
   | { command: 'setDebug'; debug: boolean }
+  // The Settings page's AI pre-review model chooser: read the offered models,
+  // and store the one the user picks. Neither sends anything to a provider, and
+  // both work with `forgejoToolkit.aiPreReview` off — choosing is configuration,
+  // not use.
+  | { command: 'getAiPreReviewChatModels'; _requestId: string }
+  | { command: 'setAiPreReviewChatModel'; value: string; _requestId: string }
   // The three dashboard lists are the only loaders whose reply cannot be told
   // apart by its own fields: an instance edit keeps the id, so the replaced
   // server's reply and the reload's reply carry the same `instanceId` (and the

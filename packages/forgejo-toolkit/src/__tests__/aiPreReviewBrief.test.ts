@@ -5,7 +5,9 @@ import {
   AI_PRE_REVIEW_MAX_BODY_LENGTH,
   AI_PRE_REVIEW_MAX_COMMENTS,
   AI_PRE_REVIEW_SYSTEM_PROMPT,
+  aiPreReviewPromptText,
   buildAiPreReviewBrief,
+  buildAiPreReviewPromptMessages,
   buildAiPreReviewUserPrompt,
   describeAiPreReviewAnswerShape,
   formatCandidateLabel,
@@ -185,6 +187,32 @@ describe('the prompt builder', () => {
 
     expect([...blocks.keys()]).toEqual(['src/index.ts']);
     expect(blocks.get('src/index.ts')).toContain('@@ -1,2 +1,3 @@');
+  });
+
+  it('sends one user message: the instructions, a blank line, then the request', () => {
+    const brief = buildBrief();
+
+    // One message, not two. Two consecutive `User` messages become two user
+    // turns in the provider's conversion, and the contract would then live in a
+    // message a buggy conversion can drop (see `buildAiPreReviewPromptMessages`).
+    const messages = buildAiPreReviewPromptMessages(brief.text);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.role).toBe('user');
+    expect(messages[0]?.text).toBe(`${AI_PRE_REVIEW_SYSTEM_PROMPT}\n\n${brief.text}`);
+    // Every rule still reaches the model, and the whole brief is behind them.
+    expect(messages[0]?.text.startsWith(AI_PRE_REVIEW_SYSTEM_PROMPT)).toBe(true);
+    expect(messages[0]?.text).toContain('[changed-files]');
+    expect(messages[0]?.text).toContain('[task]');
+  });
+
+  it('measures exactly the text the one message carries', () => {
+    const request = buildAiPreReviewUserPrompt(buildBrief(), { diffText: DIFF });
+
+    // The text the budget is counted on is the text that is sent — not a sum of
+    // the halves, which only approximates the concatenation.
+    expect(aiPreReviewPromptText(request)).toBe(buildAiPreReviewPromptMessages(request)[0]?.text);
+    expect(aiPreReviewPromptText(request)).toContain("+console.log('hello');");
   });
 });
 

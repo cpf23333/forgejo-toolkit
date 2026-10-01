@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, saveInstanceTargetKey, type SaveInstanceTarget } from '../composables/useAppState';
@@ -7,6 +7,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
+import type { AiPreReviewChatModelOption } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 const { t } = useI18n();
@@ -273,6 +274,161 @@ function handleDebugChange(event: Event) {
   state.changeDebug(target.checked);
 }
 
+// ---------------------------------------------------------------------------
+// The AI pre-review chat model chooser.
+//
+// The choice itself lives in `forgejoToolkit.aiPreReviewModel` and the list of
+// models only exists while the extension is running (`vscode.lm.selectChatModels()`),
+// which is why this is a runtime list in the panel rather than a contributed
+// dropdown. The row offers exactly what the setting can store, reports what the
+// write did, and says why it is empty instead of showing an empty dropdown.
+// ---------------------------------------------------------------------------
+const aiPreReviewModels = ref<AiPreReviewChatModelOption[]>([]);
+/** The host's localized explanation for an empty list; empty when models were offered. */
+const aiPreReviewModelReason = ref('');
+/** What the select is showing: the configured value, or what the last write stored. */
+const aiPreReviewModelValue = ref('');
+/** The value the host reported as stored, so the row can say what is set right now. */
+const aiPreReviewModelConfigured = ref('');
+const aiPreReviewModelsLoading = ref(false);
+const aiPreReviewModelSaving = ref(false);
+const aiPreReviewModelStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
+
+/** A model's display name, falling back to its id — never to an English literal. */
+function aiPreReviewModelName(model: AiPreReviewChatModelOption): string {
+  return model.name.trim() !== '' ? model.name : model.id;
+}
+
+function aiPreReviewModelOptionLabel(model: AiPreReviewChatModelOption): string {
+  const label = t('settings.aiPreReviewModel.optionLabel', {
+    name: aiPreReviewModelName(model),
+    vendor: model.vendor,
+    family: model.family,
+  });
+  return model.value ? label : `${label} — ${t('settings.aiPreReviewModel.notStorable')}`;
+}
+
+/**
+ * What one option's detail line says: where the brief would go and how much the
+ * model can take. A model with no storable value gets the reason it cannot be
+ * picked instead — offering it with a provider line would suggest it is a
+ * choice.
+ */
+function aiPreReviewModelOptionDescription(model: AiPreReviewChatModelOption): string {
+  if (!model.value) {
+    return t('settings.aiPreReviewModel.notStorable');
+  }
+  return t('settings.aiPreReviewModel.optionDescription', {
+    vendor: model.vendor,
+    tokens: model.maxInputTokens,
+  });
+}
+
+const selectedAiPreReviewModel = computed(() =>
+  aiPreReviewModels.value.find((model) => model.value && model.value === aiPreReviewModelValue.value),
+);
+
+/**
+ * The one fact the privacy story rests on, kept on screen while the dropdown is
+ * closed: which provider a run would send the brief to.
+ */
+const selectedAiPreReviewModelDescription = computed(() =>
+  selectedAiPreReviewModel.value ? aiPreReviewModelOptionDescription(selectedAiPreReviewModel.value) : '',
+);
+
+/**
+ * A configured value that names no offered model — a stale model, or a typo. The
+ * run refuses until it names one, so the row says so where the user is looking
+ * rather than leaving a blank select unexplained.
+ */
+const aiPreReviewModelNotOffered = computed(
+  () =>
+    aiPreReviewModelConfigured.value !== '' &&
+    !aiPreReviewModels.value.some((model) => model.value === aiPreReviewModelConfigured.value),
+);
+
+function applyAiPreReviewChoices(choices: {
+  models: AiPreReviewChatModelOption[];
+  configured: string;
+  reason?: string;
+}) {
+  aiPreReviewModels.value = choices.models;
+  aiPreReviewModelReason.value = choices.reason ?? '';
+  aiPreReviewModelConfigured.value = choices.configured;
+  aiPreReviewModelValue.value = choices.configured;
+}
+
+/**
+ * Reads the offered models from the host. Run on mount and from the refresh
+ * button: the set of models changes between runs (a provider signs in, an
+ * extension ships a new model), so a list read once would go stale with no way
+ * to ask again.
+ */
+async function loadAiPreReviewModels() {
+  if (aiPreReviewModelsLoading.value) {
+    return;
+  }
+  aiPreReviewModelsLoading.value = true;
+  try {
+    applyAiPreReviewChoices(await state.loadAiPreReviewChatModels());
+  } catch (error) {
+    // A dropped or unanswered request: the message is the host-backed helper's
+    // own localized timeout text, so it can be shown as it is.
+    aiPreReviewModelReason.value = error instanceof Error && error.message ? error.message : t('common.requestFailed');
+  } finally {
+    aiPreReviewModelsLoading.value = false;
+  }
+}
+
+/**
+ * Stores the picked value and reports what happened. The select follows the
+ * host, not the click: a write that failed puts the previous value back on
+ * screen beside the error, so the row never shows a choice that was not stored
+ * (the same discipline as the worktree cache directory field).
+ */
+async function handleAiPreReviewModelChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  await storeAiPreReviewModel(target.value);
+}
+
+async function storeAiPreReviewModel(value: string) {
+  if (aiPreReviewModelSaving.value || value === aiPreReviewModelValue.value) {
+    return;
+  }
+  const previous = aiPreReviewModelValue.value;
+  aiPreReviewModelSaving.value = true;
+  aiPreReviewModelStatus.value = null;
+  aiPreReviewModelValue.value = value;
+  try {
+    const result = await state.saveAiPreReviewChatModel(value);
+    if (result.error) {
+      aiPreReviewModelValue.value = previous;
+      aiPreReviewModelStatus.value = { message: result.error, type: 'error' };
+      return;
+    }
+    aiPreReviewModelValue.value = result.value;
+    aiPreReviewModelConfigured.value = result.value;
+    aiPreReviewModelStatus.value = {
+      message: result.value
+        ? t('settings.aiPreReviewModel.saved', { value: result.value })
+        : t('settings.aiPreReviewModel.cleared'),
+      type: 'success',
+    };
+  } catch (error) {
+    aiPreReviewModelValue.value = previous;
+    aiPreReviewModelStatus.value = {
+      message: error instanceof Error && error.message ? error.message : t('common.requestFailed'),
+      type: 'error',
+    };
+  } finally {
+    aiPreReviewModelSaving.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadAiPreReviewModels();
+});
+
 function handleWorktreeOpenModeChange(event: Event) {
   const target = event.target as HTMLSelectElement;
   const mode = target.value as 'ask' | 'currentWindow' | 'newWindow';
@@ -532,6 +688,59 @@ defineExpose({
         <vscode-checkbox :checked="debugEnabled" @change="handleDebugChange">
           {{ t('settings.debug.enable') }}
         </vscode-checkbox>
+      </div>
+    </section>
+
+    <!--
+      The AI pre-review chat model. The list comes from the running extension
+      (`vscode.lm.selectChatModels()`), so it cannot be a contributed setting's
+      dropdown; picking here writes the same value the QuickPick command does.
+    -->
+    <section class="setting-section">
+      <h2>{{ t('settings.aiPreReviewModel.title') }}</h2>
+      <p class="description">{{ t('settings.aiPreReviewModel.description') }}</p>
+      <div class="form-row">
+        <label for="ai-pre-review-model">{{ t('settings.aiPreReviewModel.selectLabel') }}</label>
+        <vscode-single-select
+          id="ai-pre-review-model"
+          :value="aiPreReviewModelValue"
+          :label="t('settings.aiPreReviewModel.selectLabel')"
+          :disabled="aiPreReviewModelSaving"
+          @change="handleAiPreReviewModelChange"
+        >
+          <vscode-option value="">{{ t('settings.aiPreReviewModel.askEachRun') }}</vscode-option>
+          <vscode-option
+            v-for="model in aiPreReviewModels"
+            :key="model.value ?? `${model.vendor}/${model.family}/${model.id}`"
+            :value="model.value"
+            :disabled="!model.value"
+            :description="aiPreReviewModelOptionDescription(model)"
+          >
+            {{ aiPreReviewModelOptionLabel(model) }}
+          </vscode-option>
+        </vscode-single-select>
+        <div class="ai-pre-review-model-actions">
+          <vscode-button secondary icon="refresh" :disabled="aiPreReviewModelsLoading" @click="loadAiPreReviewModels">
+            {{ t('settings.aiPreReviewModel.refresh') }}
+          </vscode-button>
+        </div>
+        <p v-if="selectedAiPreReviewModelDescription" class="field-description">
+          {{ selectedAiPreReviewModelDescription }}
+        </p>
+        <p v-if="aiPreReviewModelNotOffered" class="field-description">
+          {{ t('settings.aiPreReviewModel.configuredNotOffered', { value: aiPreReviewModelConfigured }) }}
+        </p>
+        <p class="field-description">{{ t('settings.aiPreReviewModel.note') }}</p>
+      </div>
+      <div v-if="aiPreReviewModelsLoading" class="empty-list">{{ t('settings.aiPreReviewModel.loading') }}</div>
+      <div v-else-if="aiPreReviewModelReason" class="empty-list">{{ aiPreReviewModelReason }}</div>
+      <div
+        v-if="aiPreReviewModelStatus"
+        :class="['status', aiPreReviewModelStatus.type]"
+        role="status"
+        aria-live="polite"
+      >
+        {{ aiPreReviewModelStatus.message }}
       </div>
     </section>
 
@@ -805,6 +1014,19 @@ label {
 
 .cache-directory-actions {
   display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/*
+ * The refresh button under the chat-model select — the same shape as
+ * `.cache-directory-actions` (a control above, its actions on the next line),
+ * kept separate so the two rows can diverge without moving one.
+ */
+.ai-pre-review-model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 4px;
 }

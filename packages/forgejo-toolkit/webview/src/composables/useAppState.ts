@@ -282,6 +282,7 @@ import type {
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  AiPreReviewChatModelOption,
   ExportSettings,
   HostToWebviewMessage,
   LinkedRepository,
@@ -320,6 +321,29 @@ export interface SaveInstanceTarget {
 
 export function saveInstanceTargetKey(target: SaveInstanceTarget): string {
   return target.kind === 'instance' ? `instance:${target.instanceId ?? ''}` : 'new';
+}
+
+/**
+ * What the host answered to `getAiPreReviewChatModels`: the chat models VS Code
+ * offers, the value `forgejoToolkit.aiPreReviewModel` holds right now (`''` means
+ * "ask me"), and — when there is nothing to offer — the host's own localized
+ * explanation, which is what the Settings page shows instead of an empty
+ * dropdown.
+ */
+export interface AiPreReviewChatModelChoices {
+  models: AiPreReviewChatModelOption[];
+  configured: string;
+  reason?: string;
+}
+
+/**
+ * What the host answered to `setAiPreReviewChatModel`. A failed write is
+ * reported here rather than thrown: the choice is a setting, and "it could not
+ * be stored" is a line beside the control, not a broken request.
+ */
+export interface AiPreReviewChatModelSaveResult {
+  value: string;
+  error?: string;
 }
 
 /**
@@ -875,6 +899,21 @@ function createAppState() {
     string,
     { resolve: (issue: ForgejoIssue | undefined) => void; reject: (error: Error) => void }
   >();
+  // The Settings page's AI pre-review model chooser: one list request and one
+  // write request. Both are request/response rather than fire-and-forget because
+  // the page has to show the offered models and report whether the write landed
+  // (a stale or dropped reply must not leave it claiming a choice it never
+  // stored).
+  let aiPreReviewModelsRequestId = 0;
+  const pendingAiPreReviewModelLists = new Map<
+    string,
+    { resolve: (choices: AiPreReviewChatModelChoices) => void; reject: (error: Error) => void }
+  >();
+  let aiPreReviewModelSaveRequestId = 0;
+  const pendingAiPreReviewModelSaves = new Map<
+    string,
+    { resolve: (result: AiPreReviewChatModelSaveResult) => void; reject: (error: Error) => void }
+  >();
 
   interface PendingHandlers<T, E> {
     resolve: (value: T) => void;
@@ -935,6 +974,8 @@ function createAppState() {
       pendingMentionSearchRequests,
       pendingUserPreviewRequests,
       pendingIssuePreviewRequests,
+      pendingAiPreReviewModelLists,
+      pendingAiPreReviewModelSaves,
       pendingRenderMarkdownRequests,
     ];
     for (const map of errorMaps) {
@@ -1989,6 +2030,31 @@ function createAppState() {
         worktreeCacheDirectory.value = message.directory;
         worktreeCacheDirectoryDefault.value = message.defaultDirectory;
         break;
+      case 'aiPreReviewChatModels': {
+        const pending = pendingAiPreReviewModelLists.get(message._requestId);
+        if (!pending) {
+          break;
+        }
+        pendingAiPreReviewModelLists.delete(message._requestId);
+        pending.resolve({
+          models: message.models ?? [],
+          configured: message.configured,
+          ...(message.reason !== undefined ? { reason: message.reason } : {}),
+        });
+        break;
+      }
+      case 'aiPreReviewChatModelSaved': {
+        const pending = pendingAiPreReviewModelSaves.get(message._requestId);
+        if (!pending) {
+          break;
+        }
+        pendingAiPreReviewModelSaves.delete(message._requestId);
+        pending.resolve({
+          value: message.value,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
       case 'testConnectionResult':
         handleTestConnectionResult(message);
         break;
@@ -4367,6 +4433,36 @@ function createAppState() {
     postMessage({ command: 'setDebug', debug: newDebug });
   }
 
+  /**
+   * The chat models the editor offers, with the configured value and — when
+   * there is nothing to offer — the host's reason. Choosing is configuration,
+   * not use: this works with `forgejoToolkit.aiPreReview` off, and the host
+   * sends nothing to any provider to answer it.
+   */
+  function loadAiPreReviewChatModels(): Promise<AiPreReviewChatModelChoices> {
+    const _requestId = `aiPreReviewModels-${++aiPreReviewModelsRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingAiPreReviewModelLists, _requestId, 'getAiPreReviewChatModels', { resolve, reject });
+      postMessage({ command: 'getAiPreReviewChatModels', _requestId });
+    });
+  }
+
+  /**
+   * Stores one model choice in `forgejoToolkit.aiPreReviewModel` at global scope
+   * through the host (the same value the QuickPick writes, `vendor/id` first).
+   *
+   * The host's answer is returned rather than applied to any state: only the
+   * Settings page knows which choice it is waiting for, and a failed write has
+   * to be shown beside the control instead of being swallowed.
+   */
+  function saveAiPreReviewChatModel(value: string): Promise<AiPreReviewChatModelSaveResult> {
+    const _requestId = `aiPreReviewModel-${++aiPreReviewModelSaveRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingAiPreReviewModelSaves, _requestId, 'setAiPreReviewChatModel', { resolve, reject });
+      postMessage({ command: 'setAiPreReviewChatModel', value, _requestId });
+    });
+  }
+
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
     router.push({ name: 'repoDetail', params: { instanceId, owner, repo } });
     loadRepoDetail(instanceId, owner, repo);
@@ -6577,6 +6673,8 @@ function createAppState() {
     cancelImportInstances,
     changeLocale,
     changeDebug,
+    loadAiPreReviewChatModels,
+    saveAiPreReviewChatModel,
     openRepoDetail,
     loadRepoDetail,
     loadRepoBranchCommits,

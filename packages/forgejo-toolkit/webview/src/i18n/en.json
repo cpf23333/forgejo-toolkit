@@ -554,6 +554,21 @@
       "description": "Enable request/response logging to the Forgejo Toolkit output channel.",
       "enable": "Enable debug logging"
     },
+    "aiPreReviewModel": {
+      "title": "AI Pre-Review Chat Model",
+      "description": "Which chat model reviews a pull request. VS Code only lists the models at run time, so this dropdown is loaded from the running extension.",
+      "selectLabel": "Chat model",
+      "askEachRun": "Ask each run (no stored model)",
+      "optionLabel": "{name} — {vendor}/{family}",
+      "optionDescription": "The brief goes to the \"{vendor}\" provider. maxInputTokens={tokens}",
+      "notStorable": "This model has no vendor/name form for the setting to store.",
+      "configuredNotOffered": "The setting currently holds \"{value}\", which is not one of the models offered here. A pre-review run refuses until it names one.",
+      "refresh": "Refresh list",
+      "loading": "Loading the models VS Code offers...",
+      "saved": "Saved: {value}. Every pre-review run uses this model until you change it.",
+      "cleared": "Cleared. The next pre-review run asks which model to use.",
+      "note": "The choice is stored in the setting forgejoToolkit.aiPreReviewModel, which you can also edit by hand in VS Code's Settings, or change with the command forgejoToolkit.aiPreReviewChooseModel."
+    },
     "status": {
       "testing": "Testing connection...",
       "successConnection": "Connection OK. Username: {username}",

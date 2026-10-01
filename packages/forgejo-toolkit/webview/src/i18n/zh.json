@@ -554,6 +554,21 @@
       "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",
       "enable": "启用调试日志"
     },
+    "aiPreReviewModel": {
+      "title": "AI 预评审聊天模型",
+      "description": "由哪个聊天模型评审 PR。VS Code 只在运行时才知道有哪些模型，因此这个下拉列表是从正在运行的扩展读取的。",
+      "selectLabel": "聊天模型",
+      "askEachRun": "每次运行都询问（不保存模型）",
+      "optionLabel": "{name} — {vendor}/{family}",
+      "optionDescription": "简报会发给 \"{vendor}\" 提供者。maxInputTokens={tokens}",
+      "notStorable": "该模型没有「vendor/名称」形式，无法写进这个设置。",
+      "configuredNotOffered": "设置当前的值是 \"{value}\"，它不是这里提供的任何模型。在它命中一个模型之前，预评审会直接拒绝运行。",
+      "refresh": "刷新列表",
+      "loading": "正在读取 VS Code 提供的模型...",
+      "saved": "已保存：{value}。之后每次预评审都用这个模型，直到你更改。",
+      "cleared": "已清空。下一次预评审会先询问用哪个模型。",
+      "note": "这个选择保存在设置 forgejoToolkit.aiPreReviewModel 里，你可以在 VS Code 设置里手动修改，也可以用命令 forgejoToolkit.aiPreReviewChooseModel 更改。"
+    },
     "status": {
       "testing": "正在测试连接...",
       "successConnection": "连接成功。用户名：{username}",

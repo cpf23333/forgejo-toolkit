@@ -108,26 +108,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   themselves are sent only when `forgejoToolkit.aiPreReviewIncludeDiff` is also
   on (off by default), because that is source code leaving your machine. The run
   reports its progress while it reads and thinks, with a cancel button; cancelling
-  writes nothing. The model it uses is the offered one whose input budget can take
-  the request — preferring a model that can take it whole over dropping files —
-  rather than simply the first one VS Code lists. When a model's answer is not the
-  JSON the feature asks for, the run asks the next affordable model instead of
-  stopping: at most three models per run, each asked once, and only a contract
-  failure is retried — a failing model call, a cancellation, or a valid answer
-  whose anchors were all dropped still ends the run. Once a model's answer has
-  satisfied the contract in this window, the next run starts from that model
-  rather than from the largest budget. If every attempt falls short, the message
-  names each model and how its answer failed — an empty answer, an answer that is
-  not JSON, or JSON whose shape is wrong, naming the field — instead of one
-  "could not be parsed" for all three; the log names the model by vendor, family
-  and id and describes the answer only by its length, whether it starts with `{`
-  and a short prefix of its first line, never the answer, the brief or the diff.
-  When no chat model is available, or none of the offered ones can hold even the
-  instructions, the action says so
-  and stops, naming how many models there were and the largest input budget among
-  them; when the request itself does not fit it names the tokens needed, the budget
-  available and the switch that shrinks the request. It never falls back to a
-  heuristic "review".
+  writes nothing. **The extension does not pick a model for you and does not
+  switch between models.** `forgejoToolkit.aiPreReviewModel` is where the choice
+  lives: leave it empty — the default — and the next pre-review lists every chat
+  model VS Code offers and asks which one to use, showing each model's name,
+  `vendor/family`, id, input budget and the provider that would receive the
+  brief; the pick is written into that setting and used for the run, and every
+  later run uses the same model without asking. Fill the setting in and no
+  question is asked at all. Dismissing the list cancels the run with nothing
+  sent, nothing created and the setting unchanged. When a model's answer is not
+  the JSON the feature asks for, the run asks **that same model** the same
+  question again — at most two attempts of the one chosen model, so at most two
+  model calls — because a provider that returns an empty stream or a fragment on
+  one call frequently answers the next; only a contract failure is retried — a
+  failing model call, a declined permission prompt, a cancellation, or a valid
+  answer whose anchors were all dropped still ends the run — and the retry never
+  moves to another model. If both attempts fall short, the message names that
+  model, how many calls the run made, and how each answer failed — an empty
+  answer, an answer that is not JSON, or JSON whose shape is wrong, naming the
+  field — instead of one "could not be parsed" for all three, and it points at
+  the choose-a-model command; the log names the model by vendor, family and id
+  and describes the answer only by its length, whether it starts with `{` and a
+  short prefix of its first line, never the answer, the brief or the diff.
+  Your configured model is never replaced by another one: a value that is not one
+  of the accepted `vendor/family` or `vendor/id` forms, or that names a model VS
+  Code does not offer, refuses the run and lists every offered model with its
+  `vendor/family`, id and `maxInputTokens`; a chosen model whose input budget
+  cannot hold the feature's instructions is refused with both numbers and no
+  substitution; and when the request itself does not fit it names the tokens
+  needed, the budget available and the switch that shrinks the request. It never
+  falls back to a heuristic "review".
+  With `forgejoToolkit.debug` on, a run also writes the exact messages it sent
+  and the full raw answers it received to `ai-pre-review-diagnostics.log` in the
+  extension's log directory, and the debug-only
+  `forgejoToolkit.aiPreReviewProbeChatModels` command asks every offered model
+  the same trivial question with each request shape, so a model that cannot
+  answer an extension at all can be told apart from a request it cannot handle.
+  With debug off nothing is written anywhere, the log still never carries an
+  answer, and the probe sends nothing while `forgejoToolkit.aiPreReview` is off.
+- Which chat model reviews a pull request is yours to choose, and the extension
+  neither makes that choice for you nor switches between models. The
+  window-scoped `forgejoToolkit.aiPreReviewModel` setting is the one place the
+  choice lives, and it is an ordinary setting you can see and edit in the
+  Settings UI: name a model as `vendor/family` or `vendor/id` (an optional
+  `@version` suffix is accepted), for example `deepseek/deepseek-flash`, and
+  every run uses that one model. Leave it empty — the default — and the next
+  pre-review asks: it lists every chat model VS Code offers, with each model's
+  name, `vendor/family`, id, input budget and — because the brief goes to
+  whichever provider is behind the model — which provider would receive it. The
+  answer is written into the setting and used for the run, so later runs use the
+  same model without asking, and dismissing the list cancels the run with nothing
+  sent, nothing created and the setting unchanged. A new command,
+  `forgejoToolkit.aiPreReviewChooseModel`, changes the choice later; it is in the
+  command palette whatever the feature switch says (choosing a model sends
+  nothing), and every message that needs a different model points at it. A
+  configured value that is not one of those forms, or that names a model VS Code
+  does not offer, does not start the run: the message names what you configured
+  and lists every offered model with its `vendor/family`, its id and its
+  `maxInputTokens`, so you can correct it — it is never silently ignored, and the
+  brief never goes to a provider you did not name. A model whose input budget
+  cannot hold the feature's instructions is refused the same way, with both
+  numbers, and is never quietly replaced by a larger one.
+- The AI pre-review's chat model can now be chosen from the extension's own
+  Settings page, not only from the command and the setting. The row lists the
+  chat models VS Code is offering at that moment — each option with its display
+  name and `vendor/family`, and, on the row being looked at, the provider that
+  would receive the brief together with the model's `maxInputTokens` — and it has
+  a **refresh** button, because the list changes between runs. When there is
+  nothing to offer it says why instead of showing an empty dropdown (no language
+  model API, a listing that failed, or no model installed), and a configured value
+  that names none of the offered models is called out on the row. Picking a model
+  writes the same value into `forgejoToolkit.aiPreReviewModel` at global scope
+  that `forgejoToolkit.aiPreReviewChooseModel` writes, and the row reports whether
+  the write landed — a failed write puts the stored value back on screen, so the
+  choice shown is never one that was not stored. Choosing sends nothing to any
+  provider and works with `forgejoToolkit.aiPreReview` off: it is configuration,
+  not use. The contributed setting itself stays a free-text field on purpose — the
+  list of models only exists at run time, and VS Code cannot render a runtime list
+  as a contributed setting's dropdown.
 - The workflow dispatch form now offers the inputs a workflow declares instead of
   an empty key/value editor: it reads `on.workflow_dispatch.inputs` from the
   workflow file at the ref the form has selected (`.forgejo/workflows`,
@@ -143,6 +201,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The AI pre-review no longer chooses a model on its own. Automatic selection in
+  every form is gone — the budget-sorted preference, the fallback to the largest
+  input budget, the "models that answered the contract earlier in this window"
+  ordering, the run-time rotation to the next candidate, and the window-scoped
+  memory of a pick — because the maintainer requires that the extension list the
+  available models, let you choose, and then use that model consistently. What
+  replaced it is the setting as the single source of truth plus a picker that
+  writes into it, and a new `forgejoToolkit.aiPreReviewChooseModel` command for
+  changing it later. What stayed is validation, which never substitutes: an
+  unusable configured value or a chosen model that cannot hold the instructions
+  refuses the run with the facts and points at the command. The one automatic
+  behaviour left around failures is the bounded retry, and it now stays on the
+  model you chose: when an answer is not the JSON the feature asks for, that same
+  model is asked the same question again, at most **2 attempts** in total — the
+  run's whole call bound, replacing the previous three-models × two-attempts
+  arithmetic of at most six calls. A diagnostic probe over 12 offered models and
+  3 request shapes (36 calls, only 6 of which returned anything) and a run that
+  failed 3/3 with 5–10 character fragments are why asking again is worth it; they
+  are not a reason for the extension to pick a different model, which is your
+  decision alone. Nothing that is not a contract violation is retried — a failing
+  model call, a declined permission prompt, a cancellation, or a valid answer
+  whose anchors were all dropped still ends the run exactly as before. The
+  failure message now reports the calls it actually spent and how each of that
+  model's attempts fell short, and no other model is named or called; the debug
+  diagnostics dump numbers each call as the attempt of the chosen model and as
+  the call of the run, so two blocks for the same model are distinguishable.
 - **Default behaviour change**: notification polling is now coordinated between
   VS Code windows. With `forgejoToolkit.multiWindowLease` on (the new default) a
   window that is not the polling owner no longer polls and no longer raises

@@ -66,6 +66,8 @@ import { connectionFailureMessage, isHttpUrl } from './connectionTest';
 import { echoedListRequestId } from './listRequestId';
 import { OnboardingWebviewPanel } from './onboardingPanel';
 import { PullReviewCommentPanel } from '../comments/pullReviewCommentPanel';
+import { isStorableAiPreReviewModelSettingValue, listAiPreReviewChatModelChoices } from '../aiPreReviewModels';
+import { AI_PRE_REVIEW_MODEL_SETTING, writeAiPreReviewModelSetting } from '../aiPreReviewSettings';
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -1139,6 +1141,41 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         const debug = message.debug;
         if (typeof debug === 'boolean') {
           await vscode.workspace.getConfiguration('forgejoToolkit').update('debug', debug, true);
+        }
+        return;
+      }
+      // The Settings page's AI pre-review model chooser. Both cases are pure
+      // configuration: they work with `forgejoToolkit.aiPreReview` off, and
+      // neither one sends anything to a model provider — `listAiPreReviewChatModelChoices`
+      // only asks the editor which models exist.
+      case 'getAiPreReviewChatModels': {
+        const listing = await listAiPreReviewChatModelChoices();
+        this._reply('aiPreReviewChatModels', { ...listing, _requestId: message._requestId });
+        return;
+      }
+      case 'setAiPreReviewChatModel': {
+        const { value } = message;
+        // The webview is untrusted input, and this writes a user setting: only
+        // the empty value (the setting's own "ask me" default) or one of the two
+        // accepted selector forms may be stored, which is the same gate a
+        // hand-typed value passes on the next run.
+        if (typeof value !== 'string' || !isStorableAiPreReviewModelSettingValue(value)) {
+          logger.error('setAiPreReviewChatModel rejected a value that is not an accepted model selector');
+          this._reply('aiPreReviewChatModelSaved', {
+            value: typeof value === 'string' ? value : '',
+            error: vscode.l10n.t('The model choice was not stored: it is not a "vendor/family" or "vendor/id" form.'),
+            _requestId: message._requestId,
+          });
+          return;
+        }
+        try {
+          await writeAiPreReviewModelSetting(value);
+          logger.info(`AI pre-review: the settings page wrote "${AI_PRE_REVIEW_MODEL_SETTING}" = "${value}"`);
+          this._reply('aiPreReviewChatModelSaved', { value, _requestId: message._requestId });
+        } catch (error) {
+          const err = userFacingErrorMessage(error);
+          logger.error(`setAiPreReviewChatModel could not write the model choice: ${err}`);
+          this._reply('aiPreReviewChatModelSaved', { value, error: err, _requestId: message._requestId });
         }
         return;
       }

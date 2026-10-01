@@ -5235,4 +5235,258 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       );
     });
   });
+
+  /**
+   * The Settings page's AI pre-review model chooser: the offered models, the
+   * value the setting holds, and the value a pick stores.
+   *
+   * The shared `vscode` mock has no `lm` field at all (AGENTS.md's note on the
+   * mock, and the design record's §9.5), so "this editor has no language model
+   * API" is the default environment here and a case that needs models installs
+   * the field for its own duration.
+   */
+  describe('AI pre-review chat model settings', () => {
+    /** One model as `vscode.lm.selectChatModels()` hands it over. */
+    function fakeChatModel(overrides: Record<string, unknown> = {}) {
+      return {
+        name: 'Fake Model',
+        vendor: 'fake',
+        family: 'fake',
+        id: 'fake-model',
+        maxInputTokens: 128_000,
+        countTokens: vi.fn(async () => 10),
+        sendRequest: vi.fn(),
+        ...overrides,
+      };
+    }
+
+    /**
+     * Installs the runtime `vscode.lm` surface for one test and returns the
+     * restore. The shared `vscode` mock defines no `lm` at all — and vitest's
+     * mock proxy throws on reading a key it never defined — so the field is
+     * assigned rather than read, the same way `mcpServerProvider.test.ts`
+     * installs its own API surface.
+     *
+     * Called with no argument it sets the field to `undefined`, which is how a
+     * case drives the editor that has no language model API at all.
+     */
+    function withChatModels(select?: ReturnType<typeof vi.fn>): () => void {
+      const vscodeModule = vscode as unknown as { lm?: unknown };
+      vscodeModule.lm = select ? { selectChatModels: select } : undefined;
+      return () => {
+        vscodeModule.lm = undefined;
+      };
+    }
+
+    /** The configuration read/write pair, with `aiPreReviewModel` seeded. */
+    function configuration(configured?: string) {
+      const get = vi.fn((key: string) => (key === 'aiPreReviewModel' ? configured : undefined));
+      const update = vi.fn(async () => undefined);
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({ get, update } as never);
+      return { get, update };
+    }
+
+    function replyTo(command: string) {
+      return postedMessages(fake.posted).find((message) => message.command === command);
+    }
+
+    async function requestModels() {
+      fake.send({ command: 'getAiPreReviewChatModels', _requestId: 'req-models' });
+      await flushUntil(() => replyTo('aiPreReviewChatModels') !== undefined);
+      return replyTo('aiPreReviewChatModels');
+    }
+
+    it('answers with every offered model, its identity, its budget and the configured value', async () => {
+      // Two models sharing one family and differing only by id: the value the
+      // setting stores has to keep them apart (`vendor/id`), because a family
+      // value would match whichever of the two the editor listed first.
+      const first = fakeChatModel({ name: 'First', id: 'first', family: 'shared', maxInputTokens: 64_000 });
+      const second = fakeChatModel({ name: 'Second', id: 'second', family: 'shared', maxInputTokens: 200_000 });
+      const restore = withChatModels(vi.fn(async () => [first, second]));
+      configuration('fake/second');
+      try {
+        const reply = await requestModels();
+
+        expect(reply).toMatchObject({ configured: 'fake/second', _requestId: 'req-models' });
+        expect(reply?.reason).toBeUndefined();
+        expect(reply?.models).toEqual([
+          {
+            name: 'First',
+            vendor: 'fake',
+            family: 'shared',
+            id: 'first',
+            maxInputTokens: 64_000,
+            value: 'fake/first',
+          },
+          {
+            name: 'Second',
+            vendor: 'fake',
+            family: 'shared',
+            id: 'second',
+            maxInputTokens: 200_000,
+            value: 'fake/second',
+          },
+        ]);
+      } finally {
+        restore();
+      }
+    });
+
+    it('sends nothing to any provider and reads no pull request to answer', async () => {
+      const only = fakeChatModel();
+      const restore = withChatModels(vi.fn(async () => [only]));
+      configuration();
+      try {
+        await requestModels();
+
+        // Choosing a model is configuration, not use: with the AI pre-review
+        // switch off (the mock's `get` returns undefined for it) the list is
+        // still answered, and not one model was asked anything.
+        expect(only.sendRequest).not.toHaveBeenCalled();
+        expect(only.countTokens).not.toHaveBeenCalled();
+        expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+        expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      } finally {
+        restore();
+      }
+    });
+
+    it('keeps a model that no accepted form can name out of the storable values', async () => {
+      // A provider that omits `vendor` leaves nothing the setting can hold, so
+      // the option carries no value and a chooser cannot store a value that
+      // would match nothing on the next run.
+      const nameless = fakeChatModel({ vendor: '', family: 'orphan', id: 'orphan' });
+      const restore = withChatModels(vi.fn(async () => [nameless]));
+      configuration('');
+      try {
+        const reply = await requestModels();
+
+        const models = reply?.models as Array<Record<string, unknown>>;
+        expect(models).toHaveLength(1);
+        expect(models[0].vendor).toBe('');
+        expect('value' in models[0]).toBe(false);
+      } finally {
+        restore();
+      }
+    });
+
+    it('lists one row per model when the editor offers the same one twice', async () => {
+      const model = fakeChatModel();
+      const restore = withChatModels(vi.fn(async () => [model, { ...model }]));
+      configuration();
+      try {
+        const reply = await requestModels();
+
+        expect(reply?.models).toHaveLength(1);
+      } finally {
+        restore();
+      }
+    });
+
+    it('explains a missing language model API instead of offering an empty list', async () => {
+      configuration();
+      const restore = withChatModels();
+      try {
+        const reply = await requestModels();
+
+        expect(reply?.models).toEqual([]);
+        expect(String(reply?.reason)).toContain('no language model API');
+      } finally {
+        restore();
+      }
+    });
+
+    it('explains a failed listing instead of offering an empty list', async () => {
+      const restore = withChatModels(
+        vi.fn(async () => {
+          throw new Error('provider registry exploded');
+        }),
+      );
+      configuration();
+      try {
+        const reply = await requestModels();
+
+        expect(reply?.models).toEqual([]);
+        expect(String(reply?.reason)).toContain('could not be listed');
+        expect(String(reply?.reason)).toContain('provider registry exploded');
+      } finally {
+        restore();
+      }
+    });
+
+    it('explains that the editor offers no chat model at all', async () => {
+      const restore = withChatModels(vi.fn(async () => []));
+      configuration('');
+      try {
+        const reply = await requestModels();
+
+        expect(reply?.models).toEqual([]);
+        expect(String(reply?.reason)).toContain('install and sign in to a chat model provider');
+        // A reason, never an empty dropdown with no explanation: the two are
+        // indistinguishable in the UI otherwise.
+        expect(reply?.configured).toBe('');
+      } finally {
+        restore();
+      }
+    });
+
+    it('stores the picked model in the setting at global scope', async () => {
+      const { update } = configuration();
+      fake.send({ command: 'setAiPreReviewChatModel', value: 'deepseek/deepseek-flash', _requestId: 'req-write' });
+      await flushUntil(() => replyTo('aiPreReviewChatModelSaved') !== undefined);
+
+      // The same value the QuickPick writes, at the scope that makes it the
+      // choice everywhere: the Settings UI, settings.json and later runs.
+      expect(update).toHaveBeenCalledWith(
+        'aiPreReviewModel',
+        'deepseek/deepseek-flash',
+        vscode.ConfigurationTarget.Global,
+      );
+      expect(replyTo('aiPreReviewChatModelSaved')).toMatchObject({
+        value: 'deepseek/deepseek-flash',
+        _requestId: 'req-write',
+      });
+      expect(replyTo('aiPreReviewChatModelSaved')?.error).toBeUndefined();
+    });
+
+    it('stores the empty value, which is the setting\'s own "ask each run" default', async () => {
+      const { update } = configuration('fake/first');
+      fake.send({ command: 'setAiPreReviewChatModel', value: '', _requestId: 'req-clear' });
+      await flushUntil(() => replyTo('aiPreReviewChatModelSaved') !== undefined);
+
+      expect(update).toHaveBeenCalledWith('aiPreReviewModel', '', vscode.ConfigurationTarget.Global);
+      expect(replyTo('aiPreReviewChatModelSaved')).toMatchObject({ value: '', _requestId: 'req-clear' });
+    });
+
+    it('refuses a value that is not a model selector and writes nothing', async () => {
+      const { update } = configuration();
+      vi.mocked(vscode.l10n.t).mockClear();
+
+      fake.send({ command: 'setAiPreReviewChatModel', value: 'just-a-name', _requestId: 'req-bad' });
+      await flushUntil(() => replyTo('aiPreReviewChatModelSaved') !== undefined);
+
+      // The webview is untrusted input and this writes a user setting: a value
+      // that would make every run refuse is refused here instead.
+      expect(update).not.toHaveBeenCalled();
+      const reply = replyTo('aiPreReviewChatModelSaved');
+      expect(reply?.error).toBe('The model choice was not stored: it is not a "vendor/family" or "vendor/id" form.');
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(
+        'The model choice was not stored: it is not a "vendor/family" or "vendor/id" form.',
+      );
+    });
+
+    it('reports a failed write instead of claiming the choice was stored', async () => {
+      const get = vi.fn(() => undefined);
+      const update = vi.fn(async () => {
+        throw new Error('read-only configuration');
+      });
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({ get, update } as never);
+
+      fake.send({ command: 'setAiPreReviewChatModel', value: 'fake/only', _requestId: 'req-fail' });
+      await flushUntil(() => replyTo('aiPreReviewChatModelSaved') !== undefined);
+
+      expect(replyTo('aiPreReviewChatModelSaved')).toMatchObject({ value: 'fake/only', _requestId: 'req-fail' });
+      expect(String(replyTo('aiPreReviewChatModelSaved')?.error)).toContain('read-only configuration');
+    });
+  });
 });
