@@ -137,27 +137,43 @@
         "forgejoToolkit.mcpWriteTools.createIssueComment": {
           "type": "boolean",
           "default": false,
+          "title": "%config.mcpWriteTools.createIssueComment.title%",
           "description": "%config.mcpWriteTools.createIssueComment.description%"
         },
         "forgejoToolkit.mcpWriteTools.submitPullReview": {
           "type": "boolean",
           "default": false,
+          "title": "%config.mcpWriteTools.submitPullReview.title%",
           "description": "%config.mcpWriteTools.submitPullReview.description%"
         },
         "forgejoToolkit.mcpWriteTools.cancelActionRun": {
           "type": "boolean",
           "default": false,
+          "title": "%config.mcpWriteTools.cancelActionRun.title%",
           "description": "%config.mcpWriteTools.cancelActionRun.description%"
         },
         "forgejoToolkit.mcpWriteAuditToFile": {
           "type": "boolean",
           "default": false,
+          "title": "%config.mcpWriteAuditToFile.title%",
           "description": "%config.mcpWriteAuditToFile.description%"
         },
         "forgejoToolkit.multiWindowLease": {
           "type": "boolean",
           "default": true,
           "description": "%config.multiWindowLease.description%"
+        },
+        "forgejoToolkit.aiPreReview": {
+          "type": "boolean",
+          "default": false,
+          "title": "%config.aiPreReview.title%",
+          "description": "%config.aiPreReview.description%"
+        },
+        "forgejoToolkit.aiPreReviewIncludeDiff": {
+          "type": "boolean",
+          "default": false,
+          "title": "%config.aiPreReviewIncludeDiff.title%",
+          "description": "%config.aiPreReviewIncludeDiff.description%"
         }
       }
     },
@@ -227,6 +243,12 @@
         "title": "%command.addPullReviewComment.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(comment)"
+      },
+      {
+        "command": "forgejoToolkit.aiPreReviewPullRequest",
+        "title": "%command.aiPreReviewPullRequest.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(sparkle)"
       },
       {
         "command": "forgejoToolkit.copyAgentsWindowMcpConfig",
@@ -309,6 +331,10 @@
         {
           "command": "forgejoToolkit.addPullReviewComment",
           "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.aiPreReviewPullRequest",
+          "when": "false"
         }
       ],
       "comments/comment/context": [
@@ -328,6 +354,11 @@
           "command": "forgejoToolkit.addPullReviewComment",
           "when": "forgejoToolkit.inPullRequestDiff",
           "group": "1_comments@0"
+        },
+        {
+          "command": "forgejoToolkit.aiPreReviewPullRequest",
+          "when": "forgejoToolkit.inPullRequestDiff",
+          "group": "1_comments@1"
         }
       ],
       "editor/lineNumber/context": [
@@ -335,6 +366,13 @@
           "command": "forgejoToolkit.addPullReviewComment",
           "when": "forgejoToolkit.inPullRequestDiff",
           "group": "comments@0"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "forgejoToolkit.aiPreReviewPullRequest",
+          "when": "forgejoToolkit.inPullRequestDiff",
+          "group": "navigation@0"
         }
       ],
       "view/title": [

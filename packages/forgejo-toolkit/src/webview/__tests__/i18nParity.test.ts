@@ -136,6 +136,24 @@ describe('host l10n bundles', () => {
     expect(unknown).toEqual([]);
   });
 
+  it('spells every key exactly as the source spells it', () => {
+    // The check above reads single-quoted literals only, and it goes
+    // source → bundle. This one is the other direction and is quote-agnostic:
+    // a bundle key must appear verbatim in a source file, because that is the
+    // string `vscode.l10n.t` is called with at runtime. A key that differs by
+    // even one escape — `model\'s input budget` against the source's
+    // `model's input budget` — never matches the lookup, and the UI then shows
+    // the English source string in a translated window, silently and with no
+    // error anywhere. That is the defect this test was added for: the two
+    // bundles stored that one key with a backslash-escaped apostrophe, so the
+    // Chinese `bundle.l10n.zh-cn.json` entry for the budget failure never
+    // resolved.
+    const sources = walk(path.join(packageRoot, 'src'), ['.ts']).map((file) => readFileSync(file, 'utf8'));
+    const keys = new Set([...en.keys(), ...zh.keys()]);
+    const unknown = [...keys].filter((key) => !sources.some((source) => source.includes(key)));
+    expect(unknown).toEqual([]);
+  });
+
   it('carries the dashboard README notice keys in both bundles', () => {
     // The README sentence for a symlink or submodule is built by the extension
     // host's dashboard (viewProvider) rather than by the API client, because that
@@ -152,6 +170,66 @@ describe('host l10n bundles', () => {
       expect(zh.has(key), `zh: ${key}`).toBe(true);
       expect(placeholders(zh.get(key) ?? ''), key).toEqual(placeholders(key));
       expect((zh.get(key) ?? '').trim(), key).not.toBe('');
+    }
+  });
+});
+
+describe('manifest nls pairs', () => {
+  const manifest = readJson(path.join(packageRoot, 'package.json')) as {
+    contributes: { configuration: { properties: Record<string, { title?: string; description?: string }> } };
+  };
+  const en = flatten(readJson(path.join(packageRoot, 'package.nls.json')));
+  const zh = flatten(readJson(path.join(packageRoot, 'package.nls.zh-cn.json')));
+
+  it('defines the same keys in both nls files', () => {
+    const missingInZh = [...en.keys()].filter((key) => !zh.has(key));
+    const missingInEn = [...zh.keys()].filter((key) => !en.has(key));
+    expect({ missingInZh, missingInEn }).toEqual({ missingInZh: [], missingInEn: [] });
+  });
+
+  it('resolves every %placeholder% the manifest uses in both nls files', () => {
+    // The manifest is the one file VS Code reads both languages of, so a
+    // placeholder missing from either nls file shows a raw `%config.…%` in the
+    // Settings UI or the command palette rather than falling back to English.
+    const used = [...readFileSync(path.join(packageRoot, 'package.json'), 'utf8').matchAll(/%([^%"]+)%/g)].map(
+      (match) => match[1],
+    );
+    const unresolvedInEn = used.filter((key) => !en.has(key));
+    const unresolvedInZh = used.filter((key) => !zh.has(key));
+    expect({ unresolvedInEn, unresolvedInZh }).toEqual({ unresolvedInEn: [], unresolvedInZh: [] });
+  });
+
+  it('gives the AI pre-review and the MCP write settings a name from the pair', () => {
+    // A setting with no `title` is labelled from its own key, so
+    // `forgejoToolkit.aiPreReview` renders as "Forgejo Toolkit: Ai Pre Review"
+    // — an English, mis-capitalized name — in every UI language, while its
+    // description is translated. The names therefore have to come from the nls
+    // pair like every other manifest string (AGENTS.md, i18n / host-side
+    // strings), starting with the settings added by these two changes.
+    const titled = Object.keys(manifest.contributes.configuration.properties).filter(
+      (key) => typeof manifest.contributes.configuration.properties[key]?.title === 'string',
+    );
+    expect(titled).toEqual([
+      'forgejoToolkit.mcpWriteTools.createIssueComment',
+      'forgejoToolkit.mcpWriteTools.submitPullReview',
+      'forgejoToolkit.mcpWriteTools.cancelActionRun',
+      'forgejoToolkit.mcpWriteAuditToFile',
+      'forgejoToolkit.aiPreReview',
+      'forgejoToolkit.aiPreReviewIncludeDiff',
+    ]);
+    const names = [
+      'config.mcpWriteTools.createIssueComment.title',
+      'config.mcpWriteTools.submitPullReview.title',
+      'config.mcpWriteTools.cancelActionRun.title',
+      'config.mcpWriteAuditToFile.title',
+      'config.aiPreReview.title',
+      'config.aiPreReviewIncludeDiff.title',
+      'command.aiPreReviewPullRequest.title',
+    ];
+    for (const key of names) {
+      expect(en.get(key), `en: ${key}`).toBeTruthy();
+      expect(zh.get(key), `zh: ${key}`).toBeTruthy();
+      expect(zh.get(key), key).not.toBe(en.get(key));
     }
   });
 });

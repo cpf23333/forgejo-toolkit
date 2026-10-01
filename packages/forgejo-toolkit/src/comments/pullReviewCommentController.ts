@@ -916,6 +916,47 @@ export class PullReviewCommentController implements vscode.Disposable {
     });
   }
 
+  /**
+   * The pending review of this pull request, or `undefined` when the user has
+   * none. Used by the AI pre-review, which must reuse the one draft Forgejo
+   * allows per user and pull request instead of starting a second one.
+   *
+   * The predicate is `addComment`'s own (`state === 'PENDING' && user.login ===
+   * instance.username`), deliberately in one place: a second, differently
+   * written lookup could disagree with the interactive path about which review
+   * "continue reviewing" means.
+   */
+  async findPendingReview(params: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+  }): Promise<number | undefined> {
+    const instance = this._findInstance(params.instanceId);
+    if (!instance) {
+      return undefined;
+    }
+    const { data } = await this._loadReviewData(params);
+    const pendingEntry = data.reviews.find(
+      (r) => r.review.state === 'PENDING' && r.review.user?.login === instance.username,
+    );
+    return typeof pendingEntry?.review.id === 'number' ? pendingEntry.review.id : undefined;
+  }
+
+  /**
+   * Reloads the pull request's review threads so a comment created outside the
+   * panel (the AI pre-review writes drafts directly through the client) appears
+   * without waiting for the review-data cache to expire.
+   */
+  async refreshPullRequestComments(params: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+  }): Promise<void> {
+    await this._refreshOpenPrDocuments(params);
+  }
+
   private async _refreshOpenPrDocuments(params: {
     instanceId: string;
     owner: string;

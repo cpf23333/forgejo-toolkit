@@ -267,6 +267,14 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 规避方法：不需要——只是多发一次 `/api/v1/version` 请求，"实例版本过旧"的提示仍然只弹一次，所有功能行为完全一致。
 
+## 设置项名称无法翻译
+
+设置编辑器给设置项显示的标题是**按设置 ID 推导**出来的，不会用 `contributes.configuration.properties` 里声明的 `title`。所以无论界面语言是什么，`forgejoToolkit.aiPreReview` 都显示为 **Forgejo Toolkit: Ai Pre Review**（英文，而且推导规则把 `ai` 拆成了 `Ai`），只有描述是翻译过的——`package.nls.zh-cn.json` 里其实已经写好了它的中文名。
+
+原因：该字段会被解析进一个不对设置模型暴露的内部属性，编辑器只认那个内部值（[microsoft/vscode#191807](https://github.com/microsoft/vscode/issues/191807)，仍开着并已指派给设置编辑器团队；更早的 "Names of settings not translated"，[microsoft/vscode#150891](https://github.com/microsoft/vscode/issues/150891)，已于 2024 年 12 月以 _not planned_ 关闭）。今天没有任何 manifest 字段能改掉推导出来的标题，而改设置 ID 这条路不可行：用户已有的 `settings.json`、本扩展自己的文档与提示文案都按这个 ID 写。
+
+规避方法：标题本身无解。本项目新增的设置项照样把名称写进 `package.nls.json` 与 `package.nls.zh-cn.json`，等 VS Code 支持该字段时立刻生效；在那之前，设置项的**描述**是正常翻译的，而布尔设置项在复选框旁显示给用户的正是描述。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

@@ -266,6 +266,14 @@ Why: the shared record lives in VS Code's `globalState`, which has no atomic rea
 
 Workaround: none needed — one extra `/api/v1/version` request, the "instance is too old" warning is still raised only once, and every feature behaves identically.
 
+## A contributed setting's name cannot be translated
+
+The Settings editor labels a setting by deriving a title from the setting's own ID, and it does not use the `title` that a `contributes.configuration.properties` entry declares. `forgejoToolkit.aiPreReview` therefore renders as **Forgejo Toolkit: Ai Pre Review** — English, and with `ai` split into `Ai` by the derivation — in every UI language, even though its description is translated and `package.nls.zh-cn.json` already carries a proper Chinese name for it.
+
+Why: the field is parsed into an internal property that is not exposed to the settings model, so the editor only honours that internal value ([microsoft/vscode#191807](https://github.com/microsoft/vscode/issues/191807), open and assigned to the settings-editor team; the earlier "Names of settings not translated", [microsoft/vscode#150891](https://github.com/microsoft/vscode/issues/150891), was closed as _not planned_ in December 2024). No manifest field changes the derived label today, and renaming the setting ID is not an option: existing `settings.json` files and this extension's own documentation and messages name that ID.
+
+Workaround: nothing changes the label itself. The names of the settings this project adds are declared in `package.nls.json` and `package.nls.zh-cn.json` regardless, so they take effect the moment VS Code honours the field; until then the setting's description is translated normally, and for a boolean setting the description is what the editor shows next to the checkbox.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

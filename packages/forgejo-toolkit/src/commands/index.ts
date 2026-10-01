@@ -13,6 +13,7 @@ import {
   type CreateIssueFromCommentArgs,
 } from '../editor/todoCommentCodeAction';
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
+import { registerAiPreReviewCommand } from '../aiPreReview';
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
 
@@ -236,4 +237,10 @@ export function registerCommands(
       },
     ),
   );
+
+  // Registered by its own module: the AI pre-review owns a whole flow (fetch,
+  // model call, confirmation list, draft writes) and keeps its single-flight
+  // state keyed by pull request rather than the single module-level boolean the
+  // two flows above use.
+  registerAiPreReviewCommand(context, config, viewProvider, pullReviewCommentController);
 }

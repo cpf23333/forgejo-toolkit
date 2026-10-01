@@ -1942,6 +1942,17 @@ export class ForgejoClient {
     };
   }
 
+  /**
+   * The pull request record alone, without the detail assembly
+   * (`getPullRequestDetail` also reads the issue, the repository, branch
+   * protection and the combined status). The AI pre-review only needs the
+   * header fields it is allowed to send, and paying for four extra requests
+   * there would be cost with no reader.
+   */
+  async getPullRequest(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
+    return (await repoGetPullRequest(owner, repo, index, { client: this._client() })) as ForgejoPullRequestDetail;
+  }
+
   async getPullRequestDetail(
     owner: string,
     repo: string,

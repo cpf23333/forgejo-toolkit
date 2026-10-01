@@ -89,6 +89,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   four calls a review used to start with, and marking every part it had to cut
   short. The `review-pull-request` prompt now starts from it, and the tool
   surface grows from 29 tools to 30.
+- **AI Pre-Review Pull Request**, a new action in the pull request diff editor
+  (`forgejoToolkit.aiPreReviewPullRequest`), plus the two settings behind it.
+  With `forgejoToolkit.aiPreReview` on, a chat model you have configured in VS
+  Code reads the whole pull request and proposes line-level review comments; you
+  pick the ones you agree with from a list that starts with nothing selected, and
+  only those become drafts of a pending review. The extension never submits a
+  review itself — the existing "Submit review" button stays the only way anything
+  becomes public — an unconfirmed comment writes nothing, and a run that is
+  cancelled or fails leaves no half-written comment behind. Every anchor is
+  validated against the pull request's real diff lines: a comment that does not
+  fit is dropped and counted, never moved to a nearby line, flipped to the other
+  side or shortened. Both settings default to off, and with `aiPreReview` off the
+  command refuses without sending anything anywhere. With it on, the model
+  receives the pull request's title and branch names, the changed-file paths with
+  their additions/deletions and status, and the metadata of existing review
+  comments — never a comment body, never a URL. The changed lines of code
+  themselves are sent only when `forgejoToolkit.aiPreReviewIncludeDiff` is also
+  on (off by default), because that is source code leaving your machine. The run
+  reports its progress while it reads and thinks, with a cancel button; cancelling
+  writes nothing. The model it uses is the offered one whose input budget can take
+  the request — preferring a model that can take it whole over dropping files —
+  rather than simply the first one VS Code lists. When no chat model is available,
+  or none of the offered ones can hold even the instructions, the action says so
+  and stops, naming how many models there were and the largest input budget among
+  them; when the request itself does not fit it names the tokens needed, the budget
+  available and the switch that shrinks the request. It never falls back to a
+  heuristic "review".
 - The workflow dispatch form now offers the inputs a workflow declares instead of
   an empty key/value editor: it reads `on.workflow_dispatch.inputs` from the
   workflow file at the ref the form has selected (`.forgejo/workflows`,
