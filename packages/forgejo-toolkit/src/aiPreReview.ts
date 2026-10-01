@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
 import { ConfigManager } from './config';
@@ -5,39 +6,55 @@ import { userFacingErrorMessage } from './api/errors';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
 import { PullReviewCommentController } from './comments/pullReviewCommentController';
 import { parseForgejoPrUri, type ForgejoPrUriParams } from './prFileSystemProvider';
+import type { PullRequestTarget } from './webview/repoIdentity';
 import { logger } from './logger';
 import {
-  AI_PRE_REVIEW_INCLUDE_DIFF_SETTING,
   AI_PRE_REVIEW_MODEL_SETTING,
+  AI_PRE_REVIEW_PROMPT_SCOPE_SETTING,
   AI_PRE_REVIEW_SETTING,
+  aiPreReviewCommentBodyLanguage,
   aiPreReviewModelSettingValue,
+  aiPreReviewPromptScopeSettingValue,
   formatAiPreReviewModelSettingValue,
   isAiPreReviewEnabled,
-  isAiPreReviewIncludeDiffEnabled,
   matchesAiPreReviewModelSelector,
   parseAiPreReviewModelSelector,
   writeAiPreReviewModelSetting,
+  writeAiPreReviewPromptScopeSetting,
+  type AiPreReviewPromptScope,
+  type AiPreReviewStatedScope,
 } from './aiPreReviewSettings';
 import {
+  AI_PRE_REVIEW_MAX_CONTENT_FILES,
   AI_PRE_REVIEW_SYSTEM_PROMPT,
+  aiPreReviewAnswerExcerpt,
+  aiPreReviewBodyLanguageName,
   aiPreReviewPromptText,
   buildAiPreReviewBrief,
+  buildAiPreReviewFileContents,
   buildAiPreReviewPromptMessages,
+  buildAiPreReviewSystemPrompt,
   buildAiPreReviewUserPrompt,
   describeAiPreReviewAnswerShape,
-  formatCandidateLabel,
   parseAiPreReviewResponse,
   validatePreReviewComments,
   type AiPreReviewBrief,
   type AiPreReviewBriefFile,
   type AiPreReviewCandidate,
   type AiPreReviewContractFailure,
+  type AiPreReviewDiffBodyMode,
   type AiPreReviewDrop,
   type AiPreReviewDropReason,
   type AiPreReviewExistingReview,
+  type AiPreReviewFileContents,
   type AiPreReviewPromptMessage,
 } from './aiPreReviewBrief';
-import { createAiPreReviewDiagnostics, type AiPreReviewDiagnostics } from './aiPreReviewDiagnostics';
+import { AiPreReviewPanel } from './aiPreReviewPanel';
+import {
+  aiPreReviewDiagnosticsFilePath,
+  createAiPreReviewDiagnostics,
+  type AiPreReviewDiagnostics,
+} from './aiPreReviewDiagnostics';
 import {
   aiPreReviewModelIdentity,
   formatAiPreReviewModelIdentity,
@@ -47,6 +64,7 @@ import {
   type AiPreReviewModelIdentity,
 } from './aiPreReviewModels';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
+import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
 
 /**
  * The AI pre-review command: read a pull request, ask a chat model for
@@ -60,9 +78,17 @@ import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
  *    becomes a server-side PENDING comment, and the existing "submit review"
  *    button in the review-comment panel remains the only way anything becomes
  *    public.
- * 2. **nothing leaves the machine unasked.** Two window-scoped switches, both off
- *    by default. With the feature switch off the command refuses before it reads
- *    anything: no model call, no HTTP request, not even a diff fetch.
+ * 2. **nothing leaves the machine unasked.** A window-scoped feature switch
+ *    (off by default) and a window-scoped prompt scope whose default is the
+ *    **question**, not an answer. With the feature switch off the command refuses
+ *    before it reads anything: no model call, no HTTP request, not even a diff
+ *    fetch. With the scope at `ask` the run's first act after the model is known
+ *    is one modal naming the provider that would receive the content and what
+ *    each answer would send; nothing is requested, sent or written before it is
+ *    answered, and dismissing it ends the run with nothing sent and nothing
+ *    created. The answer is written into the setting (global scope, the same way
+ *    the model choice is), so the question is asked once and the choice stays
+ *    visible and editable in Settings.
  * 3. **nothing is written unconfirmed.** The confirmation list starts with
  *    nothing selected, an empty selection writes nothing, and the run reports
  *    how many candidates were dropped and why.
@@ -102,11 +128,57 @@ import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
  * (`src/aiPreReviewDiagnostics.ts`): with `forgejoToolkit.debug` on, a run
  * writes the exact messages it sent and every raw answer it received to a file
  * under the extension's log directory, and the probe command
- * (`COMMAND_AI_PRE_REVIEW_PROBE`) asks every offered model the same trivial
- * question with each request shape so "our prompt is wrong" and "these models
- * cannot answer at all" can be told apart. Both are off unless debug is on, and
- * neither ever puts prompt or answer text on the Output Channel — the channel
- * keeps its bounded shape line and, in debug mode, the path of the dump.
+ * (`COMMAND_AI_PRE_REVIEW_PROBE`) asks **the chosen model** — the one
+ * `forgejoToolkit.aiPreReviewModel` names — the same trivial question with each
+ * request shape so "our prompt is wrong" and "this model cannot answer at all"
+ * can be told apart. One of those shapes is a
+ * punctuation-sensitive echo whose literal answer tells a further pair apart: a
+ * provider that mangles text in transit returns it with punctuation missing,
+ * while a model that cannot follow the instruction answers something else
+ * entirely. Both are off unless debug is on, and
+ * neither puts prompt text on the Output Channel: the channel keeps its bounded
+ * shape line, in debug mode the path of the dump, and — on a contract violation
+ * only, never on success — the answer's bounded excerpt. With debug on, the
+ * channel additionally gets the answer **fragment by fragment** and then a
+ * summary line with the totals and the bounded beginning of the answer
+ * (`logAnswerFragments`): the dump holds the concatenation, and only the
+ * fragments show where the provider's boundaries fell, which is what tells a
+ * corrupt provider apart from a corrupt accumulation. Those lines are
+ * `logger.debug`, so they exist only while the debug switch is on and never on a
+ * message, a toast or a notification; a stream that was cancelled or aborted
+ * logs none of them, because a half-read stream has no honest totals.
+ *
+ * The same gate opens a second, deeper diagnostic (`logResponseStreamParts`):
+ * the **parts** of the response, read from `LanguageModelChatResponse.stream`
+ * rather than from its text projection, each logged with its runtime class name
+ * and content and closing with a tally of the kinds that arrived. It exists
+ * because `text` is documented as the text parts filtered out of `stream`, so a
+ * mangled text path beside an intact tool-call part — whose input arrives as a
+ * structured object, not as text — is a real fix (use the tool channel) rather
+ * than a workaround, and only the parts list can tell the two apart.
+ *
+ * That diagnostic answered its question on a real machine (2026-10-01, "ninth
+ * investigation", `docs/design/ai-prereview.md`), and the answer changed the
+ * answer path itself: no tool-call part ever arrived, and `text` turned out **not**
+ * to be the text parts' projection at all — it delivered the model's reasoning
+ * token stream, while the stream's text parts concatenated to the exact expected
+ * answer. The response arrived as RPC-serialised plain objects
+ * (`{"$mid":n,"value":…}`).
+ *
+ * So the answer now comes from the response's **candidate streams**, and **the
+ * contract arbitrates**: `readResponseCandidates` consumes `stream` **once** and
+ * collects the text parts (`LanguageModelTextPart` instances and the measured RPC
+ * text flavour) and the reasoning parts (`LanguageModelThinkingPart` and the
+ * measured RPC reasoning flavour) as separate candidates, reading the `text`
+ * projection **only** when no candidate stream carried text — a second consumer on
+ * one response is the hazard this design removes. `pickResponseCandidate` then
+ * tries the text candidate first, the reasoning candidate next, and the `text`
+ * projection last, each scored on its own bytes by the caller's own validation
+ * (the probe's exact-literal comparison, the run's JSON contract and schema): no
+ * concatenation of two candidates, no repair, no guessing and no substitution of
+ * another model. The stream that wins, and the reason, is logged at debug
+ * (`responseCandidateSelectionLogLine`), and both candidates are recorded in the
+ * diagnostics dump, labelled.
  */
 
 /**
@@ -139,6 +211,22 @@ export const COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL = 'forgejoToolkit.aiPreReviewCho
 export const COMMAND_AI_PRE_REVIEW_PROBE = 'forgejoToolkit.aiPreReviewProbeChatModels';
 
 /**
+ * The command that opens the diagnostics dump in the editor
+ * (`<logUri>/ai-pre-review-diagnostics.log`).
+ *
+ * It exists because the failure message now points at the channel for the
+ * bounded excerpt and at this command for the full prompt and answer: with
+ * `forgejoToolkit.debug` on the dump holds everything a diagnosis needs, and
+ * without a way to open it a user would have to be told a filesystem path and
+ * find it themselves. It is contributed as an ordinary command and is **not**
+ * gated on the feature switch: reading a local diagnostic file sends nothing to
+ * anyone, so the privacy argument that gates the run does not apply. When the
+ * file is not there yet (debug was never on) it says so and names the setting
+ * that creates one, instead of failing or opening nothing.
+ */
+export const COMMAND_AI_PRE_REVIEW_OPEN_DIAGNOSTICS = 'forgejoToolkit.aiPreReviewOpenDiagnostics';
+
+/**
  * Runs in flight, keyed by `instanceId:owner/repo#index` (§6.2). Module-level
  * and window-scoped, the same single-flight shape
  * `src/commands/index.ts` uses for its publish and create-PR flows, but keyed
@@ -146,7 +234,7 @@ export const COMMAND_AI_PRE_REVIEW_PROBE = 'forgejoToolkit.aiPreReviewProbeChatM
  */
 const runsInFlight = new Set<string>();
 
-function runKey(params: { instanceId: string; owner: string; repo: string; index: number }): string {
+function runKey(params: PullRequestTarget): string {
   return `${params.instanceId}:${params.owner}/${params.repo}#${params.index}`;
 }
 
@@ -201,10 +289,17 @@ function sameDocumentUri(a: vscode.Uri, b: unknown): boolean {
 }
 
 /**
- * Registers the feature's three commands: the run itself, the model chooser,
- * and the debug-only probe. All are kept in this module rather than inline in
- * `src/commands/index.ts` because the handlers own whole flows (fetch, model,
- * confirm, write) and that file has to stay readable.
+ * Registers the feature's four commands: the run itself, the model chooser, the
+ * debug-only probe, and the command that opens the diagnostics dump. All are
+ * kept in this module rather than inline in `src/commands/index.ts` because the
+ * handlers own whole flows (fetch, model, confirm, write) and that file has to
+ * stay readable.
+ *
+ * It also hands the view provider the run itself
+ * (`viewProvider.setAiPreReviewRunner`), which is how the pull request detail
+ * page's button reaches the very same flow: the provider owns webview messages
+ * and validates what the webview sent, this module owns the flow, and neither has
+ * to know more about the other than that one function.
  */
 export function registerAiPreReviewCommand(
   context: vscode.ExtensionContext,
@@ -219,12 +314,7 @@ export function registerAiPreReviewCommand(
         void vscode.window.showWarningMessage(vscode.l10n.t('No Forgejo PR diff file is active'));
         return;
       }
-      runAiPreReview(config, viewProvider, pullReviewCommentController, target.params, context).catch(
-        (error: unknown) => {
-          const err = userFacingErrorMessage(error);
-          logger.error(`[aiPreReview] ${err}`);
-        },
-      );
+      startAiPreReview(config, viewProvider, pullReviewCommentController, target.params, context);
     }),
     vscode.commands.registerCommand(COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL, () => {
       chooseAiPreReviewModel().catch((error: unknown) => {
@@ -238,7 +328,51 @@ export function registerAiPreReviewCommand(
         logger.error(`[aiPreReview] probe failed: ${err}`);
       });
     }),
+    vscode.commands.registerCommand(COMMAND_AI_PRE_REVIEW_OPEN_DIAGNOSTICS, () => {
+      openAiPreReviewDiagnostics(context).catch((error: unknown) => {
+        const err = userFacingErrorMessage(error);
+        logger.error(`[aiPreReview] opening the diagnostics file failed: ${err}`);
+      });
+    }),
   );
+
+  // The dashboard's pull request detail page reaches the run through the
+  // provider, which owns webview messages (see `setAiPreReviewRunner`). The
+  // callback is this module's own `startAiPreReview`, so the page and the
+  // `editor/title` button share one implementation rather than two flows that
+  // agree by accident.
+  viewProvider.setAiPreReviewRunner((target) => {
+    startAiPreReview(config, viewProvider, pullReviewCommentController, target, context);
+  });
+}
+
+/**
+ * Starts one run from whichever entry point asked for it, and guards against the
+ * one thing `runAiPreReview` does not handle itself: a genuinely unexpected
+ * error.
+ *
+ * Both entries go through here — the `forgejoToolkit.aiPreReviewPullRequest`
+ * command (which resolves its target from the active `forgejo-pr` diff document)
+ * and the pull request detail page's button (whose target the view provider
+ * validated from the webview message). The coordinates are all either of them
+ * supplies: which pull request to review is the entry point's business, and
+ * everything else about the run belongs to `runAiPreReview`.
+ *
+ * The run is not awaited: it reports its own expected outcomes through a
+ * notification or the confirmation panel, and the caller here is a command
+ * handler or a message dispatch that must return immediately.
+ */
+function startAiPreReview(
+  config: ConfigManager,
+  viewProvider: ForgejoToolkitViewProvider | undefined,
+  pullReviewCommentController: PullReviewCommentController,
+  target: PullRequestTarget,
+  host: { extensionUri: vscode.Uri; logUri?: vscode.Uri },
+): void {
+  runAiPreReview(config, viewProvider, pullReviewCommentController, target, host).catch((error: unknown) => {
+    const err = userFacingErrorMessage(error);
+    logger.error(`[aiPreReview] ${err}`);
+  });
 }
 
 /**
@@ -362,11 +496,38 @@ type GatheredPreReview =
       /** The `comments` array of the answer that satisfied the contract. */
       comments: unknown[];
       brief: AiPreReviewBrief;
+      /** The pull request's own title, for the confirmation panel's header. */
+      pullRequestTitle?: string;
+      /**
+       * What the confirmation panel's per-candidate "open the diff" link needs,
+       * keyed by the changed file's path.
+       *
+       * It is built here, where the pull request and its changed-file list are
+       * already in hand, rather than read again by the panel: the shas have to be
+       * the ones this run's diff came from, and a second read could see a
+       * different head.
+       */
+      diffTargets: Map<string, { status?: string; previousPath?: string; baseSha?: string; headSha?: string }>;
+      /**
+       * How many changed files the run fetched; the brief's own `files.length` is
+       * how many of them it actually covered.
+       *
+       * The confirmation panel states both, because the two differ exactly when
+       * the brief's table was cut short (the row cap, the path budget or the
+       * client's own page cap) — and "this run covered the whole pull request"
+       * would be a false claim precisely there.
+       */
+      changedFilesTotal: number;
     }
-  | { kind: 'cancelled' }
-  | { kind: 'budget'; failure: AiPreReviewBudgetFailure }
+  /**
+   * Cancelled. `changedFileCount` is present only when the file list had already
+   * arrived, so the run can say how much of the pull request it had read.
+   */
+  | { kind: 'cancelled'; changedFileCount?: number }
+  /** The prompt does not fit; built after the brief, so the file count is known. */
+  | { kind: 'budget'; failure: AiPreReviewBudgetFailure; changedFileCount: number }
   /** Every attempt the run made failed the contract; `attempts` lists them. */
-  | { kind: 'unparsed'; attempts: AiPreReviewModelAttempt[] }
+  | { kind: 'unparsed'; attempts: AiPreReviewModelAttempt[]; changedFileCount: number }
   /** The model call itself failed; `reported` says whether it was already shown. */
   | { kind: 'failed'; error: string; reported: boolean };
 
@@ -377,19 +538,22 @@ type GatheredPreReview =
  *
  * Everything between the first request and the model's answer runs inside one
  * cancellable progress notification, and cancelling it is the same outcome as
- * declining the confirmation list: one sentence, nothing written (§6.4).
+ * dismissing the confirmation panel: one sentence, nothing written (§6.4).
  *
- * `host` is only read for `logUri`: with `forgejoToolkit.debug` on, the run
- * appends what it sent and what came back to the diagnostics dump there. The
- * parameter is optional so the tests (and any future caller) can run the flow
- * without an `ExtensionContext`; without it the dump is simply off.
+ * `host` carries the two things only an `ExtensionContext` has: `extensionUri`
+ * is what the confirmation panel's document is loaded from (the panel is an
+ * editor tab, so it needs the extension's `out/webview` root), and `logUri` is
+ * where the debug diagnostics dump is written. It is required rather than
+ * optional because the confirmation step cannot exist without the first — a run
+ * that could not build its panel would have no way to ask for confirmation, and
+ * creating nothing is the only honest outcome for that.
  */
 export async function runAiPreReview(
   config: ConfigManager,
   viewProvider: ForgejoToolkitViewProvider | undefined,
   pullReviewCommentController: PullReviewCommentController,
-  params: ForgejoPrUriParams,
-  host?: { logUri?: vscode.Uri },
+  params: PullRequestTarget,
+  host: { extensionUri: vscode.Uri; logUri?: vscode.Uri },
 ): Promise<void> {
   // The feature switch is checked first and answers with a pointer to the
   // setting. Nothing below this line may run while it is off: the tests assert
@@ -463,16 +627,39 @@ export async function runAiPreReview(
       );
     }
 
-    // Validation, and only validation: the fixed instruction prompt is a
-    // constant, so whether the chosen model can hold it is answered before the
-    // first request goes out — and a model that cannot hold it refuses the run
-    // rather than being swapped for a larger one.
-    const chosenModel = await validateChosenAiPreReviewModel(chosen);
+    // What the prompt may carry is settled next, and it is settled **before**
+    // this run reads or sends anything: with the setting at `ask` the modal is
+    // the only thing that happens, and a cancelled modal returns from here —
+    // zero HTTP requests, zero model calls, zero writes of its own. The vendor
+    // is why this question comes after the model choice: the modal has to name
+    // who would receive the content.
+    const scope = await resolveAiPreReviewPromptScope(aiPreReviewModelIdentity(chosen).vendor);
+    if (scope === undefined) {
+      reportPromptScopeNotChosen();
+      return;
+    }
+
+    // The language the comment bodies are written in is settled here, **once for
+    // the whole run**, and the instruction block is built from it right away:
+    // the same bytes are then what the token counter measures, what both
+    // attempts of the one model send, and what the diagnostics dump prints. It
+    // is read after the scope question so a run the user declines never even
+    // reads a setting it will not use, and before the validation below because
+    // that measurement is of these exact instructions.
+    const bodyLanguage = aiPreReviewCommentBodyLanguage();
+    const systemPrompt = buildAiPreReviewSystemPrompt(bodyLanguage);
+    logger.debug(`AI pre-review: the comment bodies are asked for in ${aiPreReviewBodyLanguageName(bodyLanguage)}`);
+
+    // Validation, and only validation: the instruction block is prepared once,
+    // so whether the chosen model can hold it is answered before the first
+    // request goes out — and a model that cannot hold it refuses the run rather
+    // than being swapped for a larger one.
+    const chosenModel = await validateChosenAiPreReviewModel(chosen, systemPrompt);
     if (!chosenModel) {
       return;
     }
 
-    const diagnostics = await createRunDiagnostics(host, params, offered, chosenModel, configured);
+    const diagnostics = await createRunDiagnostics(host, params, offered, chosenModel, configured, scope);
 
     // Everything from the first request to the model's answer runs under one
     // cancellable notification (§6.2): the model call is the only slow step, and
@@ -485,15 +672,16 @@ export async function runAiPreReview(
         title: vscode.l10n.t('AI pre-review'),
         cancellable: true,
       },
-      (progress, token) => gatherPreReviewRequest(client, params, chosenModel, progress, token, diagnostics),
+      (progress, token) =>
+        gatherPreReviewRequest(client, params, chosenModel, scope, systemPrompt, progress, token, diagnostics),
     );
 
     if (gathered.kind === 'cancelled') {
-      reportCancelled();
+      reportCancelled(gathered.changedFileCount);
       return;
     }
     if (gathered.kind === 'budget') {
-      reportRequestBudgetFailure(gathered.failure, chosenModel.model);
+      reportRequestBudgetFailure(gathered.failure, chosenModel.model, gathered.changedFileCount);
       return;
     }
     if (gathered.kind === 'failed') {
@@ -501,7 +689,7 @@ export async function runAiPreReview(
         logger.error(`AI pre-review model call failed: ${gathered.error}`);
         void vscode.window.showErrorMessage(
           vscode.l10n.t(
-            'The AI pre-review could not be completed: {0}. This does not affect your review — nothing was created.',
+            'The AI pre-review of the whole pull request could not be completed: {0}. This does not affect your review — nothing was created.',
             gathered.error,
           ),
         );
@@ -509,7 +697,7 @@ export async function runAiPreReview(
       return;
     }
     if (gathered.kind === 'unparsed') {
-      reportContractFailures(gathered.attempts);
+      reportContractFailures(gathered.attempts, gathered.changedFileCount);
       return;
     }
 
@@ -517,20 +705,89 @@ export async function runAiPreReview(
     if (accepted.length === 0) {
       void vscode.window.showInformationMessage(
         vscode.l10n.t(
-          'The AI pre-review produced no usable comments ({0}). Nothing was created.',
+          'The AI pre-review read the whole pull request ({0} changed file(s)) and produced no usable comments ({1}). Nothing was created.',
+          gathered.brief.files.length,
           describeDrops(dropped),
         ),
       );
       return;
     }
 
-    const confirmed = await confirmCandidates(accepted);
+    // The confirmation step, and the run's only write gate. It used to be a
+    // multi-select QuickPick whose rows carried each comment's body inside a
+    // label VS Code truncates, with no description and no tooltip for the rest —
+    // so a person could not read what they were about to accept. The panel shows
+    // every body in full, lets it be edited before the draft exists (so a wording
+    // is fixed here rather than corrected in the diff afterwards), and states what
+    // the run sent (the model's vendor, the prompt scope, the counts and the drop
+    // reasons). Dismissing it, closing the tab, or checking nothing all mean the
+    // same thing: nothing is written.
+    const panel = AiPreReviewPanel.createOrShow(
+      host.extensionUri,
+      {
+        instanceId: params.instanceId,
+        owner: params.owner,
+        repo: params.repo,
+        index: params.index,
+        pullRequestTitle: gathered.pullRequestTitle,
+        model: aiPreReviewModelIdentity(chosen),
+        scope,
+        // The coverage the panel's header states. It comes from the brief this
+        // run validated against — not from a second read of the pull request,
+        // which could see a different head — and so it is the number the run
+        // actually covered rather than the number the server reports today.
+        changedFileCount: gathered.brief.files.length,
+        changedFilesTotal: gathered.changedFilesTotal,
+        candidateCount: accepted.length,
+        drops: droppedLabels(dropped),
+        candidates: accepted.map((candidate, index) => ({
+          index,
+          path: candidate.path,
+          line: candidate.line,
+          side: candidate.side === 'base' ? 'base' : 'head',
+          extraLines: candidate.extraLines,
+          body: candidate.body,
+          // Only when it is true, so the payload a card receives describes the
+          // comment rather than carrying a field that is usually absent.
+          ...(candidate.bodyTruncated ? { bodyTruncated: true } : {}),
+          diff: gathered.diffTargets.get(candidate.path),
+        })),
+      },
+      viewProvider,
+    );
+
+    const decision = await panel.decision;
+    // The answer's bodies are the one thing the webview proposes; every anchor
+    // still comes from this run's own validated candidates. The payload's card
+    // indexes are the positions in `accepted` (it is built from `accepted.map`),
+    // and the panel refuses any entry whose index it did not offer, so the lookup
+    // here cannot become a second chance for a forged anchor.
+    const confirmed =
+      decision.kind === 'create'
+        ? decision.entries
+            .map((entry) => {
+              const candidate = accepted[entry.index];
+              return candidate ? { ...candidate, body: entry.body } : undefined;
+            })
+            .filter((entry): entry is AiPreReviewCandidate => !!entry)
+        : [];
     if (confirmed.length === 0) {
-      reportCancelled();
+      panel.dispose();
+      reportCancelled(gathered.brief.files.length);
       return;
     }
 
-    await writeConfirmedDrafts(config, pullReviewCommentController, viewProvider, params, confirmed, dropped);
+    const outcome = await writeConfirmedDrafts(
+      config,
+      pullReviewCommentController,
+      viewProvider,
+      params,
+      confirmed,
+      dropped,
+    );
+    // The panel stays open on what it produced, so the status line and the way to
+    // the pending review are where the answer was given.
+    panel.reportResult(outcome);
   } finally {
     runsInFlight.delete(key);
   }
@@ -549,17 +806,19 @@ export async function runAiPreReview(
  * its content.
  *
  * The header carries the facts a reader would otherwise have to reconstruct
- * from a bug report: which pull request, which switches were on, which model the
+ * from a bug report: which pull request, which prompt scope was chosen (and
+ * that the feature switch is on at all), which model the
  * run is using and where that choice came from, which models the editor offered
  * with their input budgets, and the shape of the request. The answer never
  * appears here — only in the per-attempt blocks below.
  */
 async function createRunDiagnostics(
   host: { logUri?: vscode.Uri } | undefined,
-  params: ForgejoPrUriParams,
+  params: PullRequestTarget,
   models: readonly vscode.LanguageModelChat[],
   candidate: AiPreReviewChosenModel,
   configured: string,
+  scope: AiPreReviewStatedScope,
 ): Promise<AiPreReviewDiagnostics> {
   const diagnostics = createAiPreReviewDiagnostics({
     directory: host?.logUri?.fsPath,
@@ -581,7 +840,7 @@ async function createRunDiagnostics(
     startedAt: new Date(),
     facts: [
       `target: ${runKey(params)}`,
-      `settings: ${AI_PRE_REVIEW_SETTING}=true, ${AI_PRE_REVIEW_INCLUDE_DIFF_SETTING}=${isAiPreReviewIncludeDiffEnabled()}, ${AI_PRE_REVIEW_MODEL_SETTING}="${configured}"`,
+      `settings: ${AI_PRE_REVIEW_SETTING}=true, ${AI_PRE_REVIEW_PROMPT_SCOPE_SETTING}=${scope}, ${AI_PRE_REVIEW_MODEL_SETTING}="${configured}"`,
       `chat models offered by vscode.lm.selectChatModels(): ${models.length}`,
       ...models.map(
         (model, index) => `  model ${index + 1}: ${modelLabel(model)} maxInputTokens=${maxInputTokensOf(model)}`,
@@ -603,6 +862,23 @@ export interface AiPreReviewProbeShape {
   label: string;
   /** The messages this shape sends, in order. */
   messages: readonly AiPreReviewPromptMessage[];
+  /**
+   * The literal answer this shape asks for, when its exact text is the point.
+   *
+   * The three `{}` shapes do not set this, and their verdict stays the sentence
+   * they always had. The echo shape does, and its verdict is then a **boolean**
+   * (`answered the echo exactly as asked: true|false`) because the question is
+   * not "did it answer something short" but "did this exact string survive the
+   * round trip": a faithful provider returns the literal unchanged, a provider
+   * that mangles text in transit returns it with punctuation missing, and a
+   * model that cannot follow the instruction answers something else entirely.
+   */
+  exactAnswer?: {
+    /** The literal text a faithful round trip returns. */
+    text: string;
+    /** How the verdict names the answer, e.g. `the echo`. */
+    name: string;
+  };
 }
 
 /**
@@ -613,13 +889,37 @@ export interface AiPreReviewProbeShape {
  *
  * Deliberately content-free — no repository, no pull request, no diff — so a
  * probe run sends nothing that the feature's own switches are there to protect.
+ *
+ * Its one blind spot is punctuation: `{}` has none, so a provider that eats
+ * commas, quotes and backslashes still answers this shape and still looks
+ * healthy. That is what the echo request below is for.
  */
 export const AI_PRE_REVIEW_PROBE_PROMPT = 'Reply with exactly {} and nothing else.';
 
 /**
+ * The punctuation-sensitive echo request: the fourth probe shape (2026-10-01,
+ * added after a real run's answer came back as a scrambled copy of our own
+ * request with its punctuation stripped).
+ *
+ * `{}` cannot see a transport that loses punctuation, and the feature's real
+ * request is full of it — a JSON schema of quotes, commas and escapes. This
+ * sentence asks for a literal answer with all three kinds in it, so the answer
+ * can be compared **character by character** instead of judged by eye. It stays
+ * content-free like every other probe shape: one sentence, no repository.
+ */
+export const AI_PRE_REVIEW_PROBE_ECHO_PROMPT = 'Reply with exactly {"a":"b,c\\"d\\\\e","f":[1,2]} and nothing else.';
+
+/**
+ * The answer {@link AI_PRE_REVIEW_PROBE_ECHO_PROMPT} asks for, verbatim: valid
+ * JSON whose value carries a comma, an escaped quote, an escaped backslash and a
+ * number list, so a round trip that loses any one of them cannot compare equal.
+ */
+export const AI_PRE_REVIEW_PROBE_ECHO_ANSWER = '{"a":"b,c\\"d\\\\e","f":[1,2]}';
+
+/**
  * The shapes the probe asks with, in the order the dump lists them.
  *
- * Three shapes, one question each, because the machines this exists for fail in
+ * Four shapes, one question each, because the machines this exists for fail in
  * ways that need telling apart:
  *
  * 1. **one user message, no instructions** — the control. If this does not come
@@ -631,6 +931,16 @@ export const AI_PRE_REVIEW_PROBE_PROMPT = 'Reply with exactly {} and nothing els
  *    multi-message input, and the run's switch to one message is the fix.
  * 3. **instructions and request in one `User` message** — the shape the run uses
  *    now, so the dump holds a direct before/after rather than an inference.
+ * 4. **the punctuation-sensitive echo** (2026-10-01, added after a real answer
+ *    came back as a scrambled echo of our own request with punctuation missing)
+ *    — the only shape whose exact text matters, so it is sent without our
+ *    instruction block: its verdict then measures the round trip (provider and
+ *    model) and not our wording. A faithful round trip returns the literal
+ *    unchanged; a round trip that eats punctuation returns it mangled, which is
+ *    a provider limitation rather than a model that cannot answer; anything else
+ *    — prose, `{}`, a review comment — is a model that did not follow the
+ *    instruction. Shapes 1–3 cannot see this at all: `{}` carries no punctuation
+ *    to lose.
  */
 export function aiPreReviewProbeShapes(): AiPreReviewProbeShape[] {
   return [
@@ -647,21 +957,74 @@ export function aiPreReviewProbeShapes(): AiPreReviewProbeShape[] {
     },
     {
       label: 'one user message: instructions then the request',
-      messages: [{ role: 'user', text: aiPreReviewPromptText(AI_PRE_REVIEW_PROBE_PROMPT) }],
+      messages: [
+        { role: 'user', text: aiPreReviewPromptText(AI_PRE_REVIEW_SYSTEM_PROMPT, AI_PRE_REVIEW_PROBE_PROMPT) },
+      ],
+    },
+    {
+      label: 'echo: one user message, punctuation-sensitive',
+      messages: [{ role: 'user', text: AI_PRE_REVIEW_PROBE_ECHO_PROMPT }],
+      exactAnswer: { text: AI_PRE_REVIEW_PROBE_ECHO_ANSWER, name: 'the echo' },
     },
   ];
 }
 
 /**
- * The debug-only probe: asks **every** model the editor offers the same trivial
- * question with each shape above, and writes the prompts and the raw answers to
- * the diagnostics dump.
+ * Which models the probe will ask, or the reason it will not ask anything.
+ *
+ * The probe is a diagnostic for **the model the user chose**, not a survey of
+ * every provider the editor offers: the user's choice is the single source of
+ * truth for which model reviews a pull request (see `aiPreReviewSettings.ts`),
+ * and asking the editor's whole provider list the same four questions spends
+ * calls the user never asked for — several of them paid. So the setting decides:
+ *
+ * - a value that names an offered model → that model alone;
+ * - an **empty** setting or a value that names nothing offered → nothing is
+ *   asked, and the probe says which it was and lists the offered models so the
+ *   value can be set (or the choice made with the picker). It deliberately does
+ *   **not** fall back to one arbitrary model or to "ask everything": an explicit
+ *   value that matches nothing is a typo to report, never a licence to spend
+ *   calls on models the user did not name — the same refusal the run itself
+ *   makes, so the two surfaces cannot disagree about which model is in play.
+ */
+export function resolveAiPreReviewProbeTarget(
+  configured: string,
+  offered: readonly vscode.LanguageModelChat[],
+):
+  | { kind: 'ask'; models: vscode.LanguageModelChat[]; reason: string }
+  | { kind: 'none' }
+  | { kind: 'empty' }
+  | { kind: 'unmatched' } {
+  if (offered.length === 0) {
+    return { kind: 'none' };
+  }
+  if (configured === '') {
+    return { kind: 'empty' };
+  }
+  const chosen = findOfferedAiPreReviewModel(configured, offered);
+  if (!chosen) {
+    return { kind: 'unmatched' };
+  }
+  return {
+    kind: 'ask',
+    models: [chosen],
+    reason: `the chosen model — the setting "${AI_PRE_REVIEW_MODEL_SETTING}" names it, so only it was asked`,
+  };
+}
+
+/**
+ * The debug-only probe: asks the **chosen** model (see
+ * {@link resolveAiPreReviewProbeTarget}) the same trivial question with each
+ * shape above, and writes the prompts and the raw answers to the diagnostics
+ * dump.
  *
  * This is the second half of the diagnosis the feature could not do on its own.
- * A run tells you that every offered model answered a fragment; it cannot tell
- * you whether those models are unable to answer an extension at all, or whether
- * our request is what they are choking on. A two-character question answers that
- * in one pass, and the dump puts the evidence next to the run's own blocks.
+ * A run tells you that the chosen model answered a fragment; it cannot tell you
+ * whether that model is unable to answer an extension at all, whether our
+ * request is what it is choking on, or whether punctuation is being lost
+ * somewhere between us and it. A two-character question answers the first two in
+ * one pass, the punctuation-sensitive echo answers the third, and the dump puts
+ * the evidence next to the run's own blocks.
  *
  * Gated twice on purpose, and it sends nothing unless both hold:
  *
@@ -671,10 +1034,10 @@ export function aiPreReviewProbeShapes(): AiPreReviewProbeShape[] {
  * - `forgejoToolkit.debug` must be on, because the point of the probe is the
  *   file it writes, and that file holds prompts and model output.
  *
- * Every offered model is asked, not only the ones a run could use: a model whose
- * input budget cannot hold the feature's instructions is exactly the kind of
- * thing a diagnosis wants to see, and the probe's request is far below any
- * offered budget anyway.
+ * It asks one model, not every offered one: the dump header says which model was
+ * asked and why, so a reader never has to infer it from the blocks, and the
+ * probe stays a measurement of **the model that matters** rather than of the
+ * editor's whole provider list.
  */
 export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri }): Promise<void> {
   if (!isAiPreReviewEnabled()) {
@@ -692,8 +1055,51 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
     return;
   }
 
-  const models = await listAiPreReviewModels();
-  if (!models) {
+  const listed = await listAiPreReviewModels();
+  if (!listed) {
+    return;
+  }
+  const offered = uniqueAiPreReviewModels(listed);
+  if (offered.length === 0) {
+    // Reuses the run's own "no chat model is available" report: one wording for
+    // one condition, whichever entry point found it.
+    reportNoChatModel();
+    return;
+  }
+
+  const configured = aiPreReviewModelSettingValue();
+  const target = resolveAiPreReviewProbeTarget(configured, offered);
+  if (target.kind === 'empty') {
+    logger.info(
+      `AI pre-review model probe: "${AI_PRE_REVIEW_MODEL_SETTING}" is empty and the probe asks one model, so nothing was sent. Offered: ${offered.map(modelLabel).join(', ')}`,
+    );
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'Nothing was sent: the probe asks the model you chose, and the setting "forgejoToolkit.aiPreReviewModel" is empty. Pick a model first — the "AI Pre-Review: Choose Chat Model" command or the setting itself — then run the probe again. Offered models: {0}',
+        offered.map(modelLabel).join(', '),
+      ),
+    );
+    return;
+  }
+  if (target.kind === 'unmatched') {
+    logger.error(
+      `AI pre-review model probe: "${AI_PRE_REVIEW_MODEL_SETTING}" = "${configured}" names no offered chat model, so nothing was sent. Offered: ${offered.map(modelLabel).join(', ')}`,
+    );
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'Nothing was sent: the setting "forgejoToolkit.aiPreReviewModel" is set to "{0}", which names no offered chat model, and the probe will not spend calls on a model you did not choose. Correct the value or pick one with the "AI Pre-Review: Choose Chat Model" command. Offered models: {1}',
+        configured,
+        offered.map(modelLabel).join(', '),
+      ),
+    );
+    return;
+  }
+
+  if (target.kind === 'none') {
+    // The resolver's own "nothing is offered" arm; `offered` is checked above
+    // too, so this is unreachable in practice and handled rather than asserted:
+    // no probe may send anything without a model, whatever got it here.
+    reportNoChatModel();
     return;
   }
 
@@ -719,13 +1125,24 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
     kind: 'probe',
     startedAt: new Date(),
     facts: [
-      `chat models offered by vscode.lm.selectChatModels(): ${models.length}`,
-      ...models.map(
+      `chat models offered by vscode.lm.selectChatModels(): ${offered.length}`,
+      ...offered.map(
         (model, index) => `  model ${index + 1}: ${modelLabel(model)} maxInputTokens=${maxInputTokensOf(model)}`,
       ),
-      `shapes asked of every model: ${shapes.length}`,
-      ...shapes.map((shape, index) => `  shape ${index + 1}: ${shape.label} (${shape.messages.length} message(s))`),
+      // Which models this run actually asked, and why — stated up front so a
+      // dump can be read without inferring the selection rule from the blocks,
+      // and so "the probe asked only my model" is verifiable from the file.
+      `models asked by this probe: ${target.models.map(modelLabel).join(', ')}`,
+      `why these models: ${target.reason}`,
+      `shapes asked of each model named above: ${shapes.length}`,
+      ...shapes.map(
+        (shape, index) =>
+          `  shape ${index + 1}: ${shape.label} (${shape.messages.length} message(s))${
+            shape.exactAnswer ? `; a faithful answer is exactly ${shape.exactAnswer.text}` : ''
+          }`,
+      ),
       `question: ${JSON.stringify(AI_PRE_REVIEW_PROBE_PROMPT)}`,
+      `echo question: ${JSON.stringify(AI_PRE_REVIEW_PROBE_ECHO_PROMPT)}`,
     ],
   });
 
@@ -737,12 +1154,12 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
       cancellable: true,
     },
     async (progress, token) => {
-      for (const model of models) {
+      for (const model of target.models) {
         for (const shape of shapes) {
           if (token.isCancellationRequested) {
             return;
           }
-          progress.report({ message: vscode.l10n.t('Asking every offered chat model the same trivial question…') });
+          progress.report({ message: vscode.l10n.t('Asking the chosen chat model the same trivial question…') });
           const startedAt = new Date();
           const outcome = await sendProbeRequest(model, shape, token);
           await diagnostics.attempt({
@@ -753,13 +1170,14 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
             finishedAt: new Date(),
             answer: outcome.answer,
             outcome: outcome.outcome,
+            candidates: outcome.candidates,
           });
           asked += 1;
           if (outcome.stop) {
-            // Consent was declined (or the call was cancelled): asking the same
-            // question of the next model would produce the same outcome, so the
-            // probe stops with what it has. `classifyModelError` already showed
-            // the user the one message that explains it.
+            // Consent was declined (or the call was cancelled): repeating the
+            // question would produce the same outcome, so the probe stops with
+            // what it has. `classifyModelError` already showed the user the one
+            // message that explains it.
             return;
           }
         }
@@ -777,47 +1195,135 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
 }
 
 /**
+ * The command body behind `COMMAND_AI_PRE_REVIEW_OPEN_DIAGNOSTICS`: open
+ * `<logUri>/ai-pre-review-diagnostics.log` in the editor, or explain why there is
+ * nothing to open.
+ *
+ * It is the "how do I get more than the bounded excerpt" half of the
+ * contract-failure message. Both ways of not having a file are reported plainly
+ * rather than as an error: a host with no log directory (the same degradation
+ * `createAiPreReviewDiagnostics` already models) and a file that is not there
+ * yet, which is the ordinary state of a machine where `forgejoToolkit.debug` has
+ * never been on — in that case the message names that setting, because the
+ * setting is the whole remedy and a bare "file not found" would be a dead end.
+ *
+ * Reading a local diagnostic file sends nothing to anyone, so this command is
+ * deliberately **not** gated on `forgejoToolkit.aiPreReview` (nor on
+ * `forgejoToolkit.debug`): it has to be reachable precisely when the diagnostics
+ * are missing.
+ */
+export async function openAiPreReviewDiagnostics(host?: { logUri?: vscode.Uri }): Promise<void> {
+  const filePath = aiPreReviewDiagnosticsFilePath(host?.logUri?.fsPath);
+  if (filePath === undefined) {
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'This VS Code host provides no extension log directory, so there is no AI pre-review diagnostics file to open. Everything else keeps working.',
+      ),
+    );
+    return;
+  }
+  if (!fs.existsSync(filePath)) {
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'There is no AI pre-review diagnostics file at {0} yet. It is written only while the setting "forgejoToolkit.debug" is on, so enable that setting and run a pre-review — or the "AI Pre-Review: Probe Chat Models (debug)" command — and open it again. Nothing was sent.',
+        filePath,
+      ),
+    );
+    return;
+  }
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    await vscode.window.showTextDocument(document, { preview: false });
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      vscode.l10n.t(
+        'The AI pre-review diagnostics file {0} could not be opened: {1}',
+        filePath,
+        userFacingErrorMessage(error),
+      ),
+    );
+  }
+}
+
+/**
  * One probe call. Never throws: a failing call is an outcome the dump records,
  * because "this model cannot answer" is a result, not an error to abort on. The
  * one exception is `stop`, which says the failure is about consent or
  * cancellation rather than about the model, and so applies to every later call
  * as well.
+ *
+ * The answer comes from the response's **candidate streams**, arbitrated exactly
+ * as a real run arbitrates them: the text parts first, then the reasoning parts,
+ * and the `text` projection only when neither carried text. The probe's contract
+ * is not the run's JSON schema but the shape's own question — for the echo shape,
+ * the exact literal — so the two surfaces cannot disagree about which channel an
+ * answer came from, which is the whole point of probing with the same reader the
+ * run uses.
  */
 async function sendProbeRequest(
   model: vscode.LanguageModelChat,
   shape: AiPreReviewProbeShape,
   token?: vscode.CancellationToken,
-): Promise<{ answer: string; outcome: string; stop?: boolean }> {
+): Promise<{
+  answer: string;
+  outcome: string;
+  stop?: boolean;
+  /** The candidate streams of this response, for the diagnostics dump. */
+  candidates: AiPreReviewResponseCandidate[];
+}> {
   try {
     const response = await model.sendRequest(
       shape.messages.map((message) => vscode.LanguageModelChatMessage.User(message.text)),
       {
         justification: vscode.l10n.t(
-          'The AI pre-review model probe sends one trivial sentence to every chat model VS Code offers and writes their answers to a diagnostics file, to find out whether those models can answer an extension at all.',
+          'The AI pre-review model probe sends one trivial sentence to the chat model you chose and writes its answers to a diagnostics file, to find out whether that model can answer an extension at all.',
         ),
       },
       token,
     );
-    if (!response?.text) {
-      return { answer: '', outcome: 'the model returned no response stream' };
+    if (!response || (!isAsyncIterable(response.stream) && !isAsyncIterable(response.text))) {
+      return { answer: '', outcome: 'the model returned no response stream', candidates: [] };
     }
-    let text = '';
-    for await (const chunk of response.text) {
-      text += chunk;
-    }
+    // One pass over the response: the parts are collected and classified, and the
+    // `text` projection is read only when no candidate stream carried text.
+    const { candidates, fragments } = await readResponseCandidates(response, () => false);
+    const text = candidates[0]?.text ?? '';
+    logAnswerFragments(fragments ?? [], text, text.length);
     if (token?.isCancellationRequested) {
-      return { answer: text, outcome: 'cancelled; the answer above may be partial', stop: true };
+      return {
+        answer: text,
+        outcome: 'cancelled; the answer above may be partial',
+        stop: true,
+        candidates,
+      };
     }
-    return { answer: text, outcome: describeProbeAnswer(text) };
+    // The probe's contract, arbitrated by the same function a run uses: a shape
+    // that names an exact answer asks whether that literal survived the round
+    // trip, and every other shape only asks whether an answer arrived at all.
+    const selection = pickResponseCandidate(candidates, (candidate) =>
+      shape.exactAnswer === undefined ? candidate.text !== '' : candidate.text.trim() === shape.exactAnswer.text,
+    );
+    if (logger.isDebugEnabled()) {
+      logger.debug(responseCandidateSelectionLogLine(selection));
+    }
+    const chosen = selection.candidate;
+    if (!chosen) {
+      return { answer: '', outcome: 'the model returned no response stream', candidates };
+    }
+    return {
+      answer: chosen.text,
+      outcome: describeProbeAnswer(chosen.text, shape.exactAnswer, chosen.kind),
+      candidates,
+    };
   } catch (error) {
     // Reused from the run so the consent dialog's outcome is reported the same
     // way (and so a declined consent is not re-asked of every later model).
     const classified = classifyModelError(error);
     if (classified.kind === 'cancelled') {
-      return { answer: '', outcome: 'cancelled', stop: true };
+      return { answer: '', outcome: 'cancelled', stop: true, candidates: [] };
     }
     const reason = classified.kind === 'failed' ? classified.error : 'unknown failure';
-    return { answer: '', outcome: `model call failed: ${reason}`, stop: reason === 'NoPermissions' };
+    return { answer: '', outcome: `model call failed: ${reason}`, stop: reason === 'NoPermissions', candidates: [] };
   }
 }
 
@@ -825,10 +1331,34 @@ async function sendProbeRequest(
  * What the probe makes of one answer: the whole point of the exercise is the
  * first clause, so it is stated as a verdict and followed by the same bounded
  * shape the Output Channel uses — the answer itself is in the dump above it.
+ *
+ * A shape that names its exact answer gets a **boolean** verdict instead of the
+ * `{}` sentence: `answered the echo exactly as asked: true` is the one line a
+ * reader needs in order to tell a faithful round trip from one that mangles
+ * punctuation, and a `false` puts them in front of the raw answer block above
+ * it. `true` is the only thing that clears the transport, so a weak model and a
+ * mangling provider cannot be read the same way.
+ *
+ * The verdict also names the **candidate stream** the answer came from, because
+ * on the maintainer's machine the whole failure was that the two streams differ:
+ * a verdict that did not say which one it judged would leave the reader unable to
+ * tell a provider whose text parts are right from one whose reasoning trace is.
+ * The label is the kind the reader sees in the debug dump (`the text candidate`,
+ * `the reasoning candidate`) or, when no part carried text at all, `the text
+ * projection` — the fallback.
  */
-function describeProbeAnswer(text: string): string {
+function describeProbeAnswer(
+  text: string,
+  exact: AiPreReviewProbeShape['exactAnswer'],
+  kind: AiPreReviewResponseCandidate['kind'],
+): string {
+  const shape = describeAiPreReviewAnswerShape(text);
+  const from = `from ${responseCandidateKindLabel(kind)}`;
+  if (exact) {
+    return `answered ${exact.name} exactly as asked: ${text.trim() === exact.text} (${shape}; ${from})`;
+  }
   const verdict = text.trim() === '{}' ? 'answered exactly "{}" as asked' : 'did NOT answer the requested "{}"';
-  return `${verdict} (${describeAiPreReviewAnswerShape(text)})`;
+  return `${verdict} (${shape}; ${from})`;
 }
 
 /**
@@ -852,8 +1382,9 @@ function chooseModelActionHint(): string {
  *
  * This is validation, not selection: the run names the chosen model and both
  * numbers, says outright that no other model was substituted, and points at the
- * command that changes the choice. The diff-body switch is named only to say it
- * cannot help, so nobody spends a run finding that out.
+ * command that changes the choice. The prompt scope is named only to say it
+ * cannot help, so nobody spends a run finding that out: every scope costs at
+ * least the fixed instructions, and the instructions are what did not fit.
  */
 function reportInstructionBudgetFailure(chosen: {
   model: AiPreReviewModelIdentity;
@@ -865,7 +1396,7 @@ function reportInstructionBudgetFailure(chosen: {
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
-      'The AI pre-review was not started: the chat model you chose, {0}, cannot hold its fixed instruction prompt — {1} tokens are needed and its input budget is {2}. Nothing was sent, nothing was created, and no other model was substituted. {3} (Turning off "forgejoToolkit.aiPreReviewIncludeDiff" shrinks the request but not the instructions, so it cannot help here.)',
+      'The AI pre-review of the whole pull request was not started: the chat model you chose, {0}, cannot hold its fixed instruction prompt — {1} tokens are needed and its input budget is {2}. Nothing was sent, nothing was created, and no other model was substituted. {3} (Every prompt scope costs at least these instructions, so choosing a smaller scope cannot help here.)',
       formatAiPreReviewModelIdentity(chosen.model),
       chosen.neededTokens,
       chosen.availableTokens,
@@ -887,7 +1418,7 @@ function reportChosenModelNotMeasurable(model: AiPreReviewModelIdentity): void {
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
-      'The AI pre-review was not started: the chat model you chose, {0}, would not measure its fixed instruction prompt, so the run could not check that the prompt fits. Nothing was sent and nothing was created, and no other model was substituted. {1}',
+      'The AI pre-review of the whole pull request was not started: the chat model you chose, {0}, would not measure its fixed instruction prompt, so the run could not check that the prompt fits. Nothing was sent and nothing was created, and no other model was substituted. {1}',
       formatAiPreReviewModelIdentity(model),
       chooseModelActionHint(),
     ),
@@ -899,14 +1430,23 @@ function reportChosenModelNotMeasurable(model: AiPreReviewModelIdentity): void {
  * numbers and the model by name, then the two remedies that shrink the request
  * or change the model — never a third one that swaps the model behind the user's
  * back.
+ *
+ * The smaller-scope remedy names the two cheapest scopes explicitly, because
+ * "choose a smaller scope" is not an instruction a user can act on while the
+ * setting is called `metadata-only` / `changed-lines-only` in the Settings UI.
  */
-function reportRequestBudgetFailure(failure: AiPreReviewBudgetFailure, model: vscode.LanguageModelChat): void {
+function reportRequestBudgetFailure(
+  failure: AiPreReviewBudgetFailure,
+  model: vscode.LanguageModelChat,
+  changedFileCount: number,
+): void {
   logger.error(
     `AI pre-review: the shortest prompt for this pull request needs ${failure.neededTokens} tokens but the chosen model ${modelLabel(model)} has an input budget of ${failure.availableTokens}; nothing was sent`,
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
-      'The AI pre-review could not fit this pull request into the input budget of the chat model you chose, {0} ({1} tokens needed, {2} available). Nothing was sent and nothing was created, and no other model was substituted. Turn off the setting "forgejoToolkit.aiPreReviewIncludeDiff" to send a smaller request, or use a model with a larger input budget. {3}',
+      'The AI pre-review could not fit the whole pull request ({0} changed file(s)) into the input budget of the chat model you chose, {1} ({2} tokens needed, {3} available). Nothing was sent and nothing was created, and no other model was substituted. Set the setting "forgejoToolkit.aiPreReviewPromptScope" to "changed-lines-only" or "metadata-only" to send a smaller request, or use a model with a larger input budget. {4}',
+      changedFileCount,
       modelLabel(model),
       failure.neededTokens,
       failure.availableTokens,
@@ -927,11 +1467,11 @@ function reportRequestBudgetFailure(failure: AiPreReviewBudgetFailure, model: vs
  * bound is stated as the one number it now is: {2} attempts of the chosen model.
  * There is deliberately no "try again" — the retry the extension could do has
  * already happened — but there is the command that changes the model, because
- * that is the user's decision to make. Nothing about the answers themselves is
- * quoted here — only the bounded shape description goes to the log, at debug
- * level.
+ * that is the user's decision to make. {5} says where the bounded excerpt of each
+ * answer now is and how to get the whole text, because "the answer was not JSON"
+ * on its own is what the maintainer could not diagnose.
  */
-function reportContractFailures(attempts: readonly AiPreReviewModelAttempt[]): void {
+function reportContractFailures(attempts: readonly AiPreReviewModelAttempt[], changedFileCount: number): void {
   const tried = describeFailedAttempts(attempts);
   const model = attempts[0]?.model;
   const label = model ? formatAiPreReviewModelIdentity(model) : 'the chosen chat model';
@@ -940,13 +1480,31 @@ function reportContractFailures(attempts: readonly AiPreReviewModelAttempt[]): v
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
-      'The AI pre-review asked the chat model you chose, {0}, the same question {1} time(s) — its bound is {2} attempt(s) per run, and no other model was called — and none of the answers was the JSON it needs, so no comments were created. Tried: {3}. Nothing was created; you can review the pull request by hand. {4}',
+      'The AI pre-review asked the chat model you chose, {0}, the same question about the whole pull request ({1} changed file(s)) {2} time(s) — its bound is {3} attempt(s) per run, and no other model was called — and none of the answers was the JSON it needs, so no comments were created. Tried: {4}. Nothing was created; you can review the pull request by hand. {5} {6}',
       label,
+      changedFileCount,
       attempts.length,
       AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL,
       tried,
       chooseModelActionHint(),
+      diagnosticsActionHint(),
     ),
+  );
+}
+
+/**
+ * The sentence the contract-failure message ends with: where the bounded excerpt
+ * of each answer is, and how to get the whole text.
+ *
+ * It names the channel and the command id literally, for the same reason
+ * `chooseModelActionHint` does — this API version cannot attach a command to a
+ * message button — and it names the setting that has to be on for there to be a
+ * file at all, so the pointer cannot send someone to a command that will only
+ * say "there is nothing here yet".
+ */
+function diagnosticsActionHint(): string {
+  return vscode.l10n.t(
+    'The "Forgejo Toolkit" output channel shows a bounded excerpt of each answer (at most 200 characters, escaped onto one line); the command "AI Pre-Review: Open Diagnostics" ("forgejoToolkit.aiPreReviewOpenDiagnostics") opens the diagnostics file, which holds the full prompt and the full answer and is written only while the setting "forgejoToolkit.debug" is on.',
   );
 }
 
@@ -1014,28 +1572,910 @@ function describeContractFailurePlainly(failure: AiPreReviewContractFailure): st
 
 /**
  * The log line for one failed attempt. Distinct per failure kind — that is the
- * point of the split — and it names the model that produced the answer, which
- * is the line a bug report needs. Plain text rather than `l10n.t`: log lines are
- * never shown in the UI (AGENTS.md, i18n).
+ * point of the split — and it names the model that produced the answer, how long
+ * the answer was and a **bounded excerpt of it**, which is what makes the three
+ * failure kinds diagnosable without turning `forgejoToolkit.debug` on: a bare
+ * `comments[]` fragment, a truncated JSON object and a prose refusal all read as
+ * "not JSON", and only the text tells them apart.
+ *
+ * The excerpt is capped at `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH` characters and
+ * then `JSON.stringify`-escaped, so it is one line whatever the answer contains;
+ * the whole answer still lives only in the debug-only diagnostics file, and a
+ * successful run still logs no answer text at all. Plain text rather than
+ * `l10n.t`: log lines are never shown in the UI (AGENTS.md, i18n).
  */
-function contractFailureLogLine(model: AiPreReviewModelIdentity, failure: AiPreReviewContractFailure): string {
+function contractFailureLogLine(
+  model: AiPreReviewModelIdentity,
+  failure: AiPreReviewContractFailure,
+  answer: string,
+): string {
   const identity = formatAiPreReviewModelIdentity(model);
+  const excerpt = JSON.stringify(aiPreReviewAnswerExcerpt(answer));
+  const quoted = `the answer is ${answer.length} character(s), excerpt ${excerpt}`;
   switch (failure.kind) {
     case 'empty':
-      return `AI pre-review: ${identity} returned an empty answer`;
+      return `AI pre-review: ${identity} returned an empty answer (${quoted})`;
     case 'not-json':
-      return `AI pre-review: ${identity} returned an answer that is not JSON`;
+      return `AI pre-review: ${identity} returned an answer that is not JSON (${quoted})`;
     case 'wrong-shape':
       return failure.field === 'root'
-        ? `AI pre-review: ${identity} returned JSON whose top level is not an object`
-        : `AI pre-review: ${identity} returned JSON whose "comments" field is missing or not an array`;
+        ? `AI pre-review: ${identity} returned JSON whose top level is not an object (${quoted})`
+        : `AI pre-review: ${identity} returned JSON whose "comments" field is missing or not an array (${quoted})`;
   }
 }
 
-/** The one sentence every cancelled arm shows (§6.4). */
-function reportCancelled(): void {
+/**
+ * One fragment of a streamed answer as one debug line: which fragment it was,
+ * how long it is, and its text escaped onto one line.
+ *
+ * The escaping is the failure excerpt's — `JSON.stringify` of the text — so a
+ * quote, a backslash, a newline, a tab or an unterminated surrogate pair cannot
+ * break the log line apart; a **lone surrogate** (the fake stream's own boundary
+ * case, and the shape a provider that splits an astral character would hand over)
+ * is escaped rather than printed raw, which is what makes "the boundary fell
+ * inside a character" visible instead of invisible. The text is capped at
+ * `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH` by `aiPreReviewAnswerExcerpt`, the same
+ * helper the failure line uses, and the line then says the text was cut and by
+ * how many characters — a reader must never mistake a capped fragment for a short
+ * one, because the whole point of the line is to show the provider's boundaries.
+ *
+ * `total` is the fragment count of the whole response, which the stream only
+ * knows once it ended; the accumulation therefore keeps the fragments and formats
+ * them after the loop (see `logAnswerFragments`).
+ */
+function answerFragmentLogLine(index: number, total: number, fragment: string): string {
+  const excerpt = aiPreReviewAnswerExcerpt(fragment);
+  const cut = fragment.length > excerpt.length ? `, cut from ${fragment.length} characters` : '';
+  return `AI pre-review: answer fragment ${index + 1} of ${total} in the stream: length=${fragment.length}, text=${JSON.stringify(
+    excerpt,
+  )}${cut}`;
+}
+
+/**
+ * The closing line of a debug fragment list: how many fragments the response
+ * arrived in, how many characters they added up to, and the bounded escaped
+ * beginning of the answer **beside** the list — so a reader sees the
+ * concatenated result without scrolling back through the fragments, and can tell
+ * "the provider sent corrupt fragments" from "our accumulation corrupts them" by
+ * comparing the two.
+ *
+ * The excerpt is `aiPreReviewAnswerExcerpt`, the same helper and the same cap the
+ * failure line uses, so the two can never disagree about how much of an answer
+ * the log may quote.
+ */
+function answerStreamSummaryLogLine(fragmentCount: number, characterCount: number, answer: string): string {
+  return `AI pre-review: answer stream summary: ${fragmentCount} fragment(s), ${characterCount} character(s), excerpt=${JSON.stringify(
+    aiPreReviewAnswerExcerpt(answer),
+  )}`;
+}
+
+/**
+ * Logs a whole streamed answer, fragment by fragment, and then its totals — the
+ * **debug-only** diagnostic that makes the transport visible.
+ *
+ * Why the fragments are the unit. The maintainer's failure was an answer that
+ * came back as a punctuation-stripped copy of the request, and the accumulation
+ * loop had already been ruled out by unit test (`the streamed answer is
+ * accumulated byte for byte (hypothesis C)`), so what a diagnosis still needs is
+ * the one thing neither the debug dump nor the bounded failure excerpt carries:
+ * **where one fragment ended and the next began**. Only that tells "the provider's
+ * fragments are already corrupt" apart from "our accumulation corrupts them", and
+ * with the dump holding the concatenation, the fragments beside it are what makes
+ * the difference readable. Both a successful and a failed call may therefore log
+ * them: the fragment list describes the transport, and the transport is the same
+ * question whichever way the answer later parsed.
+ *
+ * What may never appear. Only what came back, never what was sent: the prompt,
+ * the brief and the diff are not arguments of this function, so no fragment line
+ * can carry them. The lines go to the Output Channel through `logger.debug` — the
+ * one surface `forgejoToolkit.debug` gates (`Logger.debug` returns before it
+ * writes) — so no message, toast or notification ever mentions them, and with
+ * debug off nothing here reaches the channel at all. There is no new setting: the
+ * debug switch that already opens the diagnostics dump is the whole gate, which
+ * is consistent with that dump already carrying the full answer at debug level.
+ */
+function logAnswerFragments(fragments: readonly string[], answer: string, characterCount: number): void {
+  if (!logger.isDebugEnabled()) {
+    return;
+  }
+  fragments.forEach((fragment, index) => {
+    logger.debug(answerFragmentLogLine(index, fragments.length, fragment));
+  });
+  logger.debug(answerStreamSummaryLogLine(fragments.length, characterCount, answer));
+}
+
+/**
+ * The runtime class name of a part, or `undefined` when the value has no
+ * constructor name to report (a plain object literal with a null prototype, a
+ * cross-realm object whose constructor is hidden, a primitive).
+ *
+ * The **runtime** name is the point, and it is read from `constructor.name`
+ * rather than with `instanceof`: `@types/vscode` declares the part classes
+ * (`LanguageModelTextPart`, `LanguageModelToolCallPart`, …) and a real provider
+ * hands over instances of exactly those classes, but a part that came from
+ * another realm — or from a newer editor version the extension's typings do not
+ * name yet — fails an `instanceof` against the local binding while still naming
+ * its class. Naming the class is what the reader needs in order to answer "which
+ * channel is this?"; a false `instanceof` would hide it behind `unknown`.
+ *
+ * Nothing here may throw: reading a property off a **revoked proxy** throws a
+ * `TypeError`, and a diagnostic that took the whole sweep down over one
+ * unreadable part would be worse than no diagnostic at all. Every read is
+ * therefore guarded and the answer degrades to `undefined`.
+ */
+function runtimeClassName(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'object' && typeof value !== 'function') {
+    return undefined;
+  }
+  try {
+    const constructor = (value as { constructor?: unknown }).constructor;
+    if (typeof constructor !== 'function') {
+      return undefined;
+    }
+    const name = (constructor as { name?: unknown }).name;
+    return typeof name === 'string' && name.length > 0 ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** How a part class is constructed; used only to type an optional `instanceof`. */
+type AiPreReviewPartConstructor = new (...args: never[]) => unknown;
+
+/** The `value` of a part-like object as a string, or `''` when it carries none. */
+function partValueText(value: unknown): string {
+  if (typeof value !== 'object' || value === null) {
+    return '';
+  }
+  const raw = (value as { value?: unknown }).value;
+  return typeof raw === 'string' ? raw : '';
+}
+
+/**
+ * Whether a value is something `for await` can read: an async iterable.
+ *
+ * Used instead of a truthiness test on a response property, because an editor
+ * version without the `stream` projection still hands over a `text` one (that was
+ * the only channel this feature used before the parts fix), so "the response
+ * carries nothing to read" has to be asked of **both** projections rather than of
+ * one of them.
+ */
+function isAsyncIterable(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function'
+  );
+}
+
+/**
+ * The reasoning part class a **newer** editor declares and the `@types/vscode`
+ * version this extension compiles against does not name yet.
+ *
+ * It is read as an **optional** constructor, lazily and behind a `typeof` check —
+ * `instanceof` against `undefined` is simply `false` — because the class check is
+ * the primary rule and a class this build of the typings cannot name must not
+ * break it. The cast is the whole point: the runtime class may exist while the
+ * compile-time declaration does not, and a `vscode.LanguageModelThinkingPart`
+ * written directly would be a type error against `@types/vscode` 1.102.0. The
+ * read is a function rather than a module-level constant because a property
+ * access on the `vscode` module is not free at module load: this file's own suite
+ * mocks the module, and a mock that does not export this name would throw there
+ * rather than at the one call site that needs it.
+ */
+function languageModelThinkingPart(): AiPreReviewPartConstructor | undefined {
+  try {
+    const ctor = (vscode as unknown as { LanguageModelThinkingPart?: unknown }).LanguageModelThinkingPart;
+    return typeof ctor === 'function' ? (ctor as AiPreReviewPartConstructor) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A part as this module classifies it for the **answer**: which channel it
+ * belongs to and, when it carries text, the text itself.
+ *
+ * `data` is the deliberate catch-all for everything that is not one of the
+ * candidate streams — a data part (`usage`, `stateful_marker`, image bytes), a
+ * tool-call part, a bare primitive, an object no rule recognises. Those are
+ * named in the debug log and then ignored: no data part and no tool-call part
+ * ever contributes text to an answer.
+ */
+type AiPreReviewPartClassification =
+  | { kind: 'text'; text: string }
+  | { kind: 'reasoning'; text: string }
+  | { kind: 'data' };
+
+/**
+ * The one place that decides which channel a streamed part belongs to. Two
+ * rules, tried in this order, and **neither is a `$mid` number on its own**:
+ *
+ * 1. The **classes the API declares** — `LanguageModelTextPart` is the text
+ *    channel and `LanguageModelThinkingPart` (when the editor declares it) the
+ *    reasoning channel. This is the primary rule and it is an `instanceof`, so a
+ *    real provider's instances are classified correctly whatever the RPC layer
+ *    does on the wire.
+ * 2. The **RPC-serialised flavour** of a part that is not an instance of either
+ *    class. Measured on the maintainer's machine (2026-10-01, "ninth
+ *    investigation", recorded in `docs/design/ai-prereview.md`): the response's
+ *    parts arrive as plain objects `{"$mid":<n>,"value":…}` — three of them are
+ *    the model's reasoning token stream (`$mid=22`), the real text parts
+ *    (`$mid=21`), and data parts such as `usage` / `stateful_marker`
+ *    (`$mid=24`, no `value`). Those numbers are VS Code RPC envelope type ids —
+ *    editor internals — so they are read as a **shape** first: an object whose
+ *    own `$mid` is a number and whose `value`, when it has one, is a string.
+ *    Only then does the number decide the channel, through the two static sets
+ *    below, and the data set is an **exclusion list**: an unrecognised number
+ *    with a string `value` falls through to `data` rather than being guessed
+ *    into one of the two candidate streams.
+ *
+ * Why the fall-through matters. A `$mid` mapping this build does not know is
+ * exactly the case where a wrong guess would put a reasoning trace into the
+ * answer, or an answer fragment into the reasoning candidate — so an unknown
+ * flavour stays a data part, the log still names its number, and the answer
+ * degrades to the `text` projection rather than to a guess.
+ *
+ * Nothing here may throw: a part can be a revoked proxy or a primitive, and a
+ * diagnostic beside a request may not turn one unreadable part into a failure.
+ */
+function classifyResponsePart(value: unknown): AiPreReviewPartClassification {
+  try {
+    if (typeof vscode.LanguageModelTextPart === 'function' && value instanceof vscode.LanguageModelTextPart) {
+      return { kind: 'text', text: partValueText(value) };
+    }
+    const thinkingPart = languageModelThinkingPart();
+    if (thinkingPart !== undefined && value instanceof thinkingPart) {
+      return { kind: 'reasoning', text: partValueText(value) };
+    }
+    if (typeof vscode.LanguageModelToolCallPart === 'function' && value instanceof vscode.LanguageModelToolCallPart) {
+      return { kind: 'data' };
+    }
+    if (typeof value !== 'object' || value === null) {
+      return { kind: 'data' };
+    }
+    const envelope = value as { $mid?: unknown; value?: unknown };
+    if (typeof envelope.$mid !== 'number') {
+      return { kind: 'data' };
+    }
+    if (RPC_DATA_PART_MIDS.has(envelope.$mid)) {
+      return { kind: 'data' };
+    }
+    if (typeof envelope.value !== 'string') {
+      return { kind: 'data' };
+    }
+    if (RPC_TEXT_PART_MIDS.has(envelope.$mid)) {
+      return { kind: 'text', text: envelope.value };
+    }
+    if (RPC_REASONING_PART_MIDS.has(envelope.$mid)) {
+      return { kind: 'reasoning', text: envelope.value };
+    }
+    return { kind: 'data' };
+  } catch {
+    // A property read on a revoked proxy throws: the part is described as a
+    // data part the sweep cannot read rather than allowed to break the answer.
+    return { kind: 'data' };
+  }
+}
+
+/**
+ * The RPC flavours measured on the maintainer's machine. `$mid=21` is the real
+ * text part stream and `$mid=22` the model's reasoning token stream — see
+ * `classifyResponsePart` for the measurement and for why the numbers are used
+ * only **after** an `instanceof` check has failed and the envelope shape has
+ * been recognised.
+ */
+const RPC_TEXT_PART_MIDS: ReadonlySet<number> = new Set([21]);
+const RPC_REASONING_PART_MIDS: ReadonlySet<number> = new Set([22]);
+/**
+ * `$mid=24` is the **only** data flavour measured so far, so it is also the seed
+ * of the exclusion list: an envelope with a string `value` and a number this
+ * build does not know stays a data part, and a future `$mid` can therefore only
+ * start carrying the answer after someone has measured what it is.
+ */
+const RPC_DATA_PART_MIDS: ReadonlySet<number> = new Set([24]);
+
+/**
+ * The **kind** of one streamed part as the debug log names it: which channel it
+ * belongs to for the answer (`text`, `reasoning`), `tool-call` for the one
+ * structured part the API declares, and `unknown (<class>, typeof)` — with the
+ * RPC envelope's own `$mid` spelled out — for everything else.
+ *
+ * The class names are string literals because they are the runtime contract:
+ * the classes are identified by the name the provider's instances carry, so a
+ * renamed class shows up as `unknown` beside its real name instead of being
+ * silently mislabelled. The kind must never throw: the sweep exists to describe
+ * what arrived, not to reject it.
+ */
+function responsePartKind(value: unknown): string {
+  const className = runtimeClassName(value);
+  if (className === 'LanguageModelTextPart') {
+    return 'text';
+  }
+  if (className === 'LanguageModelToolCallPart') {
+    return 'tool-call';
+  }
+  const classification = classifyResponsePart(value);
+  if (classification.kind === 'text') {
+    return 'text';
+  }
+  if (classification.kind === 'reasoning') {
+    return 'reasoning';
+  }
+  const type = typeof value;
+  const mid = rpcEnvelopeMid(value);
+  const envelope = mid === undefined ? '' : `$mid=${mid}, `;
+  return className ? `unknown (${envelope}${className}, typeof=${type})` : `unknown (${envelope}typeof=${type})`;
+}
+
+/** The `$mid` of an RPC-serialised envelope, or `undefined` for anything else. */
+function rpcEnvelopeMid(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+  try {
+    const mid = (value as { $mid?: unknown }).$mid;
+    return typeof mid === 'number' ? mid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `JSON.stringify` of a part's input, or `undefined` when it cannot be stringified. */
+function stringifyPartValue(value: unknown): string | undefined {
+  try {
+    const serialised = JSON.stringify(value);
+    return typeof serialised === 'string' ? serialised : undefined;
+  } catch {
+    // A circular input or a bigint: the object exists, it just has no JSON form.
+    return undefined;
+  }
+}
+
+/**
+ * The bounded shape of a part this diagnostic has no specific rendering for: the
+ * JSON form when the part has one, and otherwise its **own keys** — the shape
+ * rather than the value.
+ *
+ * Two bounds, both deliberate. The inspection is **escaped onto one line** with
+ * the same `JSON.stringify` the fragment and failure excerpts use, so a newline,
+ * a quote or an unterminated surrogate inside a part cannot break the log line
+ * apart. And it is capped at `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH` characters by
+ * `aiPreReviewAnswerExcerpt` — the one cap the answer excerpts already obey —
+ * because a data part may carry base64 or a whole document, and a debug line is
+ * not a place to dump megabytes.
+ *
+ * Nothing here may throw. `JSON.stringify` throws on a circular object and on a
+ * bigint; `Object.keys` throws on a primitive and on a revoked proxy; a
+ * null-prototype object has no readable string form at all. Each of those is a
+ * describeable shape, so each falls one step further down (JSON → own keys →
+ * `unreadable`), because a part this sweep cannot read is still an answer while a
+ * thrown diagnostic is not.
+ */
+function inspectPartShape(value: unknown): { text: string; raw: string; truncated: boolean } {
+  const serialised = stringifyPartValue(value);
+  const raw = serialised ?? ownKeysInspection(value);
+  const excerpt = aiPreReviewAnswerExcerpt(raw);
+  return { text: excerpt, raw, truncated: excerpt.length < raw.length };
+}
+
+/** The own keys of a value as a bounded, escaped one-liner; `unreadable` when even that throws. */
+function ownKeysInspection(value: unknown): string {
+  try {
+    return JSON.stringify(Object.keys(value as object));
+  } catch {
+    // `Object.keys` throws on a primitive and on a revoked proxy: both are
+    // described rather than allowed to break the sweep.
+    return `unreadable(${typeof value})`;
+  }
+}
+
+/**
+ * One streamed part as one debug line: which part it was, its **runtime kind**,
+ * its length, and its content — the text for a text part, the tool name and the
+ * JSON-stringified input for a tool-call part, a bounded inspection of the shape
+ * for everything else.
+ *
+ * The index is written `part #3 (3 so far)` rather than `#3 of 4`: a stream only
+ * knows its length once it ended, and the parts are logged as they arrive (so a
+ * stream that dies mid-way still shows what reached us). The honest running count
+ * is therefore "so far", and the closing summary line is where the totals live.
+ *
+ * Why the parts beside the fragments. `LanguageModelChatResponse.text` is
+ * documented as "everything except for text parts filtered out of `stream`"
+ * (`@types/vscode` 1.102.0), so the fragment list describes the **projection**
+ * the run parses while the parts describe the **transport** that projection came
+ * from. A mangled text path beside an intact tool-call part is exactly the
+ * difference this line makes visible, and it is the question the maintainer's
+ * machine is stuck on: a `LanguageModelToolCallPart` carries its input as a
+ * structured object, which no text-level corruption can explain away.
+ *
+ * `length` is the length of the payload this diagnostic renders — the text for a
+ * text part, `name + " " + input` for a tool-call part, the raw inspection for
+ * anything else — not the length of the capped line, so a reader can always tell
+ * a short part from a capped one; the `cut` clause appears only when the
+ * inspection hit the cap.
+ */
+function responsePartLogLine(index: number, value: unknown): string {
+  const kind = responsePartKind(value);
+  const where = `part #${index} (${index} so far)`;
+  if (kind === 'text') {
+    // The published class and the measured RPC text flavour both land here, and
+    // both carry their text in `value`, so one branch renders either of them.
+    const text = partValueText(value);
+    const excerpt = aiPreReviewAnswerExcerpt(text);
+    const cut = text.length > excerpt.length ? `, cut from ${text.length} characters` : '';
+    return `AI pre-review: ${where} in the stream: kind=text, length=${text.length}, text=${JSON.stringify(
+      excerpt,
+    )}${cut}`;
+  }
+  if (kind === 'reasoning') {
+    const text = partValueText(value);
+    const excerpt = aiPreReviewAnswerExcerpt(text);
+    const cut = text.length > excerpt.length ? `, cut from ${text.length} characters` : '';
+    return `AI pre-review: ${where} in the stream: kind=reasoning, length=${text.length}, text=${JSON.stringify(
+      excerpt,
+    )}${cut}`;
+  }
+  if (kind === 'tool-call') {
+    const part = value as { name?: unknown; input?: unknown };
+    const name = typeof part.name === 'string' ? part.name : String(part.name);
+    const input = stringifyPartValue(part.input);
+    // The input is logged **whole**, escaped but uncapped, unlike the unknown
+    // kinds: a tool call's input is the structured payload this diagnostic exists
+    // to test for JSON validity, so an excerpt of it could hide exactly the
+    // corruption being looked for. It is a tool argument rather than a document,
+    // and the cap still guards the one kind that may carry one.
+    const inputLog = input === undefined ? '(the input has no JSON form)' : `input=${JSON.stringify(input)}`;
+    return `AI pre-review: ${where} in the stream: kind=tool-call, length=${
+      (name + (input ?? '')).length
+    }, tool=${JSON.stringify(name)}, ${inputLog}`;
+  }
+  const inspection = inspectPartShape(value);
+  const cut = inspection.truncated ? `, inspection cut from ${inspection.raw.length} characters` : '';
+  return `AI pre-review: ${where} in the stream: kind=${kind}, length=${
+    inspection.raw.length
+  }, inspection=${JSON.stringify(inspection.text)}${cut}`;
+}
+
+/**
+ * The closing line of a debug part list: how many parts of each kind arrived, how
+ * many text parts there were, and how many characters those text parts added up
+ * to — so the transport the answer came from is one line rather than an
+ * inference from the list above it.
+ *
+ * The kind counts are listed in the order the kinds first appeared, so the line
+ * reads as a summary of the list above it and a reader can match it up by eye.
+ */
+function responseStreamSummaryLogLine(
+  kinds: readonly string[],
+  textPartCount: number,
+  textPartCharacters: number,
+): string {
+  const counts = new Map<string, number>();
+  for (const kind of kinds) {
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const tally = counts.size === 0 ? 'no parts' : [...counts].map(([kind, count]) => `${count} ${kind}`).join(', ');
+  return `AI pre-review: part stream summary: ${kinds.length} part(s) (${tally}), ${textPartCount} text part(s) carrying ${textPartCharacters} character(s)`;
+}
+
+/**
+ * Logs the parts of one response, then the tally and the **only** fact about the
+ * `text` projection this pass still needs — the **debug-only** second half of the
+ * transport dump.
+ *
+ * The parts arrive already collected and already classified. That is the change
+ * the ninth investigation forced: `stream` is consumed **once**, by the caller
+ * (`readResponseStreamParts`), because `stream` and `text` may be two
+ * projections of one cursor and a second reader on the same response is the
+ * hazard this whole change exists to remove. A request whose two projections
+ * share one cursor therefore can no longer be misread as "the stream offered no
+ * parts": what the collector saw is what this line reports.
+ *
+ * What may never appear. Only what came back: the prompt, the brief and the diff
+ * are not arguments of this function. Every line goes through `logger.debug`
+ * behind `logger.isDebugEnabled()`, the one gate `forgejoToolkit.debug` owns, so
+ * nothing here is user-visible — no message, toast or notification — and with
+ * debug off `readResponseStreamParts` skips this function entirely.
+ */
+function logResponseStreamParts(
+  debug: ResponseStreamDebug,
+  textFragments: readonly string[],
+  textProjectionRead: boolean,
+  textProjectionLength: number,
+): void {
+  if (!logger.isDebugEnabled()) {
+    return;
+  }
+  debug.parts.forEach((part, index) => {
+    logger.debug(responsePartLogLine(index + 1, part));
+  });
+  const textPartCharacters = textFragments.reduce((total, fragment) => total + fragment.length, 0);
+  logger.debug(responseStreamSummaryLogLine(debug.kinds, textFragments.length, textPartCharacters));
+  if (debug.dataPartCount > 0) {
+    // A data part carrying `usage` is the one thing in that channel worth naming:
+    // it is where the call's own accounting lives, and a reader comparing a run's
+    // token budget with what the provider charged looks here.
+    logger.debug(
+      `AI pre-review: part stream summary: ${debug.dataPartCount} data part(s) carried no answer text (${debug.dataPartShapes.join('; ')})`,
+    );
+  }
+  if (debug.stopped) {
+    logger.debug('AI pre-review: part stream summary: the sweep stopped early, so the totals above are partial');
+  }
+  if (!textProjectionRead) {
+    // The single-consumer rule, stated rather than left to be inferred: no
+    // candidate stream carried text, so the `text` projection was never read and
+    // there is nothing to compare the parts against.
+    logger.debug(
+      'AI pre-review: part stream summary: no candidate stream carried text, so the `text` projection was not read',
+    );
+    return;
+  }
+  logger.debug(
+    `AI pre-review: part stream summary: the \`text\` projection carries ${textProjectionLength} character(s)`,
+  );
+}
+
+/**
+ * The **debug** record of one response's parts: every part that arrived, the
+ * kind of each, the text parts' texts, and whether the sweep stopped early.
+ *
+ * It exists so the parts are consumed **once**: the collector fills it while it
+ * classifies, and the log renders it afterwards. Nothing in it is a candidate —
+ * the candidates are `AiPreReviewResponseCandidate`s built from the same pass.
+ */
+interface ResponseStreamDebug {
+  /** Every part, in arrival order, for the per-part log line. */
+  parts: unknown[];
+  /** The kind of each part, in arrival order, for the tally. */
+  kinds: string[];
+  /** Data parts that arrived, for the one line about them. */
+  dataPartCount: number;
+  /** A bounded inspection of each data part's shape (`usage` is the interesting one). */
+  dataPartShapes: string[];
+  /** True when the sweep stopped before the stream did (the caller's cancellation). */
+  stopped: boolean;
+}
+
+/** The two candidate streams of one response, plus the debug record of its parts. */
+interface AiPreReviewResponseStreamCollector {
+  /** `LanguageModelTextPart` instances and the measured RPC text flavour, in arrival order. */
+  textParts: string[];
+  /** `LanguageModelThinkingPart` instances and the measured RPC reasoning flavour. */
+  reasoningParts: string[];
+  debug: ResponseStreamDebug;
+}
+
+/**
+ * One candidate stream of a response: a channel the provider may have put the
+ * **answer** on, with the text it carried.
+ *
+ * `kind` is named after the channel rather than after a class, because a channel
+ * has more than one runtime shape (the published class and the RPC flavour the
+ * maintainer's machine shows) and the arbitration and the log must talk about the
+ * channel, not about one of its encodings.
+ */
+interface AiPreReviewResponseCandidate {
+  /**
+   * - `text`: the response's text parts — `LanguageModelTextPart` instances and
+   *   the measured RPC text flavour.
+   * - `reasoning`: the response's reasoning parts — `LanguageModelThinkingPart`
+   *   instances and the measured RPC reasoning flavour.
+   * - `text-projection`: the documented `response.text` projection, used **only**
+   *   when no part of the stream carried text at all.
+   */
+  kind: 'text' | 'reasoning' | 'text-projection';
+  text: string;
+}
+
+/** What arbitration made of the candidate streams: which one is the answer, and why. */
+type ResponseCandidateSelection =
+  | { outcome: 'match'; candidate: AiPreReviewResponseCandidate; reason: string }
+  | { outcome: 'mismatch'; candidate?: AiPreReviewResponseCandidate; reason: string };
+
+/**
+ * Consumes the **`stream` projection of a response exactly once** and collects
+ * its parts into the separate candidate channels, plus the debug record of what
+ * arrived.
+ *
+ * Why one pass and no second reader. `stream` and `text` are two projections of
+ * one response, and the editor may hand over two independent iterators (each
+ * property read re-reads the proxy) or one cursor the first reader drains. Two
+ * readers on one response is therefore a race whose outcome depends on the
+ * editor's internals — which is exactly the hazard this change removes: the
+ * `text` projection is read **only** when this pass found no candidate stream
+ * carrying text (see `readResponseStreamParts`).
+ *
+ * Why the parts are kept rather than logged on the way past. The candidate they
+ * belong to is only known once the **caller's contract** has scored them, and the
+ * log has to say which one was used; so this pass records every part (when debug
+ * is on) and the caller renders the list afterwards, in
+ * `logResponseStreamParts`. The list is still complete for a stream that ended
+ * early, because everything that arrived before the break is in it.
+ *
+ * An error from `next()` is **rethrown**: a stream that broke is a failed model
+ * call, not an answer, and the caller's own `classifyModelError` is what turns an
+ * `AbortError` into a cancellation. `checkCancelled` is asked before every step
+ * for the same reason the fragment list is only written on a completed stream — a
+ * half-read stream has no honest totals, and the caller's own cancellation check
+ * has already run.
+ */
+async function collectResponseStreamParts(
+  response: { stream?: AsyncIterable<unknown> },
+  checkCancelled: () => boolean,
+): Promise<AiPreReviewResponseStreamCollector> {
+  const collector: AiPreReviewResponseStreamCollector = {
+    textParts: [],
+    reasoningParts: [],
+    debug: { parts: [], kinds: [], dataPartCount: 0, dataPartShapes: [], stopped: false },
+  };
+  const debugEnabled = logger.isDebugEnabled();
+  const stream = response.stream;
+  if (!stream || typeof (stream as AsyncIterable<unknown>)[Symbol.asyncIterator] !== 'function') {
+    if (debugEnabled) {
+      logger.debug(
+        'AI pre-review: part stream summary: the response carries no stream iterable, so no part could be inspected',
+      );
+    }
+    return collector;
+  }
+  try {
+    const iterator = stream[Symbol.asyncIterator]();
+    for (;;) {
+      if (checkCancelled()) {
+        collector.debug.stopped = true;
+        break;
+      }
+      const step = await iterator.next();
+      if (step.done) {
+        break;
+      }
+      const classification = classifyResponsePart(step.value);
+      if (classification.kind === 'text') {
+        collector.textParts.push(classification.text);
+      } else if (classification.kind === 'reasoning') {
+        collector.reasoningParts.push(classification.text);
+      }
+      if (debugEnabled) {
+        const kind = responsePartKind(step.value);
+        collector.debug.parts.push(step.value);
+        collector.debug.kinds.push(kind);
+        if (classification.kind === 'data') {
+          collector.debug.dataPartCount += 1;
+          collector.debug.dataPartShapes.push(inspectPartShape(step.value).text);
+        }
+      }
+    }
+  } catch (error) {
+    // The provider's own abort, or a `next()` that threw: what arrived is already
+    // in the debug record, and the error is **rethrown** because a stream that
+    // broke is a failed model call, not an answer — the caller's own
+    // `classifyModelError` is what turns an `AbortError` into a cancellation and
+    // anything else into the failure it reports, exactly as it did when this loop
+    // was the `text` projection's.
+    collector.debug.stopped = true;
+    throw error;
+  }
+  return collector;
+}
+
+/**
+ * Reads the documented `text` projection of a response, **once**, into a local —
+ * the fallback the arbitration uses only when no candidate stream carried text.
+ *
+ * `undefined` covers every way there is nothing to read: no `text` property at
+ * all (the older editor shape this code used to reject outright), a value that is
+ * not an async iterable, and a `text` getter or iteration that throws. The last
+ * one is the reason the read is wrapped: with the parts already in hand, a
+ * failing projection is not a failed call — it is simply no fallback, and the
+ * caller reports that in its own terms.
+ */
+async function readTextProjection(response: { text?: AsyncIterable<string> }): Promise<string | undefined> {
+  const projected = response.text;
+  if (!projected || typeof (projected as AsyncIterable<string>)[Symbol.asyncIterator] !== 'function') {
+    return undefined;
+  }
+  try {
+    let text = '';
+    for await (const chunk of projected) {
+      text += chunk;
+    }
+    return text;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The candidate streams of one response, in preference order, consuming the
+ * response **once**.
+ *
+ * The rule the ninth investigation bought: read `stream` first, and read `text`
+ * **only when no candidate stream carried any text at all**. Measured on the
+ * maintainer's machine, the two are not the same thing — `text` projected the
+ * model's reasoning token stream while the text parts held the exact expected
+ * answer, so preferring the parts is the fix, and the single-consumer rule is
+ * what makes it safe on an editor whose two projections share one cursor.
+ *
+ * `fragments` is the debug transport record of the parts that were used (each
+ * text part in order, or the `text` projection's own chunk when the fallback was
+ * read), or `undefined` when there is no answer text at all; a caller logs it
+ * through `logAnswerFragments`, which is how the log keeps showing where the
+ * provider's boundaries fell.
+ *
+ * What this function does **not** do is decide the answer. It returns the
+ * candidates; the contract arbitrates them (`pickResponseCandidate`).
+ */
+async function readResponseStreamParts(
+  response: { stream?: AsyncIterable<unknown>; text?: AsyncIterable<string> },
+  checkCancelled: () => boolean,
+): Promise<{
+  collector: AiPreReviewResponseStreamCollector;
+  textProjection?: string;
+  fragments?: string[];
+}> {
+  const collector = await collectResponseStreamParts(response, checkCancelled);
+  if (collector.textParts.length > 0 || collector.reasoningParts.length > 0) {
+    // A candidate stream carried text, so the `text` projection is **not** read:
+    // a second consumer on the same response is the hazard this pass exists for.
+    // The text parts double as the fragment list whether or not debug is on,
+    // because the chosen stream has to be logged on the same terms either way —
+    // except on an aborted sweep, which has no honest totals.
+    if (logger.isDebugEnabled()) {
+      logResponseStreamParts(collector.debug, collector.textParts, false, 0);
+    }
+    return collector.debug.stopped ? { collector } : { collector, fragments: collector.textParts };
+  }
+  const textProjection = await readTextProjection(response);
+  if (logger.isDebugEnabled()) {
+    logResponseStreamParts(
+      collector.debug,
+      collector.textParts,
+      textProjection !== undefined,
+      textProjection?.length ?? 0,
+    );
+  }
+  if (textProjection === undefined || collector.debug.stopped) {
+    // An aborted sweep has no honest totals (the same rule the fragment list has
+    // always followed), and a projection that threw is not a candidate: either
+    // way there is no text to report as read.
+    return { collector };
+  }
+  return { collector, textProjection, fragments: [textProjection] };
+}
+
+/**
+ * The candidate streams of one response in preference order: the **text** parts
+ * first, then the **reasoning** parts, then — only when neither carried text —
+ * the `text` projection.
+ *
+ * The order is the arbitration rule in one place, and every candidate is scored
+ * on its **own** bytes. Two candidate streams are never concatenated, and no
+ * candidate is repaired, trimmed or re-asked of another model: a candidate either
+ * satisfies the contract or it does not.
+ */
+async function readResponseCandidates(
+  response: { stream?: AsyncIterable<unknown>; text?: AsyncIterable<string> },
+  checkCancelled: () => boolean,
+): Promise<{ candidates: AiPreReviewResponseCandidate[]; fragments?: string[] }> {
+  const { collector, textProjection, fragments } = await readResponseStreamParts(response, checkCancelled);
+  const candidates: AiPreReviewResponseCandidate[] = [];
+  if (collector.textParts.length > 0) {
+    candidates.push({ kind: 'text', text: collector.textParts.join('') });
+  }
+  if (collector.reasoningParts.length > 0) {
+    candidates.push({ kind: 'reasoning', text: collector.reasoningParts.join('') });
+  }
+  if (candidates.length === 0 && textProjection !== undefined) {
+    candidates.push({ kind: 'text-projection', text: textProjection });
+  }
+  return { candidates, fragments };
+}
+
+/** How the log and the diagnostics name one candidate stream. */
+function responseCandidateKindLabel(kind: AiPreReviewResponseCandidate['kind']): string {
+  switch (kind) {
+    case 'text':
+      return 'the text candidate';
+    case 'reasoning':
+      return 'the reasoning candidate';
+    case 'text-projection':
+      return 'the `text` projection';
+  }
+}
+
+/**
+ * The answer of one response: the candidate stream that satisfies the caller's
+ * contract, preferred in the order {@link readResponseCandidates} returns.
+ *
+ * This is where the contract arbitrates. `accepts` is the caller's own strict
+ * validation — the probe's exact-literal comparison, the run's JSON contract and
+ * schema — and it is applied to each candidate **separately**. The text candidate
+ * is tried first; if it is absent or does not verify, the reasoning candidate is
+ * tried, and only then the `text` projection (which is itself a candidate, so it
+ * is judged by the same rule rather than trusted). A candidate that verifies wins
+ * even when an earlier, preferred one existed and failed, and the returned
+ * `reason` says exactly which of the two happened so the caller can log it at
+ * debug.
+ *
+ * When nothing verifies the run fails exactly as it did before: the mismatch arm
+ * carries the preferred candidate (or none at all) so the failure message and the
+ * diagnostics still describe the bytes that were actually examined. There is no
+ * concatenation of two candidates, no guessing and no substitution of another
+ * model anywhere in this file.
+ */
+function pickResponseCandidate(
+  candidates: readonly AiPreReviewResponseCandidate[],
+  accepts: (candidate: AiPreReviewResponseCandidate) => boolean,
+): ResponseCandidateSelection {
+  let failure: { candidate?: AiPreReviewResponseCandidate; detail: string } | undefined;
+  let index = 0;
+  for (const candidate of candidates) {
+    const valid = accepts(candidate);
+    if (valid) {
+      const preferred = index === 0;
+      const wanted = candidates
+        .slice(0, index)
+        .map((other) => responseCandidateKindLabel(other.kind))
+        .join(' and ');
+      return {
+        outcome: 'match',
+        candidate,
+        reason: preferred
+          ? `${responseCandidateKindLabel(candidate.kind)} was preferred and it satisfies the contract`
+          : `${responseCandidateKindLabel(candidate.kind)} was used because ${wanted} did not satisfy the contract`,
+      };
+    }
+    failure ??= { candidate, detail: 'it does not satisfy the contract' };
+    index += 1;
+  }
+  return {
+    outcome: 'mismatch',
+    candidate: failure?.candidate,
+    reason: failure?.detail ?? 'no candidate stream carried any text',
+  };
+}
+
+/**
+ * The **debug** line that says which candidate stream was used and why, or that
+ * none verified — the ninth investigation's own question ("which of the two did
+ * we take?") answered on the channel, at debug, the moment it is decided.
+ *
+ * It carries the selection, never the text: the answer itself is in the
+ * diagnostics dump, the candidate that failed is in the failure excerpt, and a
+ * line that quoted the answer would put model output on the Output Channel on the
+ * success path.
+ */
+function responseCandidateSelectionLogLine(selection: ResponseCandidateSelection): string {
+  if (selection.outcome === 'match') {
+    return `AI pre-review: answer stream: using ${responseCandidateKindLabel(selection.candidate.kind)} (${selection.reason})`;
+  }
+  const preferred = selection.candidate ? responseCandidateKindLabel(selection.candidate.kind) : 'no candidate stream';
+  return `AI pre-review: answer stream: no candidate satisfied the contract (preferred ${preferred}; no second model and no concatenation was tried)`;
+}
+
+/**
+ * The one sentence every cancelled arm shows (§6.4).
+ *
+ * It names the scope for the same reason every other message in this run does:
+ * the entry point is the pull request detail page, so "cancelled" has to be
+ * unambiguous about what was cancelled. `changedFileCount` is absent on a run
+ * that was cancelled before its file list arrived, and present on one cancelled
+ * at the confirmation panel — the number the panel itself was showing.
+ */
+function reportCancelled(changedFileCount?: number): void {
   void vscode.window.showInformationMessage(
-    vscode.l10n.t('The AI pre-review was cancelled. No comments were created.'),
+    changedFileCount === undefined
+      ? vscode.l10n.t('The AI pre-review of the whole pull request was cancelled. No comments were created.')
+      : vscode.l10n.t(
+          'The AI pre-review of the whole pull request ({0} changed file(s)) was cancelled. No comments were created.',
+          changedFileCount,
+        ),
   );
 }
 
@@ -1254,6 +2694,146 @@ async function rememberChosenAiPreReviewModel(model: vscode.LanguageModelChat): 
 }
 
 /**
+ * The four buttons the prompt-scope modal offers. The first is the
+ * recommendation (`changed-files`), the two after it are the cheaper scopes, and
+ * the last is the cancel affordance — module constants so the answer can be
+ * compared by identity, exactly as the items are handed to the dialog.
+ *
+ * `full-diff` deliberately has no button: it is the scope for someone who knows
+ * they want the previous behaviour, and the modal's own text says how to set it.
+ * Four buttons plus the platform's close control is already the limit of what a
+ * modal can ask without turning a yes/no question into a form.
+ */
+export const AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_FILES = vscode.l10n.t('Send the changed files (recommended)');
+export const AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_LINES = vscode.l10n.t('Send the changed lines only');
+export const AI_PRE_REVIEW_SCOPE_BUTTON_METADATA_ONLY = vscode.l10n.t('Send metadata only');
+export const AI_PRE_REVIEW_SCOPE_BUTTON_CANCEL = vscode.l10n.t('Cancel — send nothing');
+
+/**
+ * Asks the one question this feature asks about egress, as a **modal**.
+ *
+ * Modal on purpose: this answer decides whether source code leaves the machine,
+ * it must not be answerable by clicking somewhere else, and the platform's modal
+ * is the only VS Code message that blocks the window until it is answered. The
+ * message names the provider (the vendor of the model this run will use, the
+ * same fact the model picker shows), each scope's egress in plain words, the
+ * setting the answer is stored in, and the fact that nothing is sent before the
+ * answer — the four things a person has to know to answer it honestly.
+ *
+ * `undefined` covers every "not answered" case: the explicit cancel button, the
+ * platform's close control, and Escape. There is deliberately no default answer:
+ * the caller turns `undefined` into a cancelled run, because an unanswered
+ * consent question is not consent.
+ */
+async function askAiPreReviewPromptScope(vendor: string): Promise<AiPreReviewStatedScope | undefined> {
+  const message = vscode.l10n.t(
+    'Before this AI pre-review sends anything: the chat model you chose belongs to the "{0}" provider, and the prompt is the only thing that leaves this machine. Choose what it may carry. "Send the changed files" sends the pull request title and branch names, the changed-file paths with their line counts, the metadata of existing review comments (path, line, author, review state — never a comment body), the whole diff, and the full text of every changed file at the pull request head version — the most content: the text of those files leaves this machine, not only the diff, and that is what lets the model read the code around a change. "Send the changed lines only" is the cheapest option that still sends code: the added and removed lines of each file with its file and hunk headers, and none of the surrounding context. "Send metadata only" sends the first three of those and no code at all, so the model cannot read a single changed line and can only comment on file-level matters. In no scope is an access token, a URL or host name, or an existing comment body ever sent. Set the setting "forgejoToolkit.aiPreReviewPromptScope" to "full-diff" instead if you want the whole diff without the file texts. Nothing is requested or sent before you answer, cancelling sends nothing and creates nothing, and your answer is written into that setting so this question is asked only once.',
+    vendor,
+  );
+  const picked = await vscode.window.showInformationMessage(
+    message,
+    { modal: true },
+    AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_FILES,
+    AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_LINES,
+    AI_PRE_REVIEW_SCOPE_BUTTON_METADATA_ONLY,
+    AI_PRE_REVIEW_SCOPE_BUTTON_CANCEL,
+  );
+  if (picked === AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_FILES) {
+    return 'changed-files';
+  }
+  if (picked === AI_PRE_REVIEW_SCOPE_BUTTON_CHANGED_LINES) {
+    return 'changed-lines-only';
+  }
+  if (picked === AI_PRE_REVIEW_SCOPE_BUTTON_METADATA_ONLY) {
+    return 'metadata-only';
+  }
+  return undefined;
+}
+
+/**
+ * What this run's prompt may carry, resolved **before** anything is read.
+ *
+ * Three paths, and each one's ordering matters:
+ *
+ * - a stated scope is used as it is, with no question: the setting is the source
+ *   of truth, so the question is asked once per choice rather than once per run;
+ * - `ask` shows the modal and returns **nothing** when it is not answered — the
+ *   caller reports that and stops, so a run that never got an answer makes no
+ *   request and no model call;
+ * - an answered modal writes the answer into the setting first (best effort, the
+ *   same discipline as the model choice: a failed write changes where the answer
+ *   is remembered, never what this run sends) and the run then uses it.
+ */
+async function resolveAiPreReviewPromptScope(vendor: string): Promise<AiPreReviewStatedScope | undefined> {
+  const configured: AiPreReviewPromptScope = aiPreReviewPromptScopeSettingValue();
+  if (configured !== 'ask') {
+    logger.info(
+      `AI pre-review: prompt scope: the setting "${AI_PRE_REVIEW_PROMPT_SCOPE_SETTING}" = "${configured}"; no question was shown`,
+    );
+    return configured;
+  }
+  const answered = await askAiPreReviewPromptScope(vendor.trim() === '' ? 'unknown' : vendor);
+  if (answered === undefined) {
+    return undefined;
+  }
+  await rememberChosenAiPreReviewPromptScope(answered);
+  return answered;
+}
+
+/**
+ * Stores the scope the user just chose in
+ * `forgejoToolkit.aiPreReviewPromptScope` and says so.
+ *
+ * Best-effort in exactly one direction, like the model choice: a failed write
+ * changes where the answer is remembered, never what this run sends — the user
+ * answered, and the run uses the answer either way. The confirmation message is
+ * what makes the write auditable: the answer is in the Settings UI, under a name
+ * the user just read in the modal.
+ */
+async function rememberChosenAiPreReviewPromptScope(scope: AiPreReviewStatedScope): Promise<void> {
+  try {
+    await writeAiPreReviewPromptScopeSetting(scope);
+  } catch (error) {
+    logger.error(
+      `AI pre-review: the chosen prompt scope could not be written to "${AI_PRE_REVIEW_PROMPT_SCOPE_SETTING}" (${userFacingErrorMessage(error)}); this run still uses "${scope}"`,
+    );
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'The AI pre-review will use the "{0}" prompt scope for this run, but writing the choice to the setting "forgejoToolkit.aiPreReviewPromptScope" failed: {1}. Set it by hand to keep the choice.',
+        scope,
+        userFacingErrorMessage(error),
+      ),
+    );
+    return;
+  }
+  logger.info(
+    `AI pre-review: prompt scope: "${AI_PRE_REVIEW_PROMPT_SCOPE_SETTING}" = "${scope}" was written, so later runs use it without asking`,
+  );
+  void vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      'The setting "forgejoToolkit.aiPreReviewPromptScope" is now "{0}", so every later run uses that scope without asking. Change it in Settings whenever you want to.',
+      scope,
+    ),
+  );
+}
+
+/**
+ * The sentence an unanswered prompt-scope modal shows, the same outcome as
+ * declining the confirmation list: one message, nothing sent, nothing created.
+ *
+ * It names the setting and the three answers the modal offered, so the user can
+ * either run the command again or set the scope by hand — "the user did not
+ * answer" must never leave them without a way forward.
+ */
+function reportPromptScopeNotChosen(): void {
+  void vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      'The AI pre-review did not start: no prompt scope was chosen, so nothing was requested, nothing was sent and nothing was created, and the setting "forgejoToolkit.aiPreReviewPromptScope" was left at "ask". Run the command again and answer the question, or set that setting by hand — "changed-files", "changed-lines-only", "full-diff" or "metadata-only".',
+    ),
+  );
+}
+
+/**
  * The command body behind `COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL`: list, ask,
  * store. It sends no request and reads no pull request, so it works with the
  * feature switch off — choosing a model is configuration, not use — and it is
@@ -1292,8 +2872,8 @@ export async function chooseAiPreReviewModel(): Promise<void> {
 
 /**
  * The run's **validation** of the model the user chose (§7.2): measure the fixed
- * instruction prompt in that model's own tokenizer and refuse the run when it
- * cannot hold it.
+ * instruction block — the one this run prepared, for the user's language — in
+ * that model's own tokenizer and refuse the run when it cannot hold it.
  *
  * This is the only thing left that looks at a model automatically, and it
  * deliberately has only two outcomes: the candidate, or a refusal that names the
@@ -1307,12 +2887,13 @@ export async function chooseAiPreReviewModel(): Promise<void> {
  */
 async function validateChosenAiPreReviewModel(
   model: vscode.LanguageModelChat,
+  systemPrompt: string,
 ): Promise<AiPreReviewChosenModel | undefined> {
   const identity = aiPreReviewModelIdentity(model);
   const availableTokens = maxInputTokensOf(model);
   let instructionTokens: number;
   try {
-    instructionTokens = await countTokens(model, AI_PRE_REVIEW_SYSTEM_PROMPT);
+    instructionTokens = await countTokens(model, systemPrompt);
   } catch (error) {
     logger.debug(
       `AI pre-review: could not count the instructions for ${modelLabel(model)} (${userFacingErrorMessage(error)})`,
@@ -1332,17 +2913,23 @@ async function validateChosenAiPreReviewModel(
 
 /**
  * What one model's tokenizer charges for the request this run would send: the
- * exact text of the single message (`aiPreReviewPromptText`), instructions
- * included.
+ * exact text of the single message (`aiPreReviewPromptText`), the run's
+ * instruction half included.
  *
  * Not the sum of two separate `countTokens` calls, which is how the request used
  * to be measured when it was two messages: the request is one string now, and
  * the number the budget failure reports has to be the number the model is
  * actually handed, or the guidance that message gives is off by whatever the
- * two halves cost together rather than apart.
+ * two halves cost together rather than apart. The instruction half is passed in
+ * rather than rebuilt here, so the bytes measured are the bytes the request will
+ * carry.
  */
-async function countRequestTokens(model: vscode.LanguageModelChat, userPrompt: string): Promise<number> {
-  return await countTokens(model, aiPreReviewPromptText(userPrompt));
+async function countRequestTokens(
+  model: vscode.LanguageModelChat,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<number> {
+  return await countTokens(model, aiPreReviewPromptText(systemPrompt, userPrompt));
 }
 
 /** One existing comment's metadata — never its body (§7.1, §13.5). */
@@ -1394,6 +2981,154 @@ async function collectExistingReviewMetadata(
 }
 
 /**
+ * The per-file facts the confirmation panel's "open the diff" link needs.
+ *
+ * One entry per changed file, so a candidate can be resolved by its path alone:
+ * the status decides whether the base side is the file's old name, and the two
+ * shas are the pull request's own. Read here, while the same response that
+ * produced the diff is still the one in hand, rather than by the panel later —
+ * a second read could see a head the run's diff did not come from.
+ */
+function changedFileDiffTargets(
+  changedFiles: readonly ForgejoChangedFile[],
+  pullRequest: ForgejoPullRequestDetail,
+): Map<string, { status?: string; previousPath?: string; baseSha?: string; headSha?: string }> {
+  const targets = new Map<string, { status?: string; previousPath?: string; baseSha?: string; headSha?: string }>();
+  const baseSha = pullRequest.base?.sha;
+  const headSha = pullRequest.head?.sha;
+  for (const file of changedFiles) {
+    const path = file.filename ?? '';
+    if (path === '') {
+      continue;
+    }
+    targets.set(path, { status: file.status, previousPath: file.previous_filename, baseSha, headSha });
+  }
+  return targets;
+}
+
+/** What the prompt builders need for one scope: which sections, and how. */
+interface AiPreReviewPromptSections {
+  diffText?: string;
+  diffBody?: AiPreReviewDiffBodyMode;
+  fileContents?: AiPreReviewFileContents;
+}
+
+/**
+ * The one place a stated scope turns into prompt sections — the whole of "what
+ * may leave the machine" as code.
+ *
+ * `metadata-only` returns nothing but the brief: no diff body, no file text, so
+ * the model sees the changed-file table and the existing comments' metadata and
+ * cannot read a single changed line. `changed-lines-only` sends the diff with
+ * its context lines removed. `full-diff` sends the diff as the old diff-body
+ * switch did. `changed-files` sends the full diff **and** the head text of the
+ * changed files themselves, which is the only scope under which the model can
+ * see the code around a change (error handling outside the hunk, callers in the
+ * same file, conventions).
+ *
+ * The four **stated** scopes are four different egress
+ * decisions, so a fifth one has to be a compile error here rather than a
+ * silent fallback to sending the diff.
+ */
+async function promptSectionsForScope(
+  client: ForgejoClient,
+  params: PullRequestTarget,
+  pullRequest: ForgejoPullRequestDetail,
+  brief: AiPreReviewBrief,
+  diffText: string,
+  scope: AiPreReviewStatedScope,
+  token: vscode.CancellationToken,
+): Promise<AiPreReviewPromptSections> {
+  switch (scope) {
+    case 'metadata-only':
+      return {};
+    case 'changed-lines-only':
+      return { diffText, diffBody: 'changed-lines-only' };
+    case 'full-diff':
+      return { diffText, diffBody: 'full' };
+    case 'changed-files': {
+      const fileContents = await collectChangedFileContents(client, params, pullRequest, brief, token);
+      return { diffText, diffBody: 'full', fileContents };
+    }
+  }
+}
+
+/**
+ * Reads the head text of the files the brief lists, for the `changed-files`
+ * scope.
+ *
+ * Only files the brief already lists are read, and at most
+ * `AI_PRE_REVIEW_MAX_CONTENT_FILES` of them: the brief's own row cap and
+ * character budget have already cut the list, and this cap bounds the number of
+ * requests a pull request with hundreds of changed files can cause. When the
+ * brief lists more files than the cap, the result says so (`row-limit`), so the
+ * prompt states that the file texts are partial.
+ *
+ * The `ref` is the pull request's own head sha, never the default branch: the
+ * scope promises *this* pull request's version of each file, and reading `main`
+ * would send code the review is not about. A pull request whose head lives in
+ * another repository (a fork), or one the server describes without a head sha,
+ * therefore contributes no file texts at all and says so, rather than reading
+ * whatever the branch happens to hold.
+ *
+ * A file whose head version cannot be read — deleted in the pull request, a
+ * binary or withheld payload, a path the contents API refuses — is counted as
+ * `unavailable` and left out. Fewer files shown is the honest failure; a text
+ * that is not the head version would be a wrong one.
+ */
+async function collectChangedFileContents(
+  client: ForgejoClient,
+  params: PullRequestTarget,
+  pullRequest: ForgejoPullRequestDetail,
+  brief: AiPreReviewBrief,
+  token: vscode.CancellationToken,
+): Promise<AiPreReviewFileContents> {
+  const paths = brief.files.slice(0, AI_PRE_REVIEW_MAX_CONTENT_FILES).map((file) => file.path);
+  const texts = new Map<string, string>();
+  const headSha = pullRequest.head?.sha;
+  const headRepo = pullRequest.head?.repo?.full_name;
+  const sameRepository = headRepo === undefined || headRepo === `${params.owner}/${params.repo}`;
+
+  if (typeof headSha !== 'string' || headSha === '' || !sameRepository) {
+    logger.info(
+      `AI pre-review: the pull request's head version cannot be read here (head repository ${headRepo ?? 'unknown'}, head sha ${headSha ?? 'unknown'}), so the ${paths.length} changed file(s) are not sent as file contents`,
+    );
+    return buildAiPreReviewFileContents({ paths, texts });
+  }
+
+  for (const path of paths) {
+    if (token.isCancellationRequested) {
+      // The caller's own cancellation check turns this into the cancelled arm;
+      // stopping here only means no further request is made for a run that is
+      // already over.
+      break;
+    }
+    try {
+      const result = await client.getFileContentResult(params.owner, params.repo, path, headSha);
+      if (result.kind === 'file') {
+        texts.set(path, result.text);
+      } else {
+        logger.debug(
+          `AI pre-review: ${path} is not a regular file at the head version (${result.kind}), so it is left out of the file contents`,
+        );
+      }
+    } catch (error) {
+      logger.debug(
+        `AI pre-review: ${path} could not be read at the head version (${userFacingErrorMessage(error)}), so it is left out of the file contents`,
+      );
+    }
+  }
+
+  const contents = buildAiPreReviewFileContents({ paths, texts });
+  if (brief.files.length > paths.length) {
+    // The brief listed more files than this scope reads: the prompt has to say
+    // the file texts are partial, even when the character budget cut nothing.
+    contents.truncatedBy = contents.truncatedBy ?? 'row-limit';
+  }
+  return contents;
+}
+
+/**
  * The cancellable half of the run (§6.2): read, assemble, ask — and, when an
  * answer is not the contracted JSON, ask that same model again (§7.2). It writes
  * nothing, and none of its arms leaves anything behind — the caller reports one
@@ -1426,13 +3161,20 @@ async function collectExistingReviewMetadata(
  */
 async function gatherPreReviewRequest(
   client: ForgejoClient,
-  params: ForgejoPrUriParams,
+  params: PullRequestTarget,
   candidate: AiPreReviewChosenModel,
+  scope: AiPreReviewStatedScope,
+  systemPrompt: string,
   progress: vscode.Progress<{ message?: string; increment?: number }>,
   token: vscode.CancellationToken,
   diagnostics: AiPreReviewDiagnostics,
 ): Promise<GatheredPreReview> {
-  progress.report({ message: vscode.l10n.t('Reading the pull request…') });
+  // The scope is stated from the first line: this run reads **every** changed
+  // file and the whole diff, which is exactly why its entry point is the pull
+  // request detail page rather than a file's context menu (§6.1). The count is
+  // not known yet — the fetch has not been issued — so the second report below
+  // carries it.
+  progress.report({ message: vscode.l10n.t('Reading the whole pull request…') });
 
   // The diff is fetched whether or not its body may be sent: it is what
   // supplies the per-file line tables every anchor is validated against, so a
@@ -1460,30 +3202,41 @@ async function gatherPreReviewRequest(
     diffText,
     existingReviews,
   });
+  /**
+   * How many changed files this run read, i.e. the ones the brief lists and the
+   * anchors are validated against. Every arm returned from here on carries it,
+   * so no message the run shows has to guess how much of the pull request it
+   * covered (see `GatheredPreReview`).
+   */
+  const changedFileCount = brief.files.length;
 
-  const includeDiffBody = isAiPreReviewIncludeDiffEnabled();
-  const diffForPrompt = includeDiffBody ? diffText : undefined;
+  const sections = await promptSectionsForScope(client, params, pullRequest, brief, diffText, scope, token);
+  if (token.isCancellationRequested) {
+    return { kind: 'cancelled', changedFileCount };
+  }
 
   const identity = aiPreReviewModelIdentity(candidate.model);
   const identityLabel = formatAiPreReviewModelIdentity(identity);
   // The prompt is prepared **once** for the whole run: every attempt asks the
   // same model the same question, so the messages have to be the same bytes for
-  // "same model, same prompt" to mean what the record says it means.
-  const prepared = await preparePrompt(brief, candidate, diffForPrompt);
+  // "same model, same prompt" to mean what the record says it means. The
+  // instruction half is the run's own, built for the user's language; the other
+  // half is the brief this run assembled.
+  const prepared = await preparePrompt(brief, candidate, sections, systemPrompt);
   if (token.isCancellationRequested) {
-    return { kind: 'cancelled' };
+    return { kind: 'cancelled', changedFileCount };
   }
   if (prepared.kind === 'budget') {
     // Nothing was sent: this run's one model cannot take even the shortest
     // prompt, and the caller reports both numbers rather than substituting a
     // model the user did not choose.
-    return { kind: 'budget', failure: prepared.failure };
+    return { kind: 'budget', failure: prepared.failure, changedFileCount };
   }
 
   // The messages are built once and handed to both the provider and the dump, so
   // "what the dump shows" is the request itself and not a reconstruction of it
   // that could drift from the real thing. Every attempt hands over this array.
-  const messages = buildAiPreReviewPromptMessages(prepared.userPrompt);
+  const messages = buildAiPreReviewPromptMessages(systemPrompt, prepared.userPrompt);
   const failedAttempts: AiPreReviewModelAttempt[] = [];
   /** How many model calls the run has spent; bounded by the loop below. */
   let calls = 0;
@@ -1495,7 +3248,12 @@ async function gatherPreReviewRequest(
   // outcome returns out of this loop.
   for (let attempt = 1; attempt <= AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL; attempt += 1) {
     calls += 1;
-    progress.report({ message: vscode.l10n.t('Asking the chat model for review comments…') });
+    progress.report({
+      message: vscode.l10n.t(
+        'Asking the chat model to review the whole pull request ({0} changed file(s))…',
+        changedFileCount,
+      ),
+    });
     const startedAt = new Date();
     const answer = await requestPreReviewComments(candidate.model, messages, token);
     const finishedAt = new Date();
@@ -1513,22 +3271,55 @@ async function gatherPreReviewRequest(
 
     if (answer.kind === 'cancelled') {
       await diagnostics.attempt({ ...recorded, answer: '', outcome: 'cancelled; nothing was sent to the server' });
-      return { kind: 'cancelled' };
+      return { kind: 'cancelled', changedFileCount };
     }
     if (answer.kind === 'failed') {
-      await diagnostics.attempt({ ...recorded, answer: '', outcome: `model call failed: ${answer.error}` });
+      await diagnostics.attempt({
+        ...recorded,
+        answer: '',
+        outcome: `model call failed: ${answer.error}`,
+        candidates: answer.candidates,
+      });
       // A failing model call is not a shape problem, so it does not start a
       // retry — not of this model and, now, not of any other one either: the
       // caller reports the reason it already classified (§9.3).
       return answer;
     }
 
-    const parsed = parseAiPreReviewResponse(answer.text);
+    // The contract arbitrates: the text candidate is tried first, then the
+    // reasoning candidate, and only then the `text` projection (which is a
+    // candidate of its own, so it is judged by the same rule rather than
+    // trusted). Every candidate is scored on its own bytes — no concatenation of
+    // the two, no repair, and no other model. The predicate is the contract
+    // itself, so a candidate that parses is the answer and anything else is a
+    // failure with its own bounded excerpt.
+    const selection = pickResponseCandidate(
+      answer.candidates,
+      (candidate) => parseAiPreReviewResponse(candidate.text).kind === 'ok',
+    );
+    // Behind the same gate the rest of the diagnostic obeys: with
+    // `forgejoToolkit.debug` off, which stream was used does not reach the channel
+    // either.
+    if (logger.isDebugEnabled()) {
+      logger.debug(responseCandidateSelectionLogLine(selection));
+    }
+    const chosenText = selection.candidate?.text ?? '';
+    // The fragment list describes the transport of the stream the answer came
+    // from — which is why it is written after the arbitration and not before it —
+    // and it is written only for a stream that was read to its end: an aborted
+    // sweep, or a call that returned no candidate at all, carries no fragment
+    // list and therefore logs none of these lines.
+    if (answer.fragments !== undefined) {
+      logAnswerFragments(answer.fragments, chosenText, chosenText.length);
+    }
+    const parsed = parseAiPreReviewResponse(chosenText);
     if (parsed.kind === 'ok') {
       await diagnostics.attempt({
         ...recorded,
-        answer: answer.text,
+        answer: chosenText,
         outcome: `the contracted JSON, with ${parsed.comments.length} proposed comment(s)`,
+        notes: [`answer stream: ${responseCandidateKindLabel(selection.candidate?.kind ?? 'text')}`],
+        candidates: answer.candidates,
       });
       if (failedAttempts.length > 0) {
         // The line that says a retry happened, which model finally answered, and
@@ -1541,40 +3332,49 @@ async function gatherPreReviewRequest(
       logger.debug(
         `AI pre-review: ${identityLabel} answered with the contracted JSON on attempt ${attempt} (${parsed.comments.length} proposed comment(s))`,
       );
-      return { kind: 'parsed', comments: parsed.comments, brief };
+      return {
+        kind: 'parsed',
+        comments: parsed.comments,
+        brief,
+        pullRequestTitle: pullRequest.title,
+        diffTargets: changedFileDiffTargets(changedFiles, pullRequest),
+        changedFilesTotal: changedFiles.length,
+      };
     }
 
-    // One distinct log line per failure kind, each naming the model and which
-    // ask of it this was, plus the bounded shape description at debug level.
-    // The answer itself, the prompt and the diff are never logged: the output
-    // channel is user-visible and the answer is model output that may quote the
-    // repository. The dump (debug only, a file rather than the channel) is where
-    // the answer itself goes.
+    // One distinct log line per failure kind, each naming the model, which ask
+    // of it this was, how long the answer was and a bounded excerpt of it — that
+    // excerpt is the one piece of answer text the Output Channel ever carries,
+    // and only on this failure path. The prompt, the brief and the diff never
+    // reach it, a successful run quotes nothing, and the dump (debug only, a file
+    // rather than the channel) is where the whole answer goes.
     logger.error(
-      `${contractFailureLogLine(identity, parsed)} (attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model)`,
+      `${contractFailureLogLine(identity, parsed, chosenText)} (attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model)`,
     );
-    const shape = describeAiPreReviewAnswerShape(answer.text);
+    const shape = describeAiPreReviewAnswerShape(chosenText);
     logger.debug(`AI pre-review: ${identityLabel} answer shape: ${shape}`);
     await diagnostics.attempt({
       ...recorded,
-      answer: answer.text,
+      answer: chosenText,
       outcome: `contract violation: ${describeContractFailurePlainly(parsed)}`,
-      notes: [`answer shape: ${shape}`],
+      notes: [`answer shape: ${shape}`, selection.reason],
+      candidates: answer.candidates,
     });
     failedAttempts.push({ model: identity, attempt, failure: parsed });
   }
 
-  return { kind: 'unparsed', attempts: failedAttempts };
+  return { kind: 'unparsed', attempts: failedAttempts, changedFileCount };
 }
 
 /**
  * Builds the prompt and cuts it to the chosen model's input budget (§7.2).
  *
  * A prompt that does not fit is reduced by **file granularity**: whole files
- * (their line of the changed-file table and, when the diff body is on, their
- * diff block) are dropped from the end until `countTokens` says it fits. The
- * brief's own truncation note then says so, because a model that is shown part
- * of a change must know it is part of a change.
+ * (their line of the changed-file table and every section the stated scope gave
+ * them — the diff block, the file's own text) are dropped from the end until
+ * `countTokens` says it fits. The brief's own truncation note then says so,
+ * because a model that is shown part of a change must know it is part of a
+ * change.
  *
  * Every measurement is of the exact text the request would carry
  * (`countRequestTokens`), so the number this function compares with
@@ -1589,14 +3389,15 @@ async function gatherPreReviewRequest(
 async function preparePrompt(
   brief: AiPreReviewBrief,
   candidate: AiPreReviewChosenModel,
-  diffText: string | undefined,
+  sections: AiPreReviewPromptSections,
+  systemPrompt: string,
 ): Promise<PreparedPrompt> {
   const available = maxInputTokensOf(candidate.model);
-  const options = diffText === undefined ? {} : { diffText };
-  const needed = async (prompt: string): Promise<number> => await countRequestTokens(candidate.model, prompt);
+  const needed = async (prompt: string): Promise<number> =>
+    await countRequestTokens(candidate.model, systemPrompt, prompt);
 
   let files: AiPreReviewBriefFile[] = brief.files;
-  let current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: undefined }, options);
+  let current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: undefined }, sections);
   let total = await needed(current);
 
   // Dropped from the end. The list order is the server's, not a ranking of
@@ -1604,7 +3405,7 @@ async function preparePrompt(
   // because it is stable and the note says exactly how many were dropped.
   while (total > available && files.length > 1) {
     files = files.slice(0, files.length - 1);
-    current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: 'token-budget' }, options);
+    current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: 'token-budget' }, sections);
     total = await needed(current);
   }
   if (total > available) {
@@ -1622,15 +3423,24 @@ async function countTokens(model: vscode.LanguageModelChat, text: string): Promi
   return await model.countTokens(text);
 }
 
-/** What one model call produced. Every arm is reported to the user exactly once. */
+/**
+ * What one model call produced. Every arm is reported to the user exactly once.
+ *
+ * The successful arm carries the candidate streams beside the chosen answer, and
+ * not only the text: the caller has to record **both** candidates in the
+ * diagnostics dump, and it has to know which stream the answer came from in order
+ * to name it in the debug log. `responseKind` is the kind of the candidate the
+ * caller's contract accepted — it is `undefined` only on the failure arms, where
+ * there is no answer at all.
+ */
 type ModelAnswer =
-  | { kind: 'text'; text: string }
+  | { kind: 'answer'; candidates: AiPreReviewResponseCandidate[]; fragments?: readonly string[] }
   | { kind: 'cancelled' }
-  | { kind: 'failed'; error: string; reported: boolean };
+  | { kind: 'failed'; error: string; reported: boolean; candidates: AiPreReviewResponseCandidate[] };
 
 /**
  * Sends the single request this feature makes (§6.5: one round, no tools, no
- * follow-up) and accumulates the streamed text.
+ * follow-up) and reads its answer out of the response's **candidate streams**.
  *
  * The messages arrive already built (`buildAiPreReviewPromptMessages`) so the
  * caller can record the very same values in the debug dump: this function maps
@@ -1640,11 +3450,18 @@ type ModelAnswer =
  * factory, and the API guide states that system messages are not supported), so
  * the mapping is total for the shape the builder returns.
  *
- * Cancellation stops the accumulation and reports "cancelled" — the caller then
- * writes nothing, so a cancelled run cannot leave half a draft behind. The token
- * is handed to `sendRequest` as well, so the provider stops producing rather
- * than this loop only discarding what it already produced. A `LanguageModelError`
- * is classified by its `code` rather than by `instanceof`: the extension host can
+ * Which channel the answer comes from is decided **here** and only here: the
+ * response's parts are collected in one pass (`readResponseCandidates`), the
+ * `text` projection is read only when no part carried text, and the call returns
+ * the candidates in preference order. The **contract** then arbitrates them, in
+ * the caller (`gatherPreReviewRequest`), because only the caller owns the JSON
+ * contract, the schema and the anchor checks.
+ *
+ * Cancellation stops the reading and reports "cancelled" — the caller then writes
+ * nothing, so a cancelled run cannot leave half a draft behind. The token is
+ * handed to `sendRequest` as well, so the provider stops producing rather than
+ * this loop only discarding what it already produced. A `LanguageModelError` is
+ * classified by its `code` rather than by `instanceof`: the extension host can
  * hand over an object from another realm, and the code names are the documented
  * contract.
  *
@@ -1653,6 +3470,15 @@ type ModelAnswer =
  * any value here would be a guess about a vendor's option names — which is the
  * same reason the run does not name a vendor to select a model. `justification`
  * is the API's own consent-dialog text and is kept.
+ *
+ * While `forgejoToolkit.debug` is on, the parts that arrived are logged as they
+ * arrive (see `collectResponseStreamParts`) and the candidate the caller picked is
+ * logged with its reason (`responseCandidateSelectionLogLine`). A stream the user
+ * cancelled logs no fragment list — the collector's own cancellation check stops
+ * before the totals could be honest — and a stream the provider aborts ends the
+ * sweep with a line saying so rather than throwing away what did arrive. With
+ * debug off nothing is logged and the collection is the byte-exact accumulation
+ * it always was.
  */
 async function requestPreReviewComments(
   model: vscode.LanguageModelChat,
@@ -1665,25 +3491,28 @@ async function requestPreReviewComments(
       messages,
       {
         justification: vscode.l10n.t(
-          "The AI pre-review sends this pull request's metadata (and, only if you turned it on, the changed lines) to the model to draft line-level review comments for you to confirm.",
+          'The AI pre-review sends the metadata of this pull request and, depending on the prompt scope you chose in "forgejoToolkit.aiPreReviewPromptScope", the changed lines or the text of the changed files, to the model to draft line-level review comments for you to confirm.',
         ),
       },
       token,
     );
-    if (!response?.text) {
-      return { kind: 'failed', error: 'the model returned no response stream', reported: false };
+    if (!response || (!isAsyncIterable(response.stream) && !isAsyncIterable(response.text))) {
+      return { kind: 'failed', error: 'the model returned no response stream', reported: false, candidates: [] };
     }
-    let text = '';
-    for await (const chunk of response.text) {
-      if (token?.isCancellationRequested) {
-        return { kind: 'cancelled' };
-      }
-      text += chunk;
-    }
+    // One pass, and the fallback `text` read only if no candidate stream carried
+    // text: a second consumer on the same response is the hazard this exists for.
+    const { candidates, fragments } = await readResponseCandidates(
+      response,
+      () => token?.isCancellationRequested === true,
+    );
     if (token?.isCancellationRequested) {
       return { kind: 'cancelled' };
     }
-    return { kind: 'text', text };
+    // The candidates go back **unparsed**: the contract is the caller's (JSON,
+    // schema, anchors), so the arbitration happens where the contract lives. The
+    // fragment list travels with them, because the caller logs it for the stream
+    // it actually used — and not at all when the sweep had no honest totals.
+    return { kind: 'answer', candidates, fragments };
   } catch (error) {
     return classifyModelError(error);
   }
@@ -1703,14 +3532,14 @@ function classifyModelError(error: unknown): ModelAnswer {
         'Permission to use the chat model was not granted, so no AI pre-review was made. Run the command again if you change your mind; nothing was created.',
       ),
     );
-    return { kind: 'failed', error: 'NoPermissions', reported: true };
+    return { kind: 'failed', error: 'NoPermissions', reported: true, candidates: [] };
   }
   if (isCancellation(error)) {
     return { kind: 'cancelled' };
   }
   // Blocked / NotFound / anything else: one log line for diagnosis, one generic
   // error for the user, and never a heuristic substitute for the model.
-  return { kind: 'failed', error: userFacingErrorMessage(error), reported: false };
+  return { kind: 'failed', error: userFacingErrorMessage(error), reported: false, candidates: [] };
 }
 
 function isCancellation(error: unknown): boolean {
@@ -1725,34 +3554,6 @@ function isCancellation(error: unknown): boolean {
     return true;
   }
   return typeof candidate.message === 'string' && /cancel/i.test(candidate.message) && candidate.name === 'Error';
-}
-
-/**
- * The human confirmation step (§5): one multi-select list, **nothing
- * pre-selected**, no "accept all", and dismissing it means "write nothing".
- *
- * The list is the run's only write gate. It is deliberately a QuickPick rather
- * than anything richer: the record asks for a list a person reads one item at a
- * time, and the preview is capped so the reading is about the comment's
- * location and gist, with the full body visible on the draft afterwards.
- */
-async function confirmCandidates(candidates: readonly AiPreReviewCandidate[]): Promise<AiPreReviewCandidate[]> {
-  const items: (vscode.QuickPickItem & { candidate: AiPreReviewCandidate })[] = candidates.map((candidate) => ({
-    label: formatCandidateLabel(candidate),
-    candidate,
-    // No `picked` field: nothing is selected by default, so confirming is an
-    // act of reading rather than an act of not-unchecking.
-    description: undefined,
-  }));
-  const picked = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    title: vscode.l10n.t('AI pre-review: pick the comments to add as drafts'),
-    placeHolder: vscode.l10n.t(
-      'Nothing is selected. Only the comments you pick are created, as pending review drafts.',
-    ),
-    ignoreFocusOut: true,
-  });
-  return picked?.map((item) => item.candidate) ?? [];
 }
 
 /**
@@ -1824,14 +3625,14 @@ async function writeConfirmedDrafts(
   config: ConfigManager,
   pullReviewCommentController: PullReviewCommentController,
   viewProvider: ForgejoToolkitViewProvider | undefined,
-  params: ForgejoPrUriParams,
+  params: PullRequestTarget,
   confirmed: readonly AiPreReviewCandidate[],
   dropped: readonly AiPreReviewDrop[],
-): Promise<void> {
+): Promise<{ created: number; failure?: string }> {
   const instance = config.getInstances().find((candidate) => candidate.id === params.instanceId);
   if (!instance) {
     void vscode.window.showErrorMessage(vscode.l10n.t('Forgejo instance not found'));
-    return;
+    return { created: 0, failure: vscode.l10n.t('Forgejo instance not found') };
   }
   const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
 
@@ -1844,7 +3645,7 @@ async function writeConfirmedDrafts(
     void vscode.window.showErrorMessage(
       vscode.l10n.t('The AI pre-review could not check for an existing pending review: {0}. Nothing was created.', err),
     );
-    return;
+    return { created: 0, failure: err };
   }
 
   const appendedToExisting = typeof pendingReviewId === 'number';
@@ -1857,7 +3658,7 @@ async function writeConfirmedDrafts(
     logger.error(`AI pre-review failed to write draft comment ${outcome.written + 1}: ${outcome.failure.reason}`);
     reportWriteFailure(outcome.written, outcome.failure.reason);
     await refreshAfterWrites(pullReviewCommentController, viewProvider, params);
-    return;
+    return { created: outcome.written, failure: outcome.failure.reason };
   }
 
   await refreshAfterWrites(pullReviewCommentController, viewProvider, params);
@@ -1880,6 +3681,7 @@ async function writeConfirmedDrafts(
       ),
     );
   }
+  return { created: outcome.written };
 }
 
 /** One confirmed candidate as the request body Forgejo expects. */
@@ -1915,7 +3717,7 @@ function reportWriteFailure(written: number, reason: string): void {
 async function refreshAfterWrites(
   pullReviewCommentController: PullReviewCommentController,
   viewProvider: ForgejoToolkitViewProvider | undefined,
-  params: ForgejoPrUriParams,
+  params: PullRequestTarget,
 ): Promise<void> {
   viewProvider?.notifyPullRequestReviewSubmitted({
     instanceId: params.instanceId,
@@ -1944,6 +3746,17 @@ function describeDrops(dropped: readonly AiPreReviewDrop[]): string {
     return vscode.l10n.t('none');
   }
   return dropped.map((entry) => `${vscode.l10n.t(describeDropReason(entry.reason))} x${entry.count}`).join(', ');
+}
+
+/**
+ * The same breakdown, unjoined and already localized, for the confirmation
+ * panel's header: one line per reason with its own count, which is what "grouped
+ * by reason" has to mean for the panel to be more transparent than the quick
+ * pick was. The labels come from `describeDropReason`, so the panel and the
+ * run's own messages cannot name a reason differently.
+ */
+function droppedLabels(dropped: readonly AiPreReviewDrop[]): { label: string; count: number }[] {
+  return dropped.map((entry) => ({ label: vscode.l10n.t(describeDropReason(entry.reason)), count: entry.count }));
 }
 
 /**

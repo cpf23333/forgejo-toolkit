@@ -38,7 +38,16 @@ const SURFACES = [
     entry: 'src/entries/pullReviewComment.ts',
     root: 'PullReviewCommentPanel.vue',
   },
+  {
+    kind: 'panel',
+    html: 'aiPreReview.html',
+    entry: 'src/entries/aiPreReview.ts',
+    root: 'AiPreReviewPanel.vue',
+  },
 ] as const;
+
+/** The standalone panels' root components, each its own surface. */
+const PANEL_ROOTS = ['OnboardingPanel.vue', 'PullReviewCommentPanel.vue', 'AiPreReviewPanel.vue'] as const;
 
 /** The `@vscode-elements/elements` component directory a module id/specifier names. */
 const ELEMENT_MODULE = /@vscode-elements\/elements\/dist\/(vscode-[a-z0-9-]+)\//;
@@ -240,11 +249,10 @@ function assertSurfaceGraph(): Plugin {
             if (leaked) {
               throw new Error(`${surface.html} reaches ${leaked.label} through ${id}.`);
             }
-            if (/[/\\]PullReviewCommentPanel\.vue$/.test(id) && surface.root !== 'PullReviewCommentPanel.vue') {
-              throw new Error(`${surface.html} reaches the other panel's root through ${id}.`);
-            }
-            if (/[/\\]OnboardingPanel\.vue$/.test(id) && surface.root !== 'OnboardingPanel.vue') {
-              throw new Error(`${surface.html} reaches the other panel's root through ${id}.`);
+            for (const other of PANEL_ROOTS) {
+              if (other !== surface.root && id.replace(/\\/g, '/').endsWith(`/${other}`)) {
+                throw new Error(`${surface.html} reaches the other panel's root through ${id}.`);
+              }
             }
           }
         } else {
@@ -253,8 +261,8 @@ function assertSurfaceGraph(): Plugin {
               throw new Error(`${surface.html} does not reach ${required}; its entry is not the dashboard.`);
             }
           }
-          for (const panel of ['OnboardingPanel.vue', 'PullReviewCommentPanel.vue']) {
-            const reached = [...modules].find((id) => id.endsWith(panel));
+          for (const panel of PANEL_ROOTS) {
+            const reached = [...modules].find((id) => id.replace(/\\/g, '/').endsWith(`/${panel}`));
             if (reached) {
               throw new Error(`${surface.html} reaches the standalone panel ${reached}.`);
             }

@@ -20,6 +20,7 @@ vi.mock('vscode', () => ({
     showSaveDialog: vi.fn(),
     showInputBox: vi.fn(),
     showQuickPick: vi.fn(),
+    showTextDocument: vi.fn(async () => ({})),
     withProgress: vi.fn((_options: unknown, task: (progress: unknown, token: unknown) => unknown) =>
       task({ report: vi.fn() }, {}),
     ),
@@ -140,4 +141,15 @@ vi.mock('vscode', () => ({
     NoPermissions: () => Object.assign(new Error('NoPermissions'), { code: 'NoPermissions' }),
   },
   FileType: { Unknown: 0, File: 1, Directory: 2, SymbolicLink: 64 },
+  // The AI pre-review panel reveals the commented line with a `Range`. The real
+  // class is a value (not just a type), so a test that reads the reveal needs it
+  // to exist and to carry the four numbers it was built from.
+  Range: class Range {
+    constructor(
+      public startLine: number,
+      public startCharacter: number,
+      public endLine: number,
+      public endCharacter: number,
+    ) {}
+  },
 }));

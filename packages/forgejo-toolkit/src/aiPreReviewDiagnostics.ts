@@ -77,6 +77,23 @@ export interface AiPreReviewDiagnosticsSection {
   facts: readonly string[];
 }
 
+/**
+ * One candidate stream of a response as the dump records it: which channel it
+ * belongs to and the text it carried.
+ *
+ * It exists because the two channels of a response can disagree — measured on a
+ * real machine, the `text` projection delivered the model's reasoning trace while
+ * the stream's text parts held the exact expected answer — so a dump that kept
+ * only the parsed answer could not show which candidate stream was used or what
+ * the other one said. Structurally identical to the host's
+ * `AiPreReviewResponseCandidate`; declared here so this module needs no import
+ * from the `vscode`-typed host file.
+ */
+export interface AiPreReviewDiagnosticsCandidate {
+  kind: 'text' | 'reasoning' | 'text-projection';
+  text: string;
+}
+
 /** One model call: the exact messages sent and the full raw answer. */
 export interface AiPreReviewDiagnosticsAttempt {
   /** Where this call sits in the section, e.g. `attempt 1/3`. */
@@ -95,6 +112,25 @@ export interface AiPreReviewDiagnosticsAttempt {
   outcome: string;
   /** Extra lines, e.g. the bounded shape the Output Channel also got. */
   notes?: readonly string[];
+  /**
+   * Every candidate stream the response offered, in preference order, each
+   * **labelled** with the channel it came from. `undefined` (or empty) when the
+   * call failed before a response arrived; an entry with `text: ''` says the
+   * channel existed and carried nothing.
+   */
+  candidates?: readonly AiPreReviewDiagnosticsCandidate[];
+}
+
+/** How the dump names one candidate stream on its own line. */
+function candidateKindLabel(kind: AiPreReviewDiagnosticsCandidate['kind']): string {
+  switch (kind) {
+    case 'text':
+      return 'text parts';
+    case 'reasoning':
+      return 'reasoning parts';
+    case 'text-projection':
+      return 'the `text` projection (fallback)';
+  }
 }
 
 /** What the host writes through. Every method is a no-op while debug is off. */
@@ -179,10 +215,22 @@ export function formatAiPreReviewDiagnosticsAttempt(attempt: AiPreReviewDiagnost
     `answered: ${timestamp(attempt.finishedAt)} (${durationMs(attempt.startedAt, attempt.finishedAt)} ms)`,
     `answer chars: ${attempt.answer.length}`,
     `outcome: ${attempt.outcome}`,
-    `--- raw answer begin (${attempt.answer.length} chars) ---`,
-    attempt.answer,
-    '--- raw answer end ---',
   );
+  // Every candidate stream beside the answer the run used, each labelled and
+  // printed verbatim between markers with its own character count: on a machine
+  // where the two channels disagree, the one that lost has to be in the file, or
+  // the dump cannot answer "which stream was that?".
+  (attempt.candidates ?? []).forEach((candidate, index) => {
+    lines.push(
+      `candidate ${index + 1} of ${attempt.candidates?.length ?? 0} (${candidateKindLabel(candidate.kind)}): ${
+        candidate.text.length
+      } chars`,
+      `--- candidate ${index + 1} text begin (${candidate.text.length} chars) ---`,
+      candidate.text,
+      `--- candidate ${index + 1} text end ---`,
+    );
+  });
+  lines.push(`--- raw answer begin (${attempt.answer.length} chars) ---`, attempt.answer, '--- raw answer end ---');
   for (const note of attempt.notes ?? []) {
     lines.push(`note: ${note}`);
   }

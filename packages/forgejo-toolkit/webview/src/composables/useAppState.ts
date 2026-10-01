@@ -702,6 +702,16 @@ function createAppState() {
   >();
 
   const debug = ref<boolean>(false);
+  /**
+   * Whether `forgejoToolkit.aiPreReview` is on, as the host last reported it.
+   *
+   * It exists for exactly one affordance: the pull request detail page's
+   * "review the whole pull request" button, which is hidden while the feature is
+   * off. `=== true` on the way in rather than a direct assignment, because a host
+   * that predates the message would send nothing and an undefined read as "on"
+   * would offer a button whose only outcome is the run's own refusal.
+   */
+  const aiPreReview = ref<boolean>(false);
   const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
   const worktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>('ask');
   const worktreeCacheDirectory = ref<string | undefined>(undefined);
@@ -1014,6 +1024,7 @@ function createAppState() {
         instances.value = message.instances ?? [];
         void setLocale(message.locale);
         debug.value = message.debug;
+        aiPreReview.value = message.aiPreReview === true;
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
         worktreeCacheDirectory.value = message.worktreeCacheDirectory;
@@ -1117,6 +1128,11 @@ function createAppState() {
         break;
       case 'setDebug':
         debug.value = message.debug;
+        break;
+      case 'setAiPreReview':
+        // The switch changed in VS Code's Settings UI. Only the affordance
+        // follows it: the run itself re-reads the setting on the host.
+        aiPreReview.value = message.aiPreReview === true;
         break;
       case 'repositories':
         handleRepositories(
@@ -4965,6 +4981,25 @@ function createAppState() {
     postMessage({ command: 'revertMergeCommit', instanceId, owner, repo, index });
   }
 
+  /**
+   * Asks the host to run an AI pre-review of **the whole pull request** the
+   * detail page is showing.
+   *
+   * The message carries the coordinates and nothing else — no model, no scope, no
+   * prompt — because the host owns the flow: it validates the coordinates and
+   * runs exactly what the diff editor's title button runs. There is no pending
+   * reply to track either: the run answers with its own notification and, when it
+   * has candidates, the confirmation panel, so this is a dispatch rather than a
+   * request/response pair.
+   *
+   * It sends nothing by itself beyond that message, and pressing the button is
+   * the only thing that calls it: merely rendering the page — or rendering the
+   * button — asks a model nothing.
+   */
+  function startAiPreReview(instanceId: string, owner: string, repo: string, index: number) {
+    postMessage({ command: 'aiPreReviewPullRequest', instanceId, owner, repo, index });
+  }
+
   function uploadIssueAttachment(
     instanceId: string,
     owner: string,
@@ -6636,6 +6671,7 @@ function createAppState() {
     loading,
     errors,
     debug,
+    aiPreReview,
     worktrees,
     worktreeOpenMode,
     worktreeCacheDirectory,
@@ -6715,6 +6751,7 @@ function createAppState() {
     editPullRequest,
     mergePullRequest,
     revertMergeCommit,
+    startAiPreReview,
     openPullRequestDetail,
     loadPullRequestDetail,
     loadPullRequestFiles,

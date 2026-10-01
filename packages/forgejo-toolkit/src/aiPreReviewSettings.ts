@@ -1,20 +1,32 @@
 import * as vscode from 'vscode';
+import { resolveLocale } from './utils/resolveLocale';
+import type { AiPreReviewBodyLanguage } from './aiPreReviewBrief';
 
 /**
- * The host-side settings of the AI pre-review: two window-scoped switches (both
- * off by default) and one window-scoped model choice, kept in one module so the
- * readers that need them — the command that checks whether the feature may run
- * at all, the prompt builder that decides whether the diff body may leave the
- * machine, and the model listing that decides which provider receives it —
- * cannot drift apart.
+ * The host-side settings of the AI pre-review: one window-scoped feature switch
+ * (off by default), one window-scoped **prompt scope** and one window-scoped
+ * model choice, kept in one module so the readers that need them — the command
+ * that checks whether the feature may run at all, the run that decides what the
+ * prompt may carry, the prompt builder that then has to honour that answer, and
+ * the model listing that decides which provider receives it — cannot drift
+ * apart. The **language the comment bodies are written in** is read here too,
+ * because it is the same kind of read (`forgejoToolkit.locale`, with VS Code as
+ * the fallback) and the run has to settle it before it measures the prompt.
  *
  * The reading discipline is `src/mcpWriteSettings.ts`'s: a hand-edited
  * `settings.json` can hold any JSON type under a key, a read that throws must
- * mean "off" rather than a failed activation, and only an explicit `true` may
- * enable a switch. The second switch is deliberately separate from the first
- * (the record's §7.1 option (a), which the maintainer chose): "I want this
- * feature" and "I agree to send this repository's code to a model provider" are
- * two different questions, and the answer to the second defaults to no.
+ * mean the **closed** direction rather than a failed activation, and only an
+ * explicit `true` may enable the switch.
+ *
+ * The second setting is what the prompt may carry, and its default is the
+ * question rather than an answer. `ask` means "you have not stated a choice":
+ * a run that reads it shows the one modal, sends nothing and writes nothing
+ * before the answer, and then writes the answer *here*, which is what makes
+ * "the first run asks once, then remembers" true in `settings.json` rather than
+ * in a window's memory. The three **stated** scopes are `metadata-only` (the
+ * model sees no code at all), `changed-lines-only` (the added and removed
+ * lines, with the file and hunk headers that keep every line number
+ * unambiguous) and `full-diff` (the whole diff, under the shared budgets).
  *
  * The third setting is the **chosen model**, and it is the single source of
  * truth for which model reviews a pull request: empty means "ask me", and a
@@ -35,12 +47,38 @@ const SETTINGS_SECTION = 'forgejoToolkit';
 export const AI_PRE_REVIEW_SETTING = `${SETTINGS_SECTION}.aiPreReview`;
 
 /**
- * Whether the prompt may carry the diff body itself (the changed lines), not
- * just the file table. Off by default: the diff body is the source code, and
- * sending it is a decision about the user's relationship with the provider, not
- * one this extension makes for them.
+ * What the prompt may carry. **Not** a boolean any more: an off switch could
+ * only mean "send no code", and the maintainer accepted that shape as one of
+ * four scopes (see `docs/design/ai-prereview.md`).
  */
-export const AI_PRE_REVIEW_INCLUDE_DIFF_SETTING = `${SETTINGS_SECTION}.aiPreReviewIncludeDiff`;
+export const AI_PRE_REVIEW_PROMPT_SCOPE_SETTING = `${SETTINGS_SECTION}.aiPreReviewPromptScope`;
+
+/**
+ * The four values of `forgejoToolkit.aiPreReviewPromptScope`, in the order the
+ * manifest's dropdown shows them.
+ *
+ * `ask` is first because it is the default and because it is the only value
+ * that sends nothing on its own: it is the question, not an answer. The three
+ * after it are the answers, and the order is the order of how much code leaves
+ * the machine.
+ */
+export const AI_PRE_REVIEW_PROMPT_SCOPES = [
+  'ask',
+  'metadata-only',
+  'changed-lines-only',
+  'full-diff',
+  'changed-files',
+] as const;
+
+/** One value of `forgejoToolkit.aiPreReviewPromptScope`. */
+export type AiPreReviewPromptScope = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[number];
+
+/**
+ * One scope the user **stated** — every value but `ask`. Only one of these may
+ * start a run, and only one of these may be written into the setting: writing
+ * `ask` back would turn a stated choice into a question again.
+ */
+export type AiPreReviewStatedScope = Exclude<AiPreReviewPromptScope, 'ask'>;
 
 /**
  * Which chat model may review a pull request. Window-scoped and empty by
@@ -52,8 +90,11 @@ export const AI_PRE_REVIEW_MODEL_SETTING = `${SETTINGS_SECTION}.aiPreReviewModel
 
 /** The key without its section, for the `getConfiguration` read. */
 const AI_PRE_REVIEW_KEY = 'aiPreReview';
-const AI_PRE_REVIEW_INCLUDE_DIFF_KEY = 'aiPreReviewIncludeDiff';
+const AI_PRE_REVIEW_PROMPT_SCOPE_KEY = 'aiPreReviewPromptScope';
 const AI_PRE_REVIEW_MODEL_KEY = 'aiPreReviewModel';
+
+/** The `locale` key of this extension's settings section. */
+const AI_PRE_REVIEW_LOCALE_KEY = 'locale';
 
 /** Reads one boolean switch, treating anything but an explicit `true` as off. */
 function readBooleanSwitch(key: string): boolean {
@@ -75,13 +116,73 @@ export function isAiPreReviewEnabled(): boolean {
   return readBooleanSwitch(AI_PRE_REVIEW_KEY);
 }
 
+/** Whether the text is one of the four contributed values, case-insensitively. */
+function isAiPreReviewPromptScope(value: string): value is AiPreReviewPromptScope {
+  return (AI_PRE_REVIEW_PROMPT_SCOPES as readonly string[]).includes(value);
+}
+
 /**
- * Whether the prompt may include the diff body. Only consulted when the feature
- * switch is on, and only as a second gate: with it off the model still gets the
- * changed-file table, which is the behaviour the record's §7.1 decided.
+ * The configured prompt scope, or `ask` when nothing usable is configured.
+ *
+ * `ask` is the reading for every "we do not know": an absent value, a value the
+ * manifest does not contribute (a typo, or a leftover from a future version), a
+ * non-string, and a read that throws. That is the fail-closed direction for
+ * this setting — `ask` sends nothing on its own and asks the one question — so
+ * a broken `settings.json` can never make a run send code the user never agreed
+ * to.
+ *
+ * Surrounding whitespace and letter case are ignored for the same reason the
+ * model value ignores them: the comparison is not the thing the user is being
+ * asked to get exactly right.
  */
-export function isAiPreReviewIncludeDiffEnabled(): boolean {
-  return readBooleanSwitch(AI_PRE_REVIEW_INCLUDE_DIFF_KEY);
+export function aiPreReviewPromptScopeSettingValue(): AiPreReviewPromptScope {
+  try {
+    const value = vscode.workspace.getConfiguration(SETTINGS_SECTION).get<unknown>(AI_PRE_REVIEW_PROMPT_SCOPE_KEY);
+    const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return isAiPreReviewPromptScope(text) ? text : 'ask';
+  } catch {
+    return 'ask';
+  }
+}
+
+/**
+ * The language this run asks the model to write comment bodies in: whatever the
+ * extension's own `forgejoToolkit.locale` setting says when it states `en` or
+ * `zh`, and otherwise VS Code's display language (`vscode.env.language`).
+ *
+ * That is deliberately the **same resolution the webviews use**
+ * (`src/utils/resolveLocale.ts`), not `vscode.l10n`'s own: this extension's
+ * settings page, its onboarding panel, its review-comment editor and — the one
+ * that shows these bodies — its AI pre-review confirmation panel all render in
+ * the locale that setting states, so a user who set `forgejoToolkit.locale` to
+ * Chinese while running an English VS Code reads the candidate comments in
+ * Chinese, and the bodies they are about to publish should be in the language
+ * they are reading. The two only disagree in exactly that case (an explicit
+ * setting against the editor's own language); when the setting is unset or
+ * empty, there is nothing to disagree about and both resolve to the display
+ * language.
+ *
+ * The fallback for anything unexpected is English, and it comes from
+ * `resolveLocale` rather than from a second rule here: a setting value that is
+ * neither `en` nor `zh` (a hand-edited typo) is *not stated*, so the display
+ * language decides; and a display language that does not start with `zh` — or
+ * one that is empty or unpresent — reads as `en`. The wrong direction would be
+ * guessing a language from a string nobody claimed, which is why there is no
+ * third case: a broken value never becomes a language of its own.
+ *
+ * A configuration read that throws is "the setting is not stated" rather than a
+ * failed run: the display language then decides, exactly as it does when the
+ * setting is empty. Reading it can never make the feature refuse to run — the
+ * language is a property of the wording, not of the consent that gates egress.
+ */
+export function aiPreReviewCommentBodyLanguage(): AiPreReviewBodyLanguage {
+  let configured: unknown;
+  try {
+    configured = vscode.workspace.getConfiguration(SETTINGS_SECTION).get<unknown>(AI_PRE_REVIEW_LOCALE_KEY);
+  } catch {
+    configured = undefined;
+  }
+  return resolveLocale(configured);
 }
 
 /**
@@ -273,4 +374,25 @@ export async function writeAiPreReviewModelSetting(value: string): Promise<void>
   await vscode.workspace
     .getConfiguration(SETTINGS_SECTION)
     .update(AI_PRE_REVIEW_MODEL_KEY, value, vscode.ConfigurationTarget.Global);
+}
+
+/**
+ * Writes the scope the user just chose into
+ * `forgejoToolkit.aiPreReviewPromptScope` at **global** scope, for exactly the
+ * same reason the model choice is written there: the answer is the user's, it
+ * has to be visible and editable in the Settings UI, and every later run has to
+ * find it — not a window's memory of a dialog.
+ *
+ * Only a **stated** scope may be written: `ask` is the question, so writing it
+ * back would make the next run ask again and lose the answer that was just
+ * given.
+ *
+ * A failed write is the caller's to report: the run has already been told what
+ * may be sent, so the failure changes where the answer is remembered, never
+ * what this run sends.
+ */
+export async function writeAiPreReviewPromptScopeSetting(scope: AiPreReviewStatedScope): Promise<void> {
+  await vscode.workspace
+    .getConfiguration(SETTINGS_SECTION)
+    .update(AI_PRE_REVIEW_PROMPT_SCOPE_KEY, scope, vscode.ConfigurationTarget.Global);
 }

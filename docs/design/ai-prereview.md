@@ -41,7 +41,10 @@
   每次模型调用一节，写明被问模型的 `vendor`/`family`/`id`、请求与回答各自的 ISO 时间戳与耗时、
   **原样发出的每条消息（role + 文本，指令那一半在内）**与**完整原始回答**，外加一节 run 头（目标、
   两个开关、被提供的模型及其 `maxInputTokens`、尝试上限、请求形态）。默认路径一个字都不变：debug 关闭时
-  这个 sink 连文件路径都没有，输出通道里仍然只有那条**有界形状描述**，debug 打开时只多一行**文件路径**
+  这个 sink 连文件路径都没有，~~输出通道里仍然只有那条**有界形状描述**~~（**2026-10-01 修正：契约失败时
+  输出通道还带一条有界摘录，见本文开头那条修正**），debug 打开时多一行**文件路径**、以及回答的**碎片
+  清单与小结**（**2026-10-01 第八次修正，见本文开头那条**：一行一个碎片、一行两个总数与拼接结果的
+  有界开头，只有 debug 打开时才有，见下同）
   （§7.2、§9.6）；② 新增 `forgejoToolkit.aiPreReviewProbeChatModels` 命令：在
   `contributes.menus.commandPalette` 里以 `config.forgejoToolkit.debug` 把关，处理体再查一次功能开关与
   debug，向**每一个**被提供的模型各问三种形态的同一句废话（单条 `User` 无指令 / 两条 `User` 即旧形态 /
@@ -182,6 +185,563 @@
   （"Comments can only be added to lines within the pull request diff"）同理。
   它们拒绝时都点名具体原因，不是"功能没开"这种整片状态的拒绝。选模型的命令与设置页那一行不属于这一类：
   它们本来就不该被开关把关（§7.2 ⑤），现在也仍然没有被把关。
+- 交付后的修正（2026-10-01，**"回答永不进输出通道"改为"成功时不写；契约违规时写有界摘录"**——维护者的
+  真实故障只报了「attempt 1 of 2: 回答不是 JSON; attempt 2 of 2: 回答不是 JSON」，维护者指出"只说不是
+  JSON 不好判断问题"：模型退化、回答被截断、还是我们的提示词不对，这三种在这句话里分不出来，而回答的
+  形状此前只在 `forgejoToolkit.debug` 打开时才可见、完整回答同样只在 debug 的 dump 里）：
+  ① **契约违规时，无论 debug 与否**，每次失败的尝试都往 `Forgejo Toolkit` 输出通道写**一行** `logger.error`：
+  模型身份、这是该模型的第几次询问（`attempt n of 2 for the chosen model`）、回答的**完整字符数**，以及
+  回答的**有界摘录**——最多 `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH = 200` 个字符，再用 `JSON.stringify`
+  转义成一行。退化回答往往只有几个字符（维护者见到的是 `comments[]` 与 `{"":}`），所以摘录通常就是整个
+  回答；长回答被截断，**全文仍然只在 debug 的 dump 里**。**成功运行照旧一个字都不写回答正文**（这条规则
+  与它的测试都保留：成功路径上的回答已经进入确认清单、会被人读到，也已经被写成草稿）。
+  ② 用户消息补上这句摘录在哪儿、以及怎么拿到更多：新命令
+  `forgejoToolkit.aiPreReviewOpenDiagnostics`（标题「AI Pre-Review: Open Diagnostics」／
+  「AI 预评审：打开诊断文件」）把 `<logUri>/ai-pre-review-diagnostics.log` 用
+  `workspace.openTextDocument` + `showTextDocument` 在编辑器里打开；文件还不存在时（`forgejoToolkit.debug`
+  从未打开过）**明说**"它只在 `forgejoToolkit.debug` 打开时写入，请打开该设置并跑一次预评审或探测"，
+  而不是报错或什么都不开。该命令**不受功能开关把关**（读一个本地诊断文件不发任何内容），贡献方式与选模型
+  的命令同形：只加 `contributes.commands` 一条，没有带 `when` 的菜单项。失败消息里那句提示集中写在
+  `diagnosticsActionHint()` 里（命令 id 只能写进文案，这个 API 版本的 `MessageItem` 挂不上命令）。
+  ③ debug 下的完整请求 + 完整回答抓取**一字不改**：每节标签、`answer chars: N`、自述头与"本文件含提示词与
+  模型原始输出"那句话都保留，§9.6 的探测命令也不受影响。
+  ④ 前几条修正里"**不写回答**""输出通道里永远没有回答正文"这类话被本条取代：原文就地保留（删除线，
+  见 §6.4、§7.2、§9.6），取而代之的规则是 **never on success; a bounded excerpt (≤200 characters,
+  escaped) on a contract violation, because "not JSON" alone is undiagnosable; the full text stays in
+  the debug-only diagnostics file.**（**2026-10-01 第八次修正：`never on success` 只在 debug 关闭时
+  逐字成立——debug 打开时另有碎片清单与一行小结写进同一个输出通道，理由与测试见本文开头那条修正。**）
+- 交付后的修正（2026-10-01，**第六次排查：回答变成"我们自己的请求被去掉标点后的乱序回声"；先证明不是我们
+  累积错了，再给真机一条能把"模型不行"与"通道吃标点"分开的判据**）。
+  维护者新看到的失败既不是散文也不是拒答，而是**把我们自己的请求回声回来**：schema 里的
+  `path` / `line` / `side` / `extraLines` 还在，引号与逗号没了，键名与值的位置错乱，末尾是提示词措辞的
+  乱序碎片（真实摘录形如 `comments{"":"/utilsre.tsline3sideheadextra":,…`）。于是有三个假设必须分开：
+  **A 模型跟不上指令**（弱 / flash 模型回声提示词）、**B 供应商或流在传输中弄坏文本**（标点被吃）、
+  **C 我们自己的累积丢帧或乱序**（若成立就是本扩展的真实缺陷）。
+  ① **C 用测试排除，与任何模型无关。** `sendRequest` 的 `response.text` 全文只有两处消费，都是
+  `for await (const chunk of response.text) { text += chunk; }`（运行路径 `requestPreReviewComments()`、
+  探测路径 `sendProbeRequest()`）。`src/__tests__/aiPreReview.test.ts` 新增一组用例，用**本仓库自己的
+  假流**（`createModel({ fragments })`）把一段带逗号、转义引号、字面反斜杠、`\uXXXX` 转义、em dash 与
+  星际字符（`𝄞`，UTF-16 代理对）的 JSON 拆成 8 个碎片发出，碎片边界**故意落在多字节字符中间、转义序列
+  中间、JSON 字符串边界上**，再断言累积结果与字面量**逐码元相等**（debug dump 的原始回答块及其字符数），
+  另一条断言同一段碎片化回答在契约失败的**有界摘录**里也逐字出现。**测试通过 ⇒ 假设 C 不成立**：累积
+  没有丢、没有乱序、没有重新编码，真正丢掉标点的是上游。这组用例同时是回归闸门——以后任何"顺手 decode
+  一下 / 按行拼一下 / 用 `TextDecoder` 分片解"的改动都会让它变红。
+  ② **A 与 B 由真机上的探测判据分开**（`forgejoToolkit.aiPreReviewProbeChatModels`，仍然只在
+  `forgejoToolkit.debug` **且** `forgejoToolkit.aiPreReview` 都打开时发请求，仍然不读任何 Pull Request、
+  不含任何仓库内容）：在原有三种 `Reply with exactly {} and nothing else.` 形态之外**新增第四种「回声」形态**
+  （`AI_PRE_REVIEW_PROBE_ECHO_PROMPT = 'Reply with exactly {"a":"b,c\"d\\e","f":[1,2]} and nothing else.'`，
+  期望答案 `AI_PRE_REVIEW_PROBE_ECHO_ANSWER = '{"a":"b,c\"d\\e","f":[1,2]}'`，本身是合法 JSON）。它**不带**
+  我们的指令块，因为它要量的是"这段字能不能原样走一个来回"，不是我们的措辞；三种 `{}` 形态看不出这件事
+  ——`{}` 本来就没有标点可丢。dump 里每个模型的这一块给出：请求原文、头部一行
+  `a faithful answer is exactly …`、**逐字原始回答**，以及一行**布尔判词**
+  `answered the echo exactly as asked: true|false`。**结论程序（怎么读）**：回声 `true` ⇒ 通道忠实、标点没丢
+  ⇒ 真机上的乱码出在**模型侧**（假设 A）⇒ **推荐换一个更强的模型**（`forgejoToolkit.aiPreReviewChooseModel`
+  或设置页里那一行），**契约不动、代码不动**，失败消息与有界摘录继续回答"哪个模型、第几次、多少字符"；
+  回声 `false`，且原始回答是期望串**被吃掉标点后的近似拷贝** ⇒ **传输或供应商在弄坏文本**（假设 B）⇒ 按
+  **供应商限制**记录（`KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`，点名是哪个 `vendor`），**契约不动**，下一步是
+  换模型或换供应商，而不是改我们的提示词或校验；回声 `false`，且原始回答是**别的东西**（散文、`{}`、拒答、
+  评论 JSON）⇒ 模型没有按指令回声，这与 A 同类（指令遵循失败），只是连"照抄一行"都做不到，若同时控制形态能答
+  `{}`，就更能确定问题在**模型**而非通道；回声 `true` 而真实运行仍然乱码 ⇒ 回到 ①，下一步是拿
+  `ai-pre-review-diagnostics.log` 里**同一个模型**的运行块与探测块对照（两者的请求形态不同，那就是下一个要分离
+  的变量）。
+  ③ **用户可见面一个字都没改**：探测仍然 debug-only 且不含任何仓库信息，三种 `{}` 形态与它们的判词、dump 的
+  节格式与文件名、`forgejoToolkit.debug` / `forgejoToolkit.aiPreReview` 两道闸门、契约失败的有界摘录规则
+  （≤200 字符、成功一个字都不写）全部不变。新增的只是一条**诊断形状**与它的布尔判词，所以
+  `.changeset/ai-pre-review.md` 与两份 `CHANGELOG` 都**不动**：发布说明只写用户能看见的东西，一个 debug
+  命令多问一句属于工程诊断，不写进发布说明。
+- 交付后的修正（2026-10-01，**debug 下把回答的"碎片边界"写进输出通道——`vscode.lm` 到底回了什么，
+  从此不必调试扩展宿主也能看见**）。B 支结论把"谁弄丢了标点"钉在了提供者那条路径上，可维护者手上
+  只有**拼接后的回答**（dump 里逐字、失败行里有界），而**碎片边界本身**没有任何地方记下来——那恰恰是
+  "提供者的碎片本来就是坏的"与"我们的累积把它弄坏了"之间唯一的分界，后者已被逐码元测试排除
+  （上一节的 ①），于是这里的期望是前者，本条的用处是**让它可观测**，不是再定性一次。
+  ① **每个碎片一行**：两条流循环（运行路径 `requestPreReviewComments()`、探测路径 `sendProbeRequest()`）
+  现在把碎片**留在一只数组里**再交给 `logAnswerFragments()`，每个碎片写一行
+  `AI pre-review: answer fragment 3 of 8 in the stream: length=12, text="…"`——序号、**该碎片的字符数**、
+  以及它的文本按失败摘录那套 `JSON.stringify` 转义成一行。文本上限就是
+  `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH`（200），走的是同一个 `aiPreReviewAnswerExcerpt()`，**没有第二份
+  截断逻辑**；被截断时该行追加 `, cut from N characters`，因为把截断过的碎片当成短碎片读，正好会把这条
+  行想展示的边界读错。**孤立代理项按 `\ud834` 转义而不是原样打印**：把一个星际字符从中间切开时，
+  原样打印会把它重新拼成一个字符，边界就看不见了。
+  ② **一段流一行小结**：碎片全部写完后再写
+  `AI pre-review: answer stream summary: 8 fragment(s), 62 character(s), excerpt="…"`——碎片总数、
+  字符总数、以及**拼接结果的**有界转义开头（同样复用上面那个 helper），所以读的人在碎片清单旁边就能看到
+  拼接后的样子，不必自己心算。
+  ③ **两条路都写，成功失败都写。** 碎片清单描述的是**传输**，不是裁决：一次回答无论后来解析成功还是
+  契约失败，边界都是同一件事，而 dump 里的拼接也照旧由 `diagnostics.attempt()` 写（debug 打开时它本来
+  就含完整回答），所以碎片在 debug 下落在同一个文件旁边的输出通道里是**一致的**，不是新增的泄露面。
+  **被取消或中途失败的流不写**：运行路径的循环在每个 chunk 之前查一次 token，取消就直接返回；提供者
+  自己中断则 `for await` 抛错——两条都走不到写行的那一步，半读的流没有诚实的总数可报。这条不变式由
+  "写行放在整段 `for await` 读完、且循环内那道 token 检查之后"保证，测试同时钉住取消与提供者中断两种情形。
+  ④ **严格由 debug 把关，且没有任何新设置。** `logAnswerFragments()` 自己先查
+  `logger.isDebugEnabled()`（与 `Logger.debug` 同一道闸门与同一个既有设置 `forgejoToolkit.debug`），
+  为假时**一行都不交给 logger**；为真时经 `logger.debug` 写输出通道。**消息、toast、通知一个字都不加**：
+  输出通道是这些行唯一的落点。debug 关闭时行为与今天**逐字节相同**。
+  ⑤ **只写回来的，不写发出去的。** 提示词、简报、diff 都不是这个函数的入参，所以碎片行与小结行在类型上
+  就带不上它们；测试直接断言这一点（固定指令、`[changed-files]` 表、diff 正文、仓库名一个都不出现）。
+  ⑥ **用户可见面一个字都没改**：不新增命令、不新增设置、不改失败文案、不改 dump 格式，也不改"成功时
+  输出通道没有回答正文"这条规则的**默认（debug 关闭）形态**——它在 debug 打开时被本条的碎片行取代，
+  而 debug 打开时完整回答本来就已经写进 dump；因此**不新增 changeset 条目**，两份 `CHANGELOG` 也不动：
+  发布说明只写用户能看见的东西，一个 debug 级别的诊断行属于工程诊断。
+  ⑦ **测什么**：`src/__tests__/aiPreReview.test.ts` 新增一组用例——序号/长度/转义文本逐行相等（一次流
+  两次尝试的重复形状都钉住）、小结行的两个总数与有界开头、超长碎片带 `, cut from N characters` 且整段
+  `b` 串不出现、含引号/反斜杠/换行/制表符的碎片转义成一行（没有任何一行含真换行或真制表符）、星际字符
+  被从中间切开时两半按 `\ud834` / `\udd1e` 转义、碎片行与小结行不含提示词/简报/diff、debug 关闭时
+  **一行都没有**且没有任何消息/警告/错误文案提到碎片、取消与提供者中断两种情形各一行都不写，以及
+  探测路径同样产出（每种形态一段流、各一行小结）。
+  既有的"成功运行不写任何回答正文"那条用例按诚实口径改成**"debug 关闭时"**（并把 `answer fragment` /
+  `answer stream summary` / 固定指令的缺席一起断言），因为碎片行在 debug 打开时**就是**回答正文，
+  这是本条有意改变的唯一一条断言。
+- 交付后的修正（2026-10-01，**第九次排查的第一半：把 `response.stream` 的 `part` 也写进输出通道——
+  "我们读错了通道"这个假设，现在可以用真机数据回答**）。上一条把碎片边界做成可观测的，本条的动机是
+  维护者提出的下一个可能：`LanguageModelChatResponse.text` 按文档只是 `stream` 里**文本 part 的投影**
+  （`@types/vscode` 1.102.0 原文 "This is equivalent to filtering everything except for text parts from a
+  `LanguageModelChatResponse.stream`"），那么**一个 tool-call part、或者一个 `unknown`/数据 part，可能
+  带着未被弄坏的结构化输入**——如果是，那就是"改用工具通道"这种**真修**，而不是变通。于是两个流循环在
+  碎片清单之后**再读一遍 `stream`**（`logResponseStreamParts`）：
+  ① **每个 part 一行**：序号、**运行时类名**、长度与内容。文本 part 写文本（同一个 200 字符上限与
+  `, cut from N characters`），tool-call part 写**工具名 + 整段 JSON 化的 input**（不截断：它是这次诊断
+  要找的那个结构化载荷，截断正好会盖住要找的东西），其余一律写成
+  `kind=unknown (<类名>, typeof=<类型>)` 加一段**有界检查**（`JSON.stringify` 的结果按同一个 200 上限
+  截断，`JSON.stringify` 抛错时退到 `Object.keys`，连它都抛错时退到 `unreadable(<类型>)`——诊断本身
+  绝不允许抛）。类名读的是 `constructor.name` 而不是 `instanceof`：跨 realm 的 part 会 `instanceof` 失败
+  却仍然带着自己的类名，而"这是哪个类"正是这一行的全部信息量。
+  ② **一段流一行小结**：按**到达顺序**统计每种 kind 的数量、文本 part 数、以及文本 part 拼起来的字符数
+  ——因为 `text` 与 `stream` 是同一响应的两种投影，这一行把"我们解析的那个投影"与"我们能看见的 part"
+  放在一行里可比。两边不一致时**另写一行**点名两个字符数；`stream` 与 `text` 若是**同一个被抽干的
+  游标**（有的实现就是这样），小结会诚实地写 `0 part(s)` 并说 stream 没能提供 part。
+  ③ **不改变解析结果**：答案仍然**只**由 `text` 累积。part 那一遍跑在答案已经拿到之后，只读 `stream`，
+  所以它无法影响解析；即使读 part 抛错（提供者中途中断、`next()` 抛错），也只写一行小结说明提前结束，
+  绝不把成功改成失败，也绝不把失败改成成功。取消与半读的流照上一条的规矩：一行都不写。
+  ④ **两道闸门不变**：`logger.isDebugEnabled()` 先查，仍然只有 `forgejoToolkit.debug` 这一个开关、
+  没有新设置、只写输出通道、消息/toast/通知一个字都不加；提示词、简报、diff 不是它的入参。
+  ⑤ **测什么**：`src/__tests__/aiPreReview.test.ts` 新增 "the debug-only parts log of a response stream"
+  一组——文本 part 的 kind/长度/文本逐字相等、tool-call part 写工具名与 JSON input、`unknown` part 只做
+  有界检查且不抛（含一个"连字符串化都拒绝"的对象）、带类名的 `unknown` 报出类名、原始值是字符串时
+  只报 `typeof`、超长检查按 200 上限截断并带 `, cut from N characters`、含引号/反斜杠/换行/制表符的
+  part 转义成一行（没有任何一行含真换行或真制表符）、part 行与小结都不含提示词/简报/diff、debug 关闭时
+  **一行都没有**且没有任何用户可见文案提到它、小结按 kind 计数与文本字符数相符、以及**答案为
+  `{"comments":[]}` 的运行在 part 被检查之后仍然解析成它**（"解析结果不变"这条保证由用例钉住）。
+  另外给假模型加了 `parts` 与 `sharedStreamCursor` 两个形状：前者一个响应两种投影、**每次读取都新建
+  iterable**，后者两种投影共用一条游标，正是"读第二遍只能看到空"的那种实现。
+- 排查结论（2026-10-01，**第九次排查的真机数据：part 通道里没有 tool-call，`text` 也不是"文本 part 的
+  投影"——它是提供者的 token 流**）。这一段只记录**测到了什么**；上面那条是产物，结论由本条给出。
+  判据：dev host（`Run Extension` 的非生产构建，扩展宿主在 23:29:07 的产物之后启动）里
+  `forgejoToolkit.debug` 与 `forgejoToolkit.aiPreReview` 都打开、
+  `forgejoToolkit.aiPreReviewModel = deepseek/deepseek-flash`，跑
+  `forgejoToolkit.aiPreReviewProbeChatModels`（4 种形态各一次，只问这一个模型）。
+  ① **part 的种类，逐字**：4 次调用一共落下 **8 组** part 行（同一次响应会分几组落下，以时间戳分组：
+  20 / 68+3 / 5+61 / 79+114+115+1 条），运行时类名只出现三个——`os`（token 级）、`ln`（文本 part 级）、
+  `r`（数据 part 级），全部落进 `unknown` 分支。**没有任何一个 `LanguageModelToolCallPart`**，因此
+  "改用工具通道"没有可用的载荷；`unknown` 里也没有工具名或工具输入，只有下面第 ③ 条那种数据 part。
+  ② **类名是 RPC 混淆过的**：这些 part 不是 `LanguageModelTextPart` 的实例，而是**跨 RPC 序列化后的
+  普通对象**，形状固定为 `{"$mid":<n>,"value":…}`（`$mid` 是 VS Code RPC 信封的类型编号）。这解释
+  了两件事：为什么 `stream` 里一个 `kind=text` 都没有（类名对不上），以及为什么 `text` 却仍然能产出
+  字符串——**`text` 与 `stream` 在这一版编辑器/提供者上并不是同一个东西**，文档那句"等价于过滤出
+  文本 part"在这里不成立。
+  ③ **四次 total 只来自同一族的两种 part**：每次响应的 part 清单就是
+  `N × $mid=22`（每条带 `value`）+ `N × $mid=21`（每条带 `value`）+ `2 × $mid=24`（不带 `value`，
+  一条 `mimeType=usage`、一条 `mimeType=stateful_marker`）。四次的小结逐字是
+  `20 part(s) (17 unknown (os, typeof=object), 1 unknown (ln, typeof=object), 2 unknown (r, typeof=object))`、
+  `71 part(s) (68 unknown (os, typeof=object), 1 unknown (ln, typeof=object), 2 unknown (r, typeof=object))`、
+  `66 part(s) (63 unknown (os, typeof=object), 1 unknown (ln, typeof=object), 2 unknown (r, typeof=object))`、
+  `309 part(s) (291 unknown (os, typeof=object), 16 unknown (ln, typeof=object), 2 unknown (r, typeof=object))`。
+  四次的 `0 text part(s) carrying 0 character(s)` 完全一样；另有**三行**不一致提示——
+  `the text parts carry 0 character(s) while the accumulated answer has 2`（两次）与
+  `… while the accumulated answer has 12`（一次），而**第二次调用没有这一行**：那一次 `text` 也是
+  0 字符（`answer stream summary: 0 fragment(s), 0 character(s)`），两种投影**同时为空**。
+  所以这四次的 `text` 字符数是 2 / 0 / 2 / 12，答案里的字符数与 part 里的文本 part 数**从来不相符**。
+  ④ **`$mid=22` 是模型的整条推理文本**：把标点回声那一次（`309 part(s)`）的 291 条 `$mid=22` 的
+  `value` 按到达顺序拼起来是推理内容本身——开头 `We need answer exactly specified JSON string and
+nothing else. Need ensure escaping? User: Reply with exactly {\"a\":\"b,c\\\"d\\\\e\",\"f\":[1,2]}
+and nothing else. …`，全长 **1055 字符**；数据 part 里那条 `usage` 解出来是
+  `{"prompt_tokens":53,"completion_tokens":308,"total_tokens":361,…}`，与这条流的长度相符。
+  ⑤ **`text` 投影就是这条 token 流**：同一次调用里 `aiPre-review: answer fragment` 行是 8 个碎片、
+  共 12 字符 `{"":"`, `":\"`, `,c`, `d`, `e`, `f`, `1`, `2`，拼接成 `{"":",cdef12`——**与已知失败
+  逐字节同形**；而 `$mid=22` 那条流里逐 token 打印出来的是推理内容（`We`, ` need`, ` answer`, …,
+  末尾才轮到真正答案的 token）。**也就是说：`text` 交出来的不是最终答案，是模型的推理 token**，
+  真正的答案被留在了另一股 part 上（哪一跳把 token 变成那 12 个字符，逐条 part 分不出来——可能是
+  `text` 只取了其中一部分 token，也可能是提供者在投影那一跳丢了字符；两种情形下**答案都在
+  `$mid=21` 里完好**，而这正是本条要回答的问题）。
+  ⑥ **`$mid=21` 那 16 条才是真正的文本 part，而且拼起来是完整的**：16 个 `value` 按到达顺序拼接
+  得到 **27 字符**、与探测自己声明的标准答案**逐字节相等**的 `{"a":"b,c\"d\\e","f":[1,2]}`，
+  `ConvertFrom-Json` 解得开、字段是 `a` 与 `f`；同一次调用的 `usage` 与 `stateful_marker` 也都解得开。
+  **而且它不是碎片化的巧合**：16 条 `$mid=21` 与 291 条 `$mid=22` 是同一响应里并行的两股——
+  前者是最终文本 part，后者是推理 token。
+  ⑦ **因此"读错通道"这个问题的答案是肯定的，而且方向变了**：不是"tool-call 里有完整的 input"，
+  而是 **`stream` 里的文本 part（`$mid=21`）带着未被弄坏的完整答案，`text` 却把它换成了推理 token 流**
+  ——这正是维护者看到的"回答变成被去掉标点、乱序的回声"的机制：文本投影丢了真正的答案，留下的是
+  模型自言自语里恰好出现过的那些字符。**真修的方向是让解析改用 `stream` 里的文本 part（按到达顺序
+  拼接），把 `text` 留在"没有文本 part 时"的兜底**；本条**没有**改解析，只把 data 记下来，因为改解析
+  会动到契约/重试/锚点校验这一整条已经验证过的路径，需要单独一次改动。
+  ⑧ **对失败的界定也跟着修正**：上一条结论把"谁弄丢了标点"钉在提供者那条共享路径上（四个模型逐字节
+  相同），现在有了机制层面的解释——**"丢失"其实是取错了分歧中的一股：答案在文本 part 里完好，而
+  `text` 给出的是推理 token**。所以两份 `KNOWN_ISSUES` 里那条"上游提供者限制、扩展侧无可修"的措辞
+  需要按本条重写，并指向上面的真修方向；本条**不**改代码，也不新增 changeset 条目（用户可见行为
+  一个字都没变）。
+  ⑨ **测什么**：`src/__tests__/aiPreReview.test.ts` 的 "the debug-only parts log of a response stream"
+  一组（见上一条的 ⑤），以及本节表格里新增的那一行。
+- 交付后的修正（2026-10-01，**第十次：按第九次排查的真机数据改解析——回答改从响应的候选通道里取，
+  由契约仲裁哪一股胜出；`text` 降为兜底**）。上一条把机制测清楚并把真修方向写了下来，本条把它实现。
+  ① **机制（不再重新推导，只引用第九次排查的字节）**：`text` 在这版编辑器/提供者上**不是**
+  "`stream` 里文本 part 的投影"：它交出的是 `$mid=22` 的**推理 token 流**（同一次调用里拼出
+  `{"":",cdef12`，与已知失败逐字节同形），而真正的答案完好在 `$mid=21` 的**文本 part** 里
+  （16 条拼起来 27 字符、逐字节等于探测自己声明的标准答案）。**没有**任何 `LanguageModelToolCallPart`
+  到来，所以"改用工具通道"不是出路。响应的 part 是**跨 RPC 序列化的普通对象**，形状固定为
+  `{"$mid":<n>,"value":…}`。
+  ② **分类规则（两条，`$mid` 不是唯一依据）**：`classifyResponsePart` 先做**类判定**——`instanceof
+LanguageModelTextPart` 归文本通道，`instanceof LanguageModelThinkingPart`（编辑器声明了才取，
+  取不到就 `typeof` 检查后跳过）归推理通道，`instanceof LanguageModelToolCallPart` 归数据；类判定
+  全部落空时再做**形状判定**：own `$mid` 是数字、且 `value`（若有）是字符串的信封才算 RPC part，
+  然后由两个静态集合决定通道（`$mid=21` 文本、`$mid=22` 推理），`$mid=24`（`usage` /
+  `stateful_marker`，没有 `value`）与**任何本版不认识的编号**一律算数据 part——不认识就**不猜**，
+  答案退回 `text` 投影。所以"哪些 part 算文本"既能被真机数据钉住，又不会把编辑器内部编号当成规则；
+  编号只用来解释真机看到的那两股，换一版编辑器时未知编号只会退化成兜底，不会把推理塞进答案。
+  ③ **两股候选流 + 兜底**：`readResponseCandidates` 把一次响应收成按优先级排列的候选——
+  `text`（文本 part）、`reasoning`（推理 part），**只有**两股都没带文本时才读 `response.text` 投影并把它
+  作为 `text-projection` 候选（它同样要过契约，不被信任）。
+  ④ **契约仲裁**：`pickResponseCandidate` 按优先级逐个用**调用方自己的**严格校验打分——探测是形态自己
+  声明的精确字面量，运行是 JSON 契约（`parseAiPreReviewResponse`，schema 与锚点校验仍是后面的既有路径）。
+  第一个通过的就是答案；文本候选过了就用文本，没过才用推理，最后才是 `text` 投影。**两股绝不拼接、绝不
+  修补、绝不换模型**；一个都没过时按既有方式失败：报出失败模型、尝试次数与**实际检查过的那一股**的有界
+  摘录，创建的东西是零（重试仍只针对契约失败、仍只问用户选的那一个模型、上限仍是 2 次）。
+  ⑤ **单消费者规则（本次的要害）**：`stream` 与 `text` 是同一响应的两个投影，编辑器可能给两个独立
+  iterator、也可能给一条被先读者抽干的游标——所以**只消费一次**：`collectResponseStreamParts` 读 `stream`
+  一遍并顺手分类，`text` **仅在没有任何候选通道带文本时**才读（`readTextProjection`，一次读进局部变量），
+  在候选通道已经给出答案时 `response.text` **连属性都不读**。判据由测试钉住：假模型在第二次读投影（以及
+  读 `text` 属性）时直接抛错，所以"读两遍"会变成显式的测试失败而不是静默换文本。
+  ⑥ **可观测性**：胜出的通道与原因由 `responseCandidateSelectionLogLine` 在 **debug** 级别写入输出通道
+  （`answer stream: using the text candidate (…)` / `… the reasoning candidate (…) was used because the text
+candidate did not satisfy the contract` / `no candidate satisfied the contract (preferred …)`）；探测的判词也
+  点名它判的是哪一股（`… (…; from the text candidate)`）。诊断 dump 的每次调用**两股候选分别标注**并原样
+  打印（`candidate N of M (text parts|reasoning parts|the text projection (fallback))` + 字符数 + marker），
+  这让"两股不一致"这件事本身成为文件里的证据。debug 关闭时，part 行、碎片行、小结行与选择行**一行都不写**
+  （选择行原先漏了 `isDebugEnabled()` 闸门，本次一并补上）。
+  ⑦ **用户可见变化**：预评审在这类提供者上**从"必然失败"变成"能成功"**，所以本次新增 changeset 条目，
+  两份 `CHANGELOG` 也加一条；两份 `KNOWN_ISSUES` 里那条"提供者删字符"按本条重写为"答案在 stream part 里、
+  `text` 给的是推理流；扩展读 part 并回落 `text`"。`TODO.md` 里"让解析改用 `stream` 里的文本 part"那条
+  P2 条目随之删除（已完成），该节只剩「AI 预评审（draft-only）剩余决定」那三条刻意保留的变体。
+  ⑧ **测什么**（`src/__tests__/aiPreReview.test.ts`）：新增 "the candidate streams of a response and the
+  contract that arbitrates them" 一组——文本 part 答案被采用且 `text` getter 一次都没被读；真机数据
+  （`$mid=21` 两条拼成 27 字符字面量 + `$mid=22` 的 `{"":",cdef12`）下 echo 判词为 `true` 且它点名文本候选；
+  文本候选过不了契约时才用推理候选（并有 debug 原因行）；探测同样按契约仲裁并在判词里点名通道；两股都不过时
+  按既有失败路径走（2 次调用、零创建、摘录就是被检查那一股）；没有任何候选 part 时回落 `text` 投影；本版不
+  认识的 `$mid` 不算候选且回落到 `text`；dump 里两股候选都带标注；debug 关闭时上述行一行都没有；外加"响应只被
+  消费一次"（第二次读投影即失败）。既有保证（开关关闭不发、探测双闸门、只问被点名的那一个模型、重试上限 2、
+  失败创建零、诊断 dump 记录发了什么与回了什么）由既有用例继续钉住。
+- 排查结论（2026-10-01，**第六次排查的判据跑完，取的是其中的 B 支**：**传输/提供者在弄坏文本**，
+  是**上游提供者限制**，扩展侧无可修之处）。这条只记录**测量到了什么、据此选了什么**；上面那条的三种
+  假设与结论程序原文不动。
+  ① **决定性的字节**：`forgejoToolkit.debug` 打开后，探测的第四种「标点回声」形态要求照抄 27 字符的
+  字面量 `{"a":"b,c\"d\\e","f":[1,2]}`（`AI_PRE_REVIEW_PROBE_ECHO_ANSWER`），得到的回答是
+  `{"":",cdef12`——**12 个字符，两次独立运行逐字节相同**。存活的 12 个字符**全部**出现在该字面量里、
+  顺序不变，而 `"`、`[`、`]`、`}`、两个反斜杠、`a` 与 `b` 一个都没回来；判词因此是
+  `answered the echo exactly as asked: false`。按上面那条的结论程序，原始回答是期望串被吃掉标点后的
+  近似拷贝 ⇒ **B**，而不是"模型跟不上指令"。
+  ② **同一条结论的第二个独立证据**：更早那次「问遍所有模型」的探测里，**某个提供者的全部四个模型返回了
+  逐字节相同的退化字节**，而其它每个提供者的模型各自返回**自己的**退化字节（彼此不同，同样在两次运行
+  之间逐字节相同）。相互独立的模型不可能产生同一种破坏，所以破坏发生在**那个提供者共享的那条路径**上，
+  而不是任何一个模型里——单看一次回答看不出这一点，四个模型同一串字节才把它钉住。
+  ③ **被排除的两侧**：我们发出去的请求文本（debug dump 逐字打印发出去的每条消息、转义完好），以及
+  模型的指令遵循能力（同一个模型对平凡的 `{}` 指令答对）。**剩下的是哪一跳删的字符——VS Code 的
+  language model API、提供者扩展、还是该提供者的远端端点——用这些字节分不出来**，也不该在没有证据时
+  猜一个；扩展里没有任何东西能改变这条路径。
+  ④ **按 B 支，代码一个字都不改**：契约（JSON + schema）、校验器（锚点、丢弃计数）与提示词
+  （`AI_PRE_REVIEW_*` 常量、一条 `User` 消息）全部保持原样，**没有**"更宽松的解析"、**没有**"换另一个模型再
+  试一次"（跨模型轮换早已被维护者裁决否决，见本文开头那条）、**没有**在回答残缺时落任何草稿：运行照旧报出
+  失败的模型、尝试次数与有界摘录，**创建的东西是零**。因此本次不新增 changeset 条目：用户可以看见的行为
+  与上一条修正记录的完全一致（失败时说清是哪一步、什么都不写），变的只是**我们对原因的判定**。
+  ⑤ **记录去向**：这条限制写进 `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`（同名条目，两文各有），按 B 支的
+  要求**只说到"提供者"这一层，不写任何地址、token 或主机**；给用户的自查路径是上面那条已有的三个命令
+  （`forgejoToolkit.aiPreReviewProbeChatModels` → `forgejoToolkit.aiPreReviewOpenDiagnostics` → 读
+  `echo: one user message, punctuation-sensitive` 的判词与旁边的原始回答）。下一步是**换一个提供者的
+  模型**，不是改我们的提示词或校验。
+- 验收记录（2026-10-01，**AI 预评审第一次走到多选确认清单**：清单本身的行为、平台自带的"全选"控件，
+  以及这一跑验证了什么）。这一条只记录**测到了什么**；正文里被它纠正的两处（§2 第 2 条、§5 第 5 条）
+  已就地标为删除线并写明修正，原文保留，便于核对此前承诺过什么。
+  ① **清单本身按设计工作**：什么都没预选——多选 quick pick 自己的计数是「已选 0 项」，每个复选框都是关的，
+  直到用户自己勾一个——扩展也没有提供任何"全选 / 接受全部"入口，它只把通过 §8 锚点校验的候选评论交给
+  picker（`confirmCandidates` 只映射 `label` 与 `candidate`，刻意不设 `picked` 字段）。
+  ② **但平台层有一个扩展管不了的一键全选控件**：VS Code 自己的多选 quick pick 会渲染一个 accessible name
+  为「切换所有复选框」的复选框（英文 `Toggle all checkboxes`，字符串就在 VS Code 自己的 `nls.metadata.json`
+  里），它和候选清单一起出现，扩展既不能移除也不能改名。所以本文此前"没有一键接受全部""不做一键全部接受"
+  这两句话**字面上不成立**（扩展侧那一半仍然成立），准确口径是：**扩展不预选任何东西、也不添加接受全部
+  入口；平台的多选控件自带"切换所有复选框"，我们移除不了**。§2 第 2 条与 §5 第 5 条已按此就地改正。
+  **（2026-10-02 修正）**：确认这一步已经从 QuickPick 换成扩展自己的面板，那个平台控件随之不再出现，
+  所以这句话只在"当时用的是 QuickPick"这一前提下有效；现状见本文开头的 2026-10-02 那条。
+  ③ **一条验证笔记（不是缺陷）**：「锚点校验失败的意见永远到不了清单」这条性质这一次**成立、但没有被实际
+  走到**——模型只提了两条意见、两条都过了校验，所以没有任何候选被丢弃；它目前仍只由测试保证，还没有观察到
+  过真实的丢弃。两份 `KNOWN_ISSUES` 的同名条目已补上同一口径与这条笔记。
+  ④ **这一跑另外验证的**：探测再次回答 `true`；这次运行的答案来自**文本候选**（不是推理 part，也不是
+  `text` 投影）；在清单上确认后恰好创建了**一条 PENDING 评审**（带它的评论），并且**没有提交任何东西**——
+  §10 阶段 4 的"落草稿"这一半由此第一次在真机上被走到，此前各条修正里"确认清单与落草稿那一半仍未验证"
+  的注记到此为止（原文保留在原处）。
+- 交付后的修正（2026-10-02，**维护者裁决：布尔开关换成"提示词范围"，第一次运行只问一次**）。
+  ① **被推翻的**：`forgejoToolkit.aiPreReviewIncludeDiff`（布尔，默认 `false`）是一个陷阱——关着的时候
+  功能看起来跑通了，实际上模型只拿到 PR 标题/分支、变更文件路径与增删行数、已有意见的元数据，
+  **一行代码都没有**，于是它只能就"改动的形状与规模"说话。这个开关把"要不要发代码"压成一个是非题，
+  而真正的答案有量级之分（不读代码 / 只读变更行 / 读整份 diff / 连变更文件的正文一起读）。
+  ② **新的设置与取值**：`forgejoToolkit.aiPreReviewPromptScope`（字符串，`enum` + `enumDescriptions`，
+  两种 nls 都有），默认 `ask`，五个取值 `ask` / `metadata-only` / `changed-lines-only` / `full-diff` /
+  `changed-files`。`ask` 的语义是"你还没选"，**它自己不是一个范围**：读到它时什么都不发。旧键从
+  manifest 里删除（残留取值会被 VS Code 标为未知设置，见两份 `KNOWN_ISSUES`）。
+  ③ **第一次运行问一次（模态框，fail-closed）**：读到 `ask` 时，运行在模型已经确定（因此能点名
+  **提供者的 vendor**，与模型选择列表同一个事实）之后、在**任何 HTTP 请求与任何模型调用之前**弹一个
+  `vscode.window.showInformationMessage(..., { modal: true }, ...)`，写明内容会发给谁、每个答案分别会
+  发出什么（`metadata-only` 明说"模型读不到任何一行变更代码、只能对文件层面的事发表意见"），以及
+  "回答之前不请求、不发送、不写入"。按钮是：**发送变更文件的完整内容（推荐）** /
+  **只发送变更的行** / **只发送元数据** / **取消——什么都不发送**；关闭控件与 Esc 等价于取消。
+  取消即整次运行取消：零 HTTP 请求、零模型调用、零写入（设置保持 `ask`），并给出一句说明。
+  ④ **回答写进设置**：与模型选择完全相同的写法（`ConfigurationTarget.Global` 的普通配置更新），
+  所以它在设置界面里看得见、能改、可审计；写失败只影响"答案记在哪里"，不影响本次运行用什么范围。
+  只有**已选定**的范围会被写入——把 `ask` 写回去等于把答案变回问题。于是"问一次"是**设置**层面的
+  事实：只有在用户把它清回 `ask` 时才会再问。
+  ⑤ **旧值怎么处理**：旧布尔**只读一次**，而且只作为模态框里的**建议**——`true` → 建议 `full-diff`
+  （那正是它当年的语义：连上下文一起发整份 diff），`false` → 建议 `metadata-only`（当年关闭时就是
+  一行代码都不发）。它**不算已选定**：语义变了（`changed-lines-only` 与 `changed-files` 当年都不存在），
+  所以它既不跳过那次提问，也不会被写回设置；非布尔的残留取值连建议都不给。
+  （**这一条已作废**：那条建议连同读旧键的代码已于 2026-10-02 删除——功能从未发布，没有迁移要搬运，
+  见本文开头最后一条修正。）
+  ⑥ **四个已选定范围各自发出什么字节**：`metadata-only` = 简报（文件表 + 已有意见的元数据），
+  没有 `[diff]`、没有 `[changed-file-contents]`；`changed-lines-only` = 简报 + `[diff]`，每个文件只保留
+  `diff --git` / `index` / `---` / `+++` / `@@` 这些头与 `+`/`-` 行，**丢掉以空格开头的上下文行**
+  （hunk 头必须留着：它是提示词里唯一说明某个 `+`/`-` 行是文件第几行的东西，丢了这个范围就没法给出
+  合法的文件行号），并在 `[diff]` 下写明这是节选；`full-diff` = 简报 + 原样的整份 diff，与开关时代
+  完全一致（`PR_REVIEW_DIFF_BUDGET`、`PR_REVIEW_MAX_DIFF_FILES`，超出时从末尾丢整个文件）；
+  `changed-files` = `full-diff` 的全部**加上** `[changed-file-contents]`：按简报顺序、以 PR 的 head sha
+  为 `ref` 逐个读取**该 PR 改动过的**文件正文（`getFileContentResult`，只取 `kind === 'file'`），受
+  `AI_PRE_REVIEW_MAX_CONTENT_FILES`（20）与 `AI_PRE_REVIEW_FILE_CONTENT_BUDGET`（= `PR_REVIEW_DIFF_BUDGET`）
+  约束，超出时**从末尾丢整个文件**并在提示词里写明 `truncatedBy`；唯一例外是"单个文件就超过整个预算"，
+  这时把它截断保留（否则这个范围会静默退化成 `changed-lines-only`）并说明只显示了开头。
+  head 在别的仓库（fork）或服务端没给 head sha 时**一个文件正文都不发**并写明原因——读默认分支会发出
+  与本次评审无关的代码。四种范围都**仍然抓取 diff**（锚点校验靠它的行表），都**不发访问令牌、不发
+  URL / 主机名、不发已有评论的正文**，`changed-files` 也**只读该 PR 变更过的文件**，不读仓库里其他文件。
+  ⑦ **推荐项与措辞**：`changed-files` 是推荐项（排在最前，标签里写着 recommended），因为只看 hunk 内的
+  几行撑不起真正的评审（hunk 之外的错误处理、同文件里的调用方与约定都看不到）；它的文案也如实说明
+  "变更文件的正文会离开本机"，这是所有范围里出网内容最多的一个。`full-diff` 不进按钮：想要旧行为的
+  人在模态框正文里看到"把设置改成 `full-diff`"这条出路。
+  ⑧ **同时修正的一处措辞**：`confirmCandidates` 的文档注释不再写成"没有一键接受全部"——扩展仍然
+  **不预选任何东西、也不贡献任何接受全部入口**，但 VS Code 自己的多选控件会渲染 `Toggle all checkboxes`
+  （见 2026-10-01 的验收记录第 ② 条），准确口径写进注释与两份 `KNOWN_ISSUES`。
+  ⑨ **测什么**（`src/__tests__/aiPreReview.test.ts`、`src/__tests__/aiPreReviewBrief.test.ts`、
+  `src/webview/__tests__/i18nParity.test.ts`）：`ask` + 接受 → 范围被写进设置（键、值、target 三者都断言）
+  且本次运行用它继续；`ask` + 取消与显式取消按钮 → 零 HTTP 请求、零模型调用、零写入、一句明确中止；
+  **模态框弹出那一刻**请求数与模型调用数都是 0（在回调里断言，而不是等运行结束再看）；
+  四个已选定范围各自产出预期的提示词（`changed-lines-only` 含增删行与 hunk 头、不含上下文行；
+  `metadata-only` 无 `[diff]` 且不读 `/contents/`；`full-diff` 含上下文行；`changed-files` 含文件正文、
+  只读了变更文件、`ref` 就是 head sha）；纯函数层面钉住文件正文的三种截断（文件数上限、预算、
+  首个文件过大）与"读不到的文件单独计数"；旧布尔 `true`/`false` 只影响建议、不跳过提问、不被写回；
+  枚举与每条 `enumDescriptions` 在两种 nls 里都存在且都说明了出网内容；确认清单的
+  "不预选、无自建全选入口"继续钉住。
+  ⑩ **文档同步**：`FEATURES.md`（能力条目改成"第一次问一次、之后记住"，并新增一条"自己决定送什么出去"）、
+  两份 `CHANGELOG`（字节一致）、这条改动自己的 changeset、两份 `KNOWN_ISSUES`（旧键残留）、
+  `TODO.md`（下一档质量：相关文件检索与 agentic 读取，各自是独立的大功能，理由写在条目里）。
+- 交付后的修正（2026-10-02，**维护者裁决：确认这一步从 QuickPick 换成专门的 webview 面板**）。
+  ① **被推翻的**：确认清单原先是一个多选 QuickPick，每条的**正文塞在 label 里**，而 VS Code 会截断
+  label，`description` 没设、也没有 `tooltip`——所以用户**读不到自己正要接受的那条评论**。2026-10-01 的
+  验收运行正好撞上这一点（当时记的是"清单本身按设计工作"，那句话对"不预选、无自建全选入口"成立，
+  对"能读正文"不成立）。QuickPick 被**移除**，不是保留成兜底。
+  ② **载体**：`src/aiPreReviewPanel.ts` 的 `AiPreReviewPanel`，一个编辑器标签页里的 `WebviewPanel`
+  （`vscode.ViewColumn.Beside`，标题 l10n 为 `AI pre-review: review the proposed comments` /
+  「AI 预评审：审阅候选评论」），文档是第四个 webview surface（`webview/aiPreReview.html` +
+  `src/entries/aiPreReview.ts` + `src/AiPreReviewPanel.vue`，见 `webview/vite.config.mts` 的 `SURFACES`
+  与 `webview/src/__tests__/entryGraph.test.ts` 的同名断言）。payload 随文档注入
+  `__FORGEJO_TOOLKIT_CONFIG__.aiPreReview`（与评论编辑器的 context 同一套），所以首屏不需要往返；
+  `aiPreReviewPanelPayload` 保留给"换一份 payload"的场景。
+  ③ **头部（QuickPick 给不了的透明性）**：PR 身份（`owner/repo#index` + 标题）、回答的**模型及其 vendor**
+  （隐私那句话继续留在屏幕上）、**本次运行实际使用的提示词范围**、通过锚点校验的条数，以及**按原因分组**
+  的丢弃数（每条 `label ×count`，label 取自既有 `describeDropReason`，所以面板与运行自己的提示不会
+  对同一原因用两种说法）。
+  ④ **每张卡片**：锚点（`path:line`，多行时 `path:line-end`，加 `(head|base)`）作为复选框自己的 label、
+  **完整正文**（`pre-wrap` 换行、可选中复制）、一个复选框，以及一个「在 diff 里打开这一行」链接——
+  它复用既有的 diff 打开机制（`src/webview/diffUri.ts` 的 `buildForgejoPrDiffUri`，`viewProvider` 的
+  `_buildDiffUri` 现在也走它），按 base/head 两侧的 URI 调 `vscode.diff`，再把选区落在**锚点所属那一侧**
+  的文档上（head 侧的行号在 base 文档里指的是另一行）。
+  ⑤ **默认状态**：一条都不勾，而且扩展**不提供任何"全部接受"控件**——这不再是"平台控件我们移除不了"
+  那种说法：`Toggle all checkboxes` 属于 VS Code 自己的多选 QuickPick，本面板不使用它，所以口径回到
+  最朴素的那句：**在用户自己勾之前，什么都不会被创建**。创建按钮在没有勾选时禁用并显示
+  `Create 0 draft comment(s)`。
+  ⑥ **动作与保证**：~~勾中的卡片以**索引**回传（`aiPreReviewPanelCreate` + `indexes`），正文/路径/行号
+  一律取自宿主自己的 payload 副本，所以被篡改的 webview 消息只能"选中已经给过它的卡片"，无法凭空造出
+  一条评论；~~（**2026-10-02 起这句话只对锚点成立**：回复改带正文，见本文开头那条"正文可在创建前编辑"
+  的修正——webview 从此可以提议**正文文本**，由宿主逐条重校验；而路径/行号/侧/正文以外的字段仍然
+  一律取自宿主自己的 payload 副本，消息里出现的锚点字段一律忽略）写仍然走既有路径（只建 PENDING 评审、
+  绝不 submit），写完后宿主把结果回帖给面板
+  （`aiPreReviewPanelResult`：创建数 + 失败原因），面板用状态行与「打开该 Pull Request」按钮收尾
+  （`revealPullRequestDetail`：先 `_revealView()` 再打开详情，因为没有 reveal 的消息会排进一个还没解析的
+  视图里）。取消按钮、Esc、关闭标签页三者等价：`{kind:'cancel'}` → 零写入、一句既有取消提示；写出
+  空选择也按取消处理（防御性，因为按钮本来就禁用）。已给的答案优先于随后的关闭事件。
+  ⑦ **不变的**：只问用户选定的那一个模型、严格 JSON 契约与锚点校验、从响应候选通道取答案并以
+  `text` 兜底、两道闸门、失败时零创建、只在 debug 下存在的诊断、同模型重试上限 2 次。
+  ⑧ **测什么**：`src/__tests__/aiPreReviewPanel.test.ts`（面板的宿主半边：一次只开一个面板、答案只认
+  已提供的索引~~并按 payload 顺序去重~~（**2026-10-02 起重复索引不再是"去重"而是整批拒绝**）并按 payload
+  顺序排列、取消/关标签页/空选择都等于"什么都不写"、已给的答案不被关闭事件
+  改写、结果回帖、按锚点所在侧打开 diff 并落在正确行、未提供的索引或缺少 sha 或路径不安全时什么都不开、
+  打开草稿动作在有/无导航宿主时的行为、~~`selectedIndexes` 的纯函数边界~~（**2026-10-02 起这条纯函数是
+  `selectPanelEntries`：见本文开头那条修正**））、
+  `webview/src/__tests__/AiPreReviewPanel.test.ts`（组件：头部四类事实与分组丢弃、
+  完整正文与锚点、截断提示、默认零勾选且没有自建全选控件、Create 的禁用与回传索引~~、取消、~~（**2026-10-02
+  起还测预填/编辑/恢复原文/上限提示与"改过的正文随 Create 回传"**）、取消、
+  打开 diff、结果行与"打开该 Pull Request"、替换 payload 会清空答案状态）、以及
+  `src/__tests__/aiPreReview.test.ts` 里"运行交给面板什么"的三条（payload 的字段集合、分组丢弃、
+  面板取消时零创建）。`src/__tests__/aiPreReview.test.ts` 的确认步骤现在 mock `../aiPreReviewPanel`，
+  因为该套件测的是**运行**对答案做了什么；面板自身的行为在上面两个套件里。
+  ⑨ **文档同步**：`FEATURES.md` 新增一条「确认面板」能力条目并改掉原来那句"逐条勾选"的表述；
+  两份 `KNOWN_ISSUES` 里"读不到正文 / 平台自带全选控件"那条按本次改动重写（QuickPick 已经不在，
+  所以那句话不再是"扩展移除不了平台控件"，而是"面板不使用那个控件"）；本记录与 `docs/design/README.md`
+  的状态列；新的 changeset；两份 `CHANGELOG`（字节一致）。
+  ⑩ **一条留给文档的约束**：在本次改动之前，"确认这一步让用户逐条读过正文"这句话**不成立**，
+  所以此前任何文档都不许这么写；面板落地之后它成立。这条约束本身也记在这里，免得将来有人拿
+  "清单是给人逐条读的"去追认旧实现。
+- 交付后的修正（2026-10-02，**维护者裁决：候选评论的正文用用户当前的语言书写**——zh-cn 编辑器上的一次
+  验收运行里，模型把每条 `body` 都写成了英文：指令块整块是英文，请求里也没有任何东西携带用户的界面
+  语言）。
+  ① **语言在提示词里明说，不交给模型去猜**：固定指令块新增一条规则，用目标语言**自己的写法**点名
+  语言——`en` → `English`，`zh` → `简体中文`（对模型来说 `简体中文` 比 `Chinese` 明确得多）。同一句
+  同时画出边界：**JSON 键与所有不是散文的取值（schema 的字段名、`"head"`/`"base"`、`path`、数字）
+  保持原样**，只有 `body` 是散文、用该语言写。不明说就只能靠模型从上下文推断，而这份请求里没有别的
+  线索——简报是文件路径、增删行数与代码。规则在提示词里**只出现一次**：它随指令块在**每次运行开始时
+  构建一次**，同一份字节同时用于 token 计数、两次尝试与诊断 dump（这三处原本就是同一份字节，这次改的
+  是它的来源不再是常量）。
+  ② **用哪种语言，按扩展自己的口径解析**（`src/utils/resolveLocale.ts`，与各 webview 面同一处）：
+  `forgejoToolkit.locale` 明确为 `en`/`zh` 时以它为准，否则跟随 VS Code 的显示语言
+  （`vscode.env.language`，`vscode.l10n` 用的也是它）。**两者只在"显式设置 vs 编辑器语言"这一种情形
+  下分歧**，这里选设置：展出这些正文的确认面板、以及设置页/引导/评论编辑器都用该设置渲染，一个把
+  `forgejoToolkit.locale` 设成中文、VS Code 却是英文的用户读到的候选评论就是中文，正文应当与他正在
+  读的语言一致；设置缺失或为空时两者没有分歧。**意外取值兜底为英文**（`resolveLocale` 的既有规则：
+  非 `zh*` 一律读作 `en`；手改出的非法取值视为"未声明"，回落到显示语言），配置读取抛错同样按"未声明"
+  处理——语言是措辞的属性，绝不让它把一次运行变成失败。
+  ③ **改动落点**：`aiPreReviewBrief.ts` 新增 `buildAiPreReviewSystemPrompt(language)` 与
+  `aiPreReviewBodyLanguageName`，`AI_PRE_REVIEW_SYSTEM_PROMPT` 保留为 `('en')` 的结果——探测命令的
+  两种"指令"形态与钉住措辞的测试仍读它（探测量的是传输形态，措辞无关），而真实运行不再读这个常量；
+  `aiPreReviewPromptText` / `buildAiPreReviewPromptMessages` 改为接收指令文本本身（传递同一份字节，
+  而不是按语言重新推导）；`aiPreReviewSettings.ts` 新增 `aiPreReviewCommentBodyLanguage()`
+  （`getConfiguration` 抛错 → 未声明 → 显示语言）；`aiPreReview.ts` 在范围问题回答之后、模型校验之前
+  把语言与指令块**定一次**，校验、预算、两次尝试与 dump 全部用这一份。指令块因此从 781 字符长到 963
+  （英文）/ 960（中文），`aiPreReviewBrief.test.ts` 的上限随之从 840 提到 1000 并记录实测值。
+  ④ **测什么**：指令块按语言各构建一次、只点名一种语言、规则只出现一次、非散文那半句都在
+  （`aiPreReviewBrief.test.ts`）；`forgejoToolkit.locale` 优先、未设置时跟随 `vscode.env.language`、
+  意外取值与抛错都回落到显示语言或英文（同文件）；运行层面在 zh 编辑器（显式设置压过英文 VS Code）与
+  en 编辑器上分别断言**真正发出的字节**点名中文/英文，并断言重试的两次尝试提示词**逐字节相同**、各自
+  只含一条语言规则（`aiPreReview.test.ts`）；debug dump 里存的确实是这一份字节——zh 运行下中文那句在
+  文件里、英文常量整串不在（同文件的 dump 一组）。
+  ⑤ **文档同步**：`FEATURES.md` 的能力条目补上正文语言；这条改动自己的 changeset；两份 `CHANGELOG`
+  （字节一致）。
+- 交付后的修正（2026-10-02，**旧布尔开关的遗留桥被删除**）：`aiPreReviewIncludeDiff` 的 manifest 键在
+  上面"布尔换成提示词范围"那条里就已删除，但代码仍会**读**那个键、把它当作首次运行模态框里的**建议**，
+  读到时还写一行 info 日志；两份 `KNOWN_ISSUES`、`FEATURES.md`、changeset 与两份 `CHANGELOG` 也仍在
+  描述这条建议。
+  ① **为什么删**：**这个功能本身从未发布过**——AI 预评审的整个 changeset（`.changeset/ai-pre-review.md`
+  及其后续各条）都还在 `## [Unreleased]` 里，`## [0.0.1] - 2026-09-26` 一节一个字都没提它，所以那个键
+  从未随任何版本发出，也就没有"已发布的旧键"需要搬运：这条建议要服务的用户不存在。它实际做的只是让每
+  次读范围设置都多读一个键、让模态框多出一段没人会看到的句子。等到它可能有用的时候也已经晚了——
+  `changed-lines-only` 与 `changed-files` 在写它的时候都不存在，"旧值对应哪个新范围"本来就是猜。
+  ② **删掉了什么**：`aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_LEGACY_INCLUDE_DIFF_SETTING`、内部键
+  常量、`legacyAiPreReviewIncludeDiffValue()` 与 `suggestedScopeFromLegacyIncludeDiff()`；
+  `aiPreReview.ts` 里读旧值那段、`legacyIncludeDiffSuggestion()`、模态框正文尾部的建议句、那行 info
+  日志（`askAiPreReviewPromptScope` 不再收 `suggested` 参数）；两份 l10n bundle 里那两条建议文案；
+  钉住这套行为的 5 个测试（运行侧 3 个、设置侧 2 个）。
+  ③ **留下的不变**：`forgejoToolkit.aiPreReviewPromptScope` 的语义、五个取值、`ask` 的 fail-closed
+  行为、模态框正文（现在只有原来那一段）、写入方式与"清回 `ask` 才会再问"全部原样。**残留的旧键只会
+  被 VS Code 标为未知设置**——键本来就不在 manifest 里，扩展现在也不再读它——所以两份 `KNOWN_ISSUES`
+  里那条同名条目是**删除**而不是改写：其中"扩展读取残留取值给出建议"这半句不再成立，剩下"未知设置"
+  那半句是 VS Code 自己的行为，不需要本扩展再声明一条平台限制。
+- 交付后的修正（2026-10-02，**维护者裁决：确认面板里的正文可以在落草稿之前编辑**——此前想改一句措辞
+  只有一条路：**先创建**，再回到 diff 里改；而那等于先把用户并不同意的文字写进服务端）。
+  ① **可编辑的只有正文**：每张卡片原先的只读 `<pre>` 换成一个多行输入框（`textarea`，预填模型原文，
+  主题 token 着色、键盘可达、无自建品牌样式）。**不可编辑**：锚点（`path` / `line` / `extraLines` /
+  `side`）与复选框的含义——锚点仍由 `aiPreReviewBrief.ts` 的校验器对着 diff 的行表逐条验过，而且
+  **从不来自 webview**。
+  ② **每张卡片的「撤销编辑」与编辑标记**：正文一旦与模型原文逐字节不同，卡片上就出现 `Edited` 标记
+  与一个「恢复模型原文」动作（点一下即恢复，不用重打），所以"哪些是模型的字、哪些是我的字"始终分得清。
+  ③ **长度上限就是既有常量**：输入框的 `maxlength` 与宿主的重校验都用 `PR_REVIEW_MAX_COMMENT_LENGTH`
+  ——该常量从 `mcp/tools.ts` 移到 `@cpf23333-forgejo-toolkit/shared/limits`、由 `mcp/tools.ts` 原样再导出，
+  因为 webview bundle 不能进宿主的模块图，而在面板里硬抄一个数字迟早在常量变化时漂移（界面以为合法、
+  宿主却拒收）。到达上限时卡片**明说**已是上限（扩展不替用户截断），超过上限则卡片给出字符数与上限并
+  **禁用创建**。
+  ④ **顺手修掉的一处不一致**：`aiPreReviewBrief.ts` 原先把截断公告追加在 `slice(0, 1024)` **之后**，于是
+  "被截断的正文"长达 1024 + 公告（实测 1064），比常量本身还长——面板一旦按同一常量封顶，这类卡片就会
+  **不改一下就没法创建**。现在截断把公告算进上限（保留的前缀相应缩短），公告里的丢弃字符数仍然精确
+  （`kept.length + announced === body.length`），`AI_PRE_REVIEW_MAX_BODY_LENGTH` 的语义因此是"最终正文
+  （含公告）不超过该常量"。
+  ⑤ **回传的消息形状（新契约）**：`aiPreReviewPanelCreate` 不再是 `indexes: number[]`，而是
+  `entries: { index: number; body: string }[]`（共享类型 `AiPreReviewPanelSelectedBody`）。
+  **安全属性由此明确改变**：webview 现在可以提议**正文文本**，所以宿主必须校验它；而锚点、路径、侧、
+  sha **仍然只来自宿主自己的 payload**——消息里出现的这些字段一律**忽略**（条目只读 `index` 与 `body`）。
+  ⑥ **宿主的逐条重校验（`src/aiPreReviewPanel.ts` 的 `selectPanelEntries`）**：`entries` 必须是数组，
+  每一项的 `index` 必须是本面板**确实提供过**的卡片索引（同一张卡被点名两次也算失败，不做"取其一"），
+  `body` 必须是**字符串**、**去空白后非空**、**不超过上限**（校验只看 trim，写入用原文——两端的空白
+  是用户自己的字，不替他改）。**任何一条不过就整批判定失败**：什么都不写，面板保持提问状态，并把原因
+  回帖（新的宿主→webview 消息 `aiPreReviewPanelRejected`，`reason` 已是本地化整句）——原因**点名那张
+  卡片**（`path:line[-end] (side)`，空正文与超限两种）。整批拒绝而不是静默部分创建，理由是"面板承诺了
+  几条"正是用户盯着的东西（按钮写着 `Create N draft comment(s)`），少写一条而不说，就是这个改动要
+  消灭的那种意外。
+  ⑦ **正文被清空的那张卡片：拒绝整批并点名**（在"跳过它并说明"与"拒绝并点名"之间选了后者，理由同 ⑥：
+  跳过会让用户勾中的卡片无声消失、创建数量少于按钮承诺的数量，而且被跳过的正是他刚刚动过的那张）。
+  宿主强制这条规则，不建立在 UI 自觉上：面板自己的代码根本发不出非字符串正文或未提供的索引（那两类按
+  `logger.error` 记），而空正文/超限按 debug 记，因为那是用户自己的编辑。
+  ⑧ **不变的**：只问用户选定的那一个模型、严格 JSON 契约与锚点校验、从响应候选通道取答案并以 `text`
+  兜底、提示词范围模态框及其 fail-closed、用户回答之前不发送任何内容、只建 PENDING 评审、**绝不
+  submit**、只在 debug 下存在的诊断。
+  ⑨ **测什么**：宿主侧 `src/__tests__/aiPreReviewPanel.test.ts`（未提供的索引、非字符串正文、空/纯空白
+  正文、超长正文、重复索引各自一条；整批拒绝；恰好等于上限的边界；正文两端空白原样保留；"什么都没点名"
+  与"被拒绝"的区分；带伪造锚点的条目只取 index/body；被拒后修好可以再次创建；`reportRejected` 的回帖）；
+  `src/__tests__/aiPreReview.test.ts`（落下的草稿正文就是**用户编辑过的那一句**、锚点仍来自宿主自己的
+  候选、答案里伪造的锚点字段无效）；`webview/src/__tests__/AiPreReviewPanel.test.ts`（预填、编辑标记、
+  恢复原文、`maxlength` 与到达/超过上限的两种提示、空正文禁用创建并说明原因、Create 计数与回传的正文、
+  拒绝行与再次创建、替换 payload 会清掉编辑）；`aiPreReviewBrief.test.ts` 的截断两条（含公告不超过上限、
+  恰好等于上限则不动）。
+  ⑩ **文档同步**：本条（并就地改正上面 2026-10-02「确认面板」那条里"只回传索引"的说法）、`FEATURES.md`
+  的能力条目补上"可以在创建草稿之前编辑正文"、这条改动自己的 changeset、两份 `CHANGELOG`（字节一致）。
+- 交付后的修正（2026-10-02，**维护者裁决：入口从"某一个文件"的右键菜单移到 Pull Request 详情页**，
+  理由原话是"入口和实际作用域不匹配"）：一次运行取的是**每一个变更文件与整份 diff**（§6.1 的作用域决策），
+  而入口挂在 `editor/context` 上、由 `forgejoToolkit.inPullRequestDiff` 把关，于是它出现在**某一个文件**的
+  菜单里。
+  ① **入口**：扩展自己的面板——`webview/src/views/PullRequestDetail.vue` 的 `.header-actions`——新增一个
+  `vscode-button`（`vscode-elements` + 主题 token，无自建品牌样式），标签「AI pre-review (whole PR)」/
+  「AI 预评审（整个 PR）」，tooltip 说明它评审**整个 Pull Request**，并在视图知道时给出变更文件数（文件
+  列表已加载就用它的长度——和宿主读的是同一个端点；未加载时用该 PR 自己的 `changed_files`；两者都没有就
+  **不报数字**，绝不写"0 个变更文件"）。它**自己什么都不发**：点击才发，渲染、悬停、导航都不发。
+  ② **消息（新契约）**：webview→host 新增 `aiPreReviewPullRequest`
+  （`{ instanceId, owner, repo, index }`）。只带坐标是刻意的：模型、范围、提示词、确认与草稿全在宿主侧，
+  所以被改过的 webview 只能选择**评审哪个 PR**，不能影响这次运行发什么、写什么；`instanceId` 必须同行，
+  因为 dashboard 是一个 webview 服务所有实例，只有宿主能把实例 id 解析成 URL 与令牌。
+  ③ **宿主校验 + 同一条实现**：`src/webview/viewProvider.ts` 的 dispatch 用
+  `parseWebviewPullRequestTarget`（`src/webview/repoIdentity.ts`）校验四个字段——`owner` / `repo` 走既有的
+  `isSafeRepoNameSegment`（它们会被插进 API 路径），`index` 必须是正整数（与 `parseForgejoPrUri` 同一条
+  规则：`Number(...)` 会接受 `'7'` 与 `true`，而"PR 0"不指名任何 PR），`instanceId` 只查非空字符串，未知 id
+  交给运行自己的"实例未找到"拒绝，不在这里另发明一条规则。校验通过后调用由 `setAiPreReviewRunner` 注册
+  进来的**同一个**函数：`registerAiPreReviewCommand` 把 `startAiPreReview(...)` 交给 provider，而
+  `runAiPreReview` 的坐标参数从 `ForgejoPrUriParams` 收窄成 `PullRequestTarget`——两条入口共用一份实现，
+  不存在第二套流程。（provider 用回调而不是 import，是因为 `src/aiPreReview.ts` 已经 import 了这个模块，
+  静态依赖会成环。）
+  ④ **跟随开关**：`forgejoToolkit.aiPreReview` 由宿主在 `initialState` 里以布尔量给出（与 `debug` 同形），
+  并在 `onDidChangeConfiguration` 命中该键时以新的 host→webview 消息 `setAiPreReview` 推一次，所以在设置页
+  里改开关后按钮也立刻隐藏/出现。**这只是"有没有这个入口"，不是门禁**：运行第一步仍然读该设置并拒绝
+  （不变），所以 webview 的布尔量过期最多是多显示或少显示一个按钮——`getInitialState` 里缺失的值一律当作
+  **关闭**。测试里被拒的坐标一条都不许触达 runner（那是这条路径上唯一能碰到模型或服务器的东西）。
+  ⑤ **`editor/context` 贡献删除，`editor/title` 保留**：`package.json` 的 `editor/context` 不再有
+  `forgejoToolkit.aiPreReviewPullRequest`；`editor/title` 那条原样保留（它是从已打开的 diff 出发的快路径，
+  维护者没有要求去掉）。manifest 测试**双向**钉住：context 里不存在、title 里仍恰好一条且 `when` 不变，
+  所以这条贡献不会悄悄漂回来。
+  ⑥ **作用域写在每一句话里**：进度两行改为「Reading the whole pull request…」与
+  「Asking the chat model to review the whole pull request ({0} changed file(s))…」（文件数要等文件列表到达
+  才知道，所以只出现在第二行）；取消（知道/不知道文件数两种措辞）、"没有可用评论"、模型调用失败、预算
+  失败、契约失败、指令装不下、无法度量指令这批消息全部点名"整个 Pull Request"，其中已经读到文件表的那些
+  **带上本次覆盖的变更文件数**。这些数字取自这次运行自己的 brief（`gathered.brief.files.length`）与它取到
+  的文件表，不是第二次读 PR——第二次读可能看到另一个 head。
+  ⑦ **确认面板头部**：payload 增加 `changedFileCount`（本次覆盖）与 `changedFilesTotal`（本次取到），头部
+  一行写明"本次运行覆盖整个 Pull Request：N 个变更文件"；两者不等时（brief 的文件表被行数上限、路径预算或
+  客户端分页截断）改写成"覆盖了 M 个中的 N 个"，**不谎称整份都读过**。该行的渲染由面板自身的改动落地。
+  ⑧ **不变的**：只问用户选定的那一个模型、严格 JSON 契约与锚点校验、从响应候选通道取答案并以 `text` 兜底、
+  提示词范围模态框及其 fail-closed、用户回答之前不发送任何内容、只建 PENDING 评审、**绝不 submit**、
+  只在 debug 下存在的诊断。
+  ⑨ **测什么**：`src/__tests__/aiPreReview.test.ts`（manifest 双向、进度两行、取消/无可用评论/模型失败的
+  措辞、面板 payload 的两个计数）；`src/webview/__tests__/viewProviderDispatch.test.ts`（合法坐标走同一个
+  runner、malformed/缺字段一律拒绝且 runner 一次未被调用、未注册时不抛、`initialState` 的布尔量、配置变更
+  推送）；`webview/src/views/__tests__/PullRequestDetail.aiPreReview.test.ts`（标签、三种 tooltip——文件数
+  已知 / 用 `changed_files` 兜底 / 都不知道、点击发出的坐标、开关关闭时不渲染、只渲染不发消息）。
+  ⑩ **文档同步**：本条（并就地改正 §4.1 与 §6.1 里"应该挂 `editor/context`"的说法）、`FEATURES.md` 的能力
+  条目（入口与"作用域始终是整个 PR"）、这条改动自己的 changeset、两份 `CHANGELOG`（字节一致）。
 - 关联：`TODO.md` 的「AI / MCP 规划」一节（本功能与「PR 描述生成」是同一批 AI 功能）；
   写侧约束的先例是 [`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md)
   （该文 §3.6 把 Codeberg 条款翻译成了写工具的机制）；宿主侧 AI 调用的方向由
@@ -220,15 +780,21 @@ webview 编辑器（`pullReviewCommentPanel`）→ 写进服务端的**待提交
 1. **draft-only：模型永远不能提交。** 生成结果一律落成**待提交评审的草稿评论**；
    本功能不调用 `submitPullReview`，也不调用 `createPullReviewWithComment`（那是"不建草稿、
    直接提交"的单条评论路径）。提交只走既有的「提交评审」按钮与结论选择（§4.2、§5）。
-2. **逐条人工确认：没有"一键接受全部"。** 模型给的每条意见都要在草稿进入待提交评审之前
+2. **逐条人工确认：~~没有"一键接受全部"~~ 扩展不预选、也不自己提供"接受全部"入口。**
+   **2026-10-01 验收修正：这句话此前被读成"屏幕上不存在一键全选"，那是错的**——VS Code 自己的多选
+   quick pick 渲染一个 accessible name 为「切换所有复选框」的控件，扩展既不能移除也不能改名，准确口径
+   见本文开头那条验收记录。模型给的每条意见都要在草稿进入待提交评审之前
    由人单独看过并确认；未确认的意见一个字都不写进实例。默认建议"全部不勾选"，
    人只勾他认可的那几条（§5）。
 3. **默认关闭 + 显式开启。** 新设置 `forgejoToolkit.aiPreReview`（布尔，**默认 `false`**）：
    关闭时命令直接拒绝，且**不向模型供应商发出任何内容**（§7）。
 4. **送给模型的是"预评审简报"，不是整个 diff。** 复用 `get_pr_review_brief` 的取向与预算
    （只给形状、只给被截断的正文），默认只发变更文件清单 + 每个文件增删行数 + 已有评审意见的
-   元数据；~~**是否把 diff 正文本身发给供应商，是留给维护者的决定**~~ **维护者已裁决：默认不送，
-   要送得打开第二个窗口级开关 `forgejoToolkit.aiPreReviewIncludeDiff`**（§7.1、§13.1）。
+   元数据；~~**是否把 diff 正文本身发给供应商，是留给维护者的决定**~~ ~~**维护者已裁决：默认不送，
+   要送得打开第二个窗口级开关 `forgejoToolkit.aiPreReviewIncludeDiff`**（§7.1、§13.1）~~
+   **2026-10-02 起，送什么由 `forgejoToolkit.aiPreReviewPromptScope` 决定**：五个取值、默认 `ask`
+   （第一次运行只问一次），那个旧布尔已从 manifest 移除、扩展也不再读它——见本文开头 2026-10-02
+   那条修正（旧布尔开关的遗留桥被删除）。
 5. **一次只跑一个运行，且可取消。** 同一拉取请求同时只有一个运行；取消或失败时，
    已确认落下的草稿评论**保留**（它们已经是既有人工路径的产物），未确认的意见全部丢弃，
    并明确告知用户发生了什么（§6）。
@@ -294,8 +860,13 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
   "当前文档的 scheme 是不是 `forgejo-pr`"。
 - `packages/forgejo-toolkit/package.json` 的 `contributes.menus` 里，
   `editor/context` 与 `editor/lineNumber/context` 都用这个键把关
-  `forgejoToolkit.addPullReviewComment`。**新的"AI 预评审"动作应当挂同一个键**，
-  这样它只在这条 diff 视图里出现，不需要新的上下文键。
+  `forgejoToolkit.addPullReviewComment`。~~**新的"AI 预评审"动作应当挂同一个键**，
+  这样它只在这条 diff 视图里出现，不需要新的上下文键。~~
+  （**2026-10-02 修正**：这条只对 `editor/title` 成立——见本文开头「入口从某一个文件的右键菜单移到
+  Pull Request 详情页」那条。拿行级意见去改一整份 diff 的动作不该挂在**某一个文件**的菜单里，
+  所以 `editor/context` 那条贡献已被删除，只剩 `editor/title`（`when` 仍是
+  `forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview`）；`editor/lineNumber/context`
+  与 `addPullReviewComment` 不受影响。）
 
 ### 4.2 待提交评审存在哪里（**本设计最关键的事实**）
 
@@ -379,7 +950,10 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 4. 清单里被放弃的意见**完全不产生任何请求**；运行结束后告知"生成 N 条、采纳 M 条、丢弃 K 条
    （K 里再分：锚点无效 / 用户未勾选）"。
 5. **不做"一键全部接受"**，也不做"把模型的原文当作评审正文"。理由同上：本功能存在的意义是
-   让人**读**一遍，而不是让人**点**一下。
+   让人**读**一遍，而不是让人**点**一下。**2026-10-01 验收修正（上面这句原文保留，只在此注明它不能
+   怎么读）：扩展自己确实不做这个入口，但这不等于"界面上没有一键全选"**——VS Code 的多选 quick pick
+   自带一个 accessible name 为「切换所有复选框」的控件，扩展移除不了；准确口径与实测见本文开头那条
+   验收记录。
 
 ---
 
@@ -389,11 +963,17 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 
 - 一个宿主命令，建议命名 `forgejoToolkit.aiPreReviewPullRequest`（与既有命令的命名风格一致：
   `forgejoToolkit.addPullReviewComment` / `forgejoToolkit.createPrFromCurrentBranch`），
-  挂在 `editor/context` 与 `editor/title`，`when` 用既有的 `forgejoToolkit.inPullRequestDiff`。
+  挂在 `editor/title`，`when` 用既有的 `forgejoToolkit.inPullRequestDiff`。
+  （**2026-10-02 修正**：`editor/context` 那条后来被删除，见本文开头「入口从某一个文件的右键菜单移到
+  Pull Request 详情页」那条；这是**第二个**入口——PR 详情页上的按钮把该 PR 的坐标
+  `{ instanceId, owner, repo, index }` 发给宿主，宿主校验后调用**同一个** `runAiPreReview`。）
 - 命令从**活动 diff 文档的 URI** 解析出目标：`parseForgejoPrUri` 给出
   `instanceId` / `owner` / `repo` / `index` / `path` / `isBase` / `ref`。
   与 `addPullReviewComment` 的命令处理一样，**按 URI 找编辑器，回退到活动编辑器**，
   而不是盲信 `activeTextEditor`（diff 编辑器是两个）。
+  （**2026-10-02 补**：解析出来的这组坐标就是运行真正需要的东西，所以 `runAiPreReview` 的参数类型
+  收窄成 `PullRequestTarget`——`instanceId` / `owner` / `repo` / `index` 四个字段——详情页的按钮
+  走的是同一个函数，只是坐标来自 webview 消息而不是 URI。）
 - **作用域决策：一次运行覆盖整个拉取请求，而不是单个文件。** 行级评审的价值有一半在
   "这个改动与那个改动是一件事"，只看一个文件会漏掉它；而且 §7 的简报本来就是按 PR 组织的。
   代价是输入更大，由 §7.2 的预算兜住。**留给维护者的变体**见 §11.2（是否要一个"只评这个文件"
@@ -467,7 +1047,9 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
   {1} time(s) — its bound is {2} attempt(s) per run, and no other model was called"，以及本记录。
 - **每次失败都留名，并说明实际花了多少次调用。** 模型身份（`vendor` / `family` / `id`）、失败种类、
   以及"这是这个模型的第几次询问（`attempt 2 of 2 for the chosen model`）"各一行 `logger.error`；
-  回答本身只在 debug 级留一条**有界形状描述**（见 §7.2）。两次都失败时，用户消息先报**实际发出的
+  ~~回答本身只在 debug 级留一条**有界形状描述**（见 §7.2）。~~ **2026-10-01 修正：失败行里也带一条
+  回答的**有界摘录**（最多 200 字符、转义成一行），成功时仍一个字都不写；理由与完整口径见本文开头那条
+  修正与 §7.2。** 两次都失败时，用户消息先报**实际发出的
   调用数**，再把每次失败在哪儿写出，而不是一句"无法解析"——用户在为这些调用付费。
 - **成功的重试照常继续，并说清是第几次。** 第 2 次询问给出合规 JSON 时，这次运行走的就是 §5 的确认
   清单与 §6.4 的落草稿路径，日志里补一行
@@ -569,15 +1151,22 @@ model (2 call(s) spent this run)`——**这一行就是"重试救回了一个�
   JSON、闭合不了的围栏）、**形状不对**（顶层不是对象 / `comments` 缺失或不是数组——消息点名是
   哪一个字段；用 `JSON.parse` 自己的报错信息不行，V8 会在消息里引用被解析文本的开头，那等于把
   回答片段带进用户可见的日志）。日志里写清被问模型的 `vendor` / `family` / `id`（`name` 一并给，
-  两个提供者可能各有一个叫"GPT-4o"的模型）与**这是这个模型的第几次询问**，回答本身只留一条
+  两个提供者可能各有一个叫"GPT-4o"的模型）与**这是这个模型的第几次询问**，~~回答本身只留一条
   **debug 级**、**有界**的形状描述：
   长度、是否以 `{` 开头、首行前 60 字符（`describeAiPreReviewAnswerShape()`）。debug 级沿用既有的
   `forgejoToolkit.debug` 开关（`src/logger.ts` 的 `Logger.debug`），不新开日志开关；**不写回答
-  全文、不写简报、不写 diff**——回答是可能引用仓库代码的模型输出，而输出通道是用户可见的。
+  全文、不写简报、不写 diff**——回答是可能引用仓库代码的模型输出，而输出通道是用户可见的。~~
+  ——这条"回答只留在 debug 里"已被 2026-10-01 的修正取代（见本文开头那条修正）：**契约失败的行现在
+  始终带一条回答的有界摘录**（最多 200 字符、`JSON.stringify` 转义成一行；成功时一个字都不写），
+  因为只说"不是 JSON"无法判断是模型退化、被截断还是提示词不对。debug 级那条有界形状描述**照旧保留**，
+  **简报、diff 与提示词仍然一个字都不进输出通道**，超过摘录上限的部分仍然只在 debug 的 dump 里；
+  **debug 打开时另有回答的碎片清单与小结**（2026-10-01 第八次修正，见本文开头那条——一行一个碎片，
+  一行写碎片总数、字符总数与拼接结果的有界开头，所以"成功时一个字都不写"只在 debug 关闭时逐字成立）。
   ③ **花掉的调用数要报出来**：两次都失败的消息先写"the same question {1} time(s) — its bound is
   {2} attempt(s) per run, and no other model was called"，再写每次失败在哪儿；成功路径的日志写
   "在第几次询问上给了合规 JSON、这次运行一共花了几次调用"。用户为这些调用付费，所以数字进用户可见
-  的消息，而**回答内容不进去**（有界形状描述只在 debug 级与 dump 里）。
+  的消息；~~而**回答内容不进去**（有界形状描述只在 debug 级与 dump 里）。~~ **2026-10-01 修正后：
+  每次失败的尝试还带一条有界摘录（≤200 字符、转义成一行），完整回答仍然只在 debug 的 dump 里。**
 - **装不下时必须报出数字，不许只说"放不下"。** 装不下**固定指令提示词**时，提示点名选定的模型并
   写清"需要多少 / 可用多少"，再说清**没有替换成别的模型**，并指向换模型的命令；请求装不下时同样
   带上"需要多少 / 可用多少"与模型身份，并点名可以关掉
@@ -598,12 +1187,17 @@ model (2 call(s) spent this run)`——**这一行就是"重试救回了一个�
   "需要多少 / 可用多少"报的就是模型真正收到的那个数。规则本身、提示词的两半、回程的逐条校验都不变，
   按文件粒度丢弃时仍然只重写请求那一半。
 - **调试诊断（2026-10-01 第三次排查补，实现见 §9.6）：dump 与探测都只在 `forgejoToolkit.debug` 打开时
-  存在，且都不碰输出通道。** 这是上文"**不写回答全文**"的**唯一**例外，例外本身被三个方向限定住：
+  存在。** 这是上文"~~**不写回答全文**~~"的**唯一**例外，例外本身被三个方向限定住：
   ① 去向是文件（`context.logUri` 下的 `ai-pre-review-diagnostics.log`），不是用户可见的输出通道；
   ② 默认关闭——debug 关闭时 sink 连文件路径都没有，连"写错地方"都不可能；③ 探测命令另外还要求
   `forgejoToolkit.aiPreReview` 打开，因为那个开关承诺的是"关闭时不向模型供应商发出任何内容"，诊断
-  命令也不能例外。默认路径的承诺因此逐字保留：输出通道里永远没有回答正文，只有长度、是否以 `{` 开头
-  与首行前 60 字符。
+  命令也不能例外。~~默认路径的承诺因此逐字保留：输出通道里永远没有回答正文，只有长度、是否以 `{` 开头
+  与首行前 60 字符。~~ **2026-10-01 修正：这条"输出通道里永远没有回答正文"不再逐字成立**——契约失败时
+  失败行带一条有界摘录（≤200 字符、转义成一行；成功时一个字都不写），见本文开头那条修正；
+  **2026-10-01 第八次修正：debug 打开时输出通道还多一行一个碎片与一行小结**（同样是回答正文，同样
+  只在 debug 下；debug 关闭时仍然一行都没有，见本文开头那条）；除这些之外，输出通道里的回答信息仍然
+  只有长度、是否以 `{` 开头与首行前 60 字符，**简报、diff 与提示词在任何模式下都到不了输出通道**，
+  完整回答与碎片清单在 debug 打开时同时进 dump，这份 dump 的开关、文件名与只增不改的格式都不变。
 - **"问哪个模型"由用户决定，而这个选择就是设置（2026-10-01 第四次排查补；同日维护者裁决后不再有
   "自动选择仍是默认"）。** 第三次排查的证据是：维护者机器上 `selectChatModels()` 提供的模型对真实
   请求全部回 5–10 字符的退化回答；第五次排查进一步证明失败是**按次**的。扩展手上能让运行"换个模型问"
@@ -873,8 +1467,9 @@ MCP definition API instead of failing activation"）。
 
 ### 9.6 调试诊断：dump 文件与模型探测（2026-10-01 第三次排查补）
 
-维护者的机器上，三个被提供的模型对真实请求都回了 5–10 字符的退化回答，而默认路径按设计**不保留
-回答正文**——于是"到底是什么发出的、到底回了什么"在默认路径上无法回答。这一节是那条承诺的**唯一**
+维护者的机器上，三个被提供的模型对真实请求都回了 5–10 字符的退化回答，而~~默认路径按设计**不保留
+回答正文**~~（**2026-10-01 修正：默认路径现在保留一条有界摘录，见本文开头那条修正与 §7.2；完整回答
+仍然只在这里**）——于是"到底是什么发出的、到底回了什么"在默认路径上无法回答。这一节是那条承诺的**唯一**
 出口，形态被故意做得尽量窄（裁决与理由见 §7.2）。
 
 - **文件与开关。** `src/aiPreReviewDiagnostics.ts` 的 `createAiPreReviewDiagnostics()` 接受
@@ -884,6 +1479,13 @@ MCP definition API instead of failing activation"）。
   `src/mcpWriteSettings.ts` 的 `mcpWriteAuditFilePath`），文件名为常量
   `AI_PRE_REVIEW_DIAGNOSTICS_FILE_NAME = 'ai-pre-review-diagnostics.log'`；写入复用写工具审计那个
   有界 append（`appendMcpWriteAuditLine`，4 MB 一轮 + 1 个滚动副本），所以文件不会无限增长。
+- **打开它的命令（2026-10-01 补）。** `forgejoToolkit.aiPreReviewOpenDiagnostics` 把
+  `<logUri>/ai-pre-review-diagnostics.log` 在编辑器里打开（`workspace.openTextDocument` +
+  `showTextDocument`）；文件不存在时说明"它只在 `forgejoToolkit.debug` 打开时写入"并点名该设置，
+  宿主没有日志目录时同样明说，而不是报错或什么都不开。它**不受功能开关把关**（读本地文件不发任何
+  内容），也不受 debug 把关——它恰恰要在诊断文件缺失时可被调用，所以只加 `contributes.commands`
+  一条、不加带 `when` 的菜单项（与选模型的命令同形）。契约失败消息用它来回答"怎么拿到完整提示词与
+  回答"。
 - **一节一次调用，自述且逐字。** run 头一节写目标（`instance:owner/repo#index`）、两个开关、被提供的
   模型及其 `maxInputTokens`、尝试上限与请求形态；每次模型调用一节写被问模型的
   `vendor` / `family` / `id`、消息条数、**逐字的 role + 文本**（`--- message 1/1 role=user chars=N ---`
@@ -911,13 +1513,38 @@ model the user picked just now (written into the setting)`），所以只拿到�
   （对照）、两条 `User`（旧形态）、单条 `User` 含指令（新形态）。它不读 Pull Request、不发任何仓库
   内容，判词是 `answered exactly "{}" as asked` 或 `did NOT answer the requested "{}"`——这句就是
   "模型不可用"与"请求形态不对"的分界：对照能答而旧形态不能答，说明问题在形态；三者都不能答，说明
-  这台机器上的这些模型无法用于本功能，不必再改我们的提示词。探测与运行写**同一个文件**，所以"探测
-  一次 + 预评审一次"两轮运行的证据在同一个文件里可以直接对照。**同意框被拒绝或用户取消时不重复问**：
+  这台机器上的这些模型无法用于本功能，不必再改我们的提示词。
+  **（2026-10-01 第六次排查补：还有第四种形态——不带指令块的标点回声
+  （`AI_PRE_REVIEW_PROBE_ECHO_PROMPT`，见本文开头那条修正）；它的判词是**布尔**
+  `answered the echo exactly as asked: true|false`，用来分开「模型不行」与「通道把标点弄丢」。
+  它对每个模型也照旧只问一次，闸门与「不读 Pull Request」都不变。）**
+  探测与运行写**同一个文件**，所以"探测一次 + 预评审一次"两轮运行的证据在同一个文件里可以直接对照。**同意框被拒绝或用户取消时不重复问**：
   失败经 `classifyModelError` 分类（与运行同一条路径），`NoPermissions` 与取消都立即停止探测，只把
   已完成的调用写进文件——否则同一个"未授权"会按模型 × 形态重复弹九次。**探测不受运行的重试影响**
   （2026-10-01 第五次排查补）：它的循环是"每个模型 × 每种形态各一次"，写成
   `probe "<形态>"`，不读 `AI_PRE_REVIEW_MAX_*`、也不做第二次尝试——探测要回答的正是"一次调用会碰到
   什么"，把运行的重试掺进去会让它测的是别的东西。
+  **（2026-10-01 修正：探测只问「用户选定的那一个模型」，不再向每个被提供的模型各问一遍。）** 决定
+  由 `forgejoToolkit.aiPreReviewModel` 单独做出（`resolveAiPreReviewProbeTarget()`，与运行共用
+  `findOfferedAiPreReviewModel()`，所以两个界面不可能对"当前是哪个模型"给出不同答案）：设置命中一个
+  被提供的模型时，只问它一个（12 个模型 × 4 种形态 = 48 次调用里省下 44 次，其中若干是付费调用）；
+  设置为**空**或命中不了任何被提供的模型时**一次都不发**，把"是空的"还是"值没命中"分开说清，并列出
+  被提供的模型——它**刻意不**退化成"随便挑一个模型问"或"退回问全部"：这两种都会把调用花在用户没有选择
+  的模型上，而这套设置在运行侧的全部意义就是"选择是用户的，扩展不替他挑、也不在模型之间轮换"。
+  两个闸门、四种形态、判词、原始回答块、「不读 Pull Request」都不变；dump 头新增两行
+  （`models asked by this probe: …` 与 `why these models: the chosen model — …`），把"问了谁、为什么
+  是它"写进文件本身，读的人不必从各块反推选择规则；进度条文案随之改为
+  `Asking the chosen chat model the same trivial question…`。
+- **碎片边界也进输出通道（2026-10-01 第八次修正）。** 本节的 dump 保存的是**拼接后**的完整回答，
+  有界摘录同样是拼接后的；**碎片边界本身**此前没有任何地方记录，而那正是"提供者的碎片本来就是坏的"
+  与"我们的累积弄坏了它"之间唯一的分界。两条流循环现在各写**一行一个碎片**
+  （`AI pre-review: answer fragment 3 of 8 in the stream: length=12, text="…"`，文本按失败摘录那套转义、
+  同一个 200 字符上限、被截断时追加 `, cut from N characters`）加**一行小结**
+  （`AI pre-review: answer stream summary: 8 fragment(s), 62 character(s), excerpt="…"`）。
+  两条路、成功失败都写——它描述的是传输而不是裁决；**被取消或中途失败的流不写**（半读的流没有诚实的
+  总数）。**严格由 `logger.isDebugEnabled()` 把关**，
+  没有新设置，为假时一行都不交给 logger，消息/toast/通知一个字都不加，所以 debug 关闭时行为与今天
+  逐字节相同（判据、理由与测试见本文开头那条修正）。
 
 ---
 
@@ -988,67 +1615,73 @@ model the user picked just now (written into the setting)`），所以只拿到�
 
 **引用一律以符号名与标题为准**（行号会随在途改动漂移）。写作时为 HEAD `5da224b`。
 
-| 断言                                                                                                                 | 位置（符号 / 标题）                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR diff 打开与 `forgejo-pr` URI 的构造                                                                               | `packages/forgejo-toolkit/src/webview/viewProvider.ts` 的 `openPullRequestDiff` / `_buildDiffUri`                                                                                                                                                                                                                                                                            |
-| diff 视图的上下文键与菜单把关                                                                                        | `src/comments/pullReviewCommentController.ts` 的 `CONTEXT_IN_PR_DIFF`；`package.json` 的 `contributes.menus` 的 `editor/context` / `editor/lineNumber/context`                                                                                                                                                                                                               |
-| 单飞标记的既有写法                                                                                                   | `src/commands/index.ts` 的 `publishToForgejoInFlight` / `createPrFromCurrentBranchInFlight`                                                                                                                                                                                                                                                                                  |
-| 命令按 URI 找编辑器、回退活动编辑器                                                                                  | `src/commands/index.ts` 里 `COMMAND_ADD_COMMENT` 的处理体（同文件的 `sameDocumentUri` / `toLineNumber`）                                                                                                                                                                                                                                                                     |
-| 草稿评论的创建 / 追加 / 提交 / 取消                                                                                  | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReviewComment` / `_handleSubmitPullReview` / `_handleDeletePullReview`                                                                                                                                                                                                                                         |
-| "继续评审"如何找到既有 PENDING 评审                                                                                  | `src/comments/pullReviewCommentController.ts` 的 `addComment`（`state === 'PENDING' && user.login === instance.username`）                                                                                                                                                                                                                                                   |
-| `pendingReviewId` 只来自宿主上下文                                                                                   | 同上文件的 `_captureTarget`（注释说明 webview 上报值只当一致性信号）                                                                                                                                                                                                                                                                                                         |
-| 待提交评审必须有非空正文（占位 `.`）                                                                                 | `src/api/client.ts` 的 `createPendingPullReview`                                                                                                                                                                                                                                                                                                                             |
-| 提交 / 追加 / 删除草稿的客户端方法                                                                                   | 同上文件的 `submitPullReview` / `addPullReviewComment` / `deletePullReview` / `deletePullReviewComment`                                                                                                                                                                                                                                                                      |
-| `event` 的三种取值与 `APPROVED` 拼写                                                                                 | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReview`；`shared/webview/messages.ts` 的 `PullReviewSubmitEvent`                                                                                                                                                                                                                                               |
-| 行号是 1-based file line，`position`/`original_position` 的侧                                                        | `src/comments/reviewCommentPosition.ts` 的 `resolveReviewCommentLine`                                                                                                                                                                                                                                                                                                        |
-| 写侧 `old_position` / `new_position` / `extra_lines_count`                                                           | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReviewComment`                                                                                                                                                                                                                                                                                                 |
-| diff 行号表与"必须落在 diff 内"的判定                                                                                | `src/utils/parseDiff.ts` 的 `parsePullDiff`；`src/comments/pullReviewCommentController.ts` 的 `addComment`                                                                                                                                                                                                                                                                   |
-| 简报的预算与截断口径（复用对象）                                                                                     | `mcp/tools.ts` 的 `PR_REVIEW_BRIEF_BUDGET` / `PR_REVIEW_DIFF_BUDGET` / `PR_REVIEW_COMMENT_BUDGET` / `PR_REVIEW_MAX_DIFF_FILES` / `PR_REVIEW_MAX_COMMENTS` / `PR_REVIEW_MAX_COMMENT_LENGTH`                                                                                                                                                                                   |
-| 工具结果的两道长度上限                                                                                               | 同上文件的 `MAX_TOOL_TEXT_LENGTH` / `MAX_TOOL_RESULT_LENGTH`                                                                                                                                                                                                                                                                                                                 |
-| 路径段校验的既有写法                                                                                                 | 同上文件的 `pathSegmentSchema` / `isSafePathSegment`                                                                                                                                                                                                                                                                                                                         |
-| 可选 `vscode.lm` API 的降级写法                                                                                      | `src/mcpServerProvider.ts` 的 `registerMcpServerProvider`（`vscode.lm?.registerMcpServerDefinitionProvider` + `typeof … === 'function'`）                                                                                                                                                                                                                                    |
-| 该降级路径的测试                                                                                                     | `src/__tests__/mcpServerProvider.test.ts` 的 "skips registration on an editor without the MCP definition API instead of failing activation"                                                                                                                                                                                                                                  |
-| `vscode` 的整模块 mock（当前没有 `lm` 字段）                                                                         | `src/__tests__/extension-setup.ts`（`vi.mock('vscode', …)`）、`vitest.extension.config.mts`                                                                                                                                                                                                                                                                                  |
-| 设置读取"读不到即关闭"的先例                                                                                         | `src/mcpWriteSettings.ts` 的 `enabledMcpWriteTools` / `isMcpWriteAuditToFileEnabled`                                                                                                                                                                                                                                                                                         |
-| 设置项 / manifest 文案的双语要求                                                                                     | `package.json` 的 `contributes.configuration`；`package.nls.json` 与 `package.nls.zh-cn.json`                                                                                                                                                                                                                                                                                |
-| 宿主文案的 l10n 两文件                                                                                               | `packages/forgejo-toolkit/l10n/bundle.l10n.json` 与 `bundle.l10n.zh-cn.json`                                                                                                                                                                                                                                                                                                 |
-| i18n 平价测试（键、占位符、可达性）                                                                                  | `src/webview/__tests__/i18nParity.test.ts`                                                                                                                                                                                                                                                                                                                                   |
-| "设置项必须已 contribute"的断言写法                                                                                  | `src/__tests__/leasePollingGuards.test.ts`                                                                                                                                                                                                                                                                                                                                   |
-| 评审全流程的 MSW mock（pending 语义）                                                                                | `src/test/mocks/handlers.ts`（`pendingReview` 的创建 / 追加 / 提交 / 删除）                                                                                                                                                                                                                                                                                                  |
-| `vscode.lm` **没有**"当前选中 / 最近使用"的读数，`selectChatModels` 不承诺顺序                                       | 同上类型的 `ChatRequest.model`（只在 `ChatRequestHandler` 参数里）、`LanguageModelAccessInformation`（`onDidChange` / `canSendRequest`）、`LanguageModelChatSelector`、`lm.selectChatModels`                                                                                                                                                                                 |
-| ~~窗口级的"曾给出合规回答"记忆与尝试排序~~（2026-10-01 维护者裁决后**已删除**，保留此行的目的是说明它确实不在了）    | `src/aiPreReview.ts` 里**不再有** `contractSatisfyingModelKeys` / `orderAiPreReviewCandidates` / `resetAiPreReviewModelMemory`（可搜索确认）                                                                                                                                                                                                                                 |
-| 用户选择的模型：取值形态、解析与匹配（`vendor/family` / `vendor/id` / `@version`）                                   | `src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_MODEL_SETTING` / `parseAiPreReviewModelSelector` / `matchesAiPreReviewModelSelector` / `AI_PRE_REVIEW_MODEL_SELECTOR_FORMS` / `aiPreReviewModelSettingValue`                                                                                                                                                                  |
-| 一个"被提供模型"的读取、命名、去重与预算（运行侧与设置页共用的那一份答案）                                           | `src/aiPreReviewModels.ts` 的 `aiPreReviewModelIdentity` / `formatAiPreReviewModelIdentity` / `aiPreReviewModelKey` / `uniqueAiPreReviewModels` / `maxInputTokensOf` / `queryAiPreReviewChatModels`                                                                                                                                                                          |
-| 设置页里的模型选择：下拉内容、刷新、空列表原因、写入与写失败                                                         | 同上文件的 `listAiPreReviewChatModelChoices` / `isStorableAiPreReviewModelSettingValue`；`src/webview/viewProvider.ts` 的 `getAiPreReviewChatModels` / `setAiPreReviewChatModel`；`shared/webview/messages.ts` 的 `AiPreReviewChatModelOption` / `aiPreReviewChatModels` / `aiPreReviewChatModelSaved`；`webview/src/views/Settings.vue` 的 `settings.aiPreReviewModel` 一行 |
-| 同一选择的三个入口（设置字段 / 命令 / 设置页）与"manifest 字段做不成动态下拉"                                        | `package.json` 的 `contributes.configuration`（`forgejoToolkit.aiPreReviewModel` 是自由文本）；`src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_MODEL_SETTING`；`src/aiPreReview.ts` 的 `chooseAiPreReviewModel`；`webview/src/views/Settings.vue` 的下拉                                                                                                                      |
-| 选择写进设置（全局配置更新）与"能写回"的取值形态                                                                     | 同上文件的 `writeAiPreReviewModelSetting` / `formatAiPreReviewModelSettingValue`（`vendor/id` 优先）                                                                                                                                                                                                                                                                         |
-| 配置的值没命中任何被提供模型即拒绝并列清单（不再传给 API、不再排序）                                                 | `src/aiPreReview.ts` 的 `findOfferedAiPreReviewModel` / `describeOfferedAiPreReviewModels` / `reportAiPreReviewModelRefusal`（`runAiPreReview` 里按 `aiPreReviewModelSettingValue()` 分支）                                                                                                                                                                                  |
-| 运行时模型选择：QuickPick 的内容（全部被提供模型）、写入设置、取消口径                                               | 同上文件的 `pickAiPreReviewModel` / `rememberChosenAiPreReviewModel` / `reportModelChoiceDismissed` / `chooseAiPreReviewModel`                                                                                                                                                                                                                                               |
-| 换模型的命令（注册、贡献、双语标题、不受功能开关把关）                                                               | 同上文件的 `COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL` / `registerAiPreReviewCommand`；`package.json` 的 `contributes.commands`；`package.nls.json` 与 `package.nls.zh-cn.json` 的 `command.aiPreReviewChooseModel.title`                                                                                                                                                           |
-| 只做校验、绝不替换：指令提示词放不下 / 量不出来时按数字拒绝                                                          | 同上文件的 `validateChosenAiPreReviewModel` / `reportInstructionBudgetFailure` / `reportChosenModelNotMeasurable` / `chooseModelActionHint`                                                                                                                                                                                                                                  |
-| 契约失败的三分（空 / 非 JSON / 形状错在哪个字段）                                                                    | `src/aiPreReviewBrief.ts` 的 `parseAiPreReviewResponse`（`AiPreReviewContractFailure`）                                                                                                                                                                                                                                                                                      |
-| 契约失败的重试上限（**一个**模型最多 2 次 = 最多 2 次调用）                                                          | `src/aiPreReview.ts` 的 `AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL` / `gatherPreReviewRequest`（单层循环）                                                                                                                                                                                                                                                                        |
-| 每次调用的尝试编号（该模型第几次 / 整次运行第几次）与失败/成功时的调用数                                             | 同上文件的 `gatherPreReviewRequest`（`label: attempt n/2 for the chosen model (call m of at most 2 in this run)`）、`AiPreReviewModelAttempt.attempt` / `describeFailedAttempts` / `reportContractFailures`                                                                                                                                                                  |
-| 有界形状描述（长度 / 是否 `{` 开头 / 首行前 60 字符）                                                                | 同上文件的 `describeAiPreReviewAnswerShape` / `AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH`；`src/aiPreReview.ts` 的 `contractFailureLogLine`                                                                                                                                                                                                                                         |
-| 请求形态：一条 `User` 消息装指令与请求（2026-10-01 改）                                                              | `src/aiPreReviewBrief.ts` 的 `buildAiPreReviewPromptMessages` / `aiPreReviewPromptText` / `AiPreReviewPromptMessage`                                                                                                                                                                                                                                                         |
-| 预算按"真正发出的那段文本"计一次                                                                                     | `src/aiPreReview.ts` 的 `countRequestTokens`（`preparePrompt` 与 `validateChosenAiPreReviewModel` 都走它）                                                                                                                                                                                                                                                                   |
-| 调试 dump：文件名、开关、格式与有界写入                                                                              | `src/aiPreReviewDiagnostics.ts` 的 `createAiPreReviewDiagnostics` / `formatAiPreReviewDiagnosticsAttempt` / `formatAiPreReviewDiagnosticsSection` / `AI_PRE_REVIEW_DIAGNOSTICS_FILE_NAME`                                                                                                                                                                                    |
-| dump 的接线与 run 头事实                                                                                             | `src/aiPreReview.ts` 的 `createRunDiagnostics` / `gatherPreReviewRequest`（每次调用一节）                                                                                                                                                                                                                                                                                    |
-| 日志目录的先例（`context.logUri` + 有界 append）                                                                     | `src/mcpWriteSettings.ts` 的 `mcpWriteAuditFilePath`；`src/mcpWriteAudit.ts` 的 `appendMcpWriteAuditLine`                                                                                                                                                                                                                                                                    |
-| 模型探测命令：两个闸门、三种形态、同一句问话                                                                         | `src/aiPreReview.ts` 的 `COMMAND_AI_PRE_REVIEW_PROBE` / `probeAiPreReviewChatModels` / `aiPreReviewProbeShapes` / `AI_PRE_REVIEW_PROBE_PROMPT`；`package.json` 的 `contributes.menus.commandPalette` 里 `config.forgejoToolkit.debug` 那一项                                                                                                                                 |
-| dump 与探测的测试                                                                                                    | `src/__tests__/aiPreReviewDiagnostics.test.ts`；`src/__tests__/aiPreReview.test.ts` 的 "the debug diagnostics dump" / "the chat model probe" / "the request shape" / "the bounded retry of the chosen model" 四组                                                                                                                                                            |
-| 用户选择模型的测试（每次都问 / 写入设置 / 取消零调用 / 拒绝 / 绝不轮换）                                             | `src/__tests__/aiPreReview.test.ts` 的 "the model pick (§7.2)" / "choosing the model later (COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL)" / "the chosen model is validated, never substituted (§7.2)" 三组                                                                                                                                                                            |
-| 设置页那一行的测试（宿主处理器 + 组件）                                                                              | `src/webview/__tests__/viewProviderDispatch.test.ts` 的 "AI pre-review chat model settings" 组；`webview/src/views/__tests__/Settings.aiPreReviewModel.test.ts`                                                                                                                                                                                                              |
-| `@types/vscode` 1.102.0 里**没有** system 角色（枚举只有 `User` / `Assistant`，类只有这两个工厂）                    | 同上类型的 `LanguageModelChatMessageRole` / `LanguageModelChatMessage`；官方指南 "Language Model API" 的 "Build the language model prompt" 一节（"doesn't support the use of system messages"）                                                                                                                                                                              |
-| 非 Copilot provider 如何收到消息（`role` + content parts，自行转换角色）                                             | 官方指南 "Language Model Chat Provider API" 的 "Message format and conversion" 一节（`LanguageModelChatRequestMessage` 与示例 `convertMessages`）                                                                                                                                                                                                                            |
-| debug 日志的既有开关                                                                                                 | `src/logger.ts` 的 `Logger.debug` / `forgejoToolkit.debug`                                                                                                                                                                                                                                                                                                                   |
-| 本套件自己的 MSW 状态清理                                                                                            | `src/__tests__/aiPreReview.test.ts` 的 `beforeEach`（`resetMockState()`，来自 `src/test/mocks/handlers.ts`）                                                                                                                                                                                                                                                                 |
-| `vscode.lm` 的类型面（`selectChatModels` / `sendRequest` / `countTokens` / `maxInputTokens` / `LanguageModelError`） | `@types/vscode` 1.102.0 的 `index.d.ts`（`LanguageModelChat` / `LanguageModelChatMessage` / `LanguageModelChatResponse` / `namespace lm`）                                                                                                                                                                                                                                   |
-| 引擎底线                                                                                                             | `packages/forgejo-toolkit/package.json` 的 `engines.vscode`                                                                                                                                                                                                                                                                                                                  |
-| 宿主侧用 `vscode.lm` 而不是 MCP sampling 的方向                                                                      | [`../architecture/mcp-server.md`](../architecture/mcp-server.md) 的「Security model」一节末段                                                                                                                                                                                                                                                                                |
-| Codeberg 约束与"人类维护信号"                                                                                        | `AGENTS.md` 的「Codeberg hosting and resource usage」一节、`CONTRIBUTING.md` 开头                                                                                                                                                                                                                                                                                            |
-| 写侧先例（默认关闭 + 逐次确认 + 不做自动 approve）                                                                   | [`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md)（其 §3.6 即该先例）                                                                                                                                                                                                                                                                                   |
-| "代码会发给模型供应商、加默认关闭开关"的既有判断                                                                     | `TODO.md` 的「PR 描述生成」条目                                                                                                                                                                                                                                                                                                                                              |
+| 断言                                                                                                                                                                        | 位置（符号 / 标题）                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR diff 打开与 `forgejo-pr` URI 的构造                                                                                                                                      | `packages/forgejo-toolkit/src/webview/viewProvider.ts` 的 `openPullRequestDiff` / `_buildDiffUri`                                                                                                                                                                                                                                                                            |
+| diff 视图的上下文键与菜单把关                                                                                                                                               | `src/comments/pullReviewCommentController.ts` 的 `CONTEXT_IN_PR_DIFF`；`package.json` 的 `contributes.menus` 的 `editor/context` / `editor/lineNumber/context`                                                                                                                                                                                                               |
+| 单飞标记的既有写法                                                                                                                                                          | `src/commands/index.ts` 的 `publishToForgejoInFlight` / `createPrFromCurrentBranchInFlight`                                                                                                                                                                                                                                                                                  |
+| 命令按 URI 找编辑器、回退活动编辑器                                                                                                                                         | `src/commands/index.ts` 里 `COMMAND_ADD_COMMENT` 的处理体（同文件的 `sameDocumentUri` / `toLineNumber`）                                                                                                                                                                                                                                                                     |
+| 草稿评论的创建 / 追加 / 提交 / 取消                                                                                                                                         | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReviewComment` / `_handleSubmitPullReview` / `_handleDeletePullReview`                                                                                                                                                                                                                                         |
+| "继续评审"如何找到既有 PENDING 评审                                                                                                                                         | `src/comments/pullReviewCommentController.ts` 的 `addComment`（`state === 'PENDING' && user.login === instance.username`）                                                                                                                                                                                                                                                   |
+| `pendingReviewId` 只来自宿主上下文                                                                                                                                          | 同上文件的 `_captureTarget`（注释说明 webview 上报值只当一致性信号）                                                                                                                                                                                                                                                                                                         |
+| 待提交评审必须有非空正文（占位 `.`）                                                                                                                                        | `src/api/client.ts` 的 `createPendingPullReview`                                                                                                                                                                                                                                                                                                                             |
+| 提交 / 追加 / 删除草稿的客户端方法                                                                                                                                          | 同上文件的 `submitPullReview` / `addPullReviewComment` / `deletePullReview` / `deletePullReviewComment`                                                                                                                                                                                                                                                                      |
+| `event` 的三种取值与 `APPROVED` 拼写                                                                                                                                        | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReview`；`shared/webview/messages.ts` 的 `PullReviewSubmitEvent`                                                                                                                                                                                                                                               |
+| 行号是 1-based file line，`position`/`original_position` 的侧                                                                                                               | `src/comments/reviewCommentPosition.ts` 的 `resolveReviewCommentLine`                                                                                                                                                                                                                                                                                                        |
+| 写侧 `old_position` / `new_position` / `extra_lines_count`                                                                                                                  | `src/comments/pullReviewCommentPanel.ts` 的 `_handleSubmitPullReviewComment`                                                                                                                                                                                                                                                                                                 |
+| diff 行号表与"必须落在 diff 内"的判定                                                                                                                                       | `src/utils/parseDiff.ts` 的 `parsePullDiff`；`src/comments/pullReviewCommentController.ts` 的 `addComment`                                                                                                                                                                                                                                                                   |
+| 简报的预算与截断口径（复用对象）                                                                                                                                            | `mcp/tools.ts` 的 `PR_REVIEW_BRIEF_BUDGET` / `PR_REVIEW_DIFF_BUDGET` / `PR_REVIEW_COMMENT_BUDGET` / `PR_REVIEW_MAX_DIFF_FILES` / `PR_REVIEW_MAX_COMMENTS` / `PR_REVIEW_MAX_COMMENT_LENGTH`                                                                                                                                                                                   |
+| 工具结果的两道长度上限                                                                                                                                                      | 同上文件的 `MAX_TOOL_TEXT_LENGTH` / `MAX_TOOL_RESULT_LENGTH`                                                                                                                                                                                                                                                                                                                 |
+| 路径段校验的既有写法                                                                                                                                                        | 同上文件的 `pathSegmentSchema` / `isSafePathSegment`                                                                                                                                                                                                                                                                                                                         |
+| 可选 `vscode.lm` API 的降级写法                                                                                                                                             | `src/mcpServerProvider.ts` 的 `registerMcpServerProvider`（`vscode.lm?.registerMcpServerDefinitionProvider` + `typeof … === 'function'`）                                                                                                                                                                                                                                    |
+| 该降级路径的测试                                                                                                                                                            | `src/__tests__/mcpServerProvider.test.ts` 的 "skips registration on an editor without the MCP definition API instead of failing activation"                                                                                                                                                                                                                                  |
+| `vscode` 的整模块 mock（当前没有 `lm` 字段）                                                                                                                                | `src/__tests__/extension-setup.ts`（`vi.mock('vscode', …)`）、`vitest.extension.config.mts`                                                                                                                                                                                                                                                                                  |
+| 设置读取"读不到即关闭"的先例                                                                                                                                                | `src/mcpWriteSettings.ts` 的 `enabledMcpWriteTools` / `isMcpWriteAuditToFileEnabled`                                                                                                                                                                                                                                                                                         |
+| 设置项 / manifest 文案的双语要求                                                                                                                                            | `package.json` 的 `contributes.configuration`；`package.nls.json` 与 `package.nls.zh-cn.json`                                                                                                                                                                                                                                                                                |
+| 宿主文案的 l10n 两文件                                                                                                                                                      | `packages/forgejo-toolkit/l10n/bundle.l10n.json` 与 `bundle.l10n.zh-cn.json`                                                                                                                                                                                                                                                                                                 |
+| i18n 平价测试（键、占位符、可达性）                                                                                                                                         | `src/webview/__tests__/i18nParity.test.ts`                                                                                                                                                                                                                                                                                                                                   |
+| "设置项必须已 contribute"的断言写法                                                                                                                                         | `src/__tests__/leasePollingGuards.test.ts`                                                                                                                                                                                                                                                                                                                                   |
+| 评审全流程的 MSW mock（pending 语义）                                                                                                                                       | `src/test/mocks/handlers.ts`（`pendingReview` 的创建 / 追加 / 提交 / 删除）                                                                                                                                                                                                                                                                                                  |
+| `vscode.lm` **没有**"当前选中 / 最近使用"的读数，`selectChatModels` 不承诺顺序                                                                                              | 同上类型的 `ChatRequest.model`（只在 `ChatRequestHandler` 参数里）、`LanguageModelAccessInformation`（`onDidChange` / `canSendRequest`）、`LanguageModelChatSelector`、`lm.selectChatModels`                                                                                                                                                                                 |
+| ~~窗口级的"曾给出合规回答"记忆与尝试排序~~（2026-10-01 维护者裁决后**已删除**，保留此行的目的是说明它确实不在了）                                                           | `src/aiPreReview.ts` 里**不再有** `contractSatisfyingModelKeys` / `orderAiPreReviewCandidates` / `resetAiPreReviewModelMemory`（可搜索确认）                                                                                                                                                                                                                                 |
+| 用户选择的模型：取值形态、解析与匹配（`vendor/family` / `vendor/id` / `@version`）                                                                                          | `src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_MODEL_SETTING` / `parseAiPreReviewModelSelector` / `matchesAiPreReviewModelSelector` / `AI_PRE_REVIEW_MODEL_SELECTOR_FORMS` / `aiPreReviewModelSettingValue`                                                                                                                                                                  |
+| 一个"被提供模型"的读取、命名、去重与预算（运行侧与设置页共用的那一份答案）                                                                                                  | `src/aiPreReviewModels.ts` 的 `aiPreReviewModelIdentity` / `formatAiPreReviewModelIdentity` / `aiPreReviewModelKey` / `uniqueAiPreReviewModels` / `maxInputTokensOf` / `queryAiPreReviewChatModels`                                                                                                                                                                          |
+| 设置页里的模型选择：下拉内容、刷新、空列表原因、写入与写失败                                                                                                                | 同上文件的 `listAiPreReviewChatModelChoices` / `isStorableAiPreReviewModelSettingValue`；`src/webview/viewProvider.ts` 的 `getAiPreReviewChatModels` / `setAiPreReviewChatModel`；`shared/webview/messages.ts` 的 `AiPreReviewChatModelOption` / `aiPreReviewChatModels` / `aiPreReviewChatModelSaved`；`webview/src/views/Settings.vue` 的 `settings.aiPreReviewModel` 一行 |
+| 同一选择的三个入口（设置字段 / 命令 / 设置页）与"manifest 字段做不成动态下拉"                                                                                               | `package.json` 的 `contributes.configuration`（`forgejoToolkit.aiPreReviewModel` 是自由文本）；`src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_MODEL_SETTING`；`src/aiPreReview.ts` 的 `chooseAiPreReviewModel`；`webview/src/views/Settings.vue` 的下拉                                                                                                                      |
+| 选择写进设置（全局配置更新）与"能写回"的取值形态                                                                                                                            | 同上文件的 `writeAiPreReviewModelSetting` / `formatAiPreReviewModelSettingValue`（`vendor/id` 优先）                                                                                                                                                                                                                                                                         |
+| 配置的值没命中任何被提供模型即拒绝并列清单（不再传给 API、不再排序）                                                                                                        | `src/aiPreReview.ts` 的 `findOfferedAiPreReviewModel` / `describeOfferedAiPreReviewModels` / `reportAiPreReviewModelRefusal`（`runAiPreReview` 里按 `aiPreReviewModelSettingValue()` 分支）                                                                                                                                                                                  |
+| 运行时模型选择：QuickPick 的内容（全部被提供模型）、写入设置、取消口径                                                                                                      | 同上文件的 `pickAiPreReviewModel` / `rememberChosenAiPreReviewModel` / `reportModelChoiceDismissed` / `chooseAiPreReviewModel`                                                                                                                                                                                                                                               |
+| 换模型的命令（注册、贡献、双语标题、不受功能开关把关）                                                                                                                      | 同上文件的 `COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL` / `registerAiPreReviewCommand`；`package.json` 的 `contributes.commands`；`package.nls.json` 与 `package.nls.zh-cn.json` 的 `command.aiPreReviewChooseModel.title`                                                                                                                                                           |
+| 只做校验、绝不替换：指令提示词放不下 / 量不出来时按数字拒绝                                                                                                                 | 同上文件的 `validateChosenAiPreReviewModel` / `reportInstructionBudgetFailure` / `reportChosenModelNotMeasurable` / `chooseModelActionHint`                                                                                                                                                                                                                                  |
+| 契约失败的三分（空 / 非 JSON / 形状错在哪个字段）                                                                                                                           | `src/aiPreReviewBrief.ts` 的 `parseAiPreReviewResponse`（`AiPreReviewContractFailure`）                                                                                                                                                                                                                                                                                      |
+| 契约失败的重试上限（**一个**模型最多 2 次 = 最多 2 次调用）                                                                                                                 | `src/aiPreReview.ts` 的 `AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL` / `gatherPreReviewRequest`（单层循环）                                                                                                                                                                                                                                                                        |
+| 每次调用的尝试编号（该模型第几次 / 整次运行第几次）与失败/成功时的调用数                                                                                                    | 同上文件的 `gatherPreReviewRequest`（`label: attempt n/2 for the chosen model (call m of at most 2 in this run)`）、`AiPreReviewModelAttempt.attempt` / `describeFailedAttempts` / `reportContractFailures`                                                                                                                                                                  |
+| 有界形状描述（长度 / 是否 `{` 开头 / 首行前 60 字符；debug 级）                                                                                                             | `src/aiPreReviewBrief.ts` 的 `describeAiPreReviewAnswerShape` / `AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH`                                                                                                                                                                                                                                                                         |
+| 失败行里的有界摘录（契约违规时始终写：≤200 字符、`JSON.stringify` 转义成一行；成功时一个字都不写）                                                                          | `src/aiPreReviewBrief.ts` 的 `aiPreReviewAnswerExcerpt` / `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH`；`src/aiPreReview.ts` 的 `contractFailureLogLine` / `reportContractFailures` / `diagnosticsActionHint`                                                                                                                                                                       |
+| 打开诊断文件的命令（不受功能开关把关；文件不存在时点名 `forgejoToolkit.debug`）                                                                                             | `src/aiPreReview.ts` 的 `COMMAND_AI_PRE_REVIEW_OPEN_DIAGNOSTICS` / `openAiPreReviewDiagnostics`；`package.json` 的 `contributes.commands`；`package.nls.json` 与 `package.nls.zh-cn.json` 的 `command.aiPreReviewOpenDiagnostics.title`                                                                                                                                      |
+| 请求形态：一条 `User` 消息装指令与请求（2026-10-01 改）                                                                                                                     | `src/aiPreReviewBrief.ts` 的 `buildAiPreReviewPromptMessages` / `aiPreReviewPromptText` / `AiPreReviewPromptMessage`                                                                                                                                                                                                                                                         |
+| 预算按"真正发出的那段文本"计一次                                                                                                                                            | `src/aiPreReview.ts` 的 `countRequestTokens`（`preparePrompt` 与 `validateChosenAiPreReviewModel` 都走它）                                                                                                                                                                                                                                                                   |
+| 调试 dump：文件名、开关、格式与有界写入                                                                                                                                     | `src/aiPreReviewDiagnostics.ts` 的 `createAiPreReviewDiagnostics` / `formatAiPreReviewDiagnosticsAttempt` / `formatAiPreReviewDiagnosticsSection` / `AI_PRE_REVIEW_DIAGNOSTICS_FILE_NAME`                                                                                                                                                                                    |
+| dump 的接线与 run 头事实                                                                                                                                                    | `src/aiPreReview.ts` 的 `createRunDiagnostics` / `gatherPreReviewRequest`（每次调用一节）                                                                                                                                                                                                                                                                                    |
+| 日志目录的先例（`context.logUri` + 有界 append）                                                                                                                            | `src/mcpWriteSettings.ts` 的 `mcpWriteAuditFilePath`；`src/mcpWriteAudit.ts` 的 `appendMcpWriteAuditLine`                                                                                                                                                                                                                                                                    |
+| 模型探测命令：只问用户选定的那一个模型（2026-10-01 改）、两个闸门、四种形态、同一句问话                                                                                     | `src/aiPreReview.ts` 的 `COMMAND_AI_PRE_REVIEW_PROBE` / `probeAiPreReviewChatModels` / `resolveAiPreReviewProbeTarget` / `findOfferedAiPreReviewModel` / `aiPreReviewProbeShapes` / `AI_PRE_REVIEW_PROBE_PROMPT`；`package.json` 的 `contributes.menus.commandPalette` 里 `config.forgejoToolkit.debug` 那一项                                                               |
+| dump 与探测的测试                                                                                                                                                           | `src/__tests__/aiPreReviewDiagnostics.test.ts`；`src/__tests__/aiPreReview.test.ts` 的 "the debug diagnostics dump" / "the chat model probe" / "the request shape" / "the bounded retry of the chosen model" 四组                                                                                                                                                            |
+| 有界摘录的测试（debug 关闭时的短碎片与长回答、200 字符上限、转义与单行、成功时无回答文本、不泄露 diff/简报/提示词）                                                         | `src/__tests__/aiPreReview.test.ts` 的 "the contract failure is diagnosable (§8.1, §9.3)" 组                                                                                                                                                                                                                                                                                 |
+| debug 下的碎片清单与小结（一行一个碎片、一行两个总数与有界开头；两条流循环都写；关闭时一行都没有）                                                                          | `src/aiPreReview.ts` 的 `logAnswerFragments` / `answerFragmentLogLine` / `answerStreamSummaryLogLine`；`src/aiPreReviewBrief.ts` 的 `aiPreReviewAnswerExcerpt` / `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH`；测试见 `src/__tests__/aiPreReview.test.ts` 的 "the debug-only fragment log of a streamed answer" 组                                                                  |
+| debug 下的 part 清单与小结（一行一个 part：序号/运行时类名/长度/内容，tool-call 写工具名与 JSON input，其余有界检查；一段流一行 kind 计数；解析结果不变；关闭时一行都没有） | `src/aiPreReview.ts` 的 `logResponseStreamParts` / `responsePartLogLine` / `responseStreamSummaryLogLine` / `responsePartKind` / `runtimeClassName` / `inspectPartShape`；测试见 `src/__tests__/aiPreReview.test.ts` 的 "the debug-only parts log of a response stream" 组                                                                                                   |
+| 诊断文件命令的测试（文件在时打开、文件不在时点名设置、无日志目录、注册与贡献、不受开关把关）                                                                                | 同上文件的 "the diagnostics-file command" 组                                                                                                                                                                                                                                                                                                                                 |
+| 用户选择模型的测试（每次都问 / 写入设置 / 取消零调用 / 拒绝 / 绝不轮换）                                                                                                    | `src/__tests__/aiPreReview.test.ts` 的 "the model pick (§7.2)" / "choosing the model later (COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL)" / "the chosen model is validated, never substituted (§7.2)" 三组                                                                                                                                                                            |
+| 设置页那一行的测试（宿主处理器 + 组件）                                                                                                                                     | `src/webview/__tests__/viewProviderDispatch.test.ts` 的 "AI pre-review chat model settings" 组；`webview/src/views/__tests__/Settings.aiPreReviewModel.test.ts`                                                                                                                                                                                                              |
+| `@types/vscode` 1.102.0 里**没有** system 角色（枚举只有 `User` / `Assistant`，类只有这两个工厂）                                                                           | 同上类型的 `LanguageModelChatMessageRole` / `LanguageModelChatMessage`；官方指南 "Language Model API" 的 "Build the language model prompt" 一节（"doesn't support the use of system messages"）                                                                                                                                                                              |
+| 非 Copilot provider 如何收到消息（`role` + content parts，自行转换角色）                                                                                                    | 官方指南 "Language Model Chat Provider API" 的 "Message format and conversion" 一节（`LanguageModelChatRequestMessage` 与示例 `convertMessages`）                                                                                                                                                                                                                            |
+| debug 日志的既有开关                                                                                                                                                        | `src/logger.ts` 的 `Logger.debug` / `forgejoToolkit.debug`                                                                                                                                                                                                                                                                                                                   |
+| 本套件自己的 MSW 状态清理                                                                                                                                                   | `src/__tests__/aiPreReview.test.ts` 的 `beforeEach`（`resetMockState()`，来自 `src/test/mocks/handlers.ts`）                                                                                                                                                                                                                                                                 |
+| `vscode.lm` 的类型面（`selectChatModels` / `sendRequest` / `countTokens` / `maxInputTokens` / `LanguageModelError`）                                                        | `@types/vscode` 1.102.0 的 `index.d.ts`（`LanguageModelChat` / `LanguageModelChatMessage` / `LanguageModelChatResponse` / `namespace lm`）                                                                                                                                                                                                                                   |
+| 引擎底线                                                                                                                                                                    | `packages/forgejo-toolkit/package.json` 的 `engines.vscode`                                                                                                                                                                                                                                                                                                                  |
+| 宿主侧用 `vscode.lm` 而不是 MCP sampling 的方向                                                                                                                             | [`../architecture/mcp-server.md`](../architecture/mcp-server.md) 的「Security model」一节末段                                                                                                                                                                                                                                                                                |
+| Codeberg 约束与"人类维护信号"                                                                                                                                               | `AGENTS.md` 的「Codeberg hosting and resource usage」一节、`CONTRIBUTING.md` 开头                                                                                                                                                                                                                                                                                            |
+| 写侧先例（默认关闭 + 逐次确认 + 不做自动 approve）                                                                                                                          | [`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md)（其 §3.6 即该先例）                                                                                                                                                                                                                                                                                   |
+| "代码会发给模型供应商、加默认关闭开关"的既有判断                                                                                                                            | `TODO.md` 的「PR 描述生成」条目                                                                                                                                                                                                                                                                                                                                              |
 
 ---
 
@@ -1087,6 +1720,12 @@ model the user picked just now (written into the setting)`），所以只拿到�
    （按模型的重复询问、"花掉几次调用"的报数、`FEATURES.md` 与两份 `CHANGELOG` 的同步）同样只改
    这一条，不新开 changeset。**维护者关于"模型由用户选择"的裁决也只改这一条**：同一份未发布的
    changeset 里把"自动选择 / 跨模型轮换 / 窗口记忆"的句子换掉，两份 `CHANGELOG` 与之同步。
+   **2026-10-02：六条迭代 changeset 合并回唯一一条**——本次交付的六个改动（回答取自 stream part、
+   提示词范围、确认面板、创建前编辑正文、正文语言、入口移到 PR 详情页）此前各自开了一份
+   `.changeset/ai-pre-review.md` 之外的 changeset 文件；它们是同一个**从未发布**功能的迭代，各自成条
+   只会在发布说明里把同一件事重复六遍，所以内容全部并入 `.changeset/ai-pre-review.md`（包名与 bump
+   级别不变，仍是 `forgejo-toolkit: minor`），那六份文件删除。本文开头各条修正里"这条改动自己的
+   changeset"的说法，自本条起一律指这唯一一份文件，正文按功能当前的样子重写。
 8. **文档同步要动哪些文件**（阶段 4 交付时）：**裁决**：`FEATURES.md`（一条能力）、
    `TODO.md`（本条目移出、只留未做的部分）、两份 `CHANGELOG`（字节一致）、本记录与
    `docs/design/README.md` 的状态列。README / FAQ 本轮不动。

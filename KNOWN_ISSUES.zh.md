@@ -100,6 +100,8 @@ VS Code 原生的评论范围装饰是 inline 装饰：多行评论范围的首�
 
 这只是观感问题——评论范围本身（widget 锚点、行标签、Forgejo 网页端）都是正确的。
 
+这个补齐会在 diff 文档的可见范围变化时重新应用，因为 VS Code 与 Comments API 都不上报 thread 的展开状态。这条同步被刻意收窄，排查该高亮问题时可以假定三条规则：只有已经带有范围装饰的文档才能触发它（输出通道、评论输入框所在文档和普通文件永远不触发——重新应用可能写「Forgejo Toolkit」输出通道，让输出文档参与触发曾使扩展对自己反复重绘）；某个编辑器算出的范围集合没变时根本不会重绘；debug 诊断行（`Thread range decorations applied per visible editor: …`，仅在 `forgejoToolkit.debug` 打开时写入）只在它报告的明细真正变化时写入，因此每次真实变化只出现一次，而不是每次重新应用都出现一次。有一个结果属于预期而非缺陷：打开 debug 后，在含展开多行 thread 的 diff 编辑器里滚动，只要每个编辑器的条数不变就不会产生新行。
+
 ## 点击 PR diff 编辑器的 gutter 会误设断点
 
 PR 文件 diff 编辑器（`forgejo-pr:` scheme，inline/合并模式）中，修改侧在「原始侧行号列」与「修改侧行号列」之间保留了一条约 19px 宽的 glyph margin。单击这条区域会在只读的 diff 文档上设下断点，行为与普通文件编辑器完全一致——已在默认配置的开发宿主上实测确认，不需要 `debug.allowBreakpointsEverywhere` 或任何特殊设置。
@@ -273,7 +275,23 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 原因：该字段会被解析进一个不对设置模型暴露的内部属性，编辑器只认那个内部值（[microsoft/vscode#191807](https://github.com/microsoft/vscode/issues/191807)，仍开着并已指派给设置编辑器团队；更早的 "Names of settings not translated"，[microsoft/vscode#150891](https://github.com/microsoft/vscode/issues/150891)，已于 2024 年 12 月以 _not planned_ 关闭）。今天没有任何 manifest 字段能改掉推导出来的标题，而改设置 ID 这条路不可行：用户已有的 `settings.json`、本扩展自己的文档与提示文案都按这个 ID 写。
 
-规避方法：标题本身无解。本项目新增的设置项照样把名称写进 `package.nls.json` 与 `package.nls.zh-cn.json`，等 VS Code 支持该字段时立刻生效；在那之前，设置项的**描述**是正常翻译的，而布尔设置项在复选框旁显示给用户的正是描述。
+规避方法：标题本身无解。本项目新增的设置项照样把名称写进 `package.nls.json` 与 `package.nls.zh-cn.json`，等 VS Code 支持该字段时立刻生效；在那之前，设置项的**描述**是正常翻译的，而布尔设置项在复选框旁显示给用户的正是描述。用 `enum` + `enumDescriptions` 贡献的设置项是唯一做得更好的一类：枚举每个取值的说明由编辑器自己从 nls 对里取，所以即使名称没被翻译，`forgejoToolkit.aiPreReviewPromptScope` 那五条取值说明也是翻译过的。
+
+## AI 预评审从响应的 stream part 里取回答，而不是从 `text` 取
+
+有些聊天模型提供者把模型的回答放在响应的 **part** 里，而通过 `LanguageModelChatResponse.text` 交出来的是别的东西。在维护者机器上，那个投影是模型的**推理 token 流**，不是回答：debug 探测里那条标点敏感的「回声」形态要求照抄 27 字符的字面量 `{"a":"b,c\"d\\e","f":[1,2]}`，`text` 交出的是 12 字符的碎片 `{"":",cdef12`，而响应的文本 part 拼起来**逐字节等于**那个字面量。
+
+扩展早先的版本用不上这一点：它们解析 `text`，于是在这类提供者上每次预评审都以「回答不是 JSON」失败、什么都不创建，而且每次运行要问两遍（对用户选定的那一个模型的有界重试）。这里原本把该失败记成「提供者从回答里删字符」，那个说法是错的：没有任何东西被删掉，活下来的字符只是推理轨迹里恰好出现过的那些，而真正的回答完好地在另一股上。同一次响应里实测到**两股候选流**——文本 part 与推理 part；同一条提供者路径被它的多个模型共用，所以原来那条「换一个提供者的模型」的建议也不是解法。
+
+扩展现在的做法：**只消费一次**响应的 stream，从它的 part 里取回答，优先取**文本 part**；文本 part 缺失、或过不了 JSON 契约时，再取**推理 part**；只有两股都拿不出可用回答时，才回落到 `text` 投影。无论哪一股胜出，运行都会在 debug 级别写明是哪一股，诊断 dump 也会把两股候选**分别标注**记录下来。两股候选绝不拼接，候选绝不被修补，也绝不替换成另一个模型。
+
+两股都拿不出合法回答时用户看到什么：预评审照旧报出失败的模型、尝试次数，以及它检查过的那份回答的一段有界摘录；什么都不创建，JSON 契约、锚点校验与重试上限都不变。自查本机的方法：打开 `forgejoToolkit.debug` 与 `forgejoToolkit.aiPreReview`，运行 `forgejoToolkit.aiPreReviewProbeChatModels`（它只问 `forgejoToolkit.aiPreReviewModel` 里点名的那个模型，共四次平凡调用，不含任何仓库内容），再用 `forgejoToolkit.aiPreReviewOpenDiagnostics` 打开诊断文件，读 `echo: one user message, punctuation-sensitive` 这条判词。判词会写明它判的是哪一股候选流；判词不是 `true`，就说明那台机器的 part 通道没有携带期望的字面量。
+
+在维护者机器上进行的一次验收运行第一次走到了确认这一步，也正是这次运行暴露了它被重做的原因：当时用的多选 quick pick 把每条评论的**正文塞在 label 里**，而 VS Code 会截断 label，既没有 `description` 也没有 `tooltip` 放剩下的部分——所以用户根本读不到自己正要接受的那条评论。确认这一步现在是一个编辑器标签页面板（`AiPreReviewPanel`），每条候选一张卡片、正文完整呈现，因此阅读是能做到的；旧实现那句「一份让人逐条读的清单」不该再被用来描述它。
+
+当时对 quick pick 成立的那些保证依然成立，而且现在它们就是全部、不再是"只成立一半"：不预选任何一条，扩展也**不贡献任何「全部接受」控件**——既没有按钮，也没有预先勾上的框。平台层的「切换所有复选框」属于 VS Code 自己的多选 quick pick，而本面板不使用它，所以面板上线后屏幕上不存在任何"一键全部接受"的入口。旧实现还有一条性质，这里继续按验证笔记记录：锚点校验失败的意见永远到不了清单，现在也永远到不了面板——但那次验收运行里它只是成立而**没有被实际走到**（模型只提了两条意见、两条都通过了校验，所以没有任何候选被丢弃），因此它仍然只由测试保证，还没有观察到过真实的丢弃。
+
+这次验收运行的其余部分把通道处理端到端验证了一遍：探测再次回答 `true`，这次运行的答案来自**文本**候选（不是推理 part，也不是 `text` 投影），在确认之后恰好创建了**一条 PENDING 评审**（带着这些评论），并且**没有提交任何东西**。
 
 ---
 

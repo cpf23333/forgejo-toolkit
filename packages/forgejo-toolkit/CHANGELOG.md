@@ -89,8 +89,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   four calls a review used to start with, and marking every part it had to cut
   short. The `review-pull-request` prompt now starts from it, and the tool
   surface grows from 29 tools to 30.
-- **AI Pre-Review Pull Request**, a new action in the pull request diff editor
-  (`forgejoToolkit.aiPreReviewPullRequest`), plus the two settings behind it.
+- **AI Pre-Review Pull Request** (`forgejoToolkit.aiPreReviewPullRequest`), a new
+  action on the pull request detail page — the extension's own dashboard — plus
+  the settings behind it. It reviews **the whole pull request**, and both the
+  action and what it says out loud make that unmistakable: the button's label and
+  tooltip say it, including how many changed files the pull request has, the run's
+  progress lines repeat it with the number of files it read, every outcome message
+  names the scope, and the confirmation panel's header states how many changed
+  files the run covered. The same action is also on the pull request diff editor's
+  title bar, unchanged, as the fast path out of an open diff.
   With `forgejoToolkit.aiPreReview` on, a chat model you have configured in VS
   Code reads the whole pull request and proposes line-level review comments; you
   pick the ones you agree with from a list that starts with nothing selected, and
@@ -100,13 +107,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cancelled or fails leaves no half-written comment behind. Every anchor is
   validated against the pull request's real diff lines: a comment that does not
   fit is dropped and counted, never moved to a nearby line, flipped to the other
-  side or shortened. Both settings default to off, and with `aiPreReview` off the
-  command refuses without sending anything anywhere. With it on, the model
+  side or shortened. `forgejoToolkit.aiPreReview` defaults to off, and with it off
+  the command refuses without sending anything anywhere. With it on, the model
   receives the pull request's title and branch names, the changed-file paths with
   their additions/deletions and status, and the metadata of existing review
-  comments — never a comment body, never a URL. The changed lines of code
-  themselves are sent only when `forgejoToolkit.aiPreReviewIncludeDiff` is also
-  on (off by default), because that is source code leaving your machine. The run
+  comments — never a comment body, never a URL. What code, if any, leaves your
+  machine is decided by `forgejoToolkit.aiPreReviewPromptScope` — `metadata-only`
+  sends none, `changed-lines-only` the added and removed lines, `full-diff` the
+  whole diff, and `changed-files` the whole diff plus the changed files' own
+  text — and its default `ask` means the first run shows one modal naming the
+  provider and what each answer would send, sends nothing before you answer, and
+  writes your answer into that setting, so the question is asked only once. The run
   reports its progress while it reads and thinks, with a cancel button; cancelling
   writes nothing. **The extension does not pick a model for you and does not
   switch between models.** `forgejoToolkit.aiPreReviewModel` is where the choice
@@ -127,9 +138,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model, how many calls the run made, and how each answer failed — an empty
   answer, an answer that is not JSON, or JSON whose shape is wrong, naming the
   field — instead of one "could not be parsed" for all three, and it points at
-  the choose-a-model command; the log names the model by vendor, family and id
-  and describes the answer only by its length, whether it starts with `{` and a
-  short prefix of its first line, never the answer, the brief or the diff.
+  the choose-a-model command. Each failed attempt also leaves one line in the
+  "Forgejo Toolkit" output channel naming the model by vendor, family and id,
+  which attempt it was, how long the answer was, and quoting a bounded excerpt of
+  the answer: at most 200 characters, escaped onto a single line, so a
+  handful-of-characters fragment is visible in full while a long answer is cut.
+  A successful run still logs no answer text at all, and the excerpt never
+  carries the brief, the diff or the prompt; the debug-level shape line is
+  unchanged and the full answer stays in the debug-only diagnostics file.
+  The new `forgejoToolkit.aiPreReviewOpenDiagnostics` command ("AI Pre-Review:
+  Open Diagnostics") opens that file in the editor, or — when it does not exist
+  yet, which is the normal state while `forgejoToolkit.debug` has never been on —
+  says so and names the setting that creates one. Reading a local file sends
+  nothing, so the command is offered whatever the feature switch says.
   Your configured model is never replaced by another one: a value that is not one
   of the accepted `vendor/family` or `vendor/id` forms, or that names a model VS
   Code does not offer, refuses the run and lists every offered model with its
@@ -141,11 +162,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   With `forgejoToolkit.debug` on, a run also writes the exact messages it sent
   and the full raw answers it received to `ai-pre-review-diagnostics.log` in the
   extension's log directory, and the debug-only
-  `forgejoToolkit.aiPreReviewProbeChatModels` command asks every offered model
-  the same trivial question with each request shape, so a model that cannot
+  `forgejoToolkit.aiPreReviewProbeChatModels` command asks **the model you
+  chose** — the one `forgejoToolkit.aiPreReviewModel` names — the same trivial
+  question with each request shape, so a model that cannot
   answer an extension at all can be told apart from a request it cannot handle.
-  With debug off nothing is written anywhere, the log still never carries an
-  answer, and the probe sends nothing while `forgejoToolkit.aiPreReview` is off.
+  It asks nothing at all while that setting is empty or names a model your
+  editor does not offer: it says which of the two it is and lists the offered
+  models instead of spending calls on models you did not choose.
+  With debug off no diagnostics file is written at all, the channel still carries
+  only the bounded excerpt on a contract violation, and the probe sends nothing
+  while `forgejoToolkit.aiPreReview` is off.
 - Which chat model reviews a pull request is yours to choose, and the extension
   neither makes that choice for you nor switches between models. The
   window-scoped `forgejoToolkit.aiPreReviewModel` setting is the one place the
@@ -201,6 +227,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The AI pre-review is no longer offered from a **file's** context menu. A run
+  reads every changed file and the whole diff, so an entry that sat on one file
+  promised a scope it never had; the maintainer's decision was to move the entry
+  to the pull request detail page, where a button labelled "AI pre-review (whole
+  PR)" posts that pull request's coordinates to the same run. The diff editor's
+  title button is unchanged. The command itself, its refusals, its settings and
+  everything it writes are exactly as they were: only the user-chosen model is
+  asked, the strict contract and anchor validation are untouched, the prompt-scope
+  dialog and its fail-closed behaviour are untouched, drafts are still PENDING
+  review comments only, a review is still never submitted, and the diagnostics
+  stay debug-only.
+- The AI pre-review's confirmation step is no longer a multi-select quick pick.
+  That control put each proposed comment's body inside its label, which VS Code
+  truncates, with no `description` and no `tooltip` to hold the rest, so you
+  could not read the comment you were about to accept. It is now an editor-tab
+  panel with one card per candidate: the whole body (wrapped and selectable),
+  the anchor (`path:line` or range, and the side), a checkbox, and a link that
+  opens the pull request's diff at that line on the anchor's own side. The
+  header names the pull request, the model that answered (with its vendor), the
+  prompt scope that run actually used, how many candidates passed the anchor
+  validation, and how many were dropped, grouped by reason — none of which the
+  quick pick had a surface for. Nothing is checked by default and the extension
+  contributes no accept-all control of its own; the platform's `Toggle all
+checkboxes` belonged to VS Code's multi-select quick pick, which this panel
+  does not use. Checking cards and pressing Create writes them as drafts of a
+  pending review through the same path as before — the extension still never
+  submits a review — and the panel then reports the outcome and offers a button
+  that opens the pull request. Cancelling, pressing Escape or closing the tab
+  creates nothing. ~~The answer carried card indexes only, so a modified webview
+  message could select what it was offered but never invent a comment.~~ The
+  answer now carries the checked cards together with the text you left in each
+  card's editor, and the extension re-validates every entry before it writes
+  anything, so a modified message can propose a body but still cannot move a
+  comment — see the entry on editing a proposed comment before it becomes a draft.
+- The AI pre-review's proposed comments can now be **edited in the confirmation
+  panel before any draft exists**. Each card used to be read-only text, so the
+  only way to fix a wording was to create the comment first and correct it in the
+  diff afterwards — which writes text you have not agreed to yet. Every card is
+  now an editor pre-filled with the model's wording: the draft is created with
+  the text you leave in it, an edited card is marked `Edited` and can be reset to
+  the model's wording in one click, and the input is capped at the extension's
+  per-comment limit (1024 characters) with the cap stated when it is reached
+  rather than the text being cut silently. Only the body is editable — the path,
+  line, range and side still come from the run's own validated candidates and are
+  never sent by the panel — and the extension re-validates every entry it is sent:
+  the index must be one it offered, and the body a string that is non-empty after
+  trimming and within the limit. One bad entry refuses the **whole** create with a
+  message naming that card, and so does a ticked card whose body was emptied:
+  nothing is written, and the panel keeps its question so you can fix that body
+  and press Create again. A body the extension itself had cut is now cut so its
+  "truncated" announcement fits inside the limit, which is what lets such a card
+  be created without an edit first.
+- The AI pre-review no longer decides for you whether code is sent. The boolean
+  `forgejoToolkit.aiPreReviewIncludeDiff` — off by default, and with it off the
+  model received no code at all — is replaced by
+  `forgejoToolkit.aiPreReviewPromptScope`, whose default `ask` means "you have not
+  chosen yet". The first pre-review that reads `ask` shows one modal naming the
+  provider the content would go to and what each answer sends; nothing is
+  requested, sent or written before you answer, and dismissing it ends the run
+  with nothing sent and nothing created. Your answer is written into the
+  setting, so the question is asked once rather than once per run — set it back
+  to `ask` to be asked again. Four scopes are stated: `metadata-only` (the model
+  sees no code at all, so it can only comment on file-level matters),
+  `changed-lines-only` (the added and removed lines with their file and hunk
+  headers and none of the surrounding context — the cheapest scope that still
+  sends code), `full-diff` (the whole diff, exactly what the removed switch
+  sent) and `changed-files`, the recommended one, which sends the whole diff
+  plus the full text of every changed file at the pull request's head version,
+  so the model can read the code around a change. Every scope is bounded by the
+  budgets that were already there, cut from the end and announced in the prompt;
+  only files the pull request changed are read, and no scope sends an access
+  token, a URL or host name, or the body of an existing review comment. The
+  extension does not read a leftover value of the removed key at all: such a key
+  is simply an unknown setting to VS Code and changes nothing here. The
+  confirmation list, the anchor validation, the drafts-only writes, the retry
+  bound and the debug diagnostics are unchanged.
+- The AI pre-review's proposed comment bodies are written in the language you
+  read the extension in, not always in English. The instruction block it sends is
+  English and nothing in it named your language, so every body came back in
+  English whatever the editor's language was — an acceptance run on a Chinese
+  editor showed exactly that. The run now resolves the language the way the rest
+  of the extension resolves the interface it presents to you:
+  `forgejoToolkit.locale` when it states `en` or `zh`, and that setting decides
+  even if it disagrees with the editor, because every surface that shows these
+  bodies (the confirmation panel included) renders in it; with the setting unset
+  the editor's display language decides, and anything unexpected — a value the
+  manifest does not contribute, or a display language that is not Chinese — reads
+  as English rather than being guessed at. The prompt names the language in its
+  own script (`简体中文`, `English`) and states the boundary in the same rule: the
+  JSON keys and every value that is not prose — the schema's field names,
+  `"head"`/`"base"`, paths and the numbers — stay exactly as specified, and only
+  `body` is written in that language, so a translated path or side cannot be
+  produced and then dropped by the anchor validation, which never repairs one.
+  The prompt is still built once per run, so both attempts of the model you chose
+  send the same bytes, and the debug-only diagnostics dump still records the
+  exact messages that went out. Nothing else changed: the feature switch and the
+  prompt scope, the JSON contract, the anchor validation, the drafts-only writes,
+  the retry bound and the diagnostics.
 - The AI pre-review no longer chooses a model on its own. Automatic selection in
   every form is gone — the budget-sorted preference, the fallback to the largest
   input budget, the "models that answered the contract earlier in this window"
@@ -382,9 +506,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the repository's branch pickers; the repository detail's branches stand in
   until the refs request answers, so it never regresses to a bare text box.
 - The AI pre-review action is no longer offered while
-  `forgejoToolkit.aiPreReview` is off: its pull request diff context menu and
-  editor title entries are gated on the setting as well as on the diff, so the
-  button and the menu item no longer appear only to refuse when clicked. The
+  `forgejoToolkit.aiPreReview` is off: its editor title entry is gated on the
+  setting as well as on the diff, and the pull request detail page's button is
+  hidden, so neither appears only to refuse when clicked. The
   debug-only `forgejoToolkit.aiPreReviewProbeChatModels` command is gated the
   same way — it now needs the switch as well as `forgejoToolkit.debug`, which
   its own handler already required. The run command still refuses while the
@@ -394,6 +518,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dashboard.detail.checksState.…` key in a pull request's checks panel: an
   unrecognized combined status now shows the localized "Unknown" label, the same
   fallback the merge-blocker line already used.
+- An AI pre-review that ends with no parsable answer is now diagnosable without
+  turning `forgejoToolkit.debug` on. A failure that said only "the answer was not
+  JSON" could not tell a degenerate model from a truncated answer from a bad
+  prompt, so each failed attempt now writes one line to the "Forgejo Toolkit"
+  output channel naming the model by vendor, family and id, which attempt of the
+  chosen model it was, how many characters the answer had, and a bounded excerpt
+  of it — at most 200 characters, escaped onto a single line, so the
+  handful-of-characters fragments a flaky provider returns are visible in full
+  and a long answer is cut. The failure message says where that excerpt is, and a
+  new `forgejoToolkit.aiPreReviewOpenDiagnostics` command opens the diagnostics
+  file with the full prompt and answer in the editor; when the file does not exist
+  yet — which is the normal state while `forgejoToolkit.debug` has never been on —
+  it says so and names that setting instead of failing or opening nothing.
+  Reading a local file sends nothing, so the command works whatever the feature
+  switch says. A successful run still logs no answer text at all, and the excerpt
+  never carries the diff, the brief or the prompt.
+- The AI pre-review now reads the model's answer from the response's stream parts
+  and keeps the `text` projection only as a fallback, which makes the feature work
+  on providers whose `text` projection is not the answer. Measured on a real
+  machine: one provider's chat model returned the expected 27-character JSON
+  literal in the response's text parts while `LanguageModelChatResponse.text`
+  delivered the model's reasoning trace (`{"":",cdef12`), so every pre-review
+  against that model failed with "the answer was not JSON" and created nothing.
+  The run now consumes the response once, collects the text parts and the
+  reasoning parts as separate candidates, and lets the JSON contract decide which
+  one is the answer: the text parts are tried first, the reasoning parts next if
+  the text parts are absent or do not satisfy the contract, and the `text`
+  projection last when neither carried text. Two candidates are never
+  concatenated, a candidate is never repaired, and no model is substituted. When
+  nothing satisfies the contract the run fails exactly as before — the failing
+  model, the attempt count and a bounded excerpt of the answer it examined — and
+  creates nothing. At debug level the run says which stream it used and why, and
+  the diagnostics dump records both candidates, labelled. Runs whose answer was
+  already arriving through `text` are unaffected.
+- The multi-line comment highlight no longer keeps re-applying itself. With
+  `forgejoToolkit.debug` on and one expanded multi-line comment thread, the
+  extension filled the "Forgejo Toolkit" output channel with
+  `Thread range decorations applied per visible editor: …` lines on its own, and
+  clearing the channel started it again: the visible-ranges listener re-applied
+  the decorations, that re-apply wrote the debug line, and writing it changed the
+  output editor's own visible ranges, which re-triggered the listener. The line
+  is now written only when the detail it reports actually changes, so an
+  identical re-application is silent, and the visible-ranges trigger ignores
+  every document the decorations never touch — the output channel, the
+  comment-input documents and any other file — so neither the extension's own
+  logging nor editing a comment box schedules decoration work. The diagnostic
+  itself is unchanged: on every genuine change it still reports which visible
+  editor got how many ranges and which got zero.
 
 ## [0.0.1] - 2026-09-26
 

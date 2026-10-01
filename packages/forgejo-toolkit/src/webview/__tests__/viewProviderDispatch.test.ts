@@ -5497,4 +5497,137 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(String(replyTo('aiPreReviewChatModelSaved')?.error)).toContain('read-only configuration');
     });
   });
+
+  /**
+   * The pull request detail page's own entry point for the AI pre-review.
+   *
+   * The feature used to be offered from a **file's** context menu while the run
+   * fetches every changed file and the whole diff, so the entry and the scope did
+   * not match; the maintainer's decision was to move the entry to the pull request
+   * detail page. The webview therefore posts the coordinates of the pull request
+   * whose button was pressed, and this suite is about the host's half of that
+   * contract: validate what arrived, then run **the same** flow the
+   * `editor/title` button reaches.
+   */
+  describe('the AI pre-review entry point on the pull request detail page', () => {
+    /** The coordinates a pull request detail page posts. */
+    const target = { instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 7 };
+
+    /**
+     * The run the extension registers through the provider, as a spy. It is the
+     * only thing this dispatch can reach that could call a model or the server,
+     * so "not called" is exactly "nothing was sent and nothing was created".
+     */
+    function installRunner() {
+      const runner = vi.fn();
+      provider.setAiPreReviewRunner(runner);
+      return runner;
+    }
+
+    it('runs the flow the editor title button runs, with the coordinates the webview sent', async () => {
+      const runner = installRunner();
+
+      fake.send({ command: 'aiPreReviewPullRequest', ...target });
+      await flushDispatches();
+
+      // The provider hands over the validated coordinates and nothing else: the
+      // model, the prompt scope, the prompt, the confirmation and the drafts all
+      // belong to the run, so a modified webview can choose **which** pull request
+      // is reviewed and cannot influence what that review sends or writes.
+      expect(runner).toHaveBeenCalledTimes(1);
+      expect(runner).toHaveBeenCalledWith(target);
+      expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it('refuses a malformed or missing coordinate without running anything', async () => {
+      const runner = installRunner();
+
+      // Each of these is a shape a modified (or buggy) webview could send. The
+      // index rule is `parseForgejoPrUri`'s own — a positive integer, because
+      // `Number(...)` alone would accept `'7'` and `true` and "PR 0" names no pull
+      // request — and the name segments are the ones `isSafeRepoNameSegment`
+      // refuses, because they are interpolated into API paths.
+      const malformed: Record<string, unknown>[] = [
+        { ...target, index: 0 },
+        { ...target, index: 1.5 },
+        { ...target, index: '7' },
+        { ...target, index: true },
+        { ...target, index: undefined },
+        { ...target, owner: '' },
+        { ...target, owner: '../admin' },
+        { ...target, repo: '..' },
+        { ...target, instanceId: '' },
+        { ...target, instanceId: 7 },
+        { owner: 'owner', repo: 'repo', index: 7 },
+      ];
+      for (const message of malformed) {
+        fake.send({ command: 'aiPreReviewPullRequest', ...message });
+      }
+      await flushDispatches();
+
+      expect(runner).not.toHaveBeenCalled();
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining('did not name a valid pull request'),
+      );
+    });
+
+    it('drops the message instead of throwing when no run has been registered', async () => {
+      // A host whose activation only got as far as the view provider has nothing
+      // to run; the message is not worth a dialog, but it must not become an
+      // unhandled rejection either.
+      fake.send({ command: 'aiPreReviewPullRequest', ...target });
+      await flushDispatches();
+
+      expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it('advertises the feature switch, so the button is offered only while it is on', async () => {
+      const get = vi.fn((key: string) => (key === 'aiPreReview' ? true : undefined));
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({ get, update: vi.fn() } as never);
+
+      fake.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      // The webview cannot read extension configuration: the boolean it renders
+      // the button from is this one. The switch itself is re-read by the run, so a
+      // stale boolean can only hide or show a button.
+      const initialState = postedMessages(fake.posted).find((message) => message.command === 'initialState');
+      expect(initialState?.aiPreReview).toBe(true);
+    });
+
+    it('reports the switch as off when the setting is off', async () => {
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn(() => undefined),
+        update: vi.fn(),
+      } as never);
+
+      fake.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      const initialState = postedMessages(fake.posted).find((message) => message.command === 'initialState');
+      expect(initialState?.aiPreReview).toBe(false);
+    });
+
+    it('pushes the switch into the webview when it changes outside the sidebar', async () => {
+      // The switch can only be changed in VS Code's Settings UI, which this
+      // webview never sees. Without the push the button would keep describing the
+      // state the page was rendered with.
+      let enabled = false;
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () => ({ get: (key: string) => (key === 'aiPreReview' ? enabled : undefined), update: vi.fn() }) as never,
+      );
+
+      enabled = true;
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      expect(listener).toBeTypeOf('function');
+      listener?.({ affectsConfiguration: (key: string) => key === 'forgejoToolkit.aiPreReview' });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({ command: 'setAiPreReview', aiPreReview: true }),
+      );
+    });
+  });
 });

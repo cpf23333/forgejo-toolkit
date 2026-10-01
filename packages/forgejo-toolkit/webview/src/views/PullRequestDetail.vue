@@ -1048,6 +1048,66 @@ watch(
   },
 );
 
+/**
+ * Whether the host says the AI pre-review is on, which is the whole of what this
+ * view gates the button on.
+ *
+ * `=== true` on the way out rather than a bare read, and deliberately not
+ * `state.aiPreReview.value` in the template: the shared message type documents
+ * `aiPreReview` as **optional**, and a reader that treated a missing value as
+ * "on" would offer a button whose only outcome is the run's own refusal. Reading
+ * it here also keeps the field's absence from throwing while this view renders,
+ * which is what a host older than the field would produce.
+ */
+const aiPreReviewEnabled = computed(() => state.aiPreReview?.value === true);
+
+/**
+ * The changed-file count the AI pre-review button's tooltip states, or
+ * `undefined` while the view cannot know it.
+ *
+ * The loaded file list comes first: it is the same endpoint the host's own run
+ * reads, so the number on the tooltip is the number of files that run will
+ * cover. Until that list has answered, the pull request's own `changed_files` is
+ * the best the view has — and a count it has not loaded at all is reported as
+ * unknown rather than as zero, because "0 changed files" is a claim, not a
+ * placeholder.
+ */
+const aiPreReviewChangedFileCount = computed(() => {
+  if (state.pullRequestFiles.value.has(filesKey.value)) {
+    return files.value.length;
+  }
+  return detail.value?.changed_files;
+});
+
+/**
+ * The whole-pull-request AI pre-review button's own two strings: its label and
+ * its tooltip.
+ *
+ * The label states the scope because that is the point of this entry — the
+ * feature reads every changed file and the whole diff, and it used to be offered
+ * from a **file's** context menu, where the offer and the scope did not match.
+ * The tooltip repeats it with the number of changed files whenever the view
+ * knows it, so "what am I about to send?" is answerable before the click.
+ */
+const aiPreReviewLabel = computed(() => t('dashboard.detail.aiPreReview'));
+const aiPreReviewTooltip = computed(() => {
+  const count = aiPreReviewChangedFileCount.value;
+  return count === undefined
+    ? t('dashboard.detail.aiPreReviewTooltip')
+    : t('dashboard.detail.aiPreReviewTooltipWithFiles', { count });
+});
+
+/**
+ * Asks the host for a pre-review of the pull request this page shows. **Only the
+ * user's click runs anything**: rendering the page, opening the button's tooltip
+ * or navigating here sends no message and asks no model. The host validates the
+ * coordinates and re-reads the feature switch itself, so this button being
+ * visible can never be what allows a run.
+ */
+function handleAiPreReview() {
+  state.startAiPreReview(instanceId.value, owner.value, repo.value, index.value);
+}
+
 function handleOpenDiff(filename: string, status: string, previousFilename?: string) {
   const baseSha = detail.value?.merge_base ?? detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
@@ -1409,6 +1469,15 @@ function reloadPullRequest() {
             <span class="state-badge" :class="prStateClass(detail.state, detail.merged)">
               {{ prStateText(detail.state, detail.merged) }}
             </span>
+            <vscode-button
+              v-if="aiPreReviewEnabled"
+              icon="sparkle"
+              :title="aiPreReviewTooltip"
+              :aria-label="aiPreReviewLabel"
+              @click="handleAiPreReview"
+            >
+              {{ aiPreReviewLabel }}
+            </vscode-button>
             <vscode-button
               icon="link-external"
               :title="t('dashboard.detail.openPullRequest')"

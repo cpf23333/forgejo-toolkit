@@ -199,7 +199,21 @@ describe('host l10n bundles', () => {
 
 describe('manifest nls pairs', () => {
   const manifest = readJson(path.join(packageRoot, 'package.json')) as {
-    contributes: { configuration: { properties: Record<string, { title?: string; description?: string }> } };
+    contributes: {
+      configuration: {
+        properties: Record<
+          string,
+          {
+            title?: string;
+            description?: string;
+            type?: string;
+            default?: unknown;
+            enum?: unknown;
+            enumDescriptions?: unknown;
+          }
+        >;
+      };
+    };
   };
   const en = flatten(readJson(path.join(packageRoot, 'package.nls.json')));
   const zh = flatten(readJson(path.join(packageRoot, 'package.nls.zh-cn.json')));
@@ -238,7 +252,7 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.mcpWriteTools.cancelActionRun',
       'forgejoToolkit.mcpWriteAuditToFile',
       'forgejoToolkit.aiPreReview',
-      'forgejoToolkit.aiPreReviewIncludeDiff',
+      'forgejoToolkit.aiPreReviewPromptScope',
       'forgejoToolkit.aiPreReviewModel',
     ]);
     const names = [
@@ -247,7 +261,7 @@ describe('manifest nls pairs', () => {
       'config.mcpWriteTools.cancelActionRun.title',
       'config.mcpWriteAuditToFile.title',
       'config.aiPreReview.title',
-      'config.aiPreReviewIncludeDiff.title',
+      'config.aiPreReviewPromptScope.title',
       'config.aiPreReviewModel.title',
       'command.aiPreReviewPullRequest.title',
       'command.aiPreReviewChooseModel.title',
@@ -256,6 +270,42 @@ describe('manifest nls pairs', () => {
       expect(en.get(key), `en: ${key}`).toBeTruthy();
       expect(zh.get(key), `zh: ${key}`).toBeTruthy();
       expect(zh.get(key), key).not.toBe(en.get(key));
+    }
+  });
+
+  it('contributes the prompt scope as a real dropdown, described in both languages', () => {
+    // The scope is a **static** enum, so — unlike the model choice, whose list
+    // only exists at runtime — VS Code can render a real dropdown. Both nls
+    // pairs have to carry every value's description, because a missing
+    // `enumDescriptions` entry shows the raw `%config.…%` placeholder in the
+    // dropdown, which is where the egress decision is actually explained.
+    const property = manifest.contributes.configuration.properties['forgejoToolkit.aiPreReviewPromptScope'];
+    const values = ['ask', 'metadata-only', 'changed-lines-only', 'full-diff', 'changed-files'];
+    const descriptions = (Array.isArray(property?.enumDescriptions) ? property.enumDescriptions : []) as unknown[];
+    expect(property?.type).toBe('string');
+    expect(property?.default).toBe('ask');
+    expect(property?.enum).toEqual(values);
+    expect(descriptions).toHaveLength(values.length);
+
+    // Every description says what actually leaves the machine — the honest
+    // wording the whole setting exists for — in both languages.
+    const statesEgress: Record<string, string> = {
+      ask: 'nothing is requested, sent or written until you answer',
+      'metadata-only': 'Send no code at all',
+      'changed-lines-only': 'Send the changed lines of code only',
+      'full-diff': 'Send the whole diff',
+      'changed-files': 'full text of every changed file',
+    };
+    for (const [index, value] of values.entries()) {
+      const placeholder = String(descriptions[index] ?? '');
+      expect(placeholder, value).toMatch(/^%config\.aiPreReviewPromptScope\.enumDescriptions\.[a-zA-Z]+%$/);
+      const key = placeholder.slice(1, -1);
+      const english = en.get(key) ?? '';
+      const chinese = zh.get(key) ?? '';
+      expect(english, `en: ${key}`).toContain(statesEgress[value]);
+      expect(chinese, `zh: ${key}`).not.toBe('');
+      expect(chinese, `zh: ${key}`).not.toBe(english);
+      expect(chinese.length, `zh: ${key}`).toBeGreaterThan(30);
     }
   });
 });

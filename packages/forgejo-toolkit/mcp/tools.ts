@@ -10,7 +10,7 @@ import {
   type ForgejoClient,
   type PagedList,
 } from '../src/api/client';
-import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { PR_REVIEW_MAX_COMMENT_LENGTH, isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, userFacingErrorMessage } from '../src/api/errors-core';
 import type {
   ForgejoChangedFile,
@@ -713,8 +713,16 @@ export const PR_REVIEW_COMMENT_BUDGET = 24 * 1024;
 export const PR_REVIEW_MAX_DIFF_FILES = 100;
 /** Most unresolved comments the brief carries. */
 export const PR_REVIEW_MAX_COMMENTS = 50;
-/** Characters kept from one review comment body; the rest is announced in the body itself. */
-export const PR_REVIEW_MAX_COMMENT_LENGTH = 1024;
+/**
+ * Characters kept from one review comment body; the rest is announced in the body itself.
+ *
+ * Defined in `@cpf23333-forgejo-toolkit/shared/limits` and re-exported here, because
+ * the AI pre-review's confirmation panel is webview code that has to enforce the
+ * same number and cannot import this module: the webview bundle stays out of the
+ * host's module graph, so the shared package is the one place both halves can
+ * read it from.
+ */
+export { PR_REVIEW_MAX_COMMENT_LENGTH };
 /**
  * In-flight review-comment requests. There is no endpoint that returns a pull
  * request's inline review comments in one page — they hang off one review each —

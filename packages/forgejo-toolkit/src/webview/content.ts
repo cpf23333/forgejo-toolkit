@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import type { AiPreReviewPanelPayload } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export interface WebviewContentOptions {
-  panelMode?: 'onboarding' | 'pullReviewComment';
+  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview';
   locale?: 'en' | 'zh';
   /** URLs of the configured Forgejo instances; their origins are added to CSP img-src. */
   instanceUrls?: string[];
@@ -29,6 +30,13 @@ export interface WebviewContentOptions {
     mode: 'single' | 'review';
     pendingReviewId?: number;
   };
+  /**
+   * The AI pre-review panel's payload, with the affordance flag the host adds
+   * (`canOpenPullRequest`: false when nothing can navigate to the draft). The
+   * panel's own shared type stays free of that flag because it describes what a
+   * *run* sends, not what this document can offer.
+   */
+  aiPreReview?: AiPreReviewPanelPayload & { canOpenPullRequest?: boolean };
 }
 
 /**
@@ -65,16 +73,18 @@ export function buildContentSecurityPolicy(
 /**
  * The document each webview surface loads.
  *
- * The three surfaces are separate Vite entries (see `webview/vite.config.mts`),
+ * The four surfaces are separate Vite entries (see `webview/vite.config.mts`),
  * so the sidebar dashboard's shell (`App.vue`, the router, the elements only it
- * renders) is not in a panel's entry graph and a panel is not in the sidebar's.
- * Before the split every surface loaded `index.html`, which is how opening the
- * setup wizard or the review comment editor downloaded the whole dashboard.
+ * renders) is not in a panel's entry graph and a panel is not in the sidebar's
+ * or another panel's. Before the split every surface loaded `index.html`, which
+ * is how opening the setup wizard or the review comment editor downloaded the
+ * whole dashboard.
  */
 export const WEBVIEW_HTML_FILES = {
   dashboard: 'index.html',
   onboarding: 'onboarding.html',
   pullReviewComment: 'pullReviewComment.html',
+  aiPreReview: 'aiPreReview.html',
 } as const;
 
 /** The HTML document `getWebviewContent` renders for a surface. */
@@ -105,15 +115,17 @@ export function getWebviewContent(
   let html = fs.readFileSync(htmlPath, 'utf8');
 
   const config: {
-    panelMode?: 'onboarding' | 'pullReviewComment';
+    panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview';
     locale?: 'en' | 'zh';
     vscodeVersion: string;
     pullReviewComment?: WebviewContentOptions['pullReviewComment'];
+    aiPreReview?: WebviewContentOptions['aiPreReview'];
   } = {
     panelMode: options?.panelMode,
     locale: options?.locale,
     vscodeVersion: vscode.version,
     pullReviewComment: options?.pullReviewComment,
+    aiPreReview: options?.aiPreReview,
   };
   // Escape `<` so a `</script>` inside a value (e.g. a weird file path) cannot
   // terminate the script block early.

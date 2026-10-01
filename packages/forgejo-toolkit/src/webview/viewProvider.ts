@@ -60,14 +60,25 @@ import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { redactUrlUserinfo, stripUrlUserinfo, hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { writeFileAtomically } from '../utils/atomicWrite';
 import { resolveLocale } from '../utils/resolveLocale';
-import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
+import {
+  isSafeRepoIdentity,
+  isSafeRepoNameSegment,
+  isSafeRepoPath,
+  parseWebviewPullRequestTarget,
+} from './repoIdentity';
+import type { PullRequestTarget } from './repoIdentity';
 import { readWorkflowDispatchInputs } from './workflowDispatchInputs';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
 import { echoedListRequestId } from './listRequestId';
 import { OnboardingWebviewPanel } from './onboardingPanel';
+import { buildForgejoPrDiffUri } from './diffUri';
 import { PullReviewCommentPanel } from '../comments/pullReviewCommentPanel';
 import { isStorableAiPreReviewModelSettingValue, listAiPreReviewChatModelChoices } from '../aiPreReviewModels';
-import { AI_PRE_REVIEW_MODEL_SETTING, writeAiPreReviewModelSetting } from '../aiPreReviewSettings';
+import {
+  AI_PRE_REVIEW_MODEL_SETTING,
+  isAiPreReviewEnabled,
+  writeAiPreReviewModelSetting,
+} from '../aiPreReviewSettings';
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -478,6 +489,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    * selected entries by id.
    */
   private _pendingImportInstances: ForgejoInstance[] | undefined;
+  /**
+   * The AI pre-review run, handed over by `registerAiPreReviewCommand` rather
+   * than imported.
+   *
+   * The dependency cannot point the other way: `src/aiPreReview.ts` imports this
+   * module (it opens the confirmation panel and writes the drafts through the
+   * provider), so a static import here would close a cycle. A callback also keeps
+   * the flow in one place — the provider validates what a webview sent and then
+   * calls exactly the function the `editor/title` button calls, so the two
+   * entries cannot drift apart.
+   */
+  private _aiPreReviewRunner: ((target: PullRequestTarget) => void) | undefined;
 
   constructor(
     private readonly _context: vscode.ExtensionContext,
@@ -523,6 +546,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // view keeps the language it was rendered with and the title never follows
       // the setting.
       vscode.workspace.onDidChangeConfiguration((event) => {
+        // The AI pre-review switch is read by the dashboard for one thing only:
+        // whether to offer its button. It is normally changed in VS Code's own
+        // Settings UI, which this webview never sees, so without this push the
+        // button would keep the state it was rendered with until the view
+        // happened to reload. The run re-checks the setting itself, so this
+        // message can only show or hide an affordance.
+        if (event.affectsConfiguration('forgejoToolkit.aiPreReview')) {
+          this._reply('setAiPreReview', { aiPreReview: isAiPreReviewEnabled() });
+        }
         if (!event.affectsConfiguration('forgejoToolkit.locale')) {
           return;
         }
@@ -800,6 +832,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           instances: this._config.getInstances().map(toPublicInstance),
           locale,
           debug,
+          // The dashboard's own gate for the AI pre-review button. Read here and
+          // pushed into the view the same way `debug` is, because the webview
+          // cannot see extension configuration: it renders a switch it was told
+          // about, and the run re-checks the setting itself so a stale boolean
+          // can only hide or show a button, never allow a run.
+          aiPreReview: isAiPreReviewEnabled(),
           worktrees: this._worktreeManager.getWorktrees(),
           worktreeOpenMode: this._config.getWorktreeOpenMode(),
           worktreeCacheDirectory: directory,
@@ -1142,6 +1180,35 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof debug === 'boolean') {
           await vscode.workspace.getConfiguration('forgejoToolkit').update('debug', debug, true);
         }
+        return;
+      }
+      // The AI pre-review started from the pull request detail page. The
+      // coordinates are validated here, at the dispatch, and then handed to the
+      // very run the `editor/title` button reaches: one implementation, two
+      // entry points. Nothing else about the run is read from the message — the
+      // webview says which pull request, and the host decides everything else
+      // (model, scope, prompt, confirmation, drafts).
+      //
+      // The feature switch is deliberately **not** checked here. The run checks
+      // it as its first act and refuses with a pointer to the setting, and the
+      // dashboard hides the button while it is off, so a second gate in the
+      // dispatch would be an affordance rule pretending to be a guarantee.
+      case 'aiPreReviewPullRequest': {
+        const target = parseWebviewPullRequestTarget(message);
+        if (!target) {
+          logger.error('aiPreReviewPullRequest refused a message that does not name a valid pull request');
+          void vscode.window.showErrorMessage(
+            vscode.l10n.t(
+              'The AI pre-review was not started: the request did not name a valid pull request. Nothing was sent and nothing was created.',
+            ),
+          );
+          return;
+        }
+        if (!this._aiPreReviewRunner) {
+          logger.error('aiPreReviewPullRequest arrived before the AI pre-review was registered');
+          return;
+        }
+        this._aiPreReviewRunner(target);
         return;
       }
       // The Settings page's AI pre-review model chooser. Both cases are pure
@@ -4633,6 +4700,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     return this._pendingImportInstances !== undefined;
   }
 
+  /**
+   * Hands the provider the function that runs an AI pre-review, so the
+   * `aiPreReviewPullRequest` message starts exactly the flow
+   * `COMMAND_AI_PRE_REVIEW` starts (see `_aiPreReviewRunner` for why it is a
+   * callback rather than an import).
+   *
+   * Called once by `registerAiPreReviewCommand`, the same place the command
+   * handlers are registered, so both entries are wired together or neither is.
+   */
+  public setAiPreReviewRunner(runner: (target: PullRequestTarget) => void): void {
+    this._aiPreReviewRunner = runner;
+  }
+
   public openSettings() {
     this._revealView();
     this._postOrQueue({ command: 'openSettings' });
@@ -4666,6 +4746,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   public openPullRequestDetail(payload: { instanceId: string; owner: string; repo: string; index: number }) {
+    this._postOrQueue({ command: 'openPullRequestDetail', ...payload });
+  }
+
+  /**
+   * Brings the sidebar on screen and opens one pull request's detail there.
+   *
+   * `openPullRequestDetail` alone is for a caller the user is already looking at
+   * (the dashboard itself); this one reveals the view first, which is what an
+   * action taken from a **separate** editor tab needs — the AI pre-review
+   * panel's "open the pull request" button after drafts were created. Without
+   * the reveal the message would be queued into a view that is not resolved and
+   * the button would look like it did nothing.
+   */
+  public revealPullRequestDetail(payload: { instanceId: string; owner: string; repo: string; index: number }) {
+    this._revealView();
     this._postOrQueue({ command: 'openPullRequestDetail', ...payload });
   }
 
@@ -4730,12 +4825,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     isBase: boolean,
     status?: string,
   ): vscode.Uri {
-    const params = { index, ref, isBase, status };
-    return vscode.Uri.from({
-      scheme: 'forgejo-pr',
-      path: `/${instanceId}/${owner}/${repo}/${filepath}`,
-      query: JSON.stringify(params),
-    });
+    return buildForgejoPrDiffUri({ instanceId, owner, repo, index, ref, filepath, isBase, status });
   }
 
   private _updateViewTitle(locale: 'en' | 'zh') {

@@ -31,3 +31,18 @@ export function isListTruncatedWithTotal(items: readonly unknown[], totalCount?:
  * number to say so, which is why it lives here rather than only in the client.
  */
 export const MAX_REPO_FILE_SEARCH_RESULTS = 200;
+
+/**
+ * Characters kept from one review comment body; the rest is announced in the
+ * body itself.
+ *
+ * It lives here rather than only in the extension's MCP tools because more than
+ * one surface needs this exact number and they cannot share an import: the AI
+ * pre-review's brief cuts a model body to it, the host's confirmation-panel
+ * handler enforces it again on the body a user edited in (`src/aiPreReviewPanel.ts`),
+ * and the panel itself is webview code, whose bundle must not reach the host's
+ * module graph. A webview that hard-coded the number would drift the day this one
+ * changes, and a body the panel believed was legal would then be refused by the
+ * host for no visible reason.
+ */
+export const PR_REVIEW_MAX_COMMENT_LENGTH = 1024;

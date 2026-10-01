@@ -118,7 +118,7 @@ describe('getWebviewContent', () => {
   });
 
   it('loads each surface its own entry document', () => {
-    // The three surfaces are separate Vite entries (see webview/vite.config.mts),
+    // The four surfaces are separate Vite entries (see webview/vite.config.mts),
     // so a panel document must never be the dashboard's: loading index.html from
     // a panel is exactly the regression that made a panel download the whole
     // dashboard shell.
@@ -127,6 +127,7 @@ describe('getWebviewContent', () => {
       [{ instanceUrls: ['https://forgejo.example.com'] }, 'index.html'],
       [{ panelMode: 'onboarding' }, 'onboarding.html'],
       [{ panelMode: 'pullReviewComment' }, 'pullReviewComment.html'],
+      [{ panelMode: 'aiPreReview' }, 'aiPreReview.html'],
     ];
     for (const [options, file] of expected) {
       vi.mocked(fs.readFileSync).mockClear();
@@ -134,6 +135,53 @@ describe('getWebviewContent', () => {
       const read = vi.mocked(fs.readFileSync).mock.calls.at(-1)?.[0];
       expect(read).toBe(path.join('/ext', 'out', 'webview', file));
     }
+  });
+
+  it('carries the AI pre-review panel payload into the document config', () => {
+    // The payload travels like the review-comment editor's context: the panel's
+    // first paint shows the candidates without a round trip. Escaping `<` is what
+    // keeps a comment body from terminating the config script block.
+    const html = render({
+      panelMode: 'aiPreReview',
+      locale: 'zh',
+      aiPreReview: {
+        instanceId: 'inst-1',
+        owner: 'demo-user',
+        repo: 'demo-repo',
+        index: 2,
+        model: { name: 'Fake Model', vendor: 'fake', family: 'fake', id: 'fake-model' },
+        scope: 'changed-files',
+        // The coverage the panel's header states: one file covered out of the
+        // three the run fetched, which is the "N of M" branch the header renders.
+        changedFileCount: 1,
+        changedFilesTotal: 3,
+        candidateCount: 1,
+        drops: [{ label: 'line not in the diff', count: 1 }],
+        canOpenPullRequest: true,
+        candidates: [
+          {
+            index: 0,
+            path: 'src/index.ts',
+            line: 2,
+            side: 'head',
+            extraLines: 0,
+            body: 'Careful: </script> in a body must not break the document',
+          },
+        ],
+      },
+    });
+
+    const config = /window\.__FORGEJO_TOOLKIT_CONFIG__ = (.*?);<\/script>/s.exec(html)?.[1] ?? '';
+    expect(config).toContain('\\u003c/script>');
+    const parsed = JSON.parse(config.replace(/\\u003c/g, '<')) as {
+      panelMode?: string;
+      locale?: string;
+      aiPreReview?: { scope?: string; candidates?: { body?: string }[] };
+    };
+    expect(parsed.panelMode).toBe('aiPreReview');
+    expect(parsed.locale).toBe('zh');
+    expect(parsed.aiPreReview?.scope).toBe('changed-files');
+    expect(parsed.aiPreReview?.candidates?.[0]?.body).toContain('</script>');
   });
 
   it('reports the flat document it needs when the webview was not built', () => {

@@ -22,9 +22,14 @@ import type { ForgejoChangedFile } from './api/types';
  *
  * Two rules from the record are encoded here and must not be relaxed:
  *
- * 1. **Never send more than the user agreed to.** Without the diff-body switch
- *    the prompt carries the changed-file table and the *metadata* of existing
- *    review comments — never a comment body, never a URL or host name.
+ * 1. **Never send more than the user agreed to.** The scope the user stated
+ *    (`forgejoToolkit.aiPreReviewPromptScope`) decides what the caller may hand
+ *    this module: `metadata-only` passes no diff and no file text, so the prompt
+ *    carries the changed-file table and the *metadata* of existing review
+ *    comments — never a comment body, never a URL or host name; the other three
+ *    scopes add the diff body, the changed lines of that diff, or the changed
+ *    files' own head text, and nothing else. There is no scope under which a
+ *    token, a host name or an existing comment's body may appear.
  * 2. **Never repair a model anchor.** A comment whose path, side, line or range
  *    does not survive validation is dropped and counted; nothing is moved to a
  *    nearby line, flipped to the other side, fuzzy-matched by name or clamped
@@ -138,36 +143,87 @@ export interface AiPreReviewExistingReview {
 export const AI_PRE_REVIEW_MAX_COMMENTS = 20;
 
 /**
- * The instruction half of the prompt. A constant so the tests can assert what
- * the model is actually told, and so the two modes differ only in the user half.
+ * The two UI languages this extension presents to a user, which are exactly the
+ * two `resolveLocale` returns. The instruction block is built for one of them;
+ * nothing else in this module depends on `vscode`, so the type lives here rather
+ * than in the host-side settings module that reads the setting.
+ */
+export type AiPreReviewBodyLanguage = 'en' | 'zh';
+
+/**
+ * The name of one language **as the prompt names it**, in the language's own
+ * script: a model has to be told `简体中文`, not `Chinese`, to reliably answer in
+ * Simplified Chinese.
+ *
+ * Only these two names exist because only these two languages do: the extension
+ * ships an English and a Chinese UI, and `src/utils/resolveLocale.ts` reads
+ * anything that is not one of the two as English.
+ */
+export function aiPreReviewBodyLanguageName(language: AiPreReviewBodyLanguage): string {
+  return language === 'zh' ? '简体中文' : 'English';
+}
+
+/**
+ * The instruction half of the prompt, built **once per run** for the language
+ * the user reads (see `aiPreReviewSettings.ts`'s
+ * `aiPreReviewCommentBodyLanguage`). It is a function rather than a constant
+ * because the language is per user, and it is called once because the same bytes
+ * have to go to both attempts of the one model.
  *
  * Every rule here is load-bearing — the validator drops, and never repairs, a
  * comment that breaks one — so the wording is kept as short as it can be while
- * still stating all of them. It travels as the first part of the request's one
- * `User` message (`buildAiPreReviewPromptMessages`), not as a message of its
- * own: `@types/vscode` 1.102 declares `LanguageModelChatMessageRole` with only
- * `User` and `Assistant` and `LanguageModelChatMessage` with no `System`
- * factory, and the API guide's note still reads "Currently, the Language Model
- * API doesn't support the use of system messages" — so splitting the contract
- * off would not buy it a system turn, only a second user turn that a provider's
- * conversion is free to mishandle. The budget that matters is checked with
- * `countTokens` against `maxInputTokens` in `src/aiPreReview.ts`, which also
- * picks a model that can hold this text.
+ * still stating all of them. The language rule is one of them: without it the
+ * model answers an English instruction block in English whatever the editor's
+ * language is, which is what an acceptance run on a `zh-cn` editor showed (the
+ * bodies came back in English). It is stated explicitly rather than left to the
+ * model's own reading of the conversation, because nothing else in the request
+ * carries the user's language: the brief is file paths, counts and code.
+ *
+ * The rule draws the line the JSON contract draws: every comment's `body` is
+ * prose and is written in that language, while the keys and every value that is
+ * not prose — the schema's field names, `"head"`/`"base"`, `path` and the
+ * numbers — stay exactly as specified, because the validator matches them
+ * literally and `path` has to equal a changed file's path byte for byte.
+ *
+ * It travels as the first part of the request's one `User` message
+ * (`buildAiPreReviewPromptMessages`), not as a message of its own:
+ * `@types/vscode` 1.102 declares `LanguageModelChatMessageRole` with only `User`
+ * and `Assistant` and `LanguageModelChatMessage` with no `System` factory, and
+ * the API guide's note still reads "Currently, the Language Model API doesn't
+ * support the use of system messages" — so splitting the contract off would not
+ * buy it a system turn, only a second user turn that a provider's conversion is
+ * free to mishandle. The budget that matters is checked with `countTokens`
+ * against `maxInputTokens` in `src/aiPreReview.ts`, which also picks a model
+ * that can hold this text.
  */
-export const AI_PRE_REVIEW_SYSTEM_PROMPT = [
-  'You review a Forgejo pull request and propose line-level review comments.',
-  '',
-  'Rules:',
-  '- Answer with strict JSON only. No prose, no Markdown code fence.',
-  '- Shape: {"comments":[{"path":string,"line":number,"side":"head"|"base","extraLines":number,"body":string}]}',
-  '- Copy `path` exactly from the changed-file list; never invent or adjust a path.',
-  '- `line` is 1-based in the file on `side`: "head" is the new file, "base" the old one.',
-  '- `extraLines` is the number of extra lines after `line`; use 0 for a single line.',
-  '- Anchor only to a line shown in the diff you were given; never guess an unseen line.',
-  `- Return at most ${AI_PRE_REVIEW_MAX_COMMENTS} comments; prefer the few that matter most.`,
-  `- Keep each body under ${PR_REVIEW_MAX_COMMENT_LENGTH} characters.`,
-  '- An empty comment list is a valid answer: say nothing when nothing is worth saying.',
-].join('\n');
+export function buildAiPreReviewSystemPrompt(language: AiPreReviewBodyLanguage): string {
+  return [
+    'You review a Forgejo pull request and propose line-level review comments.',
+    '',
+    'Rules:',
+    '- Answer with strict JSON only. No prose, no Markdown code fence.',
+    '- Shape: {"comments":[{"path":string,"line":number,"side":"head"|"base","extraLines":number,"body":string}]}',
+    '- Copy `path` exactly from the changed-file list; never invent or adjust a path.',
+    '- `line` is 1-based in the file on `side`: "head" is the new file, "base" the old one.',
+    '- `extraLines` is the number of extra lines after `line`; use 0 for a single line.',
+    '- Anchor only to a line shown in the diff you were given; never guess an unseen line.',
+    `- Return at most ${AI_PRE_REVIEW_MAX_COMMENTS} comments; prefer the few that matter most.`,
+    `- Keep each body under ${PR_REVIEW_MAX_COMMENT_LENGTH} characters.`,
+    `- Write every comment body in ${aiPreReviewBodyLanguageName(language)}. The JSON keys, and every value that is not prose — the schema's field names, "head"/"base", paths and the numbers — stay exactly as specified.`,
+    '- An empty comment list is a valid answer: say nothing when nothing is worth saying.',
+  ].join('\n');
+}
+
+/**
+ * The **English** instruction block: `buildAiPreReviewSystemPrompt('en')`, kept
+ * as a constant for the two readers that are not a review run of a specific
+ * user — the probe command's two "instructions" shapes, which measure whether a
+ * provider can carry an instruction block and a request at all and whose wording
+ * is therefore irrelevant (`aiPreReviewProbeShapes`), and the tests that pin the
+ * contract's wording. A run never uses this constant: it builds its block for
+ * the language the user reads.
+ */
+export const AI_PRE_REVIEW_SYSTEM_PROMPT = buildAiPreReviewSystemPrompt('en');
 
 /**
  * One message of one request: the role and the exact text.
@@ -183,14 +239,18 @@ export interface AiPreReviewPromptMessage {
 }
 
 /**
- * The whole text one request sends: the fixed instructions, a blank line, then
- * the caller's half (the brief, with the diff body when that switch is on).
+ * The whole text one request sends: the instructions the caller built once
+ * (`buildAiPreReviewSystemPrompt`), a blank line, then the caller's half (the
+ * brief, with the diff body when the scope allows it).
  *
  * This is the string the prompt budget is measured on *and* the string the
- * request carries, so "what we counted" and "what we sent" cannot drift.
+ * request carries, so "what we counted" and "what we sent" cannot drift. The
+ * instruction text is an argument rather than a re-derivation from a language:
+ * the run prepares those bytes once and hands the same value to the token
+ * counter, to both attempts and to the diagnostics dump.
  */
-export function aiPreReviewPromptText(userPrompt: string): string {
-  return `${AI_PRE_REVIEW_SYSTEM_PROMPT}\n\n${userPrompt}`;
+export function aiPreReviewPromptText(systemPrompt: string, userPrompt: string): string {
+  return `${systemPrompt}\n\n${userPrompt}`;
 }
 
 /**
@@ -200,7 +260,7 @@ export function aiPreReviewPromptText(userPrompt: string): string {
  * brief). One message is what the API's own facts support:
  *
  * - There is no system role to put the instructions in (see the note on
- *   `AI_PRE_REVIEW_SYSTEM_PROMPT`), and a provider does not receive messages
+ *   `buildAiPreReviewSystemPrompt`), and a provider does not receive messages
  *   verbatim: it gets role + content parts (`LanguageModelChatRequestMessage`)
  *   and converts them to its own API's roles. The documented conversion maps
  *   *every* `User` message to the same `user` role, so two `User` messages
@@ -218,15 +278,49 @@ export function aiPreReviewPromptText(userPrompt: string): string {
  * the validation on the way back. The file-granularity cut still rewrites only
  * the caller's half.
  */
-export function buildAiPreReviewPromptMessages(userPrompt: string): AiPreReviewPromptMessage[] {
-  return [{ role: 'user', text: aiPreReviewPromptText(userPrompt) }];
+export function buildAiPreReviewPromptMessages(systemPrompt: string, userPrompt: string): AiPreReviewPromptMessage[] {
+  return [{ role: 'user', text: aiPreReviewPromptText(systemPrompt, userPrompt) }];
 }
 
-/** Character cap on one body before it is cut, matching the brief's own discipline. */
+/**
+ * Character cap on one body, **announcement included**, matching the brief's own
+ * discipline.
+ *
+ * The announcement is inside the cap on purpose (2026-10-02). The confirmation
+ * panel caps the text a user may edit into a body at this same constant and the
+ * host enforces it on everything the webview sends, so a body that ended up
+ * longer than the cap could not be created from the panel without an edit first —
+ * and an unedited card that cannot be created is a trap the user has no way to
+ * explain. Cutting the model's text to `cap - announcement` instead keeps every
+ * offered body creatable as it stands; the dropped count is still exact, so
+ * nothing is lost silently.
+ */
 export const AI_PRE_REVIEW_MAX_BODY_LENGTH = PR_REVIEW_MAX_COMMENT_LENGTH;
 
-/** How much of a body the confirmation list previews. */
-export const AI_PRE_REVIEW_PREVIEW_LENGTH = 120;
+/** The exact wording appended to a body the cap cut. */
+function bodyTruncationAnnouncement(droppedCharacters: number): string {
+  return `\n... (truncated: ${droppedCharacters} more characters)`;
+}
+
+/**
+ * The model's body, cut to {@link AI_PRE_REVIEW_MAX_BODY_LENGTH} with its
+ * announcement inside that budget, or unchanged when it already fits.
+ *
+ * How many characters can be kept depends on how many digits the dropped count
+ * needs, so the kept length is settled by shrinking it until the announcement
+ * fits. Each step strictly shrinks the kept prefix, so the loop terminates; the
+ * cap is 1024 characters, so it settles in a couple of steps.
+ */
+function cutAiPreReviewBody(body: string): { body: string; truncated: boolean } {
+  if (body.length <= AI_PRE_REVIEW_MAX_BODY_LENGTH) {
+    return { body, truncated: false };
+  }
+  let kept = AI_PRE_REVIEW_MAX_BODY_LENGTH;
+  while (kept > 0 && kept + bodyTruncationAnnouncement(body.length - kept).length > AI_PRE_REVIEW_MAX_BODY_LENGTH) {
+    kept -= 1;
+  }
+  return { body: body.slice(0, kept) + bodyTruncationAnnouncement(body.length - kept), truncated: true };
+}
 
 const PATH_SEGMENT_SEPARATOR = '/';
 
@@ -469,30 +563,219 @@ function extractBlockPath(block: string): string | undefined {
 }
 
 /**
- * Assembles the user half of the prompt: the brief, plus one section per
- * changed file that has a diff block when the diff body was switched on.
+ * The two ways a diff body may be rendered: `full` is the whole unified diff
+ * (the historical behaviour of the old diff-body switch), and
+ * `changed-lines-only` keeps the added and removed lines plus the file and hunk
+ * headers, dropping the unchanged context lines around them.
+ *
+ * The headers are not decoration: the hunk header is the only thing in the
+ * prompt that says which file line a shown `+`/`-` line has, and the model has
+ * to answer in those numbers for an anchor to survive validation. What is
+ * dropped is only the surrounding context, which is the largest part of a
+ * typical hunk.
+ */
+export type AiPreReviewDiffBodyMode = 'full' | 'changed-lines-only';
+
+/** The note `changed-lines-only` puts above its (deliberately partial) diff. */
+export const AI_PRE_REVIEW_CHANGED_LINES_ONLY_NOTE =
+  '(only the added and removed lines are shown, each with its file and hunk headers so the line numbers stay unambiguous; the unchanged context lines around them are omitted)';
+
+/**
+ * One changed file's head text, as the `changed-files` scope sends it.
+ *
+ * `truncated` is set only for the single pathological case below: one file
+ * larger than the whole content budget, which is cut rather than dropped so the
+ * scope does not silently degrade into "no file text at all".
+ */
+export interface AiPreReviewFileContentSection {
+  path: string;
+  text: string;
+  truncated?: boolean;
+}
+
+/**
+ * The pre-sized `changed-files` payload: the sections themselves plus the facts
+ * the brief has to state about them.
+ *
+ * Every cut is announced in the prompt text (`renderFileContentsSection`),
+ * because a model shown part of a change must know it is part of a change — the
+ * same rule the changed-file table and the diff section already follow.
+ */
+export interface AiPreReviewFileContents {
+  sections: AiPreReviewFileContentSection[];
+  /** Which limit cut the list: the file cap, or the character budget. */
+  truncatedBy?: 'row-limit' | 'budget';
+  /** How many of the offered files the caller had no readable head text for. */
+  unavailable: number;
+}
+
+/**
+ * How many changed files' head texts one prompt may carry. Smaller than
+ * `PR_REVIEW_MAX_DIFF_FILES` on purpose: a diff row costs one line, and a file's
+ * whole text costs its file. The cap also bounds the number of content requests
+ * the run makes, so a pull request with 500 changed files cannot turn into 500
+ * round trips.
+ */
+export const AI_PRE_REVIEW_MAX_CONTENT_FILES = 20;
+
+/**
+ * How much changed-file text one prompt may carry, in characters. The same
+ * shared budget the changed-file table is pre-sized with, for the same reason:
+ * it is the size of the request the feature is willing to build, and the token
+ * budget in the caller (`preparePrompt`) then cuts whole files again if the
+ * model itself is smaller.
+ */
+export const AI_PRE_REVIEW_FILE_CONTENT_BUDGET = PR_REVIEW_DIFF_BUDGET;
+
+/**
+ * Pre-sizes the `changed-files` payload to the budget above.
+ *
+ * Files are kept in the order the brief lists them (the server's own order), and
+ * a cut drops whole files **from the end**, exactly as the diff section and the
+ * token budget already do; `truncatedBy` is what lets the prompt say so. A file
+ * no text was offered for is not a dropped file: it is counted in `unavailable`
+ * and reported separately, because "we could not read it" and "the budget cut
+ * it" are different facts and lead to different reading of the brief.
+ *
+ * The one exception to "drop from the end" is the first file: if a single file
+ * alone exceeds the whole budget, its text is cut and the section is kept with
+ * `truncated`. An empty contents section would make this scope indistinguishable
+ * from `changed-lines-only` for a reason the user cannot see.
+ */
+export function buildAiPreReviewFileContents(input: {
+  paths: readonly string[];
+  texts: ReadonlyMap<string, string>;
+}): AiPreReviewFileContents {
+  const sections: AiPreReviewFileContentSection[] = [];
+  let used = 0;
+  let truncatedBy: AiPreReviewFileContents['truncatedBy'];
+  let unavailable = 0;
+
+  for (const path of input.paths) {
+    if (sections.length >= AI_PRE_REVIEW_MAX_CONTENT_FILES) {
+      truncatedBy = 'row-limit';
+      break;
+    }
+    const text = input.texts.get(path);
+    if (text === undefined) {
+      unavailable += 1;
+      continue;
+    }
+    const cost = contentSectionCost(path, text);
+    if (used + cost > AI_PRE_REVIEW_FILE_CONTENT_BUDGET) {
+      truncatedBy = 'budget';
+      if (sections.length === 0) {
+        const header = contentSectionHeader(path).length;
+        const remaining = Math.max(0, AI_PRE_REVIEW_FILE_CONTENT_BUDGET - used - header);
+        sections.push({ path, text: text.slice(0, remaining), truncated: true });
+      }
+      break;
+    }
+    used += cost;
+    sections.push({ path, text });
+  }
+
+  return { sections, truncatedBy, unavailable };
+}
+
+/** The header line one file's content section starts with. */
+function contentSectionHeader(path: string): string {
+  return `--- ${path} ---\n`;
+}
+
+/** What one file's content section costs the character budget. */
+function contentSectionCost(path: string, text: string): number {
+  return contentSectionHeader(path).length + text.length + 1;
+}
+
+/**
+ * The user half of the prompt: the brief, then the sections the stated scope
+ * allows.
  *
  * The brief's text is rendered from `brief.files` here rather than read from
  * `brief.text`, so the caller's own file-granularity cut (§7.2) is reflected in
  * the prompt: dropping a file sets `truncatedBy`, and the truncation note then
  * tells the model the lines it does not see are missing rather than unchanged.
+ * The diff and content sections are built from the same `brief.files` for the
+ * same reason — a file cut from the prompt loses every section it would have
+ * had, in one place.
  */
-export function buildAiPreReviewUserPrompt(brief: AiPreReviewBrief, options: { diffText?: string } = {}): string {
-  const text = renderAiPreReviewBriefText(brief);
-  if (options.diffText === undefined) {
-    return text;
+export function buildAiPreReviewUserPrompt(
+  brief: AiPreReviewBrief,
+  options: {
+    diffText?: string;
+    diffBody?: AiPreReviewDiffBodyMode;
+    fileContents?: AiPreReviewFileContents;
+  } = {},
+): string {
+  const parts = [renderAiPreReviewBriefText(brief)];
+  if (options.diffText !== undefined) {
+    parts.push(renderDiffSection(brief, options.diffText, options.diffBody ?? 'full'));
   }
-  const blocks = splitDiffByFile(options.diffText);
+  if (options.fileContents !== undefined) {
+    parts.push(renderFileContentsSection(options.fileContents));
+  }
+  return parts.join('\n\n');
+}
+
+/** The `[diff]` section, whole or cut to the changed lines only. */
+function renderDiffSection(brief: AiPreReviewBrief, diffText: string, mode: AiPreReviewDiffBodyMode): string {
+  const blocks = splitDiffByFile(diffText);
   const sections: string[] = [];
   for (const file of brief.files) {
     const block = blocks.get(file.path);
     if (block === undefined) {
       continue;
     }
-    sections.push(`--- ${file.path} ---\n${block}`);
+    sections.push(`--- ${file.path} ---\n${mode === 'changed-lines-only' ? keepChangedLines(block) : block}`);
   }
-  const header = sections.length === 0 ? '(no diff text was available)' : sections.join('\n\n');
-  return `${text}\n\n[diff]\n${header}`;
+  const body = sections.length === 0 ? '(no diff text was available)' : sections.join('\n\n');
+  const note = mode === 'changed-lines-only' ? `${AI_PRE_REVIEW_CHANGED_LINES_ONLY_NOTE}\n` : '';
+  return `[diff]\n${note}${body}`;
+}
+
+/** The `[changed-file-contents]` section of the `changed-files` scope. */
+function renderFileContentsSection(contents: AiPreReviewFileContents): string {
+  const lines: string[] = ['[changed-file-contents]'];
+  if (contents.sections.length === 0) {
+    lines.push('(no changed file could be read at the pull request head version)');
+  } else {
+    lines.push('(the changed file(s) below are shown in full, at the pull request head version)');
+    for (const section of contents.sections) {
+      lines.push(contentSectionHeader(section.path).trimEnd());
+      lines.push(section.text);
+      if (section.truncated) {
+        lines.push(`[truncated: only the beginning of ${section.path} is shown]`);
+      }
+    }
+  }
+  if (contents.unavailable > 0) {
+    lines.push(`[${contents.unavailable} changed file(s) had no readable text at the head version and are not shown]`);
+  }
+  if (contents.truncatedBy !== undefined) {
+    lines.push(
+      `[truncated: the file-content list is incomplete (truncatedBy=${contents.truncatedBy}); treat what is shown as part of the change]`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The added and removed lines of one diff block, with every line that is not a
+ * changed line or a header dropped.
+ *
+ * A context line is the one that starts with a single space, and an empty line
+ * is a context line too on servers that trim the trailing space — both go. Every
+ * other line stays: `diff --git`, `index`, `---`, `+++`, the `@@` hunk headers,
+ * the file-mode and rename metadata, the `+`/`-` lines themselves and the
+ * `\ No newline at end of file` marker. Removing anything else would make a
+ * hunk header point at lines the model cannot count.
+ */
+export function keepChangedLines(diffBlock: string): string {
+  return diffBlock
+    .split(/\r?\n/)
+    .filter((line) => line !== '' && !line.startsWith(' '))
+    .join('\n');
 }
 
 /**
@@ -610,17 +893,14 @@ export function validatePreReviewComments(
     }
     seenAnchors.add(anchor);
 
-    const overflow = body.length - AI_PRE_REVIEW_MAX_BODY_LENGTH;
+    const cut = cutAiPreReviewBody(body);
     accepted.push({
       path,
       line,
       side,
       extraLines,
-      body:
-        overflow > 0
-          ? `${body.slice(0, AI_PRE_REVIEW_MAX_BODY_LENGTH)}\n... (truncated: ${overflow} more characters)`
-          : body,
-      bodyTruncated: overflow > 0 ? true : undefined,
+      body: cut.body,
+      bodyTruncated: cut.truncated ? true : undefined,
     });
   }
 
@@ -691,11 +971,18 @@ export function parseAiPreReviewResponse(text: string): AiPreReviewResponseParse
 }
 
 /**
- * How much of a model answer a log line may quote. The answer is model output
- * that may quote the repository, and the output channel is user-visible, so the
- * diagnostic is a **bounded shape description**: how long it was, whether it
- * looks like JSON at all, and a short prefix of its first line. Never the
- * answer, never the prompt, never the diff, never the brief.
+ * How much of a model answer the **debug-level shape description** quotes. The
+ * answer is model output that may quote the repository, and the output channel
+ * is user-visible, so this diagnostic is a **bounded shape description**: how
+ * long it was, whether it looks like JSON at all, and a short prefix of its
+ * first line.
+ *
+ * This is not the whole of the answer-text policy any more. A contract
+ * violation additionally carries `aiPreReviewAnswerExcerpt` in the error line
+ * (always, debug or not), because the shape alone could not tell a degenerate
+ * model from a truncated one; everything beyond that bounded excerpt stays in
+ * the debug-only diagnostics file. Neither path ever puts the prompt, the brief
+ * or the diff on the channel.
  */
 export const AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH = 60;
 
@@ -713,6 +1000,33 @@ export function describeAiPreReviewAnswerShape(text: string): string {
   return `length=${text.length}, startsWithBrace=${text.trim().startsWith('{')}, firstLine=${JSON.stringify(prefix)}${cut}`;
 }
 
+/**
+ * How much of a **failed** answer an Output-Channel line may quote.
+ *
+ * This is the one exception to "the answer never reaches the channel": a
+ * contract violation is reported with a bounded excerpt of the answer, because
+ * "the answer was not JSON" alone cannot tell a degenerate model from a
+ * truncated one from a wrong prompt. 200 characters is long enough to hold the
+ * whole of the handful-of-characters fragments a flaky provider returns (the
+ * maintainer's real failure was `comments[]` and `{"":}`) and short enough that
+ * the line stays readable; the whole answer remains in the debug-only
+ * diagnostics file.
+ */
+export const AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH = 200;
+
+/**
+ * The excerpt of a failed answer: its first
+ * `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH` characters, or the whole answer when it
+ * is shorter.
+ *
+ * The caller JSON-escapes it (`JSON.stringify`) onto one line, which is what
+ * keeps a newline, a quote or a control character inside the answer from
+ * breaking the log line apart.
+ */
+export function aiPreReviewAnswerExcerpt(text: string): string {
+  return text.slice(0, AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH);
+}
+
 /** The `comments` array of an already parsed answer, or `undefined` if absent. */
 function extractRawComments(raw: unknown): unknown[] | undefined {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -720,15 +1034,6 @@ function extractRawComments(raw: unknown): unknown[] | undefined {
   }
   const comments = (raw as { comments?: unknown }).comments;
   return Array.isArray(comments) ? comments : undefined;
-}
-
-/** The confirmation line for one candidate: `path:line` beside the side, preview. */
-export function formatCandidateLabel(candidate: AiPreReviewCandidate): string {
-  const firstLine = candidate.line;
-  const range = candidate.extraLines > 0 ? `${firstLine}-${firstLine + candidate.extraLines}` : String(firstLine);
-  const side = candidate.side === 'base' ? 'base' : 'head';
-  const preview = candidate.body.replace(/\s+/g, ' ').trim().slice(0, AI_PRE_REVIEW_PREVIEW_LENGTH);
-  return `${candidate.path}:${range} (${side}) — ${preview}`;
 }
 
 /** The totals one run reports back to the user (§5.4). */

@@ -169,11 +169,25 @@
           "title": "%config.aiPreReview.title%",
           "description": "%config.aiPreReview.description%"
         },
-        "forgejoToolkit.aiPreReviewIncludeDiff": {
-          "type": "boolean",
-          "default": false,
-          "title": "%config.aiPreReviewIncludeDiff.title%",
-          "description": "%config.aiPreReviewIncludeDiff.description%"
+        "forgejoToolkit.aiPreReviewPromptScope": {
+          "type": "string",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "metadata-only",
+            "changed-lines-only",
+            "full-diff",
+            "changed-files"
+          ],
+          "enumDescriptions": [
+            "%config.aiPreReviewPromptScope.enumDescriptions.ask%",
+            "%config.aiPreReviewPromptScope.enumDescriptions.metadataOnly%",
+            "%config.aiPreReviewPromptScope.enumDescriptions.changedLinesOnly%",
+            "%config.aiPreReviewPromptScope.enumDescriptions.fullDiff%",
+            "%config.aiPreReviewPromptScope.enumDescriptions.changedFiles%"
+          ],
+          "title": "%config.aiPreReviewPromptScope.title%",
+          "description": "%config.aiPreReviewPromptScope.description%"
         },
         "forgejoToolkit.aiPreReviewModel": {
           "type": "string",
@@ -267,6 +281,12 @@
         "title": "%command.aiPreReviewProbeChatModels.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(beaker)"
+      },
+      {
+        "command": "forgejoToolkit.aiPreReviewOpenDiagnostics",
+        "title": "%command.aiPreReviewOpenDiagnostics.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(output)"
       },
       {
         "command": "forgejoToolkit.copyAgentsWindowMcpConfig",
@@ -376,11 +396,6 @@
           "command": "forgejoToolkit.addPullReviewComment",
           "when": "forgejoToolkit.inPullRequestDiff",
           "group": "1_comments@0"
-        },
-        {
-          "command": "forgejoToolkit.aiPreReviewPullRequest",
-          "when": "forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview",
-          "group": "1_comments@1"
         }
       ],
       "editor/lineNumber/context": [

@@ -42,7 +42,12 @@ function registerHandlers() {
     getCommentContext: mocks.getCommentContext,
   };
   const context = { subscriptions: [] as Array<{ dispose(): void }> };
-  registerCommands(context as never, {} as never, {} as never, {} as never, controller as never);
+  // Registering the commands is also what hands the view provider the AI
+  // pre-review run that the pull request detail page's button reaches
+  // (`setAiPreReviewRunner`), so even this suite — which never dispatches a
+  // webview message — has to pass a provider that accepts the handover.
+  const viewProvider = { setAiPreReviewRunner: vi.fn() };
+  registerCommands(context as never, {} as never, {} as never, viewProvider as never, controller as never);
   const handlers = new Map<string, (...args: unknown[]) => void>();
   for (const [name, callback] of vi.mocked(vscode.commands.registerCommand).mock.calls) {
     handlers.set(name, callback as (...args: unknown[]) => void);

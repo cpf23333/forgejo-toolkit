@@ -41,6 +41,63 @@ export function isSafeRepoIdentity(owner: unknown, repo: unknown): boolean {
 const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
 
 /**
+ * The coordinates of one pull request.
+ *
+ * It deliberately stops at the four fields needed in order to address a pull
+ * request: the instance (an opaque id the host resolves to a URL and a token),
+ * the repository pair and the index. Nothing about the diff, the file or the
+ * review is part of it — a value that could name those would be a value that
+ * could steer a run.
+ *
+ * Both doors into a pull-request-wide action carry exactly this: the
+ * `forgejo-pr` diff URI, which `parseForgejoPrUri` reads (its result is
+ * assignable to this type), and the dashboard's `aiPreReviewPullRequest`
+ * message, which {@link parseWebviewPullRequestTarget} validates.
+ */
+export interface PullRequestTarget {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  index: number;
+}
+
+/**
+ * The pull-request coordinates of a webview message, or `undefined` when the
+ * message does not name a valid one.
+ *
+ * It exists because a dashboard action now starts a whole-pull-request run from
+ * a message rather than from a diff document: `parseForgejoPrUri` validates the
+ * coordinates a URI carries, and a message has no URI to parse, so it needs the
+ * same strictness here. `owner`/`repo` go through `isSafeRepoNameSegment` for the
+ * reason that helper documents (they are interpolated into API paths), and
+ * `index` is required to be a positive integer for the same reason
+ * `parseForgejoPrUri` refuses anything else: `Number(...)` alone accepts `true`
+ * (→ 1) and `null` (→ 0), and "PR 0" names no pull request.
+ *
+ * `instanceId` is checked only for presence and type: it is an opaque id this
+ * extension derives, the host resolves it against the configured instances, and
+ * an unknown but well-formed id is answered by the run's own "instance not found"
+ * refusal rather than by a second rule invented here.
+ */
+export function parseWebviewPullRequestTarget(value: unknown): PullRequestTarget | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as Partial<PullRequestTarget>;
+  const { instanceId, owner, repo, index } = candidate;
+  if (typeof instanceId !== 'string' || instanceId.length === 0 || instanceId.length > 255) {
+    return undefined;
+  }
+  if (!isSafeRepoNameSegment(owner) || !isSafeRepoNameSegment(repo)) {
+    return undefined;
+  }
+  if (typeof index !== 'number' || !Number.isInteger(index) || index < 1) {
+    return undefined;
+  }
+  return { instanceId, owner, repo, index };
+}
+
+/**
  * True when a repository file path from the webview is safe to interpolate into
  * the contents API route.
  *

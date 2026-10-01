@@ -201,6 +201,130 @@ export interface AiPreReviewChatModelOption {
 /** Events accepted by the Forgejo API when submitting a pending pull review. */
 export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
+/**
+ * The prompt scope one run actually used, as the panel's header reports it.
+ *
+ * Spelled exactly like the setting's values (`forgejoToolkit.aiPreReviewPromptScope`)
+ * because the header's job is to say what that run sent, and the value a user can
+ * look up in the Settings UI is the honest way to name it. `ask` is deliberately
+ * absent: a run never starts under it.
+ */
+export type AiPreReviewPanelScope = 'metadata-only' | 'changed-lines-only' | 'full-diff' | 'changed-files';
+
+/** What one candidate's "open the diff" link needs, or `undefined` when it cannot be opened. */
+export interface AiPreReviewPanelDiffTarget {
+  /** The changed file's status, which decides whether the base path is its old name. */
+  status?: string;
+  /** The path the file had at the base commit, for a renamed file. */
+  previousPath?: string;
+  /** The pull request's base sha; the link is hidden when either sha is missing. */
+  baseSha?: string;
+  headSha?: string;
+}
+
+/**
+ * One proposed comment as the AI pre-review panel shows it.
+ *
+ * `index` is the card's identity. The anchor fields (`path`, `line`, `side`,
+ * `extraLines`) and `diff` are the host's own: they are rendered and never read
+ * back from the webview, so a forged message cannot move a comment to another
+ * file, line or side.
+ *
+ * `body` is the model's text, which the panel pre-fills its editor with. Unlike
+ * the anchor it **is** echoed back — in {@link AiPreReviewPanelSelectedBody} —
+ * because the user may edit it before the draft is created (2026-10-02), and the
+ * host re-validates whatever comes back before it writes anything.
+ */
+export interface AiPreReviewPanelCandidate {
+  index: number;
+  path: string;
+  /** 1-based line in the file on `side`. */
+  line: number;
+  side: 'head' | 'base';
+  /** Extra lines the comment covers after `line`; `0` means a single line. */
+  extraLines: number;
+  /** The full comment body — the reason this panel replaced the quick pick. */
+  body: string;
+  /** Whether the body was cut to the shared per-comment cap. */
+  bodyTruncated?: boolean;
+  /** Where the anchor is, for the card's "open the diff" link. */
+  diff?: AiPreReviewPanelDiffTarget;
+}
+
+/**
+ * One card the panel's answer names, and the body to create it from.
+ *
+ * `index` must be one of the payload's own candidate indexes; `body` is the text
+ * the user left in that card's editor, which may be the model's wording or their
+ * own. The panel's answer must not be trusted for anything else: paths, lines,
+ * sides and shas never travel in it at all, so the host takes them from its own
+ * copy of the payload and only this body replaces anything.
+ */
+export interface AiPreReviewPanelSelectedBody {
+  index: number;
+  body: string;
+}
+
+/** One drop reason and how many candidates it accounts for, already localized. */
+export interface AiPreReviewPanelDrop {
+  /** The localized reason, from the same catalog the run's own report uses. */
+  label: string;
+  count: number;
+}
+
+/**
+ * Everything the panel's header states about the run that produced the cards.
+ *
+ * This is the transparency the quick pick could not give: the pull request, the
+ * model (with its vendor, so the privacy point stays on screen), the prompt scope
+ * the run actually used, the coverage of the whole-pull-request run, and both
+ * counts — how many candidates survived validation and how many were dropped, by
+ * reason.
+ */
+export interface AiPreReviewPanelPayload {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  index: number;
+  /** The pull request's title, when the server gave one. */
+  pullRequestTitle?: string;
+  model: {
+    name: string;
+    vendor: string;
+    family: string;
+    id: string;
+  };
+  scope: AiPreReviewPanelScope;
+  /**
+   * How many changed files this run actually covered, which is what makes the
+   * panel's "this run covers the whole pull request" line observable.
+   *
+   * It is the brief's own file count — the files the run read and whose diff
+   * supplied the line tables every anchor was validated against. The header
+   * states it unconditionally, because a run always assembles a brief before it
+   * asks anyone anything; a coverage count that could be absent would let the one
+   * line that names the scope disappear silently.
+   */
+  changedFileCount: number;
+  /**
+   * How many changed files the run fetched; `changedFileCount` is how many of
+   * them it actually covered.
+   *
+   * The two differ exactly when the brief's table was cut short (the row cap, the
+   * path budget or the client's own page cap), and that is the one case where
+   * "this run covered the whole pull request" would be a false claim — so the
+   * header says "N of M" instead. Both numbers come from the same run as the
+   * cards; neither is a second read of the pull request, which could see a
+   * different head.
+   */
+  changedFilesTotal: number;
+  /** How many candidates survived validation. */
+  candidateCount: number;
+  /** The dropped ones, grouped by reason; empty when nothing was dropped. */
+  drops: AiPreReviewPanelDrop[];
+  candidates: AiPreReviewPanelCandidate[];
+}
+
 export type HostToWebviewMessage =
   | { command: 'instances'; data: PublicForgejoInstance[] }
   // Sent by the "refresh instances" command: the webview should drop its
@@ -211,6 +335,22 @@ export type HostToWebviewMessage =
       instances: PublicForgejoInstance[];
       locale: 'en' | 'zh';
       debug: boolean;
+      /**
+       * Whether `forgejoToolkit.aiPreReview` is on, so the dashboard can hide the
+       * affordances whose only outcome with it off would be a refusal.
+       *
+       * It is the same shape as `debug`: the host is the one place the setting is
+       * read, and the webview renders a switch it was told about rather than
+       * reading configuration it cannot see. The feature's own refusal stays
+       * wherever it is — a hidden button is an affordance, not the gate.
+       *
+       * Optional because one message type is shared by every webview document:
+       * only the dashboard offers an AI pre-review entry, and the onboarding
+       * wizard and the review-comment editor have no use for a flag they never
+       * send. A reader must treat a missing value as **off** — reading undefined
+       * as "on" would offer a button whose only outcome is the run's refusal.
+       */
+      aiPreReview?: boolean;
       worktrees: unknown[];
       worktreeOpenMode: 'ask' | 'currentWindow' | 'newWindow';
       worktreeCacheDirectory: string;
@@ -238,6 +378,13 @@ export type HostToWebviewMessage =
     }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
+  // Pushed when `forgejoToolkit.aiPreReview` changes in VS Code's Settings UI,
+  // which is the only place it can be changed: the dashboard offers or hides the
+  // pull-request-level run button on it, and a boolean read once at mount would
+  // leave that button describing the switch's previous state. Same shape as
+  // `setDebug`, and like it the value only drives an affordance — the run reads
+  // the setting itself.
+  | { command: 'setAiPreReview'; aiPreReview: boolean }
   | {
       command: 'repositories';
       instanceId: string;
@@ -1197,7 +1344,21 @@ export type HostToWebviewMessage =
       /** True when the user declined the confirmation dialog; the review still exists. */
       cancelled?: boolean;
       error?: string;
-    };
+    }
+  // The AI pre-review panel. The payload is also injected into the document
+  // config (like the review-comment editor's context), so the first paint does
+  // not need a round trip; this message is what a rewritten payload would use.
+  | { command: 'aiPreReviewPanelPayload'; payload: AiPreReviewPanelPayload }
+  // What the run's write produced, posted after the decision so the panel can
+  // show the outcome and offer the way to the pending review.
+  | { command: 'aiPreReviewPanelResult'; created: number; failure?: string }
+  // The host refused a Create outright and created nothing, so the question is
+  // still open: the panel shows this reason beside its buttons and lets the user
+  // fix the named card and press Create again. A Create is refused as a whole —
+  // never partly honoured — when an entry fails validation (an index that was not
+  // offered, a body that is not a string, empty after trimming, or over the
+  // per-comment cap), which a legitimate panel can only reach by being modified.
+  | { command: 'aiPreReviewPanelRejected'; reason: string };
 
 export type WebviewToHostMessage =
   | { command: 'getInitialState' }
@@ -1840,4 +2001,34 @@ export type WebviewToHostMessage =
       command: 'pullReviewCommentDraftState';
       dirty: boolean;
     }
-  | { command: 'closePullReviewCommentPanel' };
+  | { command: 'closePullReviewCommentPanel' }
+  // The pull-request-level entry point for the AI pre-review: the PR detail view
+  // posts the coordinates of the pull request whose button was pressed, and the
+  // host validates them and runs the very flow the `editor/title` button runs.
+  //
+  // The coordinates are the whole payload on purpose. The webview says **which
+  // pull request** the user pointed at and nothing else: the model, the scope,
+  // the prompt, the confirmation and the drafts are all the host's, so a modified
+  // webview can start a review of a pull request it named, and cannot influence
+  // what that review sends or writes. `instanceId` travels with them because the
+  // dashboard is one webview for every configured instance and only the host can
+  // resolve an instance id to a URL and a token.
+  | { command: 'aiPreReviewPullRequest'; instanceId: string; owner: string; repo: string; index: number }
+  // The AI pre-review panel's answers. It is the run's only write gate: `create`
+  // names the cards the user checked **and the body each one is to be created
+  // with** (the model's wording, or the user's edit of it), `cancel` (and closing
+  // the tab, which the host turns into the same answer) writes nothing at all.
+  //
+  // The bodies are the one thing the webview may now propose, because the whole
+  // point of the panel is to curate the proposal before it is written. The host
+  // therefore re-validates every entry — the index must be one it offered, the
+  // body a string that is non-empty after trimming and within
+  // `PR_REVIEW_MAX_COMMENT_LENGTH` — and refuses the entire Create, creating
+  // nothing, if any entry fails. Anchors, paths, sides and shas never appear in
+  // this message and are still taken from the host's own payload.
+  | { command: 'aiPreReviewPanelCreate'; entries: AiPreReviewPanelSelectedBody[] }
+  | { command: 'aiPreReviewPanelCancel' }
+  // The two non-decision actions: open one card's anchor in the diff, and reach
+  // the pending review the run just created.
+  | { command: 'aiPreReviewPanelOpenDiff'; index: number }
+  | { command: 'aiPreReviewPanelOpenDraft' };

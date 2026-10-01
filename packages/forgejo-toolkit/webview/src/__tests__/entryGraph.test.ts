@@ -102,7 +102,17 @@ const SURFACES: Surface[] = [
     root: 'src/PullReviewCommentPanel.vue',
     elements: ['vscode-button', 'vscode-icon', 'vscode-radio', 'vscode-radio-group'],
   },
+  {
+    name: 'ai pre-review panel',
+    html: 'aiPreReview.html',
+    entry: 'src/entries/aiPreReview.ts',
+    root: 'src/AiPreReviewPanel.vue',
+    elements: ['vscode-button', 'vscode-checkbox'],
+  },
 ];
+
+/** The standalone panels' root components, each its own surface. */
+const PANEL_ROOTS = ['src/OnboardingPanel.vue', 'src/PullReviewCommentPanel.vue', 'src/AiPreReviewPanel.vue'];
 
 /** The dashboard shell a standalone panel must not reach. */
 const DASHBOARD_SHELL: { label: string; pattern: RegExp }[] = [
@@ -357,10 +367,8 @@ describe('webview entry per surface', () => {
       for (const dependency of graph.packages) {
         expect(FORBIDDEN_PACKAGES, `${surface.name} loads ${dependency}`).not.toContain(dependency);
       }
-      // Each panel carries its own root and never the other panel's.
-      const panels = ['src/OnboardingPanel.vue', 'src/PullReviewCommentPanel.vue'].filter(
-        (panel) => panel !== surface.root,
-      );
+      // Each panel carries its own root and never another panel's.
+      const panels = PANEL_ROOTS.filter((panel) => panel !== surface.root);
       for (const panel of panels) {
         expect([...graph.modules]).not.toContain(panel);
       }
@@ -373,7 +381,7 @@ describe('webview entry per surface', () => {
     expect([...dashboard.modules]).toContain('src/router/index.ts');
     // The dashboard is the surface that has (and needs) the router.
     expect([...dashboard.packages]).toContain('vue-router');
-    for (const panel of ['src/OnboardingPanel.vue', 'src/PullReviewCommentPanel.vue']) {
+    for (const panel of PANEL_ROOTS) {
       expect([...dashboard.modules]).not.toContain(panel);
     }
   });
