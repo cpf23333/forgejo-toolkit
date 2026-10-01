@@ -978,7 +978,7 @@ implying a capability the tools do not have. Registration lives in
   shipped as batch 2's first candidate; anything after it would be a new
   candidate and its own approval. Neither the remaining first-batch work nor a
   further batch is scheduled for a specific release; the tracking entry is
-  `TODO.md`'s 「P2 MCP Phase 2 写工具的实现」.
+  `TODO.md`'s 「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」.
 - **Host-side modal confirmation for broker sessions (stage 3, needs separate
   approval):** the extension host _could_ ask in a `vscode.window` modal before
   writing. It is deliberately not implemented: it needs (1) routing the request

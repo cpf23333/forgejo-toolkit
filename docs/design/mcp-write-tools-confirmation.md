@@ -7,7 +7,7 @@
   `FEATURES.md` 的「已完成」「MCP Server」一节，实现现状见
   [MCP Server Integration](../architecture/mcp-server.md) 的 "Write tools" 一节。**仍未实现**的是
   阶段 3（broker 会话的宿主侧模态框，需要单独批准）；本文其余部分仍按写作时的基线描述，
-  剩余工作全部记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里（设计文档只指向跟踪条目，
+  剩余工作全部记在 `TODO.md` 的「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」条目里（设计文档只指向跟踪条目，
   不持有待办项的唯一副本）
 - 关联：`TODO.md` 的「AI / MCP 规划」条目；`docs/architecture/mcp-server.md` 见
   [MCP Server Integration](../architecture/mcp-server.md) 的 "Security model" 与
@@ -252,7 +252,7 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
   待办条目）已随首批两个工具交付而消失，写工具的现状现在记在 `FEATURES.md` 已完成侧
   「MCP Server」一节的 Phase 2 条目里——本文只记录这次核对，不改写已裁决的决策。
   原先还要求修正的 `TODO.md` 措辞（"首批只开创建评论 / 提交 review / 重跑 workflow"）
-  **已经改完**：`TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目现在写的是"首批收窄为
+  **已经改完**：`TODO.md` 的「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」条目当时写的是"首批收窄为
   `create_issue_comment` + `submit_pull_review`（rerun workflow 在当前 swagger 里没有端点，等
   Forgejo v17）"——本文记录这次改动已经发生，而不是假设它还没发生。
 - 客户端侧也没有对应方法：`src/api/client.ts` 的 Actions 写操作只有 `cancelActionRun`
@@ -273,7 +273,7 @@ broker 路径（`docs/architecture/mcp-server.md` 的「Broker mode」一节）�
 **不带** `bytes`/`sha256`（缺失，而不是 0），同一 run 在 10 分钟窗口内的重复调用直接回放
 （第二次取消是同一次逻辑操作），而跨工具复用同一个 key 仍然报错。实现现状见
 [MCP Server Integration](../architecture/mcp-server.md) 的 "Write tools" 一节，还剩的工作
-（阶段 3、`rerun_action_run` 的版本闸门）记在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目。
+（阶段 3、`rerun_action_run` 的版本闸门）记在 `TODO.md` 的「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」条目。
 
 ### 4.2 两个首批工具各自需要什么
 
@@ -637,7 +637,7 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 去向：**已决定**、**推迟到阶段 3 并先记下取舍**、**移入阶段 1 的验收**。**本节的决定已按
 阶段 0/1/2 落地**（逐条实现状态见 `FEATURES.md` 的「已完成」「MCP Server」一节与
 `docs/architecture/mcp-server.md` 的 "Write tools"）；阶段 3 仍未实现，剩余的实现与验收工作记在
-`TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目里。
+`TODO.md` 的「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」条目里。
 
 1. ~~**`readOnlyHint` 的实测结论是什么？** 官方文档已经回答了主要部分（§11.1，2026-09-27：不标
    `readOnlyHint` 的工具会显示确认对话框、只读工具不会），所以这**不再是本文的阻塞性前提**。
@@ -727,4 +727,4 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
     窗口里（§9 阶段 3）。
 
 **本节至此十条全部关闭，没有新增开放问题。** 阶段 0/1/2 已按 §9 的分阶段计划交付；阶段 3 的
-实现与验收要求收敛在 `TODO.md` 的「P2 MCP Phase 2 写工具的实现」条目与 §9 阶段 3 里。
+实现与验收要求收敛在 `TODO.md` 的「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」条目与 §9 阶段 3 里。
