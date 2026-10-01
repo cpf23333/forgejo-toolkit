@@ -534,6 +534,11 @@ const protectionUnknown = computed(() => detail.value?.protectionUnknown === tru
  * through `dashboard.detail.checksState.*`, so one state read differently
  * depending on where the user looked. A value this webview has no wording for
  * falls back to the neutral `unknown` label instead of the missing key.
+ *
+ * Both call sites go through this function, the checks panel included: its key
+ * used to be built inline in the template, and `statusChecks.state` comes
+ * straight from the server's combined status, so a state the catalogs do not
+ * list printed the raw `dashboard.detail.checksState.<state>` key.
  */
 function statusStateLabel(state: string): string {
   const key = `dashboard.detail.checksState.${state}`;
@@ -1632,7 +1637,7 @@ function reloadPullRequest() {
               :class="['check-icon', checkStatusClass(statusChecks?.state)]"
               :name="checkStatusIcon(statusChecks?.state)"
             />
-            <span>{{ t(`dashboard.detail.checksState.${statusChecks?.state ?? 'unknown'}`) }}</span>
+            <span>{{ statusStateLabel(statusChecks?.state ?? 'unknown') }}</span>
           </div>
           <div class="checks-list">
             <div v-if="(statusChecks?.statuses.length ?? 0) === 0" class="empty-state">

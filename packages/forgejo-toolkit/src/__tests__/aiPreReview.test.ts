@@ -159,6 +159,7 @@ import { mockInstance } from '../test/mocks/data/instances';
 import { mockPullRequestDiff as MOCK_DIFF } from '../test/mocks/data/pullRequestExtras';
 import {
   AI_PRE_REVIEW_PROBE_PROMPT,
+  COMMAND_AI_PRE_REVIEW,
   COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL,
   COMMAND_AI_PRE_REVIEW_PROBE,
   aiPreReviewProbeShapes,
@@ -2133,7 +2134,12 @@ describe('the chat model probe', () => {
     const palette = packageJson.contributes.menus.commandPalette.find(
       (entry) => entry.command === COMMAND_AI_PRE_REVIEW_PROBE,
     );
-    expect(palette?.when).toBe('config.forgejoToolkit.debug');
+    // Both conditions the handler enforces, spelled out so a future edit cannot
+    // quietly drop one: `probeAiPreReviewChatModels` sends nothing while either
+    // setting is off ("sends nothing while the feature switch is off, whatever
+    // debug says" and "sends nothing while forgejoToolkit.debug is off" above),
+    // so an affordance gated on debug alone was offered only to be refused.
+    expect(palette?.when).toBe('config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview');
     for (const file of ['package.nls.json', 'package.nls.zh-cn.json']) {
       const bundle = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', file), 'utf8')) as Record<
         string,
@@ -2170,6 +2176,34 @@ describe('the chat model probe', () => {
       >;
       expect((bundle['command.aiPreReviewChooseModel.title'] ?? '').trim()).not.toBe('');
     }
+  });
+
+  it('offers the run action only while the feature switch is on, and leaves the chooser ungated', () => {
+    // The switch promises that with it off nothing is sent and nothing is
+    // created. Both entries were contributed on the diff context key alone, so
+    // the editor title button and the context-menu item appeared and only refused
+    // once clicked — the maintainer saw exactly that. A context key is an
+    // affordance, not the gate: the refusal in `runAiPreReview` stays, and it is
+    // asserted by "refuses, sends nothing and never touches the model when it is
+    // off" above.
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as {
+      contributes: {
+        menus: Record<string, { command: string; when?: string }[]>;
+      };
+    };
+    for (const menu of ['editor/context', 'editor/title']) {
+      const entry = packageJson.contributes.menus[menu].find((item) => item.command === COMMAND_AI_PRE_REVIEW);
+      expect(entry?.when, menu).toBe('forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview');
+    }
+    // The palette contribution is unchanged: the command is still hidden there.
+    const palette = packageJson.contributes.menus.commandPalette.find((item) => item.command === COMMAND_AI_PRE_REVIEW);
+    expect(palette?.when).toBe('false');
+    // Choosing a model is configuration and sends nothing, so no menu may gate it
+    // on the switch: the run's refusal messages point at it as the way out.
+    const gatingTheChooser = Object.entries(packageJson.contributes.menus)
+      .flatMap(([menu, entries]) => entries.map((entry) => ({ menu, ...entry })))
+      .filter((entry) => entry.command === COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL && entry.when !== undefined);
+    expect(gatingTheChooser).toEqual([]);
   });
 });
 

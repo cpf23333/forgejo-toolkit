@@ -144,6 +144,44 @@
   怎么合：配置的模型同时也是被提供的模型 → 它排第一且不弹窗；配置了但没命中 → 拒绝并列清单；跑成功
   之后本窗口记住"哪个模型真的按契约回答了"，下次没配置时可复用那条记忆而不再问（每次运行都问一遍是
   噪声，理由见 §7.2 的"窗口记忆"）。默认路径（设置为空、只有一个候选）与 §6.4 的重试上限都不变。
+- 交付后的修正（2026-10-01，**开关关掉时动作不再出现在菜单里**；同一次改掉一个能漏到界面上的 i18n 键）：
+  ① `forgejoToolkit.aiPreReviewPullRequest` 的两个菜单贡献（`editor/context` 与 `editor/title`）此前只由既有的
+  `forgejoToolkit.inPullRequestDiff` 把关，于是开关关掉时**编辑器标题栏按钮与右键菜单项仍然出现**，点下去才被
+  命令拒绝——维护者看到的正是这个。两个 `when` 现在都写成
+  `forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview`（`config.<setting>` 是 VS Code 自己
+  维护的标准上下文键），这才与 §7.3 ③「关闭时本功能完全不出现在菜单里」一致。**运行时那条拒绝照旧保留**：
+  上下文键回答的只是"要不要显示这个入口"，它不是闸门——直接调用命令仍然拒绝、仍然不发不建（§2 第 3 条）。
+  `commandPalette` 里那条 `when: false` 不变（命令仍不出现在面板里），
+  `forgejoToolkit.aiPreReviewChooseModel` 也不受影响：选模型是配置、不发任何内容，它的入口本来就不受开关把关（§7.2）。
+  测试：`src/__tests__/aiPreReview.test.ts` 新增一条，逐个断言两个菜单项的 `when` 必须同时要求开关、面板那条仍是
+  `false`，并断言没有任何菜单项给选模型的命令加 `when`。
+  ② 状态检查面板的汇总行用 `dashboard.detail.checksState.${statusChecks.state}` 现场拼键，而
+  `statusChecks.state` 是**服务端 combined status 的原样透传**（`src/api/client.ts` 把 `combinedStatus.state`
+  直接放进去，类型只是 `state?: string`），所以 `en.json` / `zh.json` 里没写的取值会把原始键
+  `dashboard.detail.checksState.xxx` 印在界面上。同一个文件的 `statusStateLabel()` 早就是"查出来的值等于键本身
+  就退回 `dashboard.detail.checksState.unknown`"这一种机制（合并阻碍行用它），模板现在也走同一个函数，不再有
+  第二种拼键方式：未知状态显示本地化的「未知」而不是原始键。测试：新的
+  `webview/src/views/__tests__/PullRequestDetail.checksStateLabel.test.ts`（七种已知状态 × 两种语言各显示自己的
+  文案，一个未列出的 `expected` 必须显示 unknown 且绝不出现原始键），外加
+  `src/webview/__tests__/i18nParity.test.ts` 里新的一条把七种状态钉死的用例——既有的"每个字面量键都存在"那条
+  只读单引号字面量，**看不到模板字面量拼出来的键**，这正是这个缺陷溜过去的原因，所以那条钉死的用例必须存在。
+  ③ 同一个形状还在探测命令上：`forgejoToolkit.aiPreReviewProbeChatModels` 的调色板条目此前只由
+  `config.forgejoToolkit.debug` 把关（§9.6），而处理体要求**两个**条件，所以 debug 打开、开关关掉时它是
+  "出现了但保证被拒绝"。它的 `when` 现在同样写成
+  `config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview`——入口与处理体的要求一致，
+  处理体自己那两次检查（debug、开关）**一个字都不改**，上下文键仍然只是可见性。它的测试从"钉住旧的那一个
+  条件"改成"钉住两个条件的完整字符串"。
+  ④ 顺着这条把**所有**带 `when` 的贡献都核了一遍（扩展只有一份 manifest：16 个命令、8 个带门槛的菜单项、
+  没有 keybinding、没有 `viewsWelcome`、1 个视图），逐个对比处理体的要求。除上面两处外**没有第二处**
+  "静态可得却漏在 `when` 里"的条件；剩下的拒绝都是**数据相关**、`when` 读不到的状态，因此**有意保留**：
+  `copyPermalink` 在 PR 新增文件的 base 侧 / 删除文件的 head 侧（`status` 与 `isBase` 只存在于 diff URI 的
+  query 里，`resourceScheme` 之外没有上下文键能表达它；拒绝时说明的是"这个链接会 404"），
+  以及多根工作区里"某个文件夹已关联、被点的文件在另一个未关联文件夹"这一情形（`forgejoToolkit.hasLinkedRepo`
+  是窗口级键，要表达它得新加一个按资源维护、由防抖 git 扫描支撑的键）；
+  `createPrFromCurrentBranch` 的 detached HEAD、`addPullReviewComment` 在新增/删除文件的空侧
+  （"Comments can only be added to lines within the pull request diff"）同理。
+  它们拒绝时都点名具体原因，不是"功能没开"这种整片状态的拒绝。选模型的命令与设置页那一行不属于这一类：
+  它们本来就不该被开关把关（§7.2 ⑤），现在也仍然没有被把关。
 - 关联：`TODO.md` 的「AI / MCP 规划」一节（本功能与「PR 描述生成」是同一批 AI 功能）；
   写侧约束的先例是 [`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md)
   （该文 §3.6 把 Codeberg 条款翻译成了写工具的机制）；宿主侧 AI 调用的方向由
@@ -613,7 +651,9 @@ model (2 call(s) spent this run)`——**这一行就是"重试救回了一个�
 
 - 设置键 `forgejoToolkit.aiPreReview`（布尔，默认 `false`），文案要写清三件事：
   ① 开启后会把拉取请求的元数据（以及第 (a)/(b) 选项决定的 diff 正文）发给**模型供应商**；
-  ② 生成的意见只是草稿，仍要逐条确认；③ 关闭时本功能完全不出现在菜单里或不产生任何请求。
+  ② 生成的意见只是草稿，仍要逐条确认；③ 关闭时本功能完全不出现在菜单里或不产生任何请求
+  （③ 的前半句由 2026-10-01 的修正落实：两个菜单项的 `when` 现在同时要求
+  `config.forgejoToolkit.aiPreReview`，见本文开头那条修正；后半句的运行时拒绝不变）。
 - 这是**窗口级**设置，与 `forgejoToolkit.mcpWriteTools.*` / `forgejoToolkit.mcpWriteAuditToFile`
   同一层命名与同一读取方式（§9.4 的 `mcpWriteSettings.ts` 是先例：读不到就当作关闭）。
 
@@ -863,8 +903,10 @@ model the user picked just now (written into the setting)`），所以只拿到�
 - **写失败不改行为。** 追加失败只回一行 `onError`（调用方接到 `logger.error`），第一次之后不再重复；
   这一行只有路径与错误文本，永远不含提示词或回答。
 - **探测命令。** `forgejoToolkit.aiPreReviewProbeChatModels`（`COMMAND_AI_PRE_REVIEW_PROBE`）：
-  调色板条目以 `config.forgejoToolkit.debug` 把关，处理体另外要求 `forgejoToolkit.aiPreReview`
-  也开着，两个条件缺一就**一条模型请求都不发**。满足后向**每一个**被提供的模型各问三种形态的同一句
+  调色板条目的 `when` 要求**两个**设置同时打开
+  （`config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview`，与入口保持一致见本文开头的修正），
+  处理体另外再查一遍 `forgejoToolkit.debug` 与 `forgejoToolkit.aiPreReview`，
+  任一条件不满足就**一条模型请求都不发**。满足后向**每一个**被提供的模型各问三种形态的同一句
   `Reply with exactly {} and nothing else.`（`AI_PRE_REVIEW_PROBE_PROMPT`）：单条 `User` 无指令
   （对照）、两条 `User`（旧形态）、单条 `User` 含指令（新形态）。它不读 Pull Request、不发任何仓库
   内容，判词是 `answered exactly "{}" as asked` 或 `did NOT answer the requested "{}"`——这句就是
@@ -1035,7 +1077,9 @@ model the user picked just now (written into the setting)`），所以只拿到�
    **裁决：不送**，只送已有评论的元数据（路径、行号、作者、评审状态）——本轮不为此另开开关。
 6. **命令的命名与入口位置**（§6.1）：**裁决：取 `forgejoToolkit.aiPreReviewPullRequest`**，
    同时挂 `editor/context` 与 `editor/title`，`when` 用既有的 `forgejoToolkit.inPullRequestDiff`。
-   命名一旦发布就是对外契约，本轮定稿。
+   命名一旦发布就是对外契约，本轮定稿。**2026-10-01 修正**：`when` 在
+   `forgejoToolkit.inPullRequestDiff` 之外还要与 `config.forgejoToolkit.aiPreReview` 相与——开关关掉时
+   不显示入口，理由与实现见本文开头那条修正；挂的位置与命令命名不变。
 7. **本次改动是否要附带一个 changeset**：**裁决：设计记录本身不补**（写作时它不改任何用户可见
    行为，也已随记录一起落地）；**这次实现是用户可见的，因此带自己的 changeset**。
    **2026-10-01 的修正没有新开 changeset**：功能尚未发布，`.changeset/ai-pre-review.md` 就是它

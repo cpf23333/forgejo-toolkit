@@ -356,7 +356,7 @@
         },
         {
           "command": "forgejoToolkit.aiPreReviewProbeChatModels",
-          "when": "config.forgejoToolkit.debug"
+          "when": "config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview"
         }
       ],
       "comments/comment/context": [
@@ -379,7 +379,7 @@
         },
         {
           "command": "forgejoToolkit.aiPreReviewPullRequest",
-          "when": "forgejoToolkit.inPullRequestDiff",
+          "when": "forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview",
           "group": "1_comments@1"
         }
       ],
@@ -393,7 +393,7 @@
       "editor/title": [
         {
           "command": "forgejoToolkit.aiPreReviewPullRequest",
-          "when": "forgejoToolkit.inPullRequestDiff",
+          "when": "forgejoToolkit.inPullRequestDiff && config.forgejoToolkit.aiPreReview",
           "group": "navigation@0"
         }
       ],

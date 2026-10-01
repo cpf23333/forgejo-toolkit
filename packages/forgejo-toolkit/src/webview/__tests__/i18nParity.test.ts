@@ -103,6 +103,29 @@ describe('webview i18n bundles', () => {
     const unknown = [...used].filter(([key]) => !en.has(key));
     expect(unknown).toEqual([]);
   });
+
+  it('pins the status-check states the checks panel can label', () => {
+    // The case above reads single-quoted `t('…')` literals only, so it cannot
+    // see a key the source builds with a template literal — and the pull request
+    // checks panel builds exactly that one:
+    // `dashboard.detail.checksState.${statusChecks.state}`. `statusChecks.state`
+    // is the server's combined status passed straight through, so an
+    // unanticipated value printed the raw key with every check still green. This
+    // case pins the enumeration both catalogs have to define, which also means a
+    // new Forgejo state has to be added here (and given wording in `en.json` and
+    // `zh.json`) on purpose rather than slipping through as a raw key again.
+    // The panel's fallback for an unlisted state is exercised in
+    // `webview/src/views/__tests__/PullRequestDetail.checksStateLabel.test.ts`.
+    const prefix = 'dashboard.detail.checksState.';
+    const labelled = (bundle: Map<string, string>) =>
+      [...bundle.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => key.slice(prefix.length))
+        .sort();
+    const states = ['error', 'failure', 'pending', 'skipped', 'success', 'unknown', 'warning'];
+    expect(labelled(en)).toEqual(states);
+    expect(labelled(zh)).toEqual(states);
+  });
 });
 
 describe('host l10n bundles', () => {

@@ -381,6 +381,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps a ref you chose when the lists are loaded again, and filters fuzzily like
   the repository's branch pickers; the repository detail's branches stand in
   until the refs request answers, so it never regresses to a bare text box.
+- The AI pre-review action is no longer offered while
+  `forgejoToolkit.aiPreReview` is off: its pull request diff context menu and
+  editor title entries are gated on the setting as well as on the diff, so the
+  button and the menu item no longer appear only to refuse when clicked. The
+  debug-only `forgejoToolkit.aiPreReviewProbeChatModels` command is gated the
+  same way — it now needs the switch as well as `forgejoToolkit.debug`, which
+  its own handler already required. The run command still refuses while the
+  switch is off, it is still absent from the command palette, and choosing a
+  chat model is unaffected.
+- A status-check state this extension has no wording for no longer prints the raw
+  `dashboard.detail.checksState.…` key in a pull request's checks panel: an
+  unrecognized combined status now shows the localized "Unknown" label, the same
+  fallback the merge-blocker line already used.
 
 ## [0.0.1] - 2026-09-26
 
