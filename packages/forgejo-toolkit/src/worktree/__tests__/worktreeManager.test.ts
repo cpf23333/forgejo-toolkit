@@ -23,6 +23,7 @@ import {
   CLONE_OWNER_MARKER_MAX_AGE_MS,
   WORKTREE_MAX_AGE_MS,
 } from '../worktreeManager';
+import { removeTempDir, removeTempDirSync } from '../../__tests__/tempDir';
 
 const WORKTREES_KEY = 'forgejoToolkit.worktrees';
 const USAGE_KEY = 'forgejoToolkit.cacheRepoUsage';
@@ -71,7 +72,7 @@ describe('WorktreeManager.removeWorktree', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(sourceDir, { recursive: true, force: true });
+    removeTempDirSync(sourceDir);
   });
 
   it('removes the worktree via git first, then drops the record', async () => {
@@ -220,7 +221,7 @@ describe('WorktreeManager globalState write serialization', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(sourceDir, { recursive: true, force: true });
+    removeTempDirSync(sourceDir);
   });
 
   it('merges concurrent addWorktree calls instead of losing one record', async () => {
@@ -327,7 +328,7 @@ describe('WorktreeManager cached repo cleanup', () => {
   });
 
   afterEach(async () => {
-    await fs.promises.rm(cacheDir, { recursive: true, force: true });
+    await removeTempDir(cacheDir);
   });
 
   function createManager(initial: WorktreeInfo[] = []) {
@@ -490,7 +491,7 @@ describe('WorktreeManager cached repo cleanup', () => {
       const emptyManager = new WorktreeManager(context, () => emptyDir);
       await expect(emptyManager.cleanupCachedRepos()).resolves.toEqual([]);
     } finally {
-      await fs.promises.rm(emptyDir, { recursive: true, force: true });
+      await removeTempDir(emptyDir);
     }
   });
 
@@ -533,7 +534,7 @@ describe('WorktreeManager worktree cleanup', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await fs.promises.rm(cacheDir, { recursive: true, force: true });
+    await removeTempDir(cacheDir);
   });
 
   function createManager(initial: WorktreeInfo[] = []) {
@@ -612,7 +613,7 @@ describe('WorktreeManager worktree cleanup', () => {
     const target = await makeDir('owner-repo-deadbeef-pr-1');
     const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
     // The clone was deleted or swept: nothing can use this checkout again.
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
     const { manager } = createManager();
 
@@ -626,7 +627,7 @@ describe('WorktreeManager worktree cleanup', () => {
     const now = Date.now();
     const target = await makeDir('owner-repo-deadbeef-pr-2');
     const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
     const { manager } = createManager();
 
@@ -669,7 +670,7 @@ describe('WorktreeManager worktree cleanup', () => {
     const now = Date.now();
     const target = await makeDir('owner-repo-deadbeef-pr-3');
     const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
     const { manager, store } = createManager([makeWorktree({ worktreePath: target })]);
 
@@ -690,7 +691,7 @@ describe('WorktreeManager worktree cleanup', () => {
       const now = Date.now();
       const target = await makeDir('owner-repo-deadbeef-pr-4');
       const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
-      await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+      await removeTempDir(sourceRepoPath);
       await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
       const { manager } = createManager([makeWorktree({ worktreePath: target.toUpperCase() })]);
 
@@ -705,7 +706,7 @@ describe('WorktreeManager worktree cleanup', () => {
     const now = Date.now();
     const target = await makeDir('owner-repo-deadbeef-pr-5');
     const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     await age(target, now, WORKTREE_MAX_AGE_MS - 60_000);
     const { manager } = createManager();
 
@@ -722,7 +723,7 @@ describe('WorktreeManager worktree cleanup', () => {
     // what makes that overlap safe — a just-created checkout is never "abandoned".
     const target = await makeDir('owner-repo-deadbeef-fresh');
     const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     const { manager } = createManager();
 
     const removed = await manager.cleanupCachedRepos(Date.now());
@@ -741,7 +742,7 @@ describe('WorktreeManager worktree cleanup', () => {
     const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
     await fs.promises.mkdir(path.join(target, 'src'));
     await fs.promises.writeFile(path.join(target, 'src', 'index.ts'), 'work in progress');
-    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await removeTempDir(sourceRepoPath);
     await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
     await fs.promises.utimes(path.join(target, 'src'), new Date(now), new Date(now));
     const { manager } = createManager();
@@ -867,7 +868,7 @@ describe('WorktreeManager worktree cleanup', () => {
     await fs.promises.mkdir(repoPath, { recursive: true });
     const target = await makeDir('owner-repo-deadbeef-pr-7');
     const worktreeSource = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
-    await fs.promises.rm(worktreeSource, { recursive: true, force: true });
+    await removeTempDir(worktreeSource);
     await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
     const { manager, store } = createManager();
     store.set(USAGE_KEY, { [path.resolve(repoPath)]: now - CACHE_REPO_MAX_AGE_MS - 1_000 });

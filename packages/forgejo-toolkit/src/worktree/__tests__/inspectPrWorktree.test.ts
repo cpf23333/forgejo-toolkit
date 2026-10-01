@@ -30,6 +30,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { discardStalePrWorktree, inspectPrWorktree } from '../gitOperations';
+import { removeTempDirSync } from '../../__tests__/tempDir';
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
@@ -105,7 +106,7 @@ describe('inspectPrWorktree', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    removeTempDirSync(tempRoot);
   });
 
   it('reports "missing" when the directory does not exist', async () => {
@@ -296,7 +297,7 @@ describe('discardStalePrWorktree', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    removeTempDirSync(tempRoot);
   });
 
   it('removes the worktree and deletes the throwaway pr-<n>-<sha7> branch', async () => {

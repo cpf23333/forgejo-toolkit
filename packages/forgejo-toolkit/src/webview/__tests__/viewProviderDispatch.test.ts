@@ -183,6 +183,7 @@ import type { StalePrWorktreeInfo } from '../../worktree/gitOperations';
 import { OnboardingWebviewPanel } from '../onboardingPanel';
 import { PullReviewCommentPanel } from '../../comments/pullReviewCommentPanel';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { removeTempDirSync } from '../../__tests__/tempDir';
 
 type MessageListener = (message: unknown) => void;
 
@@ -3278,7 +3279,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
 
     afterEach(() => {
-      fs.rmSync(cacheDir, { recursive: true, force: true });
+      removeTempDirSync(cacheDir);
     });
 
     function primeClonePath() {
@@ -3527,8 +3528,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
 
     afterEach(() => {
-      fs.rmSync(worktreeDir, { recursive: true, force: true });
-      fs.rmSync(cacheDir, { recursive: true, force: true });
+      removeTempDirSync(worktreeDir);
+      removeTempDirSync(cacheDir);
     });
 
     function seedRecordedPrWorktree(headSha: string) {
@@ -4159,7 +4160,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
       } finally {
         restoreFolder();
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       }
     });
 
@@ -4197,7 +4198,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(vi.mocked(deleteBranch)).not.toHaveBeenCalled();
         expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
       } finally {
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       }
     });
 
@@ -4223,7 +4224,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       afterEach(() => {
         vi.restoreAllMocks();
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       });
 
       function sendStartWork() {
@@ -4355,7 +4356,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       afterEach(() => {
         vi.restoreAllMocks();
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       });
 
       function sendStartWork() {
@@ -4425,7 +4426,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         vi.mocked(removeWorktreeAndPrune).mockImplementationOnce(async () => {
           // What the real helper guarantees for a directory git no longer sees:
           // the registration is pruned and the directory removed.
-          fs.rmSync(worktreePath, { recursive: true, force: true });
+          removeTempDirSync(worktreePath);
         });
 
         await sendStartWork();
@@ -4963,7 +4964,14 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         });
 
         fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
-        await flushUntil(() => vi.mocked(cloneRepository).mock.calls.length > 0);
+        // The mocked clone creates the cache repository through a real
+        // `fs.promises.mkdir`, and the flow after it (the touch, the lazy sweep,
+        // the worktree creation) is asynchronous too. Waiting only for the mock
+        // to be *called* left all of that in flight while `finally` removed the
+        // directory, which is the EPERM this case failed with when both suites
+        // ran side by side; the terminal reply means nothing below is still
+        // touching the tree.
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
 
         const cloneUrl = String(vi.mocked(cloneRepository).mock.calls[0][0]);
         expect(cloneUrl).toBe('https://forgejo.example.com/owner/repo.git');
@@ -4973,7 +4981,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(cloneUrl).not.toContain('***');
         expect(cloneUrl).not.toContain('@');
       } finally {
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       }
     });
 
@@ -5007,7 +5015,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
           expect(error).not.toContain('***');
         }
       } finally {
-        fs.rmSync(cacheDir, { recursive: true, force: true });
+        removeTempDirSync(cacheDir);
       }
     });
 

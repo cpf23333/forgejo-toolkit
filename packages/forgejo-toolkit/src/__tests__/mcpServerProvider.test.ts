@@ -23,6 +23,7 @@ import {
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
+import { removeTempDirSync } from './tempDir';
 import { MCP_ENV_WRITE_TOOLS } from '../../mcp/writeTools';
 
 /**
@@ -230,10 +231,10 @@ describe('registerMcpServerProvider', () => {
     // fires a trigger; do not leave the files behind. The registry write is
     // eager (fired at registration, no debounce), so the removal must first
     // wait out the in-flight write: its still-open `.part` handle makes a
-    // directory removal fail with EPERM on Windows, and retrying only narrows
-    // the race instead of closing it.
+    // directory removal fail with EPERM on Windows. Awaiting the queue is the
+    // fix; the retry inside removeTempDirSync is only the backstop.
     await whenMcpStateWritesSettled();
-    fs.rmSync(SHARED_GLOBAL_STORAGE, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    removeTempDirSync(SHARED_GLOBAL_STORAGE);
   });
 
   it('registers the provider under the contributed id', () => {

@@ -10,6 +10,7 @@ import {
   formatAiPreReviewDiagnosticsSection,
   type AiPreReviewDiagnosticsAttempt,
 } from '../aiPreReviewDiagnostics';
+import { removeTempDir } from './tempDir';
 
 /**
  * The debug-only dump. Two things have to hold and they pull in opposite
@@ -37,7 +38,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fs.promises.rm(directory, { recursive: true, force: true });
+  await removeTempDir(directory);
 });
 
 function attempt(overrides: Partial<AiPreReviewDiagnosticsAttempt> = {}): AiPreReviewDiagnosticsAttempt {

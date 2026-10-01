@@ -12,6 +12,7 @@ import {
   resolveAutoConfiguration,
   type AutoConfigOptions,
 } from '../autoConfig';
+import { removeTempDirSync } from '../../src/__tests__/tempDir';
 
 /**
  * Discovery and matching run against real temporary directories: the module's
@@ -162,7 +163,7 @@ describe('discoverDataDirs', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   it('honors the FORGEJO_MCP_DATA_DIR override verbatim', async () => {
@@ -210,7 +211,7 @@ describe('resolveAutoConfiguration', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function options(): AutoConfigOptions {
@@ -536,7 +537,7 @@ describe('discoverBrokerRegistration', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   /** Writes an `mcp-broker.json` stand-in into a data directory. */

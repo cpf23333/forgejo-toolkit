@@ -13,6 +13,7 @@ import {
   type AgentsWindowMcpConfig,
 } from '../agentsWindowMcpConfig';
 import { mcpServerShimFilePath } from '../../mcpWorkspaceState';
+import { removeTempDirSync } from '../../__tests__/tempDir';
 
 function makeLogger(): Logger {
   return { debug: vi.fn(), info: vi.fn(), error: vi.fn() } as unknown as Logger;
@@ -68,7 +69,7 @@ describe('mergeMcpConfigIntoFile', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   it('creates the file when none exists', async () => {
@@ -172,7 +173,7 @@ describe('copyAgentsWindowMcpConfig', () => {
 
   afterEach(() => {
     (vscode.workspace as { workspaceFolders?: unknown }).workspaceFolders = [];
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function openWorkspace(): void {

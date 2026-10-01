@@ -32,6 +32,7 @@ import {
   type MakeLeaseOptions,
   type LeaseHarness,
 } from './leaseSupervisorHarness';
+import { removeTempDir } from './tempDir';
 
 /**
  * The supervisor, tested without a real window (§10.1.8): the decision input is
@@ -105,7 +106,7 @@ describe('the decision input is assembled from real state', () => {
       expect((JSON.parse(raw) as { appVersion: string }).appVersion).toBe('9.9.9');
     } finally {
       await supervisor.dispose();
-      await fs.promises.rm(dir, { recursive: true, force: true });
+      await removeTempDir(dir);
     }
   });
 

@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
 import { LEASE_FILE_NAME } from '../lease/leaseConstants';
+import { removeTempDir } from './tempDir';
 
 /**
  * The cross-process mutual-exclusion test §10.1.3 asks for: "the only test that
@@ -209,22 +210,10 @@ async function raceRound(
   };
 }
 
-/**
- * Windows occasionally still holds a just-closed handle for a moment; retry the
- * removal rather than failing a passing round on cleanup. A leftover temp
- * directory is not worth an assertion failure — the OS temp cleaner gets it.
- */
-async function removeTempDirRobust(dir: string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      await fs.promises.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  }
-  await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => undefined);
-}
+// This file used to carry its own removal helper: the worker threads it spawns
+// hold handles on the round's directory until `terminate()` resolves, so a
+// removal one tick early fails with EPERM on Windows. That is exactly the window
+// the shared `tempDirRemovalOptions` retries through, so the local copy is gone.
 
 describe('cross-process mutual exclusion on a real filesystem (§10.1.3)', () => {
   it('lets exactly one of five simultaneous claimants win each of 25 rounds', async () => {
@@ -262,7 +251,7 @@ describe('cross-process mutual exclusion on a real filesystem (§10.1.3)', () =>
         // all-main-thread distribution would mean the barrier stopped working.
         console.log(`[lease-xproc] ${where}: winner=${result.content} ready=${result.ready}`);
       } finally {
-        await removeTempDirRobust(dir);
+        await removeTempDir(dir);
       }
     }
   }, 120_000);
@@ -286,7 +275,7 @@ describe('cross-process mutual exclusion on a real filesystem (§10.1.3)', () =>
         expect(losers, `workers-only round ${round}: the rest must see EEXIST`).toBe(WORKERS - 1);
         expect(result.workerPayloads, `workers-only round ${round}: a worker wrote the file`).toContain(result.content);
       } finally {
-        await removeTempDirRobust(dir);
+        await removeTempDir(dir);
       }
     }
   }, 60_000);

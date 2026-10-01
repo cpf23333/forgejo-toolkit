@@ -41,6 +41,7 @@ import {
   resolveBrokerInstance,
   startMcpBrokerIfFirst,
 } from '../mcpBroker';
+import { removeTempDir } from './tempDir';
 
 const detectMock = vi.mocked(detectLinkedRepositories);
 const startMock = vi.mocked(startMcpBroker);
@@ -101,7 +102,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await cleanupMcpBroker(logger);
-  await fs.promises.rm(storageDir, { recursive: true, force: true });
+  await removeTempDir(storageDir);
 });
 
 describe('startMcpBrokerIfFirst', () => {

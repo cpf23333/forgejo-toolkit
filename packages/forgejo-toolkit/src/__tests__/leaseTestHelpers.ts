@@ -5,6 +5,7 @@ import { LEASE_RECORD_VERSION } from '../lease/leaseConstants';
 import type { LeaseDecisionInput, OwnWindowState } from '../lease/leaseDecision';
 import { LeaseStore, type LeaseStoreOptions } from '../lease/leaseStore';
 import type { ClaimRequest, ClaimRequestObservation, LeaseRecord } from '../lease/leaseTypes';
+import { tempDirRemovalOptions } from './tempDir';
 
 /**
  * Helpers shared by the lease tests. Not a `.test.ts` file, so the extension
@@ -17,7 +18,10 @@ export async function makeTempDir(prefix = 'lease-test-'): Promise<string> {
 }
 
 export async function removeTempDir(dir: string): Promise<void> {
-  await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  // Best-effort stays: a lease test that deliberately holds a handle open is
+  // asserting about the lease, not about cleanup. The shared options retry the
+  // EPERM/EBUSY a handle under the tree produces on Windows before giving up.
+  await fs.promises.rm(dir, tempDirRemovalOptions).catch(() => undefined);
 }
 
 /** A complete lease record with sensible defaults, so a test states only what it means. */

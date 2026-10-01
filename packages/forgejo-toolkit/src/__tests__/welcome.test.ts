@@ -12,6 +12,7 @@ import {
   WELCOME_MARKER_MAX_AGE_MS,
 } from '../welcomeMarker';
 import { fsError } from './leaseTestHelpers';
+import { tempDirRemovalOptions } from './tempDir';
 
 const WELCOME_SHOWN_KEY = 'forgejoToolkit.hasShownWelcome';
 
@@ -38,7 +39,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fs.promises.rm(storageDir, { recursive: true, force: true }).catch(() => undefined);
+  // A case that pins the wall clock must not leak it into the rest of the file.
+  vi.useRealTimers();
+  // Best-effort keeps its meaning ("a leftover directory must not fail the
+  // suite"), and the retries wait out a handle the case left closing.
+  await fs.promises.rm(storageDir, tempDirRemovalOptions).catch(() => undefined);
 });
 
 function createContext(directory: string = storageDir) {
@@ -305,7 +310,16 @@ describe('the offer token itself', () => {
 
   it('treats a token that is still being written as an offer in flight', async () => {
     const { context } = createContext();
+    // The mtime fallback compares the file's modification time against the wall
+    // clock *the judgement itself reads*, so pinning the modification times is
+    // only enough if the clock they are compared with is pinned as well: how
+    // long the write below and the re-reads inside `isWelcomeMarkerLive` take
+    // under a starved threadpool is exactly what used to decide this case (the
+    // failing round took the single-read branch, with no re-read delay at all,
+    // over the bound). Only `Date` is faked — the re-read delay stays a real
+    // 20 ms wait — and this is the test's clock, not the production one.
     const now = Date.now();
+    vi.useFakeTimers({ now, toFake: ['Date'] });
 
     // The winner's `wx` create just happened and its payload has not landed yet.
     // The re-reads are what cover that gap, so a second window must answer "live"
@@ -313,11 +327,18 @@ describe('the offer token itself', () => {
     // file is judged by its mtime instead, which is what a *corrupt* leftover
     // looks like once the file is old.
     await fs.promises.writeFile(markerPath(), '', 'utf8');
+    // Touched 100 ms before the judgement: inside the 150 ms write grace by
+    // construction, whatever the write cost.
+    const inFlight = new Date(now - 100);
+    fs.utimesSync(markerPath(), inFlight, inFlight);
     expect(await isWelcomeMarkerLive(markerPath(), now)).toBe(true);
     expect(await isWelcomeMarkerLive(markerPath(), now, { readAttempts: 1 })).toBe(true);
 
-    const old = new Date(now - 10_000);
-    await fs.promises.utimes(markerPath(), old, old);
+    // The same empty file left untouched for ten seconds is a corrupt leftover
+    // instead: the fallback may not keep a no-instance profile quiet for the
+    // full maximum age.
+    const stale = new Date(now - 10_000);
+    fs.utimesSync(markerPath(), stale, stale);
     expect(await isWelcomeMarkerLive(markerPath(), now, { readAttempts: 1 })).toBe(false);
     expect(await createWelcomeMarker(context, { now })).toBe('created');
   });

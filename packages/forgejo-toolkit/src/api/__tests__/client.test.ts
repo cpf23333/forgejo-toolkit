@@ -33,6 +33,7 @@ import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import { SERVER_VERSION_CACHE_TTL_MS, setServerVersionCacheStorage } from '../serverVersionCache';
 import { makeMemoryVersionCacheStore, type MemoryVersionCacheStore } from './serverVersionCacheTestHelpers';
+import { removeTempDir } from '../../__tests__/tempDir';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import { MOCK_EMPTY_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
@@ -1948,7 +1949,7 @@ describe('ForgejoClient with MSW', () => {
         expect(chunks.length).toBeGreaterThan(0);
         expect(chunks[chunks.length - 1]).toBe(3);
       } finally {
-        await fs.promises.rm(dir, { recursive: true, force: true });
+        await removeTempDir(dir);
       }
     });
 
@@ -1975,7 +1976,7 @@ describe('ForgejoClient with MSW', () => {
         expect(written).toBe(6);
         expect(await fs.promises.readFile(target)).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
       } finally {
-        await fs.promises.rm(dir, { recursive: true, force: true });
+        await removeTempDir(dir);
       }
     });
 
@@ -1994,7 +1995,7 @@ describe('ForgejoClient with MSW', () => {
         await expect(fs.promises.access(target)).rejects.toThrow();
         await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
       } finally {
-        await fs.promises.rm(dir, { recursive: true, force: true });
+        await removeTempDir(dir);
       }
     });
 
@@ -3498,7 +3499,7 @@ describe('ForgejoClient with MSW', () => {
         await expect(fs.promises.access(target)).rejects.toThrow();
         await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
       } finally {
-        await fs.promises.rm(dir, { recursive: true, force: true });
+        await removeTempDir(dir);
       }
     });
   });

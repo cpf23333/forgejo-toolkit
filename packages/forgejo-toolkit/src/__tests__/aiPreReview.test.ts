@@ -175,6 +175,7 @@ import { logger } from '../logger';
 import type { ForgejoPrUriParams } from '../prFileSystemProvider';
 import type { ConfigManager } from '../config';
 import type { PullReviewCommentController } from '../comments/pullReviewCommentController';
+import { removeTempDirSync } from './tempDir';
 
 /** What one intercepted request carried. */
 interface CapturedRequest {
@@ -474,7 +475,7 @@ afterEach(() => {
   mockServer.events.removeAllListeners();
   vi.clearAllMocks();
   for (const directory of logDirs.splice(0)) {
-    fs.rmSync(directory, { recursive: true, force: true });
+    removeTempDirSync(directory);
   }
 });
 

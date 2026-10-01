@@ -15,6 +15,7 @@ import {
 } from '../copilotInstructions';
 import type { ForgejoInstance } from '../../config';
 import type { ConfigManager } from '../../config';
+import { removeTempDirSync } from '../../__tests__/tempDir';
 
 // Detection spawns git and probes the API; the command's own responsibility is
 // what it does with the attribution it gets back.
@@ -67,7 +68,7 @@ describe('writeCopilotInstructions', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(repoDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    removeTempDirSync(repoDir);
     vi.mocked(vscode.window.showWarningMessage).mockClear();
     vi.mocked(vscode.window.showInformationMessage).mockClear();
   });

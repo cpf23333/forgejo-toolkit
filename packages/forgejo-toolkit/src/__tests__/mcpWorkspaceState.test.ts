@@ -36,6 +36,7 @@ import {
   whenMcpStateWritesSettled,
   writeMcpWorkspaceState,
 } from '../mcpWorkspaceState';
+import { removeTempDirSync } from './tempDir';
 
 const detectMock = vi.mocked(detectLinkedRepositories);
 
@@ -192,10 +193,11 @@ describe('writeMcpWorkspaceState', () => {
 
   afterEach(async () => {
     // Every write this window enqueued must settle before the directory goes: a
-    // still-open `.part` handle makes the removal fail on Windows, and retrying
-    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    // still-open `.part` handle makes the removal fail on Windows. Awaiting the
+    // queue is the fix (see whenMcpStateWritesSettled); the retry inside
+    // removeTempDirSync is only the backstop for a handle already closing.
     await whenMcpStateWritesSettled();
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function configWith(instances: ForgejoInstance[]): ConfigManager {
@@ -286,10 +288,11 @@ describe('writeMcpServerShim', () => {
 
   afterEach(async () => {
     // Every write this window enqueued must settle before the directory goes: a
-    // still-open `.part` handle makes the removal fail on Windows, and retrying
-    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    // still-open `.part` handle makes the removal fail on Windows. Awaiting the
+    // queue is the fix (see whenMcpStateWritesSettled); the retry inside
+    // removeTempDirSync is only the backstop for a handle already closing.
     await whenMcpStateWritesSettled();
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   it('writes a shim that imports the current installation’s server bundle as a file URL', async () => {
@@ -328,7 +331,7 @@ describe('writeMcpServerShim', () => {
       const loaded = (await import(/* @vite-ignore */ specifier!)) as { started?: boolean };
       expect(loaded.started).toBe(true);
     } finally {
-      fs.rmSync(extensionRoot, { recursive: true, force: true });
+      removeTempDirSync(extensionRoot);
     }
   });
 
@@ -418,10 +421,11 @@ describe('writeMcpInstanceRegistry', () => {
 
   afterEach(async () => {
     // Every write this window enqueued must settle before the directory goes: a
-    // still-open `.part` handle makes the removal fail on Windows, and retrying
-    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    // still-open `.part` handle makes the removal fail on Windows. Awaiting the
+    // queue is the fix (see whenMcpStateWritesSettled); the retry inside
+    // removeTempDirSync is only the backstop for a handle already closing.
     await whenMcpStateWritesSettled();
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function configWith(instances: ForgejoInstance[]): ConfigManager {
@@ -486,10 +490,11 @@ describe('registerMcpWorkspaceStateSync', () => {
       subscription.dispose();
     }
     // Every write this window enqueued must settle before the directory goes: a
-    // still-open `.part` handle makes the removal fail on Windows, and retrying
-    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    // still-open `.part` handle makes the removal fail on Windows. Awaiting the
+    // queue is the fix (see whenMcpStateWritesSettled); the retry inside
+    // removeTempDirSync is only the backstop for a handle already closing.
     await whenMcpStateWritesSettled();
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function register(): string {
@@ -657,10 +662,11 @@ describe('cleanupMcpWorkspaceState', () => {
 
   afterEach(async () => {
     // Every write this window enqueued must settle before the directory goes: a
-    // still-open `.part` handle makes the removal fail on Windows, and retrying
-    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    // still-open `.part` handle makes the removal fail on Windows. Awaiting the
+    // queue is the fix (see whenMcpStateWritesSettled); the retry inside
+    // removeTempDirSync is only the backstop for a handle already closing.
     await whenMcpStateWritesSettled();
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   it('removes the state file registered for this window', async () => {

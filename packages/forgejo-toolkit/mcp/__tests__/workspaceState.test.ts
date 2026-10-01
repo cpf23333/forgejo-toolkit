@@ -5,6 +5,7 @@ import * as path from 'path';
 import type { McpWorkspaceStateFile } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import { resolveWorkspaceRepository } from '../workspaceState';
 import { buildToolHandlers, registerTools } from '../tools';
+import { removeTempDirSync } from '../../src/__tests__/tempDir';
 
 /**
  * Handler-level tests for the `get_workspace_repository` tool. The state file
@@ -47,7 +48,7 @@ describe('resolveWorkspaceRepository', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirSync(tempDir);
   });
 
   function writeState(value: unknown): void {
@@ -258,7 +259,7 @@ describe('get_workspace_repository tool wiring', () => {
       const result = await handlers.get_workspace_repository();
       expect(result.status).toBe('matched');
     } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      removeTempDirSync(tempDir);
     }
   });
 });

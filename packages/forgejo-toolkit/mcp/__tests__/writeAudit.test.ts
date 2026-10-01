@@ -10,6 +10,7 @@ import {
   MCP_WRITE_AUDIT_ROLLED_FILES,
 } from '../../src/mcpWriteAudit';
 import type { McpWriteAuditRecord } from '../writeTools';
+import { removeTempDir } from '../../src/__tests__/tempDir';
 
 const RECORD: McpWriteAuditRecord = {
   at: '2026-09-28T10:00:00.000Z',
@@ -90,7 +91,7 @@ describe('write audit sink', () => {
   });
 
   afterEach(async () => {
-    await fs.promises.rm(dir, { recursive: true, force: true });
+    await removeTempDir(dir);
   });
 
   function makeLogger() {
