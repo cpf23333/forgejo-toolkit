@@ -572,28 +572,87 @@ export function validatePreReviewComments(
   return { accepted, dropped };
 }
 
+/** Which part of the contracted answer shape a JSON answer failed on (§8.1). */
+export type AiPreReviewShapeField = 'root' | 'comments';
+
 /**
- * The `comments` array of a strict-JSON answer, or `undefined` when the answer
- * is not the contracted object at all (§8.1: a shape failure fails the whole
- * run, it is not "zero comments").
+ * Why one model's answer is not the contracted JSON object (§8.1). The three
+ * cases are kept apart because each one means something different to the person
+ * reading the failure and to whoever is diagnosing it: an **empty** answer is
+ * the model saying nothing at all, a **non-JSON** answer is prose or an
+ * unclosed code fence, and a **wrong shape** names the field that was missing
+ * or mistyped. A single "not the contracted JSON object" line covered all three
+ * and told nobody which had happened.
+ */
+export type AiPreReviewContractFailure =
+  | { kind: 'empty' }
+  | { kind: 'not-json' }
+  | { kind: 'wrong-shape'; field: AiPreReviewShapeField };
+
+/** One answer's parse: the contracted `comments` array, or why it is not one. */
+export type AiPreReviewResponseParse = { kind: 'ok'; comments: unknown[] } | AiPreReviewContractFailure;
+
+/**
+ * Parses a model answer against the contract (§8.1: a shape failure fails that
+ * model's attempt, it is not "zero comments").
  *
  * A JSON code fence is tolerated around the object. That is not a repair of a
- * *comment*: the record forbids repairing anchors, and the parser below is
+ * *comment*: the record forbids repairing anchors, and the validator below is
  * unchanged — but a fenced answer is a serialization mistake a model makes
  * routinely, and treating it as an unparseable run would fail the whole feature
  * for a cosmetic reason. Prose around the JSON is still a failure.
+ *
+ * The `JSON.parse` error itself is deliberately **not** part of the result.
+ * V8's message quotes the start of the offending input, which would smuggle
+ * answer text — possibly repository code — into a log line; the caller logs the
+ * bounded shape description instead.
  */
-export function parseAiPreReviewResponse(text: string): { comments: unknown[] } | undefined {
+export function parseAiPreReviewResponse(text: string): AiPreReviewResponseParse {
   const trimmed = text.trim();
+  if (trimmed === '') {
+    return { kind: 'empty' };
+  }
   const unfenced = /^```(?:json)?\s*\n([\s\S]*?)\n?```$/i.exec(trimmed)?.[1] ?? trimmed;
+  if (unfenced.trim() === '') {
+    return { kind: 'empty' };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(unfenced);
   } catch {
-    return undefined;
+    return { kind: 'not-json' };
   }
-  const comments = extractRawComments(parsed);
-  return comments === undefined ? undefined : { comments };
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { kind: 'wrong-shape', field: 'root' };
+  }
+  const comments = (parsed as { comments?: unknown }).comments;
+  if (!Array.isArray(comments)) {
+    return { kind: 'wrong-shape', field: 'comments' };
+  }
+  return { kind: 'ok', comments };
+}
+
+/**
+ * How much of a model answer a log line may quote. The answer is model output
+ * that may quote the repository, and the output channel is user-visible, so the
+ * diagnostic is a **bounded shape description**: how long it was, whether it
+ * looks like JSON at all, and a short prefix of its first line. Never the
+ * answer, never the prompt, never the diff, never the brief.
+ */
+export const AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH = 60;
+
+/**
+ * The bounded shape of one model answer, as one log-string fragment.
+ *
+ * `JSON.stringify` on the prefix is what keeps a control character, a quote or
+ * a newline inside the answer from breaking the log line apart — and the prefix
+ * is the only part of the answer that ever leaves this function.
+ */
+export function describeAiPreReviewAnswerShape(text: string): string {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? '';
+  const prefix = firstLine.slice(0, AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH);
+  const cut = firstLine.length > prefix.length ? ', firstLineTruncated=true' : '';
+  return `length=${text.length}, startsWithBrace=${text.trim().startsWith('{')}, firstLine=${JSON.stringify(prefix)}${cut}`;
 }
 
 /** The `comments` array of an already parsed answer, or `undefined` if absent. */

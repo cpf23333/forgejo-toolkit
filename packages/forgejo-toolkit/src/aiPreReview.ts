@@ -11,12 +11,14 @@ import {
   AI_PRE_REVIEW_SYSTEM_PROMPT,
   buildAiPreReviewBrief,
   buildAiPreReviewUserPrompt,
+  describeAiPreReviewAnswerShape,
   formatCandidateLabel,
   parseAiPreReviewResponse,
   validatePreReviewComments,
   type AiPreReviewBrief,
   type AiPreReviewBriefFile,
   type AiPreReviewCandidate,
+  type AiPreReviewContractFailure,
   type AiPreReviewDrop,
   type AiPreReviewDropReason,
   type AiPreReviewExistingReview,
@@ -47,6 +49,14 @@ import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
  * after a partial failure is deliberately not done: the record's §6.4 explains
  * that a rollback would be an irreversible second write to a state the user may
  * already have read.
+ *
+ * On top of those three, one run may now ask **more than one model**: the
+ * answer contract is a serialization demand some models simply do not meet, and
+ * a run that gave up on the first prose answer left the user with "try again"
+ * when the extension could try the next offered model itself (§7.2). The retry
+ * is bounded, no model is asked twice, and it only ever follows a contract
+ * violation — never a real model failure, never a cancellation, and never an
+ * answer that parsed but whose anchors were all dropped.
  */
 
 /** The command id, contributed in `package.json` and public once released. */
@@ -175,13 +185,182 @@ export interface AiPreReviewBudgetFailure {
 type PreparedPrompt = { kind: 'ready'; userPrompt: string } | { kind: 'budget'; failure: AiPreReviewBudgetFailure };
 
 /**
+ * How many models one run may ask (§7.2). Three is the record's bound: the
+ * first attempt is the most plausible model, and two further ones cover a
+ * machine that offers a family of models of which only some follow the
+ * contract. The bound is also what keeps a run's cost and latency predictable
+ * — the record's §6.5 still holds, in that no model is asked a second question
+ * and no run ever holds a conversation.
+ */
+export const AI_PRE_REVIEW_MAX_MODEL_ATTEMPTS = 3;
+
+/**
+ * One model as the API exposes it. The record's §7.2 asks the log to name the
+ * model that was chosen; `name` is the readable one, and `vendor`/`family`/`id`
+ * are the identifiers a bug report needs, because two providers can both offer
+ * a model called "GPT-4o".
+ */
+export interface AiPreReviewModelIdentity {
+  name: string;
+  vendor: string;
+  family: string;
+  id: string;
+}
+
+/** Reads the identity fields off a model, tolerating a provider that omits one. */
+export function aiPreReviewModelIdentity(model: vscode.LanguageModelChat): AiPreReviewModelIdentity {
+  return {
+    name: typeof model?.name === 'string' ? model.name : '',
+    vendor: typeof model?.vendor === 'string' ? model.vendor : '',
+    family: typeof model?.family === 'string' ? model.family : '',
+    id: typeof model?.id === 'string' ? model.id : '',
+  };
+}
+
+/** One identity as a log line or a failure message names it. */
+export function formatAiPreReviewModelIdentity(identity: AiPreReviewModelIdentity): string {
+  const name = identity.name.trim() !== '' ? identity.name : identity.id.trim() !== '' ? identity.id : 'unknown model';
+  return `${name} (vendor=${identity.vendor || 'unknown'}, family=${identity.family || 'unknown'}, id=${identity.id || 'unknown'})`;
+}
+
+/** The shorter form used in the diagnostics of the budget helpers. */
+function modelLabel(model: vscode.LanguageModelChat): string {
+  return formatAiPreReviewModelIdentity(aiPreReviewModelIdentity(model));
+}
+
+/**
+ * The identity of one model as a map key. `vendor`/`id` is the pair the API
+ * promises stability for (`id` is the opaque identifier; `vendor` keeps two
+ * providers' coincidentally equal ids apart); `family` is explicitly
+ * "subject to change" and `name` is a display string, so neither is used.
+ */
+export function aiPreReviewModelKey(model: vscode.LanguageModelChat): string {
+  const identity = aiPreReviewModelIdentity(model);
+  if (identity.id.trim() === '') {
+    // A provider that omits the id leaves nothing stable to remember; treating
+    // the whole identity as the key at least keeps two distinct models apart.
+    return `unidentified:${identity.vendor}/${identity.family}/${identity.name}`;
+  }
+  return `${identity.vendor}/${identity.id}`;
+}
+
+/**
+ * The models that satisfied the answer contract earlier in **this window**,
+ * most recent last.
+ *
+ * The record's §7.2 refuses to point users at one provider, so there is no
+ * vendor or family this feature may legitimately prefer — and `@types/vscode`
+ * 1.102 exposes no signal for "the model the user last picked": `ChatRequest.model`
+ * is documented as "the model that is currently selected in the UI", but a
+ * `ChatRequest` only exists inside a chat participant's request handler, and
+ * `LanguageModelAccessInformation` answers consent, not preference. The one
+ * honest ordering signal left is this extension's own history, recorded
+ * per window and discarded when it closes.
+ *
+ * This is deliberately not persisted: it is a hint about the machine's current
+ * providers and their current state, and a model that answered last week says
+ * little about today's quota or network.
+ */
+const contractSatisfyingModelKeys: string[] = [];
+
+/** How many models the window's history remembers before the oldest is dropped. */
+export const AI_PRE_REVIEW_CONTRACT_MEMORY_LIMIT = 8;
+
+/** Records that one model's answer satisfied the contract, as the most recent. */
+export function rememberAiPreReviewContractSatisfyingModel(model: vscode.LanguageModelChat): void {
+  const key = aiPreReviewModelKey(model);
+  const existing = contractSatisfyingModelKeys.indexOf(key);
+  if (existing >= 0) {
+    contractSatisfyingModelKeys.splice(existing, 1);
+  }
+  contractSatisfyingModelKeys.push(key);
+  while (contractSatisfyingModelKeys.length > AI_PRE_REVIEW_CONTRACT_MEMORY_LIMIT) {
+    contractSatisfyingModelKeys.shift();
+  }
+}
+
+/** The remembered models, most recently successful first. */
+export function preferredAiPreReviewModelKeys(): readonly string[] {
+  return [...contractSatisfyingModelKeys].reverse();
+}
+
+/**
+ * Forgets the window's contract history.
+ *
+ * Exported for the tests and used by nothing else: the history is module-level
+ * window state, and one test file is one window, so a case that records a
+ * success would otherwise reorder a later case's candidates.
+ */
+export function resetAiPreReviewModelMemory(): void {
+  contractSatisfyingModelKeys.length = 0;
+}
+
+/**
+ * Orders one run's candidates for its attempt sequence (§7.2): the models whose
+ * answers satisfied the contract earlier in this window come first, most
+ * recently successful first, and everything else keeps the budget order
+ * `affordableAiPreReviewModels` produced (largest `maxInputTokens` first).
+ *
+ * The budget remains the primary signal for a machine with no history — it is
+ * the only thing that says whether a candidate can take the request at all —
+ * while a remembered model is the only defensible preference on a machine where
+ * several models exist and some of them do not answer in JSON. Models the
+ * editor lists twice are collapsed to one entry, because the attempt bound
+ * promises that no model is asked twice.
+ *
+ * The sort is stable and `Array.prototype.filter` preserves order, so both
+ * groups keep the order they arrived in; only the partition is new.
+ */
+export function orderAiPreReviewCandidates(
+  candidates: readonly AiPreReviewModelCandidate[],
+  preferredKeys: readonly string[],
+): AiPreReviewModelCandidate[] {
+  const seen = new Set<string>();
+  const unique: AiPreReviewModelCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = aiPreReviewModelKey(candidate.model);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(candidate);
+  }
+  const rank = new Map(preferredKeys.map((key, index) => [key, index]));
+  const preferred = unique
+    .filter((candidate) => rank.has(aiPreReviewModelKey(candidate.model)))
+    .sort((a, b) => (rank.get(aiPreReviewModelKey(a.model)) ?? 0) - (rank.get(aiPreReviewModelKey(b.model)) ?? 0));
+  const rest = unique.filter((candidate) => !rank.has(aiPreReviewModelKey(candidate.model)));
+  return [...preferred, ...rest];
+}
+
+/**
+ * One model's attempt against the contract, kept so the failure report can name
+ * every model the run asked and how each one fell short (§7.2).
+ */
+export interface AiPreReviewModelAttempt {
+  /** The model as the API exposes it. */
+  model: AiPreReviewModelIdentity;
+  /** Why that model's answer was not the contracted JSON object. */
+  failure: AiPreReviewContractFailure;
+}
+
+/**
  * What the cancellable phase produced. Each arm is reported to the user exactly
  * once by the caller, and none of them has written anything.
  */
 type GatheredPreReview =
-  | { kind: 'answer'; answer: ModelAnswer; brief: AiPreReviewBrief }
+  | {
+      kind: 'parsed';
+      /** The `comments` array of the answer that satisfied the contract. */
+      comments: unknown[];
+      brief: AiPreReviewBrief;
+    }
   | { kind: 'cancelled' }
-  | { kind: 'budget'; failure: AiPreReviewBudgetFailure };
+  | { kind: 'budget'; failure: AiPreReviewBudgetFailure }
+  /** Every asked model failed the contract; `attempts` names them all. */
+  | { kind: 'unparsed'; attempts: AiPreReviewModelAttempt[] }
+  /** The model call itself failed; `reported` says whether it was already shown. */
+  | { kind: 'failed'; error: string; reported: boolean };
 
 /**
  * The whole run. Returns after reporting to the user; never throws for an
@@ -260,37 +439,24 @@ export async function runAiPreReview(
       reportRequestBudgetFailure(gathered.failure, affordable.budget);
       return;
     }
-
-    const answer = gathered.answer;
-    if (answer.kind === 'cancelled') {
-      reportCancelled();
-      return;
-    }
-    if (answer.kind === 'failed') {
-      if (!answer.reported) {
-        logger.error(`AI pre-review model call failed: ${answer.error}`);
+    if (gathered.kind === 'failed') {
+      if (!gathered.reported) {
+        logger.error(`AI pre-review model call failed: ${gathered.error}`);
         void vscode.window.showErrorMessage(
           vscode.l10n.t(
             'The AI pre-review could not be completed: {0}. This does not affect your review — nothing was created.',
-            answer.error,
+            gathered.error,
           ),
         );
       }
       return;
     }
-
-    const parsed = parseAiPreReviewResponse(answer.text);
-    if (!parsed) {
-      logger.error('AI pre-review: the model answer was not the contracted JSON object');
-      void vscode.window.showErrorMessage(
-        vscode.l10n.t(
-          'The AI pre-review answer could not be parsed, so no comments were created. Try again, or review the pull request by hand.',
-        ),
-      );
+    if (gathered.kind === 'unparsed') {
+      reportContractFailures(gathered.attempts);
       return;
     }
 
-    const { accepted, dropped } = validatePreReviewComments(gathered.brief, { comments: parsed.comments });
+    const { accepted, dropped } = validatePreReviewComments(gathered.brief, { comments: gathered.comments });
     if (accepted.length === 0) {
       void vscode.window.showInformationMessage(
         vscode.l10n.t(
@@ -350,6 +516,71 @@ function reportRequestBudgetFailure(failure: AiPreReviewBudgetFailure, budget: A
   );
 }
 
+/**
+ * "Every model the run could ask answered something that is not the contracted
+ * JSON object" (§6.4's parse row, §7.2's bound).
+ *
+ * The message names each model and how it failed, because the three contract
+ * failures mean different things — an empty answer and a prose answer are
+ * different problems, and a JSON answer missing `comments` is a third — and
+ * because a user who sees three models named can tell whether the feature tried
+ * the models they care about. There is deliberately no "try again": the retry
+ * the extension could do itself has already happened, up to the bound the
+ * message states. Nothing about the answers themselves is quoted here — only
+ * the bounded shape description goes to the log, at debug level.
+ */
+function reportContractFailures(attempts: readonly AiPreReviewModelAttempt[]): void {
+  const tried = attempts
+    .map((attempt) => `${formatAiPreReviewModelIdentity(attempt.model)} — ${describeContractFailure(attempt.failure)}`)
+    .join('; ');
+  void vscode.window.showErrorMessage(
+    vscode.l10n.t(
+      'The AI pre-review asked {0} chat model(s) (at most {1} per run, each model only once) and none returned the JSON it needs, so no comments were created. Tried: {2}. Nothing was created; you can review the pull request by hand.',
+      attempts.length,
+      AI_PRE_REVIEW_MAX_MODEL_ATTEMPTS,
+      tried,
+    ),
+  );
+}
+
+/**
+ * The user-facing label of one contract failure. Every branch returns a literal,
+ * like `describeDropReason`, so the i18n parity test's "every literal key used
+ * in the source exists in the bundle" check can read it.
+ */
+function describeContractFailure(failure: AiPreReviewContractFailure): string {
+  switch (failure.kind) {
+    case 'empty':
+      return vscode.l10n.t('the answer was empty');
+    case 'not-json':
+      return vscode.l10n.t('the answer was not JSON');
+    case 'wrong-shape':
+      return failure.field === 'root'
+        ? vscode.l10n.t('the answer is JSON but its top level is not an object')
+        : vscode.l10n.t('the answer is JSON but its "comments" field is missing or not an array');
+  }
+}
+
+/**
+ * The log line for one failed attempt. Distinct per failure kind — that is the
+ * point of the split — and it names the model that produced the answer, which
+ * is the line a bug report needs. Plain text rather than `l10n.t`: log lines are
+ * never shown in the UI (AGENTS.md, i18n).
+ */
+function contractFailureLogLine(model: AiPreReviewModelIdentity, failure: AiPreReviewContractFailure): string {
+  const identity = formatAiPreReviewModelIdentity(model);
+  switch (failure.kind) {
+    case 'empty':
+      return `AI pre-review: ${identity} returned an empty answer`;
+    case 'not-json':
+      return `AI pre-review: ${identity} returned an answer that is not JSON`;
+    case 'wrong-shape':
+      return failure.field === 'root'
+        ? `AI pre-review: ${identity} returned JSON whose top level is not an object`
+        : `AI pre-review: ${identity} returned JSON whose "comments" field is missing or not an array`;
+  }
+}
+
 /** The one sentence every cancelled arm shows (§6.4). */
 function reportCancelled(): void {
   void vscode.window.showInformationMessage(
@@ -368,8 +599,9 @@ function reportCancelled(): void {
  * There is deliberately no third layer that falls back to heuristics: without a
  * model this feature does not exist, and pretending otherwise would produce
  * review comments attributed to a machine that never read anything. Which of the
- * offered models a run then uses is a budget question, answered by
- * `affordableAiPreReviewModels` and `selectAiPreReviewModel` below.
+ * offered models a run then tries, in which order, is answered by
+ * `affordableAiPreReviewModels`, `orderAiPreReviewCandidates` and
+ * `selectAiPreReviewModel` below — the last two now also shape the retry.
  */
 async function listAiPreReviewModels(): Promise<vscode.LanguageModelChat[] | undefined> {
   // Read the optional API off the namespace before testing it, the same shape
@@ -437,7 +669,7 @@ export async function affordableAiPreReviewModels(
       instructionTokens = await countTokens(model, instructions);
     } catch (error) {
       logger.debug(
-        `AI pre-review: could not count the instructions for ${describeModel(model)} (${userFacingErrorMessage(error)}), so it is not considered`,
+        `AI pre-review: could not count the instructions for ${modelLabel(model)} (${userFacingErrorMessage(error)}), so it is not considered`,
       );
       continue;
     }
@@ -446,8 +678,11 @@ export async function affordableAiPreReviewModels(
     }
   }
   // Descending budget, and `sort` is stable, so equal budgets keep the editor's
-  // own order. No other ranking: the smallest sufficient model is not better or
-  // worse here, and the user's own picker order is not ours to second-guess.
+  // own order. No other ranking here: the smallest sufficient model is not
+  // better or worse by budget alone, and the user's own picker order is not ours
+  // to second-guess. `orderAiPreReviewCandidates` later puts the models whose
+  // answers satisfied the contract earlier in this window in front of this
+  // order, and that is the only preference this feature applies (§7.2).
   candidates.sort((a, b) => maxInputTokensOf(b.model) - maxInputTokensOf(a.model));
   if (candidates.length === 0) {
     logger.error(
@@ -458,14 +693,21 @@ export async function affordableAiPreReviewModels(
 }
 
 /**
- * The model one run uses (§7.2).
+ * The model the **first** attempt of one run uses (§7.2).
  *
- * The candidates arrive largest budget first, so the first one that can hold the
- * whole request is also the largest such model: a run prefers a model it can
- * hand the entire brief to, and only falls back to the largest candidate that
- * can hold the instructions when no model can take the request whole (the caller
- * then drops whole files from the brief until it fits). `fitsRequest` says which
- * of the two happened, so the caller can log the fallback instead of hiding it.
+ * The candidates arrive in the caller's attempt order — remembered models
+ * first, then by descending budget — so the first one that can hold the whole
+ * request is the most plausible such model: a run prefers a model it can hand
+ * the entire brief to, because a model shown part of the diff is answering a
+ * different question and its contract history may not transfer to it.
+ *
+ * When no candidate can take the request whole, the fallback is the candidate
+ * with the **largest** budget rather than the first one in the list: with the
+ * preference ordering in place the first candidate may be a remembered model
+ * with a small budget, and the run's best remaining chance is the model with
+ * the most room, which then drops whole files from the brief until it fits.
+ * `fitsRequest` says which of the two happened, so the caller can log the
+ * fallback instead of hiding it.
  *
  * The caller guarantees a non-empty list: it stops the run when no offered model
  * can hold the instructions at all.
@@ -480,7 +722,7 @@ export async function selectAiPreReviewModel(
       total = candidate.instructionTokens + (await countTokens(candidate.model, userPrompt));
     } catch (error) {
       logger.debug(
-        `AI pre-review: could not count the request for ${describeModel(candidate.model)} (${userFacingErrorMessage(error)}), so it is not considered`,
+        `AI pre-review: could not count the request for ${modelLabel(candidate.model)} (${userFacingErrorMessage(error)}), so it is not considered`,
       );
       continue;
     }
@@ -488,7 +730,10 @@ export async function selectAiPreReviewModel(
       return { candidate, fitsRequest: true };
     }
   }
-  return { candidate: candidates[0], fitsRequest: false };
+  const mostRoom = candidates.reduce((best, candidate) =>
+    maxInputTokensOf(candidate.model) > maxInputTokensOf(best.model) ? candidate : best,
+  );
+  return { candidate: mostRoom, fitsRequest: false };
 }
 
 /**
@@ -503,12 +748,6 @@ export async function selectAiPreReviewModel(
 function maxInputTokensOf(model: vscode.LanguageModelChat): number {
   const budget = model?.maxInputTokens;
   return typeof budget === 'number' && Number.isFinite(budget) && budget > 0 ? budget : 0;
-}
-
-/** One model as a log line can name it, without its token counts. */
-function describeModel(model: vscode.LanguageModelChat): string {
-  const name = typeof model.name === 'string' && model.name.trim() !== '' ? model.name : model.id;
-  return `${name} (${model.vendor}/${model.family})`;
 }
 
 /** One existing comment's metadata — never its body (§7.1, §13.5). */
@@ -560,9 +799,26 @@ async function collectExistingReviewMetadata(
 }
 
 /**
- * The cancellable half of the run (§6.2): read, assemble, ask. It writes
+ * The cancellable half of the run (§6.2): read, assemble, ask — and, when an
+ * answer is not the contracted JSON, ask the next candidate (§7.2). It writes
  * nothing, and none of its arms leaves anything behind — the caller reports one
  * message per arm.
+ *
+ * The attempt order is `orderAiPreReviewCandidates`' (§7.2): models whose
+ * answers satisfied the contract earlier in this window first, then descending
+ * budget. The **first** attempt still prefers a candidate that can take the
+ * whole request (see `selectAiPreReviewModel`); the retry then walks the same
+ * order, which is what makes a remembered model the second attempt when a
+ * larger model was asked first.
+ *
+ * The retry happens only for a contract violation — the three cases
+ * `parseAiPreReviewResponse` distinguishes. A real model failure (`Blocked`,
+ * `NotFound`, …) and a cancellation end the run, because those are not
+ * properties of the answer's shape; an answer that parsed but whose anchors were
+ * all dropped also ends it, because that is a content outcome for the user to
+ * see rather than a reason to spend another model's request. No model is asked
+ * twice, and the bound is `AI_PRE_REVIEW_MAX_MODEL_ATTEMPTS`, because a retry
+ * that cannot end is a cost the user did not agree to.
  *
  * The cancellation token is checked after every await that can be slow, and it
  * is handed to `sendRequest` so the provider stops the stream itself. A run
@@ -609,26 +865,109 @@ async function gatherPreReviewRequest(
   const diffForPrompt = includeDiffBody ? diffText : undefined;
   const promptOptions = diffForPrompt === undefined ? {} : { diffText: diffForPrompt };
 
-  const selected = await selectAiPreReviewModel(candidates, buildAiPreReviewUserPrompt(brief, promptOptions));
+  const ordered = orderAiPreReviewCandidates(candidates, preferredAiPreReviewModelKeys());
+  const selected = await selectAiPreReviewModel(ordered, buildAiPreReviewUserPrompt(brief, promptOptions));
   if (!selected.fitsRequest) {
     // Not an error yet: the file-granularity drop below may still make it fit.
     // The line exists so a run that had to fall back says so in the log.
     logger.info(
-      `AI pre-review: no offered chat model can take the whole request; using ${describeModel(selected.candidate.model)} and dropping files until it fits`,
+      `AI pre-review: no offered chat model can take the whole request; using ${modelLabel(selected.candidate.model)} and dropping files until it fits`,
     );
   }
   if (token.isCancellationRequested) {
     return { kind: 'cancelled' };
   }
 
-  const prepared = await preparePrompt(brief, selected.candidate, diffForPrompt);
-  if (prepared.kind === 'budget') {
-    return prepared;
+  // The first attempt is the selection above; the rest of the run's attempts
+  // follow the same order, with the selected candidate not repeated.
+  const attemptOrder = [selected.candidate, ...ordered.filter((candidate) => candidate !== selected.candidate)];
+  const failedAttempts: AiPreReviewModelAttempt[] = [];
+  const budgetFailures: AiPreReviewBudgetFailure[] = [];
+  let requested = 0;
+
+  for (const candidate of attemptOrder) {
+    if (requested >= AI_PRE_REVIEW_MAX_MODEL_ATTEMPTS) {
+      break;
+    }
+    const prepared = await preparePrompt(brief, candidate, diffForPrompt);
+    if (token.isCancellationRequested) {
+      return { kind: 'cancelled' };
+    }
+    if (prepared.kind === 'budget') {
+      // Nothing was sent to this model, so this does not consume an attempt: a
+      // later candidate may have more room, and the run's bound is about model
+      // calls, not about looking at the offered list.
+      budgetFailures.push(prepared.failure);
+      continue;
+    }
+
+    requested += 1;
+    progress.report({ message: vscode.l10n.t('Asking the chat model for review comments…') });
+    const answer = await requestPreReviewComments(candidate.model, prepared.userPrompt, token);
+    if (answer.kind === 'cancelled') {
+      return { kind: 'cancelled' };
+    }
+    if (answer.kind === 'failed') {
+      // A failing model call is not a shape problem, so it does not start a
+      // retry: the caller reports the reason it already classified (§9.3).
+      return answer;
+    }
+
+    const parsed = parseAiPreReviewResponse(answer.text);
+    const identity = aiPreReviewModelIdentity(candidate.model);
+    if (parsed.kind === 'ok') {
+      rememberAiPreReviewContractSatisfyingModel(candidate.model);
+      const identityLabel = formatAiPreReviewModelIdentity(identity);
+      if (failedAttempts.length > 0) {
+        // The line that says a retry happened and which model finally answered:
+        // the confirmation list looks the same either way, so the log is where
+        // the next diagnosis starts.
+        logger.info(
+          `AI pre-review: ${failedAttempts.length} earlier chat model(s) did not return the contracted JSON; ${identityLabel} did`,
+        );
+      }
+      logger.debug(
+        `AI pre-review: ${identityLabel} answered with the contracted JSON (${parsed.comments.length} proposed comment(s))`,
+      );
+      return { kind: 'parsed', comments: parsed.comments, brief };
+    }
+
+    // One distinct log line per failure kind, each naming the model, plus the
+    // bounded shape description at debug level. The answer itself, the prompt
+    // and the diff are never logged: the output channel is user-visible and the
+    // answer is model output that may quote the repository.
+    logger.error(contractFailureLogLine(identity, parsed));
+    logger.debug(
+      `AI pre-review: ${formatAiPreReviewModelIdentity(identity)} answer shape: ${describeAiPreReviewAnswerShape(answer.text)}`,
+    );
+    failedAttempts.push({ model: identity, failure: parsed });
   }
 
-  progress.report({ message: vscode.l10n.t('Asking the chat model for review comments…') });
-  const answer = await requestPreReviewComments(selected.candidate.model, prepared.userPrompt, token);
-  return { kind: 'answer', answer, brief };
+  if (failedAttempts.length > 0) {
+    return { kind: 'unparsed', attempts: failedAttempts };
+  }
+  return { kind: 'budget', failure: bestBudgetFailure(budgetFailures) };
+}
+
+/**
+ * The budget failure a run reports when no candidate could take the request:
+ * the one from the candidate with the most room, because "even the largest
+ * model needed this much / had this much" is the honest summary and the largest
+ * number is the one a remedy has to beat.
+ */
+function bestBudgetFailure(failures: readonly AiPreReviewBudgetFailure[]): AiPreReviewBudgetFailure {
+  if (failures.length === 0) {
+    // Unreachable while the attempt bound is positive and the candidate list is
+    // non-empty (the caller guarantees the latter). Returning zeroes keeps the
+    // failure arm total instead of throwing out of a reporting path.
+    return { neededTokens: 0, availableTokens: 0 };
+  }
+  return failures.reduce((best, failure) =>
+    failure.availableTokens > best.availableTokens ||
+    (failure.availableTokens === best.availableTokens && failure.neededTokens < best.neededTokens)
+      ? failure
+      : best,
+  );
 }
 
 /**
@@ -816,7 +1155,7 @@ interface WriteOutcome {
 }
 
 /**
- * Writes the confirmed comments as pending-review drafts (§6.6, §4.2).
+ * Writes the confirmed comments as pending-review drafts (§6.4, §4.2).
  *
  * The first comment either reuses the user's existing PENDING review or creates
  * one (`createPendingPullReview`, whose placeholder body the draft carries until

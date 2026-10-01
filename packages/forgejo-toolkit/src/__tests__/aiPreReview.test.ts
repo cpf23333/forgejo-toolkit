@@ -123,9 +123,11 @@ vi.mock('vscode', () => {
 import * as vscode from 'vscode';
 import { http, HttpResponse } from 'msw';
 import { mockServer, startMockServer, stopMockServer } from '../test/mocks/server';
+import { resetMockState } from '../test/mocks/handlers';
 import { mockInstance } from '../test/mocks/data/instances';
 import { mockPullRequestDiff as MOCK_DIFF } from '../test/mocks/data/pullRequestExtras';
-import { runAiPreReview, writePreReviewDrafts } from '../aiPreReview';
+import { resetAiPreReviewModelMemory, runAiPreReview, writePreReviewDrafts } from '../aiPreReview';
+import { logger } from '../logger';
 import type { ForgejoPrUriParams } from '../prFileSystemProvider';
 import type { ConfigManager } from '../config';
 import type { PullReviewCommentController } from '../comments/pullReviewCommentController';
@@ -143,6 +145,11 @@ const pendingReads: Promise<void>[] = [];
 /**
  * A model whose answer is a fixed string. `countTokens` is a fixed value so a
  * test can drive the budget branches without depending on a real tokenizer.
+ *
+ * The identity fields are settable because the retry and the ordering rule are
+ * about which model is which: two candidates that differ only by their answer
+ * still need distinct `id`s for the "never the same model twice" and the
+ * "prefer a model that answered before" cases.
  */
 function createModel(
   options: {
@@ -151,14 +158,18 @@ function createModel(
     maxInputTokens?: number;
     failWith?: unknown;
     streamFailWith?: unknown;
+    name?: string;
+    id?: string;
+    vendor?: string;
+    family?: string;
   } = {},
 ) {
   const answer = options.answer ?? '{"comments":[]}';
   return {
-    name: 'Fake Model',
-    id: 'fake-model',
-    vendor: 'fake',
-    family: 'fake',
+    name: options.name ?? 'Fake Model',
+    id: options.id ?? 'fake-model',
+    vendor: options.vendor ?? 'fake',
+    family: options.family ?? 'fake',
     version: '1',
     maxInputTokens: options.maxInputTokens ?? 128_000,
     countTokens: vi.fn(async () => options.tokens ?? 10),
@@ -260,12 +271,40 @@ function pickFirst(): void {
   });
 }
 
+/**
+ * Every line the run handed to the logger, at any level.
+ *
+ * The spies keep calling through to the real `Logger`, so the debug gate is
+ * still the extension's own (`forgejoToolkit.debug`); what they add is the
+ * ability to read the strings, including the debug ones that a test run — with
+ * debug off — would never see in the output channel. `vi.clearAllMocks()` in
+ * `beforeEach` resets the call history between cases.
+ */
+function loggedLines(): string[] {
+  return [
+    ...vi.mocked(logger.debug).mock.calls,
+    ...vi.mocked(logger.info).mock.calls,
+    ...vi.mocked(logger.error).mock.calls,
+  ].map(([message]) => String(message));
+}
+
 beforeEach(async () => {
   state.settings = {};
   state.cancelRequested = false;
   captured.length = 0;
   pendingReads.length = 0;
   vi.clearAllMocks();
+  // The contract history is module-level window state and this test file is one
+  // window: without this, a case that gives a model a successful answer would
+  // reorder a later case's candidates.
+  resetAiPreReviewModelMemory();
+  // The MSW fixtures keep mutable session state (a PENDING review, for one), and
+  // this suite has cases that write drafts. Resetting it here is what keeps a
+  // later case's brief independent of an earlier case's writes.
+  resetMockState();
+  vi.spyOn(logger, 'debug');
+  vi.spyOn(logger, 'info');
+  vi.spyOn(logger, 'error');
   vi.mocked(controller.findPendingReview).mockResolvedValue(undefined);
   mockServer.events.on('request:start', (event: { request: Request }) => {
     const request = event.request;
@@ -412,13 +451,13 @@ describe('the two degradation layers', () => {
     expect(await postedBodies('/reviews')).toEqual([]);
   });
 
-  it('reports an unparseable answer and creates nothing', async () => {
+  it('reports an answer that is not JSON and creates nothing', async () => {
     state.settings.aiPreReview = true;
     setModel(createModel({ answer: 'I think this looks fine overall.' }));
 
     await runAiPreReview(config, undefined, controller, params());
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('could not be parsed'));
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('the answer was not JSON'));
     expect(await postedBodies('/reviews')).toEqual([]);
   });
 });
@@ -478,6 +517,246 @@ describe('the model is chosen by its input budget, not by list order', () => {
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
       expect.stringContaining('Nothing was sent and nothing was created.'),
     );
+  });
+});
+
+describe('the contract failure is diagnosable (§8.1, §9.3)', () => {
+  /** The one error message a contract failure shows, with its arguments filled in. */
+  function failureMessage(): string {
+    const calls = vi.mocked(vscode.window.showErrorMessage).mock.calls;
+    return calls.map(([message]) => String(message)).join('\n');
+  }
+
+  it('says an empty answer was empty', async () => {
+    state.settings.aiPreReview = true;
+    setModel(createModel({ answer: '   ' }));
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(failureMessage()).toContain('the answer was empty');
+    expect(loggedLines()).toContainEqual(
+      expect.stringContaining(
+        'AI pre-review: Fake Model (vendor=fake, family=fake, id=fake-model) returned an empty answer',
+      ),
+    );
+    expect(await postedBodies('/reviews')).toEqual([]);
+  });
+
+  it('says a non-JSON answer was not JSON', async () => {
+    state.settings.aiPreReview = true;
+    setModel(createModel({ answer: 'The diff looks good to me.' }));
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(failureMessage()).toContain('the answer was not JSON');
+    expect(loggedLines()).toContainEqual(expect.stringContaining('returned an answer that is not JSON'));
+  });
+
+  it('names the "comments" field when the JSON has the wrong shape', async () => {
+    state.settings.aiPreReview = true;
+    setModel(createModel({ answer: '{"note":"no comments here"}' }));
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(failureMessage()).toContain('its "comments" field is missing or not an array');
+    expect(loggedLines()).toContainEqual(
+      expect.stringContaining('returned JSON whose "comments" field is missing or not an array'),
+    );
+  });
+
+  it('names the top level when the JSON is not an object at all', async () => {
+    state.settings.aiPreReview = true;
+    setModel(createModel({ answer: '[{"path":"src/index.ts"}]' }));
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(failureMessage()).toContain('its top level is not an object');
+    expect(loggedLines()).toContainEqual(expect.stringContaining('returned JSON whose top level is not an object'));
+  });
+
+  it('logs the model identity and a bounded shape, never the answer or the diff', async () => {
+    state.settings.aiPreReview = true;
+    // The diff body switch is on so the brief carries the code, and the answer
+    // keeps code of its own past its first line: neither may reach a log line.
+    state.settings.aiPreReviewIncludeDiff = true;
+    const firstLine = 'Sorry, I cannot answer in JSON.';
+    const longAnswer = `${firstLine}\n${'hiddenAnswerMarker '.repeat(200)}\n${'z'.repeat(4_000)}`;
+    setModel(
+      createModel({ answer: longAnswer, name: 'Ollama Local', id: 'llama-local', vendor: 'ollama', family: 'llama' }),
+    );
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    const lines = loggedLines();
+    const shape = lines.find((line) => line.includes('answer shape:'));
+    expect(shape).toBeDefined();
+    // The shape names the model and the bounded facts about the answer.
+    expect(shape).toContain('Ollama Local (vendor=ollama, family=llama, id=llama-local)');
+    expect(shape).toContain(`length=${longAnswer.length}`);
+    expect(shape).toContain('startsWithBrace=false');
+    expect(shape).toContain(JSON.stringify(firstLine));
+
+    for (const line of lines) {
+      // No diff text, no brief, no answer past its bounded prefix, and no long
+      // line at all.
+      expect(line).not.toContain("console.log('hello')");
+      expect(line).not.toContain('hiddenAnswerMarker');
+      expect(line).not.toContain('[changed-files]');
+      expect(line).not.toContain('z'.repeat(200));
+      expect(line.length).toBeLessThan(400);
+    }
+    // The bounded prefix is a debug-level diagnostic; the error line only says
+    // which model failed and how.
+    const errorLines = vi
+      .mocked(logger.error)
+      .mock.calls.map(([message]) => String(message))
+      .join('\n');
+    expect(errorLines).toContain('AI pre-review: Ollama Local (vendor=ollama, family=llama, id=llama-local)');
+    expect(errorLines).not.toContain(firstLine);
+    expect(vi.mocked(logger.debug).mock.calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the bounded retry across models (§7.2)', () => {
+  const validAnswer = JSON.stringify({
+    comments: [{ path: 'src/index.ts', line: 2, side: 'head', extraLines: 0, body: 'This logs on every call.' }],
+  });
+
+  function failureMessage(): string {
+    const calls = vi.mocked(vscode.window.showErrorMessage).mock.calls;
+    return calls.map(([message]) => String(message)).join('\n');
+  }
+
+  it('retries the next affordable candidate when the first answer breaks the contract', async () => {
+    state.settings.aiPreReview = true;
+    const first = createModel({ answer: 'I would rather describe it in prose.', id: 'prose', name: 'Prose Model' });
+    const second = createModel({ answer: validAnswer, id: 'json', name: 'JSON Model' });
+    // Equal budgets, so the editor's own order decides who is asked first.
+    setModels(first, second);
+    pickFirst();
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(first.sendRequest).toHaveBeenCalledTimes(1);
+    expect(second.sendRequest).toHaveBeenCalledTimes(1);
+    // The run continued into the confirmation list and wrote the draft.
+    expect(offeredItems()).toHaveLength(1);
+    expect(await postedBodies('/reviews')).toHaveLength(1);
+    // The log says a retry happened and which model finally answered.
+    expect(loggedLines()).toContainEqual(
+      expect.stringContaining(
+        '1 earlier chat model(s) did not return the contracted JSON; JSON Model (vendor=fake, family=fake, id=json) did',
+      ),
+    );
+  });
+
+  it('never asks the same model twice, even when the editor lists it twice', async () => {
+    state.settings.aiPreReview = true;
+    const duplicated = createModel({ answer: 'prose, again', id: 'twice' });
+    const other = createModel({ answer: 'still prose', id: 'other' });
+    // `selectChatModels` can hand back the same model twice; the attempt bound
+    // promises one question per model, so the duplicate must collapse.
+    setModels(duplicated, duplicated, other);
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(duplicated.sendRequest).toHaveBeenCalledTimes(1);
+    expect(other.sendRequest).toHaveBeenCalledTimes(1);
+    expect(failureMessage()).toContain('asked 2 chat model(s)');
+  });
+
+  it('stops after three models and names each one with its failure', async () => {
+    state.settings.aiPreReview = true;
+    const one = createModel({ answer: 'prose', id: 'one', name: 'One' });
+    const two = createModel({ answer: '{"note":"nothing"}', id: 'two', name: 'Two' });
+    const three = createModel({ answer: '[{"path":"src/index.ts"}]', id: 'three', name: 'Three' });
+    const four = createModel({ answer: validAnswer, id: 'four', name: 'Four' });
+    setModels(one, two, three, four);
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    // The bound: three model calls, and the fourth candidate is never asked.
+    expect(one.sendRequest).toHaveBeenCalledTimes(1);
+    expect(two.sendRequest).toHaveBeenCalledTimes(1);
+    expect(three.sendRequest).toHaveBeenCalledTimes(1);
+    expect(four.sendRequest).not.toHaveBeenCalled();
+    expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+    expect(await postedBodies('/reviews')).toEqual([]);
+
+    const message = failureMessage();
+    expect(message).toContain('asked 3 chat model(s)');
+    expect(message).toContain('at most 3 per run, each model only once');
+    expect(message).toContain('One (vendor=fake, family=fake, id=one) — the answer was not JSON');
+    expect(message).toContain(
+      'Two (vendor=fake, family=fake, id=two) — the answer is JSON but its "comments" field is missing or not an array',
+    );
+    expect(message).toContain(
+      'Three (vendor=fake, family=fake, id=three) — the answer is JSON but its top level is not an object',
+    );
+    expect(message).toContain('Nothing was created');
+    // Three distinct log lines, one per asked model.
+    const errorLines = vi.mocked(logger.error).mock.calls.map(([line]) => String(line));
+    expect(errorLines.filter((line) => line.includes('AI pre-review:') && line.includes('id='))).toHaveLength(3);
+  });
+
+  it('does not retry a valid answer that simply proposes nothing', async () => {
+    state.settings.aiPreReview = true;
+    const quiet = createModel({ answer: '{"comments":[]}', id: 'quiet' });
+    const spare = createModel({ answer: validAnswer, id: 'spare' });
+    setModels(quiet, spare);
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    // An empty comment list is a valid answer by contract, so the run reports
+    // the outcome instead of spending another model's request on it.
+    expect(quiet.sendRequest).toHaveBeenCalledTimes(1);
+    expect(spare.sendRequest).not.toHaveBeenCalled();
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+      expect.stringContaining('produced no usable comments'),
+    );
+  });
+
+  it('does not retry a model call that failed outright', async () => {
+    state.settings.aiPreReview = true;
+    const blocked = createModel({ id: 'blocked', failWith: Object.assign(new Error('quota'), { code: 'Blocked' }) });
+    const spare = createModel({ answer: validAnswer, id: 'spare' });
+    setModels(blocked, spare);
+
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(blocked.sendRequest).toHaveBeenCalledTimes(1);
+    expect(spare.sendRequest).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('The AI pre-review could not be completed'),
+    );
+  });
+});
+
+describe('the attempt order prefers a model whose answers have parsed before (§7.2)', () => {
+  const validAnswer = JSON.stringify({
+    comments: [{ path: 'src/index.ts', line: 2, side: 'head', extraLines: 0, body: 'This logs on every call.' }],
+  });
+
+  it('starts the next run from the model that last satisfied the contract', async () => {
+    state.settings.aiPreReview = true;
+    // `big` has the larger budget, so budget order asks it first; it never
+    // follows the contract. `small` is the model that answered, and the window
+    // remembers that.
+    const big = createModel({ answer: 'prose from the big model', id: 'big', maxInputTokens: 128_000 });
+    const small = createModel({ answer: validAnswer, id: 'small', maxInputTokens: 8_000 });
+    setModels(big, small);
+    pickFirst();
+    await runAiPreReview(config, undefined, controller, params());
+    expect(big.sendRequest).toHaveBeenCalledTimes(1);
+    expect(small.sendRequest).toHaveBeenCalledTimes(1);
+
+    // Second run in the same window: the remembered model goes first even
+    // though it is not the largest, and the run never asks `big` again.
+    await runAiPreReview(config, undefined, controller, params());
+
+    expect(big.sendRequest).toHaveBeenCalledTimes(1);
+    expect(small.sendRequest).toHaveBeenCalledTimes(2);
+    expect(offeredItems(1)).toHaveLength(1);
   });
 });
 

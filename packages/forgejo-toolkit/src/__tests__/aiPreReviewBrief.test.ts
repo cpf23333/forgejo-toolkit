@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
 import {
+  AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH,
   AI_PRE_REVIEW_MAX_BODY_LENGTH,
   AI_PRE_REVIEW_MAX_COMMENTS,
   AI_PRE_REVIEW_SYSTEM_PROMPT,
   buildAiPreReviewBrief,
   buildAiPreReviewUserPrompt,
+  describeAiPreReviewAnswerShape,
   formatCandidateLabel,
   isSafeBriefPath,
   parseAiPreReviewResponse,
@@ -188,18 +190,48 @@ describe('the prompt builder', () => {
 
 describe('the response parser', () => {
   it('accepts the contracted object', () => {
-    expect(parseAiPreReviewResponse('{"comments":[]}')).toEqual({ comments: [] });
+    expect(parseAiPreReviewResponse('{"comments":[]}')).toEqual({ kind: 'ok', comments: [] });
   });
 
   it('accepts a JSON code fence around it', () => {
-    expect(parseAiPreReviewResponse('```json\n{"comments":[]}\n```')).toEqual({ comments: [] });
+    expect(parseAiPreReviewResponse('```json\n{"comments":[]}\n```')).toEqual({ kind: 'ok', comments: [] });
   });
 
-  it('rejects prose, a missing key and a non-array key', () => {
-    expect(parseAiPreReviewResponse('Sure! Here are my comments:')).toBeUndefined();
-    expect(parseAiPreReviewResponse('{"note":"none"}')).toBeUndefined();
-    expect(parseAiPreReviewResponse('{"comments":"none"}')).toBeUndefined();
-    expect(parseAiPreReviewResponse('[{"comments":[]}]')).toBeUndefined();
+  it('reports an empty answer as empty, not as unparseable', () => {
+    // The distinction the UI verification round needed: "the model said
+    // nothing" and "the model said something that is not JSON" are different
+    // problems, and one log line covered both.
+    expect(parseAiPreReviewResponse('')).toEqual({ kind: 'empty' });
+    expect(parseAiPreReviewResponse('   \n  ')).toEqual({ kind: 'empty' });
+    expect(parseAiPreReviewResponse('```json\n\n```')).toEqual({ kind: 'empty' });
+  });
+
+  it('reports prose and broken JSON as not JSON', () => {
+    expect(parseAiPreReviewResponse('Sure! Here are my comments:')).toEqual({ kind: 'not-json' });
+    expect(parseAiPreReviewResponse('{"comments": [')).toEqual({ kind: 'not-json' });
+  });
+
+  it('names the field a JSON answer got wrong', () => {
+    expect(parseAiPreReviewResponse('[{"comments":[]}]')).toEqual({ kind: 'wrong-shape', field: 'root' });
+    expect(parseAiPreReviewResponse('"comments"')).toEqual({ kind: 'wrong-shape', field: 'root' });
+    expect(parseAiPreReviewResponse('{"note":"none"}')).toEqual({ kind: 'wrong-shape', field: 'comments' });
+    expect(parseAiPreReviewResponse('{"comments":"none"}')).toEqual({ kind: 'wrong-shape', field: 'comments' });
+  });
+
+  it('describes an answer by its bounded shape only', () => {
+    const long = `{\n${'x'.repeat(5_000)}\n}`;
+
+    expect(describeAiPreReviewAnswerShape(long)).toBe(`length=${long.length}, startsWithBrace=true, firstLine="{"`);
+    expect(describeAiPreReviewAnswerShape('')).toBe('length=0, startsWithBrace=false, firstLine=""');
+  });
+
+  it('cuts the first-line prefix and never quotes more than it', () => {
+    const answer = `I am sorry, but I cannot review this: ${'y'.repeat(200)}`;
+    const described = describeAiPreReviewAnswerShape(answer);
+
+    expect(described).toContain(`firstLineTruncated=true`);
+    expect(described).toContain(answer.slice(0, AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH));
+    expect(described).not.toContain(answer.slice(0, AI_PRE_REVIEW_ANSWER_PREFIX_LENGTH + 1));
   });
 });
 
