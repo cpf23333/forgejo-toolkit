@@ -44,7 +44,17 @@ import { removeTempDir } from './tempDir';
  * Only `setInterval`/`clearInterval` are faked: the tick's reads and writes are
  * real file I/O, and `whenSettled()` is the tick's own completion signal, so no
  * test sleeps.
+ *
+ * That real I/O is why the file states its own budget. Measured on a 20-thread
+ * machine the whole file is ~1.4 s, yet under several concurrent vitest runs
+ * tests measured at ~50 ms idle — 20 rounds of "write a foreign lease, tick,
+ * list the request files" — were observed hitting the 5 s default: vitest's
+ * per-test duration includes time the test spent queued while the worker's
+ * event loop was starved, so the default stops describing the test and starts
+ * describing the machine. 30 s is ~20x the file's idle cost and still fails an
+ * actual hang.
  */
+vi.setConfig({ testTimeout: 30_000 });
 
 const NOW = 1_000_000;
 
@@ -322,6 +332,10 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
     });
   }
 
+  // 15 s for the same reason as the step-down test above: 20 rounds of "write a
+  // foreign lease, tick, list the request files" is real disk work — ~50 ms
+  // idle, ~0.9 s under four concurrent suite runs, and one 5.1 s timeout in the
+  // run that exposed this file, so the 5 s default is inside its tail.
   it('keeps exactly one request file while a refused window keeps asking', async () => {
     // The sticky state the focus fix creates: a focused window that is refused
     // over and over. Each publish carries a fresh token, so without retiring the
@@ -341,7 +355,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
     expect(requests.at(-1)).toContain('requestNumber=4');
     expect(await claimRequestFiles(h)).toHaveLength(1);
     expect(h.infoLines().join('\n')).not.toContain('reason=retire-failed');
-  });
+  }, 15_000);
 
   it('clears an old request a dead window left behind, on the owner path', async () => {
     const h = await lease();
@@ -401,6 +415,9 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
     expect(await claimRequestFiles(h)).toEqual([freshDead, oldLive].sort());
   });
 
+  // 15 s, like its two siblings above: the same 20-round loop, with the
+  // retirement's unlink additionally failing on every round, which made it the
+  // other test to time out at the default under concurrent suite runs.
   it('reports a failed retirement once per streak and keeps publishing', async () => {
     const real = toFileSystem();
     const fs = withFaults({
@@ -425,7 +442,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
     expect(failures).toHaveLength(1);
     expect(failures[0]).toContain('retrying=next-publish');
     expect(linesWithAction(h.infoLines(), 'request').length).toBeGreaterThanOrEqual(3);
-  });
+  }, 15_000);
 });
 
 /** Write a request file and return its base name, for the prune assertions. */
@@ -565,6 +582,10 @@ describe('the tick and the heartbeat are different layers (§2.3)', () => {
 });
 
 describe('heartbeat write failures (§4.1, §8)', () => {
+  // 15 s, not the 5 s default: seven ticks against real files, each a failed
+  // rename plus the read that follows, measured at ~160 ms idle but over 5 s
+  // while five concurrent suite runs share the disk. Same reasoning — and the
+  // same documented budget — as the webview's 15 s stress tests.
   it('reports the write failure as the reason it steps down, at 2 × expiry', async () => {
     const real = toFileSystem();
     let renames = 0;
@@ -618,7 +639,7 @@ describe('heartbeat write failures (§4.1, §8)', () => {
     const degraded = h.infoLines().filter((line) => line.includes('action=degraded-to-full-speed'));
     expect(degraded).toHaveLength(1);
     expect(degraded[0]).toContain('cause=record-write-failed');
-  });
+  }, 15_000);
 
   it('still reports the stale record when nothing is failing on the write path', async () => {
     // The generic reason is for a record that aged out with no write failure in

@@ -29,7 +29,20 @@ import type { LeaseRecord } from '../lease/leaseTypes';
  * filesystem in a real temp directory: `fs.open(path, 'wx')` being genuinely
  * atomic is the entire premise of the design (§4.3), so mocking it away would
  * test the mock.
+ *
+ * Every test here pays for real file work — a `wx` create, a `.part` write, an
+ * fsync, a rename and the reads around them — so the 5 s default is the wrong
+ * budget for the file as a whole. Measured on a 20-thread machine: the whole
+ * file is ~1.4 s and even its cheapest tests are ~1 ms, but under several
+ * concurrent vitest runs the per-test time is not a property of the test: the
+ * duration vitest reports includes time the test sat queued while the worker's
+ * event loop was starved, and tests measured at 45-100 ms idle were observed to
+ * hit the 5 s default. An explicit per-test timeout would therefore have to be
+ * repeated on nearly every test to be honest; a file-scoped budget says the
+ * same thing once. 30 s is ~20x the file's idle cost and is still a real bound:
+ * an actual hang (a leaked handle, a deadlock) trips it and fails the test.
  */
+vi.setConfig({ testTimeout: 30_000 });
 
 let dir: string;
 
@@ -497,6 +510,13 @@ describe('two windows racing on one directory (§10.1.2, §10.1.3)', () => {
     expect(afterHandover.read.kind === 'ok' && afterHandover.read.record.ownerNonce).toBe(loser.nonce);
   });
 
+  // The file-scoped budget above already covers this; the explicit argument is
+  // kept because this is the test that named the problem. 50 rounds x 3
+  // claimants is ~450 real filesystem operations (a `wx` create, a `.part`
+  // write, an fsync, a rename and a read each) in 50 temp directories, measured
+  // at ~580 ms idle, ~4.1 s with four concurrent suite runs, and 20.3 s with
+  // eight — under the 5 s default it is the first test in the suite to time out,
+  // and a timed-out body keeps running into the next test's spies.
   it('repeats that race 50 times without a double winner', async () => {
     // A single pass proves little about an atomic primitive; the repetition is
     // what catches the occasional interleaving.
@@ -518,7 +538,7 @@ describe('two windows racing on one directory (§10.1.2, §10.1.3)', () => {
         await removeTempDir(roundDir);
       }
     }
-  });
+  }, 30_000);
 });
 
 describe('heartbeat', () => {
