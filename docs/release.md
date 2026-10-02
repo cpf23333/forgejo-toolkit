@@ -23,17 +23,21 @@ Open VSX is not pending work but a decision: the extension is deliberately not
 published there (section 5 explains when that changes). The sections after it
 explain each step.
 
-1. **Write the changelog section.** The root `CHANGELOG.md` is the authoritative
-   release-notes source: the release workflow extracts the section whose heading
-   names the version being released (`## [<version>] - <date>`) and publishes it
-   verbatim as the Codeberg release body. Before the first release the notes live
-   under `## [Unreleased]`, which the workflow falls back to; that heading is
-   renamed to `## [<version>] - <date>` at release time (post-release step 7).
-   `pnpm run version-packages` maintains `packages/forgejo-toolkit/CHANGELOG.md`
-   instead, a mechanical per-package record. That file is not an independent
-   source of release notes: it is kept byte-for-byte identical to this root file
-   (post-release step 7 copies one over the other and a test enforces it), so
-   writing the curated root section is what a release needs.
+1. **Write the changelog section and name it for the version.** The root
+   `CHANGELOG.md` is the authoritative release-notes source: the release workflow
+   extracts the section whose heading names the version being released
+   (`## [<version>] - <date>`) and publishes it verbatim as the Codeberg release
+   body. Decide the version first and let `pnpm run version-packages` bump the
+   manifest and consume the pending changesets, then rename the root
+   `## [Unreleased]` heading to `## [<version>] - <date>` and copy the root file
+   over `packages/forgejo-toolkit/CHANGELOG.md` — that file is a mechanical
+   per-package record, not an independent source of notes, and a test keeps it
+   byte-for-byte identical to the root. Renaming **before** the dispatch is what
+   makes the workflow take the version section: it accepts either spelling and
+   does fall back to `## [Unreleased]`, but with the rename done first the dry
+   run's "found the section for this version" line is a real check, and the record
+   never claims that an already-published version is still unreleased. Renaming
+   first also means the date in the heading has to be the day you dispatch.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
    `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
@@ -61,12 +65,14 @@ explain each step.
    deliberately not published; section 5 keeps the steps for the day that
    decision changes. Each further Marketplace publish updates the existing
    listing.
-7. **Backfill the docs.** Rename the released section in `CHANGELOG.md` from
-   `## [Unreleased]` to `## [<version>] - <date>` (edit the root file and copy it
-   over `packages/forgejo-toolkit/CHANGELOG.md` — a test keeps the two byte for
-   byte identical), flip the "not published yet" wording in `README.md` /
-   `README.zh.md` back to plain store links now that they resolve, and re-check
-   the version-related entries in `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`.
+7. **Backfill the docs.** Open a fresh `## [Unreleased]` heading above the section
+   you just released (edit the root file and copy it over
+   `packages/forgejo-toolkit/CHANGELOG.md` — a test keeps the two byte for byte
+   identical), and re-check the version-related entries in `KNOWN_ISSUES.md` /
+   `KNOWN_ISSUES.zh.md`. The "not published yet" wording in `README.md` /
+   `README.zh.md` is about Open VSX, which is deliberately not published (section
+   5), so it stays as it is unless that decision changes or a store's status
+   actually changed in this release.
 
 ## Prerequisites
 
@@ -198,7 +204,7 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
    input per surface and asserts the resulting graph), so a build that stopped
    emitting one of them would ship a panel that opens empty. The two entry
    bundles are ESM and share almost all of their
-   code through `extension/out/chunks/` (one esbuild build with `splitting`),
+   code through `extension/out/chunks/` (one Rolldown build with code splitting),
    so that directory is checked as a whole rather than by its hashed file
    names. The two codicon assets are checked because the webview only
    links them at runtime: `webview/vite.config.mts`'s `copyCodicons` hook copies

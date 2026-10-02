@@ -19,7 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The extension is bundled by the same Rolldown engine that already builds the
+  webviews, so the packaged extension is about 20% smaller (1,926,650 bytes to
+  1,541,037, and 16.9% smaller gzipped) and both builds are faster. Nothing about
+  the extension's behaviour changes.
+- The release guide now names the changelog section for the version being
+  released **before** the release workflow runs, instead of renaming it
+  afterwards: the dry run's `found the section for this version` line becomes
+  a real check, and the notes never call a published version unreleased.
+
 ## [0.1.0] - 2026-10-02
+
 ### Highlights
 
 - The AI pre-review is usable end to end, and every decision stays yours: you
