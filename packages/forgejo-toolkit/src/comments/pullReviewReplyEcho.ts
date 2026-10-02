@@ -9,21 +9,23 @@
  * answered looking untouched: the maintainer's report was "nothing happens in
  * VS Code after posting".
  *
- * The echo is a **local, session-scoped rendering aid, not a server object**. It
- * is never written back, re-posted, counted or sent anywhere, it is never
- * registered as one of the server's comments, and it changes nothing about what
- * the thread believes the server holds. It lives only in memory, keyed exactly
- * like the threads it belongs to (`pullReviewThreadKeys.ts`), so every rebuild
- * or re-render of a thread re-applies it for as long as the extension session
- * lasts. A window reload drops it — the threads are rebuilt from review data and
- * the reply is not review data — while the reply itself stays on the pull
- * request's timeline, which the thread's own context points at. That limitation
- * is recorded in `docs/design/pr-comment-replies.md` and in the paired
- * `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` entry.
+ * The echo is a **rendering aid, not a server object**. It is never written
+ * back, re-posted, counted or sent anywhere, it is never registered as one of
+ * the server's comments, and it changes nothing about what the thread believes
+ * the server holds. Since the timeline became the echo's source
+ * (`timelineReplyEcho.ts` derives every quote reply from the pull request's
+ * timeline), this store only covers the seconds between a successful POST and
+ * the timeline returning the row it created: the derived echo takes over as soon
+ * as it appears, and the local entry is dropped in its favour rather than
+ * rendered twice. The store is therefore still in memory and still keyed exactly
+ * like the threads it belongs to (`pullReviewThreadKeys.ts`) — what changed is
+ * that a window reload no longer loses the echo, because nothing local is needed
+ * to rebuild it. See `docs/design/pr-comment-replies.md` §3.
  */
 
 /**
- * `contextValue` prefix of an echoed reply.
+ * `contextValue` prefix of an echoed reply — the local one and the
+ * server-derived one alike.
  *
  * Deliberately **not** the `forgejo:` prefix the encoded server comments use:
  * the `comments/comment/context` menu offers Delete for
@@ -35,22 +37,29 @@
 export const ECHOED_REPLY_CONTEXT_VALUE_PREFIX = 'forgejo-timeline-reply:';
 
 export interface EchoedReply {
-  /** The body exactly as it was posted to the timeline. */
+  /** The body exactly as it stands on the timeline. */
   body: string;
   /** Login of the user who posted it, as the instance reports it. */
   author: string;
   /** Localised note rendered as the comment's label. */
   label: string;
   /**
-   * Local time the reply was posted. Local-only on purpose: it is when this
-   * session saw the POST succeed, not a server timestamp.
+   * When the reply was posted. For a local echo this is when this session saw
+   * the POST succeed (not a server timestamp); a server-derived echo carries the
+   * timeline comment's own `created_at`.
    */
-  postedAt: Date;
+  postedAt: Date | undefined;
   /** Recognisable `contextValue`; never registered as a server comment. */
   contextValue: string;
+  /**
+   * Id of the timeline comment this echo stands for, when it is known: the POST
+   * response carries it for a local echo, and a derived echo *is* one. It is
+   * what the dedupe matches on, so the same reply cannot render twice.
+   */
+  timelineCommentId?: number;
 }
 
-/** Whether a rendered comment is one of our local echoes rather than a server comment. */
+/** Whether a rendered comment is one of our echoes rather than a server comment. */
 export function isEchoedReply(comment: { contextValue?: string }): boolean {
   return comment.contextValue?.startsWith(ECHOED_REPLY_CONTEXT_VALUE_PREFIX) === true;
 }
@@ -61,18 +70,21 @@ export interface EchoedReplyInput {
   author: string;
   label: string;
   postedAt: Date;
+  /** Id the POST returned for the created timeline comment, when it returned one. */
+  timelineCommentId?: number;
 }
 
 /**
- * The echoed replies of this extension session, one list per thread key
+ * The locally echoed replies of this extension session, one list per thread key
  * (`pullReviewThreadKey`). The key is the only thing that ties an echo to the
  * thread it belongs to, so two threads — including two anchors in one file —
  * keep their own echoes.
  *
  * It is intentionally not a cache: entries are never evicted and never expire,
- * because an echo that disappeared on its own would be a lie about what the
- * user posted. The number of entries is bounded by the replies the user types
- * in one session.
+ * because an echo that disappeared on its own would be a lie about what the user
+ * posted. The number of entries is bounded by the replies the user types in one
+ * session, and each of them is superseded (and hidden) by the derived record the
+ * timeline provides.
  */
 export class EchoedReplyStore {
   private readonly _byThread = new Map<string, EchoedReply[]>();
@@ -86,6 +98,7 @@ export class EchoedReplyStore {
       label: reply.label,
       postedAt: reply.postedAt,
       contextValue: `${ECHOED_REPLY_CONTEXT_VALUE_PREFIX}${this._sequence++}`,
+      timelineCommentId: reply.timelineCommentId,
     };
     const existing = this._byThread.get(threadKey);
     if (existing) {

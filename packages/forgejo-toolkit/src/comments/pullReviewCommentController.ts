@@ -16,7 +16,13 @@ import {
   type PullReviewReplyTarget,
 } from './pullReviewReplyTarget';
 import { buildReviewReplyBody } from './reviewReply';
-import { EchoedReplyStore, isEchoedReply, type EchoedReply } from './pullReviewReplyEcho';
+import {
+  ECHOED_REPLY_CONTEXT_VALUE_PREFIX,
+  EchoedReplyStore,
+  isEchoedReply,
+  type EchoedReply,
+} from './pullReviewReplyEcho';
+import { deriveTimelineReplyEchoes, type TimelineCommentLike, type TimelineReplyEcho } from './timelineReplyEcho';
 import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Logger } from '../logger';
@@ -134,6 +140,17 @@ const CONTEXT_IN_PR_DIFF = 'forgejoToolkit.inPullRequestDiff';
 // sit in the Comments panel.
 const INVISIBLE_THREAD_SWEEP_DELAY_MS = 250;
 
+// The pull request's timeline is fetched to re-derive the replies it holds
+// (`timelineReplyEcho.ts`). It is read once per render pass, not once per thread,
+// and this TTL coalesces the pass with the renders that follow it (every open
+// diff document of the pull request re-renders, and a mutation invalidates the
+// review data, which re-renders again). Shorter than the review-data TTL on
+// purpose: the timeline is what makes a reply appear, so it should be the first
+// thing to be re-read.
+const TIMELINE_COMMENTS_CACHE_TTL_MS = 10_000;
+const TIMELINE_COMMENTS_MAX_ENTRIES = 4;
+const TIMELINE_COMMENTS_MAX_BYTES = 8 * 1024 * 1024;
+
 // A review's comments are fetched one request per review, and the review list
 // can reach the shared 500-item list cap: firing them all at once opens up to
 // 500 concurrent authenticated requests against a self-hosted instance. The
@@ -175,10 +192,23 @@ export class PullReviewCommentController implements vscode.Disposable {
   /**
    * The replies this session posted to the pull request's timeline, keyed by
    * thread key. A reply is never a review comment, so the review API will never
-   * return it and every rebuild of a thread would otherwise drop the only local
-   * trace of what the user did. See `pullReviewReplyEcho.ts`.
+   * return it; this store covers the gap between a successful POST and the
+   * timeline returning the row it created, after which the derived echo
+   * (`_derivedEchoesFor`) takes over. See `pullReviewReplyEcho.ts`.
    */
   private readonly _echoedReplies = new EchoedReplyStore();
+  /**
+   * The pull request's timeline rows, keyed by pull request. Their quote replies
+   * are what re-derive the echoes on every render — including after a window
+   * reload, and including replies composed outside this extension. Cached only to
+   * coalesce a render pass; see `_timelineComments`.
+   */
+  private readonly _timelineCommentsCache = createTimedCache<TimelineCommentLike[]>(TIMELINE_COMMENTS_CACHE_TTL_MS, {
+    maxEntries: TIMELINE_COMMENTS_MAX_ENTRIES,
+    maxBytes: TIMELINE_COMMENTS_MAX_BYTES,
+    sizeOf: (value) => estimateValueBytes(value),
+  });
+  private readonly _timelineCommentsInFlight = new InFlightTasks();
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS, {
     maxEntries: REVIEW_DATA_MAX_ENTRIES,
@@ -555,6 +585,115 @@ export class PullReviewCommentController implements vscode.Disposable {
     return this._config.getInstances().find((i) => i.id === instanceId);
   }
 
+  /**
+   * The pull request's timeline rows, fetched with the client's own timeline
+   * method (no raw request), paged by it to the shared list cap — the same read
+   * the PR detail page makes.
+   *
+   * Called only from a render that has at least one thread to attach an echo to,
+   * so a pull request without review comments on the opened file costs no extra
+   * request, and called once per render pass rather than once per thread.
+   * Concurrent callers share the in-flight fetch, and the short TTL coalesces the
+   * documents of one pass.
+   *
+   * A failure is logged and answered with an empty timeline: the threads are the
+   * point of the render and must still appear, and a reply's echo simply falls
+   * back to the local store. Note that the client's timeline method also asks for
+   * each attachment-carrying comment's asset list — the price of reusing the
+   * existing call instead of adding a second, leaner endpoint call.
+   */
+  private _timelineComments(params: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+  }): Promise<TimelineCommentLike[]> {
+    const key = this._reviewDataCacheKey(params);
+    const cached = this._timelineCommentsCache.get(key);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+    return this._timelineCommentsInFlight.run(key, async () => {
+      const instance = this._findInstance(params.instanceId);
+      if (!instance) {
+        return [];
+      }
+      try {
+        const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
+        const comments = await client.getPullRequestCommentsAndTimeline(params.owner, params.repo, params.index);
+        this._timelineCommentsCache.set(key, comments);
+        return comments;
+      } catch (error) {
+        const err = userFacingErrorMessage(error);
+        this._logger?.error(
+          `Failed to load the pull request timeline for ${params.owner}/${params.repo}#${params.index}: ${err}`,
+        );
+        // Deliberately not cached: the next render retries, so a transient
+        // failure does not cost the user their echoes for the whole TTL.
+        return [];
+      }
+    });
+  }
+
+  /**
+   * Comment id → thread key for every review comment this render attached, so a
+   * timeline row can be matched to the thread it answers.
+   *
+   * Built from the same key the render uses (`pullReviewThreadKey`), which is why
+   * a reply to any anchor — including one of two anchors on different lines of
+   * the same file — lands in exactly the thread that carries the comment it
+   * quotes. Echoes are not in here: the map's keys are ids of server review
+   * comments, and an echo has no server comment behind it.
+   */
+  private _threadKeyByCommentId(
+    anchors: ReadonlyMap<string, { comments: readonly RenderedComment[] }>,
+  ): Map<number, string> {
+    const byCommentId = new Map<number, string>();
+    for (const [key, group] of anchors) {
+      for (const entry of group.comments) {
+        if (typeof entry.comment.id === 'number') {
+          byCommentId.set(entry.comment.id, key);
+        }
+      }
+    }
+    return byCommentId;
+  }
+
+  /**
+   * The local echoes that are still worth showing beside this thread's derived
+   * echoes — the exact dedupe rule.
+   *
+   * The same timeline comment renders exactly once, even though two records of it
+   * can exist at the same moment (the one the POST just created locally, and the
+   * one the server's timeline returns):
+   *
+   * - A local echo whose `timelineCommentId` matches a derived echo's is the very
+   *   same timeline comment, so it is dropped; the derived record wins.
+   * - A local echo with no id — the POST response did not carry one — cannot be
+   *   matched, so it is dropped as soon as *any* derived echo exists in that
+   *   thread: a derived echo proves the timeline read is answering for this
+   *   thread, and the local record is then at best a duplicate of a reply that
+   *   read already contains. Until then it is the only trace of the just-posted
+   *   reply, and it stays.
+   *
+   * Matching is on the timeline comment's id and nothing else: body, author and
+   * timestamp are all things the user can edit on the server afterwards, and a
+   * dedupe that compared them would start rendering one reply as two.
+   */
+  private _localEchoesToApply(threadKey: string, derivedEchoes: readonly TimelineReplyEcho[]): EchoedReply[] {
+    const local = this._echoedReplies.get(threadKey);
+    if (local.length === 0) {
+      return [];
+    }
+    const derivedIds = new Set(derivedEchoes.map((echo) => echo.timelineCommentId));
+    return local.filter((echo) => {
+      if (echo.timelineCommentId !== undefined) {
+        return !derivedIds.has(echo.timelineCommentId);
+      }
+      return derivedEchoes.length === 0;
+    });
+  }
+
   private _enqueueRender(task: () => Promise<void>): Promise<void> {
     const run = this._renderChain.then(task).catch((error: unknown) => {
       const err = userFacingErrorMessage(error);
@@ -688,6 +827,10 @@ export class PullReviewCommentController implements vscode.Disposable {
     // One lookup for the whole render: every rendered comment's author falls
     // back to the instance name.
     const instanceName = this._findInstance(params.instanceId)?.name ?? params.instanceId;
+    // The replies the pull request's timeline holds, by thread key, derived once
+    // for this whole pass (see _derivedEchoesFor). Fetched lazily: a pass with no
+    // thread to attach to never asks for the timeline.
+    let derivedEchoesByThread: Map<string, TimelineReplyEcho[]> | undefined;
 
     for (const { review, comments } of data.reviews) {
       if (documentClosed) {
@@ -778,12 +921,22 @@ export class PullReviewCommentController implements vscode.Disposable {
       if (rendered.length === 0) {
         continue;
       }
-      // The session's echoed replies go after every server comment: they were
-      // posted later, and the server will never return them. They are rebuilt
-      // into the thread here rather than carried over from the previous render,
-      // so a rebuild can neither lose an echo nor duplicate one — and an echo
-      // that is not in this map is simply not part of the server's comments.
-      const comments = [...rendered, ...this._echoedComments(key)];
+      // The replies the timeline holds for this thread — this extension's and
+      // anyone else's — go after every server comment: they were posted later,
+      // and the server's review comment list will never carry them. They are
+      // re-derived here on every render rather than carried over from the
+      // previous one, so a rebuild (and a window reload) can neither lose an echo
+      // nor duplicate one — the local store's entry for a reply the timeline
+      // already returned is dropped in the derived record's favour.
+      if (derivedEchoesByThread === undefined) {
+        derivedEchoesByThread = await this._derivedEchoesFor(params, anchors);
+      }
+      const derivedEchoes = derivedEchoesByThread.get(key) ?? [];
+      const comments = [
+        ...rendered,
+        ...this._localEchoesToApply(key, derivedEchoes).map((echo) => this._createEchoedComment(echo)),
+        ...this._derivedEchoComments(derivedEchoes),
+      ];
       // The new comments are built before the old thread is touched: they carry
       // the same encoded context values as the comments being replaced, so
       // dropping the old contexts first would delete the entry the re-created
@@ -812,10 +965,10 @@ export class PullReviewCommentController implements vscode.Disposable {
           first.threadRange,
           comments,
         );
-        // The reply box exists exactly when the thread allows replies. Every
-        // review comment can be answered, and the reply is appended to the
-        // pending review — the same place the editor's own "Add Pull Review
-        // Comment" writes, and never a submitted review.
+        // The reply box exists exactly when the thread allows replies, and every
+        // review comment can be answered: the reply is posted as an ordinary
+        // comment on the pull request (`replyToComment`) and echoed back into
+        // this thread, never written into the user's pending review.
         thread.canReply = true;
         thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
         thread.contextValue = this._replyTargetValue(first, group.anchor);
@@ -1043,9 +1196,29 @@ export class PullReviewCommentController implements vscode.Disposable {
     });
   }
 
-  /** The replies this session echoed into one thread, rebuilt as comments. */
-  private _echoedComments(threadKey: string): vscode.Comment[] {
-    return this._echoedReplies.get(threadKey).map((echo) => this._createEchoedComment(echo));
+  /**
+   * The timeline's replies to the comments this render attached, grouped by thread
+   * key — the server-side source of the echoes, so they survive a window reload
+   * and cover replies composed elsewhere (the web UI, a phone).
+   *
+   * Called once per render pass, lazily: it returns immediately when no thread has
+   * a server comment to attach to, which is what keeps a pull request without
+   * review comments from costing an extra request. One timeline read serves every
+   * thread of the pass — the matching happens locally, against the comment ids
+   * this render collected. A failed or empty timeline yields no derived echoes
+   * and the threads still render; the local store then carries the just-posted
+   * reply, and `_timelineComments` logs the failure.
+   */
+  private async _derivedEchoesFor(
+    params: ForgejoPrUriParams,
+    anchors: ReadonlyMap<string, { anchor: PullReviewThreadAnchor; comments: readonly RenderedComment[] }>,
+  ): Promise<Map<string, TimelineReplyEcho[]>> {
+    const byCommentId = this._threadKeyByCommentId(anchors);
+    if (byCommentId.size === 0) {
+      return new Map();
+    }
+    const timeline = await this._timelineComments(params);
+    return deriveTimelineReplyEchoes(timeline, byCommentId);
   }
 
   /**
@@ -1055,9 +1228,10 @@ export class PullReviewCommentController implements vscode.Disposable {
    * for review content: the note says where the text actually lives, and the
    * echo's `contextValue` deliberately does not carry the `forgejo:` prefix the
    * server comments use, so the comment context menu offers it no Delete (there
-   * is nothing on the server it could delete). The body is the posted body
-   * unchanged — no hard-break rewriting and no attachment resolution, because
-   * nothing about it was read from the server.
+   * is nothing on the server it could delete). The body is the body as it stands
+   * on the timeline, unchanged — no hard-break rewriting and no attachment
+   * resolution, because a reply is not review content and its rendered form is
+   * not what the confirmation note is about.
    */
   private _createEchoedComment(echo: EchoedReply): vscode.Comment {
     const body = new vscode.MarkdownString(echo.body);
@@ -1070,6 +1244,29 @@ export class PullReviewCommentController implements vscode.Disposable {
       label: echo.label,
       contextValue: echo.contextValue,
     };
+  }
+
+  /**
+   * The timeline comments of `derivedEchoes`, as echo comments rendered after the
+   * thread's server comments.
+   *
+   * Derived and local echoes render identically (same marker, same read-only
+   * mode), because which of the two supplied a given reply is an implementation
+   * detail the reader must not have to care about. The `contextValue` carries the
+   * timeline comment's own id, so two derived echoes can never share a marker and
+   * one timeline comment can never be rendered twice.
+   */
+  private _derivedEchoComments(derivedEchoes: readonly TimelineReplyEcho[]): vscode.Comment[] {
+    return derivedEchoes.map((derived) =>
+      this._createEchoedComment({
+        body: derived.body,
+        author: derived.author,
+        label: vscode.l10n.t('Posted to the pull request timeline'),
+        postedAt: derived.postedAt,
+        contextValue: `${ECHOED_REPLY_CONTEXT_VALUE_PREFIX}${derived.timelineCommentId}`,
+        timelineCommentId: derived.timelineCommentId,
+      }),
+    );
   }
 
   /** Every comment of one anchor, in the order the server listed them. */
@@ -1314,8 +1511,11 @@ export class PullReviewCommentController implements vscode.Disposable {
     index: number;
   }): Promise<void> {
     // Every caller gets here after a mutation (submit/delete), so drop the
-    // cached data first to make the new state visible immediately.
+    // cached data first to make the new state visible immediately. That includes
+    // the timeline: it is what carries a reply, and a reply is a mutation of its
+    // own, so a refresh must re-read it rather than answer from the burst cache.
     this._reviewDataCache.delete(this._reviewDataCacheKey(params));
+    this._timelineCommentsCache.delete(this._reviewDataCacheKey(params));
     let data: PullRequestReviewCache;
     try {
       ({ data } = await this._loadReviewData(params));
@@ -1427,8 +1627,10 @@ export class PullReviewCommentController implements vscode.Disposable {
    *
    * A **success** additionally echoes the reply into the thread it was answered
    * in, marked as a timeline comment (`pullReviewReplyEcho.ts`): the thread
-   * renders review comments, so without the local echo the user would see
-   * nothing happen where they took the action.
+   * renders review comments, so without the echo the user would see nothing
+   * happen where they took the action. That local echo is a bridge only — the
+   * thread's echoes are re-derived from the pull request's timeline on every
+   * render (`_derivedEchoesFor`), so a reloaded window still shows the reply.
    */
   async replyToComment(reply: PullReviewCommentReply | undefined): Promise<void> {
     if (!reply || typeof reply.text !== 'string' || !reply.text.trim()) {
@@ -1520,6 +1722,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     );
 
     let failure: string | undefined;
+    let timelineCommentId: number | undefined;
     try {
       const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
       // `POST /repos/{owner}/{repo}/issues/{index}/comments` — the endpoint
@@ -1527,8 +1730,11 @@ export class PullReviewCommentController implements vscode.Disposable {
       // issue), and the one the web UI's own plain comments use (its quote
       // replies use the review-comments endpoint, see the doc above). Nothing
       // here touches a review: no pending review is started or appended to, and
-      // no review is ever submitted.
-      await client.createIssueComment(target.owner, target.repo, target.index, body);
+      // no review is ever submitted. The response is the created timeline
+      // comment; its id is what lets the echo below be recognised as that exact
+      // timeline comment once the timeline returns it (`_localEchoesToApply`).
+      const created = await client.createIssueComment(target.owner, target.repo, target.index, body);
+      timelineCommentId = created?.id;
     } catch (error) {
       failure = userFacingErrorMessage(error);
     }
@@ -1544,14 +1750,18 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
 
     // Echo the reply into the thread it was written in. The reply is a timeline
-    // comment, so the review API will never return it: append the local copy
-    // now, and remember it under the thread's key so every later rebuild or
-    // re-render of that thread re-applies it (`_echoedComments`). The echo is
-    // read-only and carries a note saying where the text lives, and it is never
-    // registered as a server comment — nothing about it is sent, counted or
-    // written back. It is session-scoped: a window reload rebuilds the threads
-    // from review data and drops it, while the reply itself stays on the web
-    // timeline (`docs/design/pr-comment-replies.md`).
+    // comment, so the review API will never return it: append the local copy now
+    // so the post is visible immediately, and remember it under the thread's key
+    // so a rebuild of that thread before the timeline catches up keeps it. The
+    // echo is read-only and carries a note saying where the text lives, and it is
+    // never registered as a server comment — nothing about it is sent, counted or
+    // written back.
+    //
+    // This local copy is only a bridge: every render also re-derives the thread's
+    // echoes from the pull request's timeline (`_derivedEchoesFor`), which is what
+    // makes a reply survive a window reload and what shows replies composed
+    // elsewhere. The two records are deduped by the timeline comment's id — the
+    // id the POST just returned — so the reply renders once.
     const threadKey = this._threadKeyForThread(thread, target);
     if (threadKey !== undefined) {
       const echo = this._echoedReplies.add(threadKey, {
@@ -1559,6 +1769,7 @@ export class PullReviewCommentController implements vscode.Disposable {
         author: instance.username || instance.name,
         label: vscode.l10n.t('Posted to the pull request timeline'),
         postedAt: new Date(),
+        timelineCommentId,
       });
       thread.comments = [...thread.comments, this._createEchoedComment(echo)];
     }
@@ -1566,7 +1777,9 @@ export class PullReviewCommentController implements vscode.Disposable {
     // Say where it went as well: it is on the pull request's timeline now,
     // visible to everyone without any review being submitted. No refresh of the
     // review threads runs after a reply — the echo above is what makes the post
-    // visible in place, and reloading the thread would drop the input.
+    // visible in place, and reloading the thread would drop the input. The next
+    // render of the document (a refresh, a reopen, a reloaded window) re-derives
+    // it from the timeline like any other reply.
     void vscode.window.showInformationMessage(vscode.l10n.t('Reply posted as a comment on the pull request timeline.'));
   }
 

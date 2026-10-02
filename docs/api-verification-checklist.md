@@ -371,7 +371,7 @@
 - [x] 响应：200 + 单个 `api.TrackedTime`（`convert.ToTrackedTime`），`issue` 已由 `LoadAttributes` 填充；扩展消费 `id`/`created`/`time`/`user_name`
 - [x] 权限与校验：`CanUseTimetracker` 不满足 403、timetracker 关闭 400（`{"message":"time tracking disabled"}`）；任何绑定/校验失败统一 422（`routers/api/v1/api.go:463-473`）；`time` 只有 `binding:"Required"`，**无上下限**，负数可被接受并入库
 - [x] 源码位置：`routers/api/v1/api.go:1156-1162,463-473`、`routers/api/v1/repo/issue_tracked_time.go:147-228`、`modules/structs/issue_tracked_time.go:10-19`、`models/issues/tracked_time.go:170-213`、`services/context/repo.go:158-166`
-- [x] 差异记录：扩展只发 `{ time: <整数秒> }`（`client.ts:1325-1328`；UI 用小时×3600+分钟×60 换算，`seconds <= 0` 时不发请求），与 `AddTimeOption` 一致；但生成的 `IssueAddTime` 错误类型只声明 400/403/404，服务端实际还会返回 **422**（`time` 缺失或为 0），运行时仅表现为通用报错；UI hours 无上限，服务端同样无上限
+- [x] 差异记录：扩展只发 `{ time: <整数秒> }`（`client.ts:1325-1328`；UI 用小时×3600+分钟×60 换算，`seconds <= 0` 时不发请求），与 `AddTimeOption` 一致；但生成的 `IssueAddTime` 错误类型只声明 400/403/404，服务端实际还会返回 **422**（`time` 缺失或为 0），运行时仅表现为通用报错；UI hours 无上限，服务端同样无上限。这一条**已决定暂不修、等上游**（上游规格本身没有 422，重新生成补不上），去向与两条备选做法记在 `TODO.md` 的「等上游版本」条目里（`IssueAddTime` 缺 422 那一项）
 
 ### `DELETE /repos/{owner}/{repo}/issues/{index}/times/{id}`
 

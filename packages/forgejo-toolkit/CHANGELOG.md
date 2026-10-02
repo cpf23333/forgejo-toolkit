@@ -45,12 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **echoed into the thread you replied in**, below its
   comments: the reply as posted, read-only and marked **Posted to the pull
   request timeline**, so it is not mistaken for a review comment. The echo is a
-  local rendering aid, not a server object — it is never written back, re-posted
-  or counted — and it is remembered per thread for the extension session, so
-  refreshing the pull request re-applies it and it never duplicates. It does not
-  survive a window reload: the threads are rebuilt from review data and the reply
-  is not review data, while the reply itself stays on the pull request's
-  timeline. Your **pending review** is left alone: that draft area belongs to the
+  rendering aid over server data, not a server object — it is never written back,
+  re-posted or counted — and it is **re-derived from the pull request's timeline
+  on every render**: the extension reads that timeline, matches each quote
+  reply's attribution line (`@user wrote in <url>:`) to the review comment its
+  URL names, and attaches it to that comment's thread. So the reply is still in
+  its thread after a **window reload**, and replies composed elsewhere —
+  Forgejo's web UI, a phone — appear in the thread as well. The local echo left
+  from the POST only covers the moment before the timeline returns the new row;
+  the two records are deduped on the timeline comment's id, so the reply renders
+  exactly once. The timeline read is one request per render pass (shared by all
+  open files of the pull request and cached briefly; a file with no comment
+  thread issues none), paged to the shared 500-item list cap. Your **pending
+  review** is left alone: that draft area belongs to the
   AI pre-review, whose drafts stay invisible until you submit the review, while a
   reply placed there (as earlier builds did) stayed hidden in the timeline until
   you submitted the whole review and picked a verdict. All the comments on one

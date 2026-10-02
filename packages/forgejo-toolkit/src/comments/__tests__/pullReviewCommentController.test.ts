@@ -44,6 +44,17 @@ const state = vi.hoisted(() => ({
   issueComments: [] as Array<{ owner: string; repo: string; index: number; body: string }>,
   // When set, the issue-comment endpoint rejects with this error.
   issueCommentError: null as Error | null,
+  // The id the issue-comment endpoint answers with; every post gets the next
+  // one, so a reply can be recognised again once the timeline returns it.
+  nextIssueCommentId: 901,
+  // The pull request timeline the client answers with. The reply echo is
+  // re-derived from it, so this is where a reply shows up after a reload and
+  // where replies composed outside this extension show up at all.
+  timelineComments: [] as Array<{ id: number; body?: string; created_at?: string; user?: { login: string } }>,
+  // When set, the timeline endpoint rejects with this error.
+  timelineError: null as Error | null,
+  // Timeline requests issued; a pass with no thread to attach to must issue none.
+  timelineFetches: 0,
   // Review comments written into a pending review. The reply must never land
   // here — the pending review is the AI pre-review's draft area — so the
   // endpoints are mocked to record whether anything reached them at all.
@@ -240,7 +251,17 @@ vi.mock('../../api/client', () => ({
           throw state.issueCommentError;
         }
         state.issueComments.push({ owner, repo, index, body });
-        return { id: 900 };
+        return { id: state.nextIssueCommentId++ };
+      }),
+      // `GET /repos/{owner}/{repo}/issues/{index}/timeline` — the read a reply's
+      // echo is re-derived from. Its rows are the timeline's, so a quote reply in
+      // here is what makes a thread show the reply again after a reload.
+      getPullRequestCommentsAndTimeline: vi.fn(async () => {
+        state.timelineFetches += 1;
+        if (state.timelineError) {
+          throw state.timelineError;
+        }
+        return state.timelineComments;
       }),
       // The two endpoints that write into the user's pending review. Only the
       // AI pre-review uses them; the reply must not reach either, so the mocks
@@ -1891,6 +1912,10 @@ describe('PullReviewCommentController replies', () => {
     state.pendingReviewId = null;
     state.issueComments = [];
     state.issueCommentError = null;
+    state.nextIssueCommentId = 901;
+    state.timelineComments = [];
+    state.timelineError = null;
+    state.timelineFetches = 0;
     state.reviewWrites = [];
     state.registeredCommands.clear();
     state.diffError = null;
@@ -2384,6 +2409,395 @@ describe('PullReviewCommentController replies', () => {
     // Reply-first: the user's own words open the body, with the quote after them.
     expect(state.issueComments[0].body.split('\n')[0]).toBe('manual');
     expect(state.issueComments[0].body).toContain('\n\n@reviewer wrote in');
+    controller.dispose();
+  });
+});
+
+/**
+ * The echo a thread shows for a reply is **derived from the server**, not
+ * remembered locally: every render reads the pull request's timeline and matches
+ * each quote reply's attribution line — `@<login> wrote in <url>:` — to the
+ * review comment it names. That is what makes a reply survive a window reload
+ * (nothing local is needed to rebuild it) and what shows a reply composed
+ * elsewhere (Forgejo's web UI, a phone), which the session-scoped store could
+ * never do.
+ *
+ * The store has not gone away: a successful POST still echoes immediately, and
+ * that local copy covers the moment before the timeline returns the new row. The
+ * two are deduped on the timeline comment's id.
+ */
+describe('PullReviewCommentController server-derived reply echoes', () => {
+  const REVIEWED = [
+    {
+      id: 101,
+      path: 'src/index.ts',
+      position: 2,
+      original_position: 0,
+      body: 'first line\nsecond line',
+      user: { login: 'reviewer' },
+    },
+  ];
+
+  /** Two anchors in one file: two threads, each with its own root comment. */
+  const TWO_ROOTS = [
+    { id: 201, path: 'src/index.ts', position: 2, original_position: 0, body: 'note a', user: { login: 'reviewer' } },
+    { id: 202, path: 'src/index.ts', position: 3, original_position: 0, body: 'note b', user: { login: 'reviewer' } },
+  ];
+
+  /** The attribution line a quote reply carries, in the platform's own wording. */
+  function attribution(commentId: number, login = 'reviewer'): string {
+    return `@${login} wrote in https://forgejo.example.com/owner/repo/pulls/2/files#issuecomment-${commentId}:`;
+  }
+
+  /** A timeline quote reply that answers `commentId`, reply text first. */
+  function timelineReply(id: number, commentId: number, text: string) {
+    return {
+      id,
+      body: [text, '', attribution(commentId), '', '> first line', '> second line'].join('\n'),
+      created_at: '2026-10-02T10:00:00Z',
+      user: { login: 'user' },
+    };
+  }
+
+  /** The echoes a thread renders, identified by the marker prefix. */
+  function echoedComments(thread: { comments: unknown[] }) {
+    return (
+      thread.comments as Array<{
+        body: { value: string };
+        mode: number;
+        label?: string;
+        contextValue?: string;
+        author: { name: string };
+      }>
+    ).filter((comment) => comment.contextValue?.startsWith('forgejo-timeline-reply:') === true);
+  }
+
+  /** The reviews a refresh reloads; the mock answers them from `state`. */
+  function refresh(controller: PullReviewCommentController): Promise<void> {
+    return controller.refreshPullRequestComments({
+      instanceId: INSTANCE_ID,
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+    });
+  }
+
+  /** The open document as the workspace would list it, for a refresh pass. */
+  async function withOpenDocuments<T>(document: unknown, body: () => Promise<T>): Promise<T> {
+    const textDocuments = (vscode.workspace as unknown as { textDocuments: unknown[] }).textDocuments;
+    textDocuments.push(document);
+    try {
+      return await body();
+    } finally {
+      textDocuments.length = 0;
+    }
+  }
+
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.closeHandlers.length = 0;
+    state.editorHandlers.length = 0;
+    state.visibleEditors.length = 0;
+    state.comments = REVIEWED;
+    state.listReviews = null;
+    state.failedReviewIds = [];
+    state.commentsRequests = [];
+    state.pendingReviewId = null;
+    state.issueComments = [];
+    state.issueCommentError = null;
+    state.nextIssueCommentId = 901;
+    state.timelineComments = [];
+    state.timelineError = null;
+    state.timelineFetches = 0;
+    state.reviewWrites = [];
+    state.registeredCommands.clear();
+    state.diffError = null;
+    panelState.createOrShow.mockClear();
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+    vi.mocked(vscode.window.showInformationMessage).mockClear();
+  });
+
+  /** The reply command the controller registered, as the workbench invokes it. */
+  function replyCommand() {
+    const handler = state.registeredCommands.get('forgejoToolkit.replyToPullReviewComment');
+    expect(handler).toBeDefined();
+    return handler as (reply: unknown) => Promise<unknown>;
+  }
+
+  it('attaches a timeline reply quoting thread comment X to X as a read-only echo', async () => {
+    // The whole feature: the timeline row quotes comment 101, so it belongs to
+    // that comment's thread, and it renders as an echo with the marker and the
+    // body exactly as the timeline holds it.
+    state.timelineComments = [timelineReply(700, 101, 'answered from the web UI')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    const thread = state.createdThreads[0];
+    expect(thread.comments).toHaveLength(2);
+    const [echo] = echoedComments(thread);
+    expect(echo).toBeDefined();
+    expect(echo.body.value).toBe(state.timelineComments[0].body);
+    expect(echo.label).toBe('Posted to the pull request timeline');
+    expect(echo.mode).toBe(vscode.CommentMode.Preview);
+    // The marker carries the timeline comment's own id, and it is not one of the
+    // encoded server contexts, so no Delete action is offered for it.
+    expect(echo.contextValue).toBe('forgejo-timeline-reply:700');
+    expect(echo.contextValue?.startsWith('forgejo:')).toBe(false);
+    expect(controller.getCommentContext(echo.contextValue as string)).toBeUndefined();
+    expect(echo.author.name).toBe('user');
+    controller.dispose();
+  });
+
+  it('reads the platform order too, where the attribution is the body first line', async () => {
+    // Forgejo's own web-UI reply puts the quote first, so its attribution is the
+    // first line. Our replies put the reply text first; both must be found, or a
+    // reply composed on the web would stay invisible here.
+    state.timelineComments = [
+      {
+        id: 701,
+        body: [attribution(101), '', '> first line', '> second line', '', 'the platform order reply'].join('\n'),
+        created_at: '2026-10-02T10:00:00Z',
+        user: { login: 'reviewer' },
+      },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    const [echo] = echoedComments(state.createdThreads[0]);
+    expect(echo?.body.value).toContain('the platform order reply');
+    expect(echo?.contextValue).toBe('forgejo-timeline-reply:701');
+    controller.dispose();
+  });
+
+  it('ignores a timeline comment that quotes a comment this render does not show', async () => {
+    state.timelineComments = [timelineReply(702, 999, 'answering something else')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    const thread = state.createdThreads[0];
+    expect(thread.comments).toHaveLength(1);
+    expect(echoedComments(thread)).toEqual([]);
+    controller.dispose();
+  });
+
+  it('ignores a timeline comment with no attribution at all', async () => {
+    state.timelineComments = [
+      { id: 703, body: 'just a plain comment on the pull request', user: { login: 'user' } },
+      { id: 704, body: undefined, user: { login: 'user' } },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(echoedComments(state.createdThreads[0])).toEqual([]);
+    controller.dispose();
+  });
+
+  it('ignores an attribution that is malformed or names no comment id', async () => {
+    state.timelineComments = [
+      // A URL without the `#issuecomment-<id>` fragment.
+      { id: 705, body: `@reviewer wrote in https://forgejo.example.com/owner/repo/pulls/2/files:\n\n> a` },
+      // The attribution quoted back, which answers the *quoted* reply, not 101.
+      { id: 706, body: `> ${attribution(101)}\n\nnot an answer to 101` },
+      // Prose that merely contains the wording.
+      { id: 707, body: `I saw that @reviewer wrote in somewhere before, so:\n\n> first line` },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(echoedComments(state.createdThreads[0])).toEqual([]);
+    controller.dispose();
+  });
+
+  it('keeps each anchor its own echoes', async () => {
+    state.comments = TWO_ROOTS;
+    state.timelineComments = [timelineReply(708, 202, 'answer to b'), timelineReply(709, 201, 'answer to a')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(state.createdThreads).toHaveLength(2);
+    const [firstThread, secondThread] = state.createdThreads;
+    expect(echoedComments(firstThread).map((echo) => echo.body.value.split('\n')[0])).toEqual(['answer to a']);
+    expect(echoedComments(secondThread).map((echo) => echo.body.value.split('\n')[0])).toEqual(['answer to b']);
+    controller.dispose();
+  });
+
+  it('leaves the threads rendered when the timeline fetch fails', async () => {
+    state.timelineError = new Error('timeline unavailable');
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    const thread = state.createdThreads[0];
+    expect(thread.comments).toHaveLength(1);
+    expect(echoedComments(thread)).toEqual([]);
+    // The echo is the only thing the failure may cost; the review data itself
+    // loaded, so the load failure must not be reported as a second error.
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('re-derives the echoes after a refresh, with no local store primed', async () => {
+    // The reload-equivalent: a fresh controller (a fresh extension host) whose
+    // only source is the server. Nothing was echoed locally in this process, and
+    // the reply composed in the web UI is in the thread anyway.
+    state.timelineComments = [timelineReply(710, 101, 'reply composed elsewhere')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+    expect(echoedComments(thread)).toHaveLength(1);
+
+    await withOpenDocuments(document, () => refresh(controller));
+
+    expect(thread.comments).toHaveLength(2);
+    const echoes = echoedComments(thread);
+    expect(echoes).toHaveLength(1);
+    expect(echoes[0].body.value.split('\n')[0]).toBe('reply composed elsewhere');
+    controller.dispose();
+  });
+
+  it('shows the just-posted reply exactly once once the timeline carries it', async () => {
+    // The dedupe: after a successful POST the local echo covers the gap, and the
+    // timeline then returns the same comment. The local record is dropped in the
+    // derived one's favour, which is what the timeline comment's id is matched on.
+    state.timelineComments = [timelineReply(711, 101, 'first reply')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+
+    // The POST answers with id 901, and the timeline mock already holds 711 —
+    // a different row, so the local echo is *not* the one the timeline returned
+    // and both are shown until the mock's timeline is updated to match.
+    await replyCommand()({ thread, text: 'first reply' });
+    expect(echoedComments(thread)).toHaveLength(2);
+
+    // The timeline catches up with the same comment the POST created.
+    state.timelineComments = [timelineReply(901, 101, 'first reply')];
+    await withOpenDocuments(document, () => refresh(controller));
+
+    const echoes = echoedComments(thread);
+    expect(echoes).toHaveLength(1);
+    expect(echoes[0].contextValue).toBe('forgejo-timeline-reply:901');
+    expect(echoes[0].body.value).toBe(state.issueComments[0].body);
+    // Still exactly the one POST: re-deriving an echo writes nothing, and no
+    // review endpoint was touched.
+    expect(state.issueComments).toHaveLength(1);
+    expect(state.reviewWrites).toEqual([]);
+    controller.dispose();
+  });
+
+  it('drops the local echo on a rebuild that follows the POST, showing one echo only', async () => {
+    // The narrower form of the same rule, and the one a reload produces: the
+    // local echo and the derived record describe the same timeline comment, so
+    // exactly one of them renders — the derived one.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: 'just posted' });
+    const postedBody = state.issueComments[0].body;
+    // The POST's own id is now on the timeline, as the server would answer.
+    state.timelineComments = [
+      { id: 901, body: postedBody, created_at: '2026-10-02T10:00:00Z', user: { login: 'user' } },
+    ];
+
+    await withOpenDocuments(document, () => refresh(controller));
+    await withOpenDocuments(document, () => refresh(controller));
+
+    const echoes = echoedComments(thread);
+    expect(echoes).toHaveLength(1);
+    expect(echoes[0].contextValue).toBe('forgejo-timeline-reply:901');
+    expect(echoes[0].body.value).toBe(postedBody);
+    controller.dispose();
+  });
+
+  it('never re-posts or writes anything while re-deriving the echoes', async () => {
+    state.timelineComments = [timelineReply(712, 101, 'from elsewhere')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+
+    await withOpenDocuments(document, () => refresh(controller));
+
+    expect(state.issueComments).toEqual([]);
+    expect(state.reviewWrites).toEqual([]);
+    expect(echoedComments(state.createdThreads[0])).toHaveLength(1);
+    controller.dispose();
+  });
+
+  it('never quotes an echoed reply as the comment being answered', async () => {
+    // The echo is a rendered comment with the echo marker and no server context;
+    // treating it as the comment being answered would quote our own copy of a
+    // reply back and hide which server comment the new reply belongs to.
+    state.timelineComments = [timelineReply(713, 101, 'an earlier reply from elsewhere')];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+    expect(echoedComments(thread)).toHaveLength(1);
+
+    await replyCommand()({ thread, text: 'a second reply' });
+
+    expect(state.issueComments).toHaveLength(1);
+    expect(state.issueComments[0].body.split('\n')[0]).toBe('a second reply');
+    expect(state.issueComments[0].body).toContain('> first line');
+    expect(state.issueComments[0].body).not.toContain('an earlier reply from elsewhere');
+    controller.dispose();
+  });
+
+  it('issues no timeline request when the file has no thread to attach to', async () => {
+    // A comment that does not render for this document (another file) leaves no
+    // anchor, so there is nothing an echo could attach to and the request is
+    // skipped instead of being paid for on every diff document.
+    state.comments = [
+      { id: 301, path: 'src/other.ts', position: 2, original_position: 0, body: 'elsewhere', user: { login: 'r' } },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(state.createdThreads).toHaveLength(0);
+    expect(state.timelineFetches).toBe(0);
+    controller.dispose();
+  });
+
+  it('fetches the timeline once per render pass, not once per thread', async () => {
+    state.comments = TWO_ROOTS;
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+
+    await openDocument(document);
+
+    expect(state.createdThreads).toHaveLength(2);
+    expect(state.timelineFetches).toBe(1);
+
+    // The second document of the same pull request is served from the short-lived
+    // cache, so a multi-file diff does not re-read the timeline per file.
+    await openDocument(document);
+    expect(state.timelineFetches).toBe(1);
     controller.dispose();
   });
 });
