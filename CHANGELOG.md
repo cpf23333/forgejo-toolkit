@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      step of the checklist in `docs/release.md`). -->
 
 ## [0.1.1] - 2026-10-02
+
 ### Changed
 
 - The extension is bundled by the same Rolldown engine that already builds the
