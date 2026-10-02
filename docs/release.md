@@ -4,13 +4,19 @@ This document describes how to publish Forgejo Toolkit.
 
 ## Checklist
 
-The order below is what a release uses. 0.0.1 is already out: the Marketplace
-listing is live, the `v0.0.1` release exists on the self-hosted Forgejo
-(`origin`), and the Codeberg release exists as well (`0.0.1`, release id
+The order below is what a release uses. 0.0.1 and 0.1.0 are already out: the
+Marketplace listing is live, the `v0.0.1` release exists on the self-hosted
+Forgejo (`origin`), and Codeberg carries two releases — `0.0.1` (release id
 `12472572`, at
 <https://codeberg.org/cpf23333/forgejo-toolkit/releases/tag/0.0.1>, with
-`forgejo-toolkit-0.0.1.vsix` attached). Codeberg still has no runner of its own,
-though: that release was created by dispatching the release workflow on the
+`forgejo-toolkit-0.0.1.vsix` attached) and **`v0.1.0`** (release id `12655833`,
+published 2026-10-02, at
+<https://codeberg.org/cpf23333/forgejo-toolkit/releases/tag/v0.1.0>, with
+`forgejo-toolkit-0.1.0.vsix` attached). The 0.1.0 release is the first one that
+followed the workflow's own tag default, so the `v<version>` spelling described
+in step 4 is now the convention in practice rather than a plan; 0.0.1's
+un-prefixed tag stays as it is. Codeberg still has no runner of its own, though:
+both releases were created by dispatching the release workflow on the
 self-hosted Forgejo, not on Codeberg, and a Codeberg-side dispatch needs a
 `docker`-label runner registered there first (section "Where to dispatch it").
 Open VSX is not pending work but a decision: the extension is deliberately not
