@@ -68,6 +68,7 @@
     "@vue/tsconfig": "^0.9.1",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
+    "happy-dom": "20.14.5",
     "jsdom": "30.0.1",
     "lightningcss": "^1.33.0",
     "msw": "^2.15.0",

@@ -1,6 +1,19 @@
 import { config } from '@vue/test-utils';
 import { vi } from 'vitest';
+import { installNodeIteratorShimIfNeeded } from './helpers/happyDomNodeIterator';
 import { VSCODE_ELEMENT_STUBS } from './helpers/vscodeElements';
+
+// Installed here, and not from a test helper, because DOMPurify captures
+// `document.createNodeIterator` once at module-init time: the shim has to be in
+// place before any test module imports `dompurify`, and setup files run before
+// the test module graph. happy-dom's own `NodeIterator` has neither the DOM
+// Standard's pre-remove steps nor its candidate pointer, which makes DOMPurify
+// stop sanitizing after the first removed node; see
+// `helpers/happyDomNodeIterator.ts`. jsdom's own implementation is left alone —
+// the differential check forces the shim over it with
+// `FORGEJO_TOOLKIT_FORCE_NODE_ITERATOR_SHIM=1`, and the environment stays jsdom
+// for the unrelated reason recorded in `webview/vitest.config.mts`.
+installNodeIteratorShimIfNeeded();
 
 if (typeof window !== 'undefined') {
   (window as any).__FORGEJO_TOOLKIT_CONFIG__ = {
