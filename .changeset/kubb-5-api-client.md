@@ -16,6 +16,13 @@ when it can resolve no operations or match no call site. And the generator's
 wrapper settings are pinned back to the previous behaviour — integers stay
 numbers, barrels stay named, responses still return their body — instead of the
 new defaults. Path parameters are now percent-encoded by the generator, which the
-previous one did not do; a serializer that keeps separators preserves single
-segment routes and nested file paths, and it re-adds the refusal of `.` and `..`
-segments. No user-visible behaviour changes.
+previous one did not do. A serializer that keeps separators preserves single
+segment routes and nested file paths, and it refuses `.` and `..` segments on
+every path parameter, exactly as the previous client did. That refusal had first
+been narrowed to the nested file path alone, which left the single-segment
+parameters — branch, tag, ref and sha names — unguarded: a bare `..` there
+normalised out of its route and sent the request to a different endpoint, so a
+branch delete could have gone out as a repository delete. The guard now covers
+every string path parameter again, while a file path keeps its `/` separators
+literal and each of its segments encoded. Relative to the previous release
+nothing user-visible changes: the request shapes are the ones it sent.

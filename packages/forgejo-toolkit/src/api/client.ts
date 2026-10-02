@@ -877,10 +877,11 @@ export class ForgejoClient {
   }
 
   /**
-   * `/repos/{owner}/{repo}` plus `suffix`, with both path segments encoded: the
-   * generated wrappers interpolate path params into the URL without encoding
-   * (see the note on `encodePathSegment`), so a raw-path call has to do it
-   * itself. Used by the list endpoints read through `_getListPage` to keep their
+   * `/repos/{owner}/{repo}` plus `suffix`, with both path segments encoded:
+   * `_getListPage` hands this string to the client core as a finished path, so it
+   * carries no `{param}` placeholder for the path serializer to fill in and the
+   * encoding the generated wrappers would have done has to happen here. Used by
+   * the list endpoints read through `_getListPage` to keep their
    * `X-Total-Count`.
    */
   private _repoPath(owner: string, repo: string, suffix = ''): string {
@@ -2778,9 +2779,11 @@ export class ForgejoClient {
     headSha: string,
   ): Promise<ForgejoChangedFile[]> {
     // The comparison is one path segment (`compare/{base}..{head}`), and the URL
-    // parser resolves dot segments, so both refs are encoded per segment: a
-    // forged `../` value cannot walk the request onto another endpoint. Anything
-    // that is exactly `.`/`..` is refused by `encodePathSegment`.
+    // parser resolves dot segments, so the assembled value is encoded as a
+    // single segment: a forged `../` value cannot walk the request onto another
+    // endpoint. A value that is exactly `.`/`..` is refused by
+    // `slashPreservingPathSerializer`, which checks every string path parameter
+    // before it is rendered.
     const compare = await repoCompareDiff({
       path: { owner, repo, basehead: `${baseSha}..${headSha}` },
       client: this.client,
@@ -3752,14 +3755,28 @@ function formatSizeLimit(bytes: number): string {
 // would end the path (or start a fragment) early and send the rest as a query.
 //
 // The dot-segment refusal `encodePathSegment` used to perform has to survive
-// here, because it is the wildcard route that made it necessary: the URL parser
-// resolves `.` and `..` (literal or percent-encoded) as navigation, so a
-// filepath of `../../../user/keys` would make the request escape the route it
-// was built for. Encoding a segment cannot stop that — `encodeURIComponent` does
-// not encode `.` — so the segments are checked before the value is rendered.
+// here, and it is applied to *every* string path parameter — not only to
+// `filepath`. The URL parser resolves `.` and `..` (literal or percent-encoded)
+// as navigation, so a filepath of `../../../user/keys` would make the request
+// escape the route it was built for; but so does a bare `..` in a
+// single-segment parameter such as `branch`, `sha` or `tag`, where a value of
+// `..` drops that parameter's own segment entirely (DELETE
+// `…/branches/..` becomes a DELETE on the repository root). Encoding a segment
+// cannot stop either case — `encodeURIComponent` does not encode `.` — so every
+// string value is checked before it is rendered. The guard had been narrowed to
+// `filepath`, which left exactly the single-segment parameters unguarded; for
+// the multi-segment `filepath` the check is redundant in practice (`..%2F..`
+// stays literal) but keeping it there costs nothing and keeps the rule uniform.
 function slashPreservingPathSerializer(args: Parameters<typeof defaultPathSerializer>[0]): string {
-  if (args.name === 'filepath' && typeof args.value === 'string') {
-    return assertSafePathSegments(args.value).split('/').map(encodeURIComponent).join('/');
+  // Numbers, arrays and objects keep the default serialization untouched.
+  if (typeof args.value !== 'string') {
+    return defaultPathSerializer(args);
+  }
+  const safeValue = assertSafePathSegments(args.value);
+  if (args.name === 'filepath') {
+    // The wildcard route matches the rest of the path, so its `/` separators
+    // must stay literal and only the segments are encoded.
+    return safeValue.split('/').map(encodeURIComponent).join('/');
   }
   return defaultPathSerializer(args);
 }
