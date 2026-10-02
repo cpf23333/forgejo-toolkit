@@ -1,5 +1,0 @@
----
-'forgejo-toolkit': patch
----
-
-Harden the MCP broker after an independent review: NDJSON lines are now assembled from raw bytes (a multi-byte UTF-8 character split across read chunks was silently corrupted), one unterminated line is capped at 4 MB and the listener at 64 connections (a local process could previously grow the pre-handshake buffer without bound), the listener keeps an error handler after startup, a connection that closes before its handshake no longer leaks a pending read or trips the timeout warning, the registration file and unix socket are written owner-only (0600/0700) instead of inheriting the umask, close() only unlinks the socket inode it created (an overlapping shutdown could delete a successor broker's live socket), a session server is closed when the client leaves while it is being created, EACCES is logged as a real failure instead of stepping aside silently, a forwarded session now gets the workspace state file and instance of the window whose checkout actually contains its cwd, broker discovery skips crash-orphaned registrations whose pid is dead, and the forwarder drains buffered output instead of truncating it with process.exit.
