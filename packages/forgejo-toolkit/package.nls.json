@@ -1,6 +1,6 @@
 {
   "displayName": "Forgejo Toolkit",
-  "description": "A VS Code extension for Forgejo",
+  "description": "A VS Code extension for Forgejo and Codeberg: manage self-hosted instances, pull requests, issues, code review, and Actions workflow dispatch.",
   "view.dashboard.name": "Dashboard",
   "command.openDashboard.title": "Open Dashboard",
   "command.openOnboarding.title": "Open Setup Guide",

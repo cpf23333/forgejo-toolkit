@@ -167,6 +167,14 @@ PR 级别的变更文件列表来自 `GET /repos/{owner}/{repo}/compare/{basehea
 
 规避方法：把实例升级到 Forgejo 16 或更高版本——这也是扩展实际验证的版本。
 
+## 不支持 Gitea（扩展要求 Forgejo 16.0 或更高版本）
+
+扩展只面向 Forgejo，版本门槛是 Forgejo 16.0（`packages/forgejo-toolkit/src/api/serverVersion.ts` 中的 `MIN_SUPPORTED_VERSION`，见 README 兼容性一节）。Gitea 实例从 `/api/v1/version` 返回的是 1.x 版本号，按版本比较低于 16，因此落在该门槛之下。这个门槛是按实例给出的警告而非硬性阻断，而扩展的其他部分完全没有考虑 Gitea 的差异：`src` 里仅有的 `gitea` 字样，只是关于两个项目同源关系的注释、Forgejo 自身版本号里的 `+gitea-1.22.0` 形式元数据后缀，以及 `.gitea/workflows`——一个 Forgejo 同样接受的 workflow 文件位置约定。
+
+因此 Gitea 属于不受支持的平台，而不是第二个支持目标：Gitea 用户不应期望扩展能正常工作，两个平台并不共有的请求会逐个失败，而不是优雅降级。这是被接受的限制——要支持 Gitea，就得把每个接口与每项可见功能都针对一个本项目并不测试的平台重新验证一遍。
+
+规避方法：使用 Forgejo 16.0 或更高版本（也就是扩展实际验证的版本），或继续使用面向 Gitea 的工具。
+
 ## 配置了 url.insteadOf 的仓库无法关联
 
 `git remote -v` 与 `git remote get-url` 输出的是**应用 `url.<base>.insteadOf` 重写之后**的 URL。如果仓库的 remote 使用简写（例如把 `work:owner/repo.git` 重写到另一台主机），打印出来的主机就与任何已配置实例都不匹配。

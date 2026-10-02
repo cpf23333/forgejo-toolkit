@@ -8,7 +8,7 @@ Forgejo Toolkit is a VS Code extension for [Forgejo](https://forgejo.org/) and C
 
 ### Does it support Gitea?
 
-Forgejo and Gitea share API history, so many features may work against Gitea instances. However, this extension is tested against Forgejo only; Gitea compatibility is best-effort.
+No. The extension targets Forgejo only, with Forgejo 16.0 as its minimum version. A Gitea instance reports a 1.x version from `/api/v1/version`, which falls below that floor, and nothing in the extension accounts for Gitea's differences — requests the two platforms do not share fail rather than degrade. See "Gitea is not supported (the extension requires Forgejo 16.0 or newer)" in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md).
 
 ### Can I use it on VSCodium or another VS Code fork?
 

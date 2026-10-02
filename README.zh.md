@@ -91,6 +91,7 @@ pnpm --filter forgejo-toolkit package
 ## 兼容性
 
 - **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展对每个实例版本跨窗口只提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404（见 KNOWN_ISSUES）。
+- **不支持 Gitea** —— 扩展只面向 Forgejo（≥ 16.0），不支持 Gitea：Gitea 实例上报的是 1.x 版本号，低于该下限，因此两个平台并不共有的请求会直接失败，而不是优雅降级（见 `KNOWN_ISSUES.zh.md` 的「不支持 Gitea（扩展要求 Forgejo 16.0 或更高版本）」）。
 - **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证，最低版本与验证目标为同一系列。
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
 - **多个 VS Code 窗口** —— 通知轮询在窗口之间做协调：同一时刻只有一个窗口轮询并弹出提醒，任务会转移到你正在使用的窗口（`forgejoToolkit.multiWindowLease`，默认开启）。每个窗口打开视图时仍会加载通知，无法使用该协调机制的窗口会自行轮询。

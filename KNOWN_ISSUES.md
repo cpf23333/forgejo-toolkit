@@ -167,6 +167,14 @@ On a Forgejo 15 instance the run detail page therefore shows no jobs and no arti
 
 Workaround: upgrade the instance to Forgejo 16 or newer — that is also the version the extension is validated against.
 
+## Gitea is not supported (the extension requires Forgejo 16.0 or newer)
+
+The extension targets Forgejo only, and its version floor is Forgejo 16.0 (`MIN_SUPPORTED_VERSION` in `packages/forgejo-toolkit/src/api/serverVersion.ts`; see the README compatibility section). A Gitea instance reports a 1.x version from `/api/v1/version`, which compares below 16 and therefore lands under that floor. The floor is a per-instance warning rather than a hard block, and nothing else in the extension accounts for Gitea: the only `gitea` strings in `src` are comments about the two projects' shared lineage, the `+gitea-1.22.0`-style metadata suffix inside Forgejo's own version strings, and `.gitea/workflows`, a workflow-file location convention that Forgejo also accepts.
+
+Gitea is therefore an unsupported platform rather than a second target: a Gitea user should not expect the extension to work, and requests the two platforms do not share fail one by one instead of degrading gracefully. This is an accepted limitation — supporting Gitea would mean validating every endpoint and every visible feature against a platform this project does not test.
+
+Workaround: use Forgejo 16.0 or newer, the version the extension is validated against, or stay with a Gitea-aware tool.
+
 ## Repositories configured with url.insteadOf cannot be linked
 
 `git remote -v` and `git remote get-url` print the URL _after_ applying `url.<base>.insteadOf` rewriting, so a repository whose remote is configured as a shorthand (for example `work:owner/repo.git` rewritten to a different host) reports a host that does not match any configured instance.

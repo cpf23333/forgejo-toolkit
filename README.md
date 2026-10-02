@@ -94,6 +94,7 @@ Every command except the two pull-request review-comment commands is available f
 ## Compatibility
 
 - **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a warning once per instance version across windows and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server (see KNOWN_ISSUES).
+- **Gitea is not supported** — the extension targets Forgejo (≥ 16.0), not Gitea: a Gitea instance reports a 1.x version, which falls below that floor, so requests the two platforms do not share fail rather than degrade (see the "Gitea is not supported (the extension requires Forgejo 16.0 or newer)" entry in `KNOWN_ISSUES.md`).
 - **Primary target: Forgejo v16.x** — the extension is developed and validated against the latest Forgejo stable release (currently the v16 series); the minimum and the validation target are the same series.
 - **VS Code ≥ 1.102** — enforced via the extension's `engines.vscode` field.
 - **Multiple VS Code windows** — notification polling is coordinated between windows: only one window polls and raises alerts at a time, and the job moves to the window you are working in (`forgejoToolkit.multiWindowLease`, on by default). Every window still loads notifications when you open the view, and a window that cannot use the coordination polls on its own.

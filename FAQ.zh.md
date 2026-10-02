@@ -8,7 +8,7 @@ Forgejo Toolkit 是一个用于 [Forgejo](https://forgejo.org/) 和 Codeberg 的
 
 ### 是否支持 Gitea？
 
-Forgejo 和 Gitea 有共同的 API 历史，因此许多功能在 Gitea 实例上也能运行。但本扩展仅针对 Forgejo 进行测试；Gitea 兼容性尽力而为。
+不支持。扩展只面向 Forgejo，最低版本为 Forgejo 16.0。Gitea 实例从 `/api/v1/version` 返回的是 1.x 版本号，低于该下限，而扩展的其他部分完全没有考虑 Gitea 的差异——两个平台并不共有的请求会直接失败，而不是优雅降级。见 [KNOWN_ISSUES.zh.md](./KNOWN_ISSUES.zh.md) 中的「不支持 Gitea（扩展要求 Forgejo 16.0 或更高版本）」。
 
 ### 能在 VSCodium 或其他 VS Code 分支上使用吗？
 

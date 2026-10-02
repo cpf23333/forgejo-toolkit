@@ -1,6 +1,6 @@
 {
   "displayName": "Forgejo Toolkit",
-  "description": "用于 Forgejo 的 VS Code 扩展",
+  "description": "一个面向 Forgejo 与 Codeberg 的 VS Code 扩展：管理自托管实例、Pull Request 与 Issue、代码评审，并触发 Actions workflow。",
   "view.dashboard.name": "仪表板",
   "command.openDashboard.title": "打开仪表板",
   "command.openOnboarding.title": "打开设置向导",

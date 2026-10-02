@@ -8,11 +8,14 @@
     "SCM Providers"
   ],
   "keywords": [
+    "actions",
+    "code review",
+    "codeberg",
     "forgejo",
     "git",
-    "gitea",
     "issues",
-    "pull requests"
+    "pull requests",
+    "self-hosted"
   ],
   "homepage": "https://codeberg.org/cpf23333/forgejo-toolkit",
   "bugs": {
