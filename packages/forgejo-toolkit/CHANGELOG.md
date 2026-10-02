@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Highlights
+
+- The AI pre-review is usable end to end, and every decision stays yours: you
+  choose the model and you choose what leaves your machine. Nothing is sent until
+  you answer the one-time question about the prompt scope, whose recommended
+  answer sends the diff plus the changed files themselves.
+- Its proposed comments arrive in a panel where nothing is checked by default and
+  the wording can be edited before any draft exists, so nothing becomes public
+  until you submit the review yourself.
+- **Replying to a review comment** works from the comment thread. The reply lands
+  on the pull request where everyone sees it and is echoed into the thread it
+  answers, so it is still there after a window reload.
+- The workflow dispatch form offers the inputs a workflow declares and a ref
+  selector that lists branches **and** tags, so a tag can be dispatched.
+- A comment can now be added to a multi-line selection, and the right side of a
+  diff is the one that gets the comment.
+
 ### Added
 
 - **Reply to a pull request review comment** from the thread itself. Forgejo has
@@ -467,6 +484,22 @@ checkboxes` belonged to VS Code's multi-select quick pick, which this panel
   still never leaves the extension host. A session that was already running
   when the owner died still exits and has to be started again, after which it
   forwards through the new owner within a few seconds.
+- The first-run setup guide opens in **one** window instead of one per window.
+  Windows restored together on a fresh install used to decide with the editor's
+  `hasShownWelcome` flag, whose read-then-write is not atomic, so several of them
+  could open the guide at once. They now coordinate through a short-lived offer
+  token in the profile's globalStorage (`first-run-guide-offer.json`, created
+  with an exclusive create and mode `0600` — the polling lease's own primitive):
+  the window that creates it opens the guide and the others stay silent while
+  that offer is plausible, meaning the window that made it is still running and
+  the token is still fresh. The token records an offer in flight, not that the
+  guide has been shown: once its owner is gone or the offer has expired the next
+  window takes it over and offers the guide again, so a profile with no
+  configured instance keeps being nudged exactly as before. What keeps the guide
+  away permanently is still the completion flag, written when the guide is
+  completed or when an instance exists. If the token cannot be created at all —
+  a read-only profile directory, a denied create — that window opens the guide
+  rather than staying silent.
 
 ### Security
 
@@ -631,6 +664,20 @@ checkboxes` belonged to VS Code's multi-select quick pick, which this panel
   number. A selection that legitimately runs past the diff keeps being refused,
   but when only its end is out of range the message now names that line instead
   of the blanket refusal that read as "your first line was wrong".
+- A VS Code window that has stopped responding while it still holds the polling
+  lease is now taken over **about one heartbeat earlier** than before: a focused
+  window that has already asked the holder for the lease K times and sees a
+  heartbeat more than 30 s old (three missed heartbeats) with the holder's
+  process still alive really does take over at ~30 s, instead of losing the race
+  to the 35 s expiry and taking over only after it. The release that precedes
+  that takeover used to re-check the record against the full expiry, answer
+  `not-owner` and leave the handover to the ordinary expiry path a few seconds
+  later; it now re-checks against the same 30 s threshold that justified the
+  takeover, and only against the exact record the decision saw (same pid, owner
+  nonce and claim time), so a record another window wrote in between can never be
+  unlinked. Nothing else changed: the anti-ping-pong window N, the K counter and
+  the ordinary 35 s expiry path are untouched, and a window with fewer than K
+  unanswered requests still waits.
 
 ## [0.0.1] - 2026-09-26
 

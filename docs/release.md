@@ -5,11 +5,17 @@ This document describes how to publish Forgejo Toolkit.
 ## Checklist
 
 The order below is what a release uses. 0.0.1 is already out: the Marketplace
-listing is live, and the `v0.0.1` release exists on the self-hosted Forgejo
-(`origin`). Still open: the Codeberg release (no runner on Codeberg, and a tag
-can be pushed and the release created by hand without one). Open VSX is not
-pending work but a decision: the extension is deliberately not published there
-(section 5 explains when that changes). The sections after it explain each step.
+listing is live, the `v0.0.1` release exists on the self-hosted Forgejo
+(`origin`), and the Codeberg release exists as well (`0.0.1`, release id
+`12472572`, at
+<https://codeberg.org/cpf23333/forgejo-toolkit/releases/tag/0.0.1>, with
+`forgejo-toolkit-0.0.1.vsix` attached). Codeberg still has no runner of its own,
+though: that release was created by dispatching the release workflow on the
+self-hosted Forgejo, not on Codeberg, and a Codeberg-side dispatch needs a
+`docker`-label runner registered there first (section "Where to dispatch it").
+Open VSX is not pending work but a decision: the extension is deliberately not
+published there (section 5 explains when that changes). The sections after it
+explain each step.
 
 1. **Write the changelog section.** The root `CHANGELOG.md` is the authoritative
    release-notes source: the release workflow extracts the section whose heading
@@ -23,7 +29,7 @@ pending work but a decision: the extension is deliberately not published there
    (post-release step 7 copies one over the other and a test enforces it), so
    writing the curated root section is what a release needs.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
-   `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"` and
+   `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
    `Verify (manual)` workflow on the self-hosted Forgejo (`origin`). The format
    command spells out that glob on purpose: it is exactly what the workflows'
@@ -41,8 +47,9 @@ pending work but a decision: the extension is deliberately not published there
    with `dry_run` on (the default) and check the echoed inputs plus the packaged
    `.vsix` artifact.
 5. **Publish the Codeberg release.** Dispatch the same workflow with `dry_run`
-   off; it validates, packages, creates the release for `v<version>` at the
-   dispatched commit and attaches the `.vsix`.
+   off; it validates, packages, creates the release for `v<version>` (the
+   workflow's default tag — see step 4 for why 0.0.1's own tag is spelled
+   without the `v`) at the dispatched commit and attaches the `.vsix`.
 6. **Publish to the stores.** The VS Code Marketplace is live and is updated
    manually (it needs publisher credentials) — see section 4. Open VSX is
    deliberately not published; section 5 keeps the steps for the day that
@@ -163,7 +170,7 @@ Codeberg-side dispatch is wanted later, register a `docker`-label runner in
 the Codeberg repository settings (Settings → Actions → Runners) first.
 
 1. Validate the commit: `pnpm run lint`, the narrowed format check
-   (`pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"`), `pnpm run check`, the
+   (`pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"`), `pnpm run check`, the
    API checklist coverage audit (`node tools/api-audit/check.mjs`) and both test
    suites.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
@@ -199,7 +206,14 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
 4. Create the Codeberg release and attach the `.vsix` — only when `dry_run` is
    set to `false`. The release tag defaults to `v<version>` taken from
    `packages/forgejo-toolkit/package.json`, and the tag is pinned to the
-   dispatched commit rather than the branch head.
+   dispatched commit rather than the branch head. **That default is the
+   convention for the next release.** The release that exists today does not
+   follow it: it was created by hand as `0.0.1`, without the `v`, and that is the
+   tag Codeberg carries (release id `12472572`), while `v0.0.1` exists only on
+   the self-hosted Forgejo. Nothing needs to be backfilled for 0.0.1 — nobody
+   consumes the tag programmatically — so leave both as they are and let the
+   workflow name every future tag `v<version>`; pass the `tag` input only to
+   override that default on purpose, and never to reproduce the old spelling.
 
 The release body comes from the root `CHANGELOG.md`: the section whose heading
 names the released version, then `## [Unreleased]`. The step then tries
