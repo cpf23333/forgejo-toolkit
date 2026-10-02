@@ -8,8 +8,8 @@ Third-party components
 ----------------------
 
 The extension is shipped as bundles: `out/extension.mjs` and `out/mcp-server.mjs`
-(extension host and MCP server, one esbuild ESM build with the shared code in
-`out/chunks/`) and `out/webview/**` (webview UI, Vite).
+(extension host and MCP server, one Rolldown ESM build with the shared code in
+`out/chunks/`) and `out/webview/**` (webview UI, Vite 8 — also Rolldown-backed).
 Third-party code is compiled into those bundles, so the packaged `.vsix` does not
 contain `node_modules` and carries no dependency license file of its own. The only
 license files in the `.vsix` are this `NOTICE` and the repository's `LICENSE`, so
@@ -68,7 +68,7 @@ compiled into `out/webview/assets/index-*.js`:
 `packages/forgejo-toolkit/webview/src/utils/markdown.ts` imports it to sanitize
 rendered Markdown before it is displayed.
 
-Build- and test-only dependencies (Vite, Vitest, esbuild, TypeScript, `@vscode/vsce`,
+Build- and test-only dependencies (Vite, Rolldown, Vitest, TypeScript, `@vscode/vsce`,
 jsdom, msw, and `lightningcss`, which Vite uses as its CSS transformer because
 `webview/vite.config.mts` sets `css.transformer: 'lightningcss'`) are not bundled into
 the shipped files and are not part of the extension's runtime. They do appear in

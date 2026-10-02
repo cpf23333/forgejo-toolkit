@@ -92,7 +92,7 @@ Phase 2 要加写工具，第 1、3 条同时失效：只要有一个工具不�
 - 子进程是 `process.execPath` 起的普通 Node 进程（`src/mcpServerProvider.ts` 的
   `provideMcpServerDefinitions` 里 `new vscode.McpStdioServerDefinition(...)`），入口
   `mcp/server.ts`，只与 stdio 说话（同文件的 `main()`）。它没有 `vscode` 模块，构建期还有一道
-  硬约束：esbuild 的 metafile 检查会在任何从 mcp 入口可达的 chunk 引入 `vscode` 时**让构建失败**
+  硬约束：构建期的 chunk 图检查会在任何从 mcp 入口可达的 chunk 引入 `vscode` 时**让构建失败**
   （`docs/architecture/mcp-server.md` 的「Architecture」一节）。
 - 它的诊断输出只能走 stderr（`mcp/server.ts` 顶部的日志注释），stdout 是协议帧。
 - 因此"在工具处理函数里 `vscode.window.showWarningMessage`"这条最自然的路，在子进程里是**不可

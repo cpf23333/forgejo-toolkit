@@ -157,8 +157,8 @@ function localeOf(moduleId: string): string | undefined {
  * a standalone panel must not include the dashboard shell (or the other panel)
  * and may only register the `@vscode-elements/elements` modules its own entry
  * declares; the dashboard must still be the surface that carries `App.vue` and
- * the router. This is the webview counterpart of the metafile assertion esbuild
- * runs over the host bundle (see `esbuild.js`).
+ * the router. This is the webview counterpart of the chunk-graph assertion the
+ * host bundle runs in `rolldown.config.mjs`.
  *
  * It also holds the locale split: a chunk that every surface preloads must not
  * carry a non-base catalog, which is what would happen again the moment one of

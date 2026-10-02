@@ -12,7 +12,7 @@ Forgejo Toolkit is a VS Code extension with a Webview-based user interface. It i
 
 ## Extension host
 
-The extension host is written in TypeScript and bundled with esbuild. It is responsible for:
+The extension host is written in TypeScript and bundled with Rolldown. It is responsible for:
 
 - Registering the webview view (`forgejoToolkitView`, a `webview`-type view in the `forgejoToolkit` activity-bar container, registered with `registerWebviewViewProvider`), commands, and the standalone webview panels.
 - Managing VS Code configuration and secrets.

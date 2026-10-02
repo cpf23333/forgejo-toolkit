@@ -3,7 +3,7 @@
 //
 // Why detection and not a launcher flag: the mock API (msw plus
 // `packages/forgejo-toolkit/src/test/mocks/`) is compiled in only for a
-// non-production build. `packages/forgejo-toolkit/esbuild.js` *defines*
+// non-production build. `packages/forgejo-toolkit/rolldown.config.mjs` *defines*
 // `process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS` at build time (`'true'` without
 // `--production`, `'false'` with it), and `src/extension.ts` guards its dynamic
 // `import('./test/mocks/server')` with that expression — so a production build
@@ -86,7 +86,7 @@ export interface MockBuildDetection {
  * repository (checked by the test suite), so finding one means the mock module
  * was bundled. Not finding one is *not* conclusive on its own — a production
  * build is the expected reason, which is why the report names both the build
- * directory and the `esbuild.js` define that removes it.
+ * directory and the `rolldown.config.mjs` define that removes it.
  */
 export function detectMockBuild(outDir: string): MockBuildDetection {
   const buildPresent = fs.existsSync(outDir);
@@ -204,7 +204,7 @@ export function apiModeReport(decision: ApiModeDecision, context: ApiModeContext
       ? [
           '             a production build defines FORGEJO_TOOLKIT_INCLUDE_MOCKS=false, which',
           '             dead-code-eliminates src/test/mocks/ (msw and its fixtures) — see',
-          '             packages/forgejo-toolkit/esbuild.js',
+          '             packages/forgejo-toolkit/rolldown.config.mjs',
         ]
       : ['             run a build first (packages/forgejo-toolkit/out is what the dev host loads)'];
     return {

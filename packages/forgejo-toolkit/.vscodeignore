@@ -2,7 +2,7 @@
 node_modules/**
 src/**
 webview/**
-esbuild.js
+rolldown.config.mjs
 tsconfig.json
 vitest.extension.config.ts
 PRODUCT.md

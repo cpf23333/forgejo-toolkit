@@ -77,7 +77,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   // The mock module (msw + all fixtures) is stripped from production builds:
-  // esbuild defines this flag and dead-code-eliminates the guarded branch.
+  // the bundler defines this flag and dead-code-eliminates the guarded branch.
   //
   // Started before anything else in activation that issues a request, and
   // awaited: `startMockServer` resolves once the interceptor is installed, so

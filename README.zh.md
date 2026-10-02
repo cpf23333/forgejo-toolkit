@@ -179,7 +179,7 @@ globalStorage 目录因平台而异：Windows 上是 `%APPDATA%\Code\User\global
 
 ### 技术栈
 
-- **Extension host**: TypeScript + esbuild (ESM)
+- **Extension host**: TypeScript + Rolldown (ESM)
 - **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **包管理**: pnpm workspaces
 

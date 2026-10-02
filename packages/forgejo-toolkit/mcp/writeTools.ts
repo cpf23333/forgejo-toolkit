@@ -2,8 +2,9 @@
  * The write-tool contract, as a pure module: no `vscode`, no Node built-ins, no
  * I/O. `mcp/tools.ts` (bundled into the headless server *and* run inside the
  * extension host by the broker) and `mcp/server.ts` (the child's launch
- * environment) both import it, and esbuild's metafile check would fail the
- * build if anything reachable from the MCP entry pulled `vscode` in — so the
+ * environment) both import it, and the bundler plugin that walks the MCP
+ * entry's chunks would fail the build if anything reachable from it pulled
+ * `vscode` in — so the
  * settings-bound half of this feature lives on the host side
  * (`src/mcpServerProvider.ts` reads the switches, `src/mcpWriteAudit.ts`
  * appends the audit file) and this file stays importable from the child.

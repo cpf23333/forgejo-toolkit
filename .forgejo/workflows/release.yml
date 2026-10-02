@@ -135,7 +135,7 @@ jobs:
       # same order so the release does not depend on someone having run it first.
       # The one verify step not repeated is `Build extension bundle`: the
       # "Build and package the extension" step below runs `pnpm run package`,
-      # whose first half is that same production build (esbuild + vite) before
+      # whose first half is that same production build (Rolldown + vite) before
       # `vsce package`, so a release cannot skip it.
       - name: Lint
         run: pnpm run lint
@@ -185,7 +185,7 @@ jobs:
             echo "Dry run: the Codeberg release step is skipped, so 'prerelease' and 'tag' only affect the log above. Uncheck 'Build and package only' to publish." >> $GITHUB_STEP_SUMMARY
           fi
 
-      # `pnpm run package` builds the extension bundle (esbuild + webview) and
+      # `pnpm run package` builds the extension bundle (Rolldown + webview) and
       # then runs `vsce package --no-dependencies`, which writes the .vsix into
       # the package directory (gitignored).
       - name: Build and package the extension

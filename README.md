@@ -182,7 +182,7 @@ This is a pnpm workspace monorepo.
 
 ### Tech Stack
 
-- **Extension host**: TypeScript + esbuild (ESM)
+- **Extension host**: TypeScript + Rolldown (ESM)
 - **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **Package management**: pnpm workspaces
 

@@ -81,13 +81,13 @@ Forgejo instance REST API
 The same binary can also start with **no environment at all** — see
 [Zero-configuration launch](#zero-configuration-launch) below.
 
-- **Entry point:** `packages/forgejo-toolkit/mcp/server.ts`. One esbuild ESM
-  build (`splitting: true`) emits both `out/extension.mjs` and
+- **Entry point:** `packages/forgejo-toolkit/mcp/server.ts`. One Rolldown ESM
+  build (`output` code splitting) emits both `out/extension.mjs` and
   `out/mcp-server.mjs` plus the shared dependency graph under `out/chunks/` —
   the two entries share almost their whole graph (the broker runs the MCP tool
   logic in the extension host), so separate bundles carried a full copy each.
-  A build-time check walks the metafile and rejects the build if any chunk
-  reachable from the mcp-server entry imports `vscode`, keeping the MCP
+  A build-time check walks the emitted chunks and rejects the build if any
+  chunk reachable from the mcp-server entry imports `vscode`, keeping the MCP
   process headless.
 - **SDK:** `@modelcontextprotocol/sdk` (MIT license).
 - **Client reuse:** the server constructs the same `ForgejoClient` as the

@@ -80,9 +80,9 @@ never read a bare success as "the field is filled".
 
 The mock API (msw and the fixtures in
 `packages/forgejo-toolkit/src/test/mocks/`) exists in a build only when that build
-was made **without** `--production`: `packages/forgejo-toolkit/esbuild.js`
+was made **without** production mode: `packages/forgejo-toolkit/rolldown.config.mjs`
 _defines_ `process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS` at build time (`'true'`
-without `--production`, `'false'` with it) and `src/extension.ts` guards its
+without the production flag, `'false'` with it) and `src/extension.ts` guards its
 dynamic mock import with it, so a production build dead-code-eliminates the whole
 module. Nothing this harness can set at launch time brings it back — which is why
 the launcher **reads the build** (`packages/forgejo-toolkit/out`, main bundle and
@@ -95,7 +95,7 @@ Refusing to launch: this dev host would poll a real server.
   build:     …\packages\forgejo-toolkit\out  (no mock API compiled in)
              a production build defines FORGEJO_TOOLKIT_INCLUDE_MOCKS=false, which
              dead-code-eliminates src/test/mocks/ (msw and its fixtures) — see
-             packages/forgejo-toolkit/esbuild.js
+             packages/forgejo-toolkit/rolldown.config.mjs
   profile:   …\tools\ui-review\profile
   instances: <name> <url> (whatever the profile's mcp-instances.json holds)
 
@@ -481,7 +481,7 @@ localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] �
 `profile/` (persisted dev-host settings), `extensions/` and `shots/` are gitignored. The
 launcher pre-seeds `forgejoToolkit.useMockApi: true`, but **that setting alone does not give
 you mock data**: `packages/forgejo-toolkit/src/extension.ts` starts the mock server only when
-`process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'`, and `packages/forgejo-toolkit/esbuild.js`
+`process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'`, and `packages/forgejo-toolkit/rolldown.config.mjs`
 _defines_ that expression at build time — `'true'` for a non-production build
 (`pnpm --filter forgejo-toolkit build:extension`), `'false'` for a production build, which
 dead-code-eliminates `src/test/mocks/` (msw and its fixtures) entirely. The launcher writes the
@@ -506,8 +506,8 @@ forbids the agent from running build commands), so ask for it and then check the
 build time rather than running it yourself. Which build matters:
 
 - **mock-backed walkthroughs** (everything below except the push-target and MCP
-  items): `pnpm --filter forgejo-toolkit build:extension`, i.e. esbuild _without_
-  `--production`. The production build strips `src/test/mocks/`
+  items): `pnpm --filter forgejo-toolkit build:extension`, i.e. Rolldown _without_
+  the production flag. The production build strips `src/test/mocks/`
   (`FORGEJO_TOOLKIT_INCLUDE_MOCKS=false`), so with it the Dashboard lists no
   repositories and every request goes to the real network.
 - **production-shaped walkthroughs** (install the packaged `.vsix` instead):

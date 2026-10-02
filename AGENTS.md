@@ -57,8 +57,8 @@ Use the underlying web components directly and declare their types in `packages/
 
 ## Build commands
 
-- Do **not** run `pnpm build`, `pnpm -r run build`, `vite build`, `node esbuild.js`, or any other build command yourself.
-- Only run `pnpm check` (and `pnpm format:fix` when needed). The user will run builds separately.
+- Do **not** run `pnpm build`, `pnpm -r run build`, `vite build`, `node rolldown.config.mjs`, `pnpm --filter forgejo-toolkit package`, or any other build command yourself.
+- Only run `pnpm check` (and `pnpm format:fix` when needed). The user will run builds separately. The host bundle is built by `rolldown.config.mjs` (the webview keeps its own Vite config), so a stale reference to `esbuild.js` in older notes means this file, not a tool that still exists.
 
 ## Git mutations
 
