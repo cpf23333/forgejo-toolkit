@@ -37,7 +37,14 @@ explain each step.
    does fall back to `## [Unreleased]`, but with the rename done first the dry
    run's "found the section for this version" line is a real check, and the record
    never claims that an already-published version is still unreleased. Renaming
-   first also means the date in the heading has to be the day you dispatch.
+   first also means the date in the heading has to be the day you dispatch. Open a
+   fresh `## [Unreleased]` heading above the released section in the same commit,
+   so the tree always carries a place for the next cycle and nothing has to be
+   remembered after the release. That is safe only because the workflow prefers the
+   section that names the version and falls back to the unreleased one, which is
+   why the dry run's line naming the section it used stays a required check: an
+   empty unreleased heading above the released one is exactly what would be
+   published if that order ever changed.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
    `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
@@ -65,11 +72,8 @@ explain each step.
    deliberately not published; section 5 keeps the steps for the day that
    decision changes. Each further Marketplace publish updates the existing
    listing.
-7. **Backfill the docs.** Open a fresh `## [Unreleased]` heading above the section
-   you just released (edit the root file and copy it over
-   `packages/forgejo-toolkit/CHANGELOG.md` — a test keeps the two byte for byte
-   identical), and re-check the version-related entries in `KNOWN_ISSUES.md` /
-   `KNOWN_ISSUES.zh.md`. The "not published yet" wording in `README.md` /
+7. **Check the release left nothing stale.** Re-check the version-related entries
+   in `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`. The "not published yet" wording in `README.md` /
    `README.zh.md` is about Open VSX, which is deliberately not published (section
    5), so it stays as it is unless that decision changes or a store's status
    actually changed in this release.

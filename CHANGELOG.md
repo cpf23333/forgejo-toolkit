@@ -14,8 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      test); the per-package changelog `pnpm run version-packages` writes is only a
      fallback for the release body. While a version is unreleased its notes stay
      under `## [Unreleased]`; cutting the release renames that heading to
-     `## [<version>] - <date>` and opens a fresh `## [Unreleased]` (post-release
-     step of the checklist in `docs/release.md`). -->
+     `## [<version>] - <date>` and opens a fresh `## [Unreleased]` (step 1 of
+       the checklist in `docs/release.md`, before the release runs). -->
+
+## [Unreleased]
+
+### Changed
+
+- The release guide now opens the next `## [Unreleased]` section before the
+  release runs, in the same commit that names the released section for its
+  version, so the changelog always carries a place for the next cycle and nothing
+  depends on a step remembered after the release.
 
 ## [0.1.1] - 2026-10-02
 
