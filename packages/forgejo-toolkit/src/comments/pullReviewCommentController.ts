@@ -3,8 +3,20 @@ import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
 import { FORGEJO_PR_SCHEME, parseForgejoPrUri, type ForgejoPrUriParams } from '../prFileSystemProvider';
 import { parsePullDiff, type ParsedPullDiff } from '../utils/parseDiff';
-import { resolveReviewCommentLine } from './reviewCommentPosition';
-import { pullReviewThreadKey, pullReviewThreadMatchesScope, type PullReviewThreadScope } from './pullReviewThreadKeys';
+import { resolveReviewCommentLine, type ReviewCommentSide } from './reviewCommentPosition';
+import {
+  pullReviewThreadKey,
+  pullReviewThreadMatchesScope,
+  type PullReviewThreadAnchor,
+  type PullReviewThreadScope,
+} from './pullReviewThreadKeys';
+import {
+  decodePullReviewReplyTarget,
+  encodePullReviewReplyTarget,
+  type PullReviewReplyTarget,
+} from './pullReviewReplyTarget';
+import { buildReviewReplyBody } from './reviewReply';
+import { EchoedReplyStore, isEchoedReply, type EchoedReply } from './pullReviewReplyEcho';
 import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Logger } from '../logger';
@@ -51,10 +63,53 @@ export interface CommentContext {
   position: number;
 }
 
+/**
+ * What the reply command needs to know about one rendered comment: the plain
+ * text Forgejo stores (the thread's `MarkdownString` body is a rendering of it,
+ * with hard breaks and the instance's attachment URLs resolved, so it cannot be
+ * quoted back) and the author's login for the attribution line.
+ */
+interface CommentQuoteSource {
+  authorLogin: string;
+  body: string;
+}
+
+/**
+ * The argument VS Code hands to the reply command contributed through
+ * `comments/commentThread/context`: the thread the box belongs to and the text
+ * in it (`vscode.CommentReply`), reshaped here to the two fields this
+ * controller reads — the signature is total over what the host actually sends,
+ * including a marshalled value from a host build that could not revive it.
+ */
+interface PullReviewCommentReply {
+  thread: vscode.CommentThread | undefined;
+  text: string;
+}
+
+/**
+ * One server comment resolved for a document, with everything the render needs.
+ * The `extraLinesCount` a reply anchors with is read back from the server
+ * comment, so the anchor posted to Forgejo names the same range the rendered
+ * thread covers.
+ */
+interface RenderedComment {
+  params: ForgejoPrUriParams;
+  reviewId: number;
+  comment: PullReviewComment;
+  /** 1-based line in the side's file. */
+  position: number;
+  /** The document's thread range for the whole anchor group. */
+  threadRange: vscode.Range;
+  side: ReviewCommentSide;
+  instanceName: string;
+}
+
 const CONTROLLER_ID = 'forgejo-pull-review-comments';
 const CONTROLLER_LABEL = 'Forgejo Pull Request Reviews';
 export const COMMAND_ADD_COMMENT = 'forgejoToolkit.addPullReviewComment';
 export const COMMAND_DELETE_COMMENT = 'forgejoToolkit.deletePullReviewComment';
+/** Registered by the controller; contributed through `comments/commentThread/context`. */
+export const COMMAND_REPLY_COMMENT = 'forgejoToolkit.replyToPullReviewComment';
 
 // Short TTL that only coalesces bursts (opening a multi-file diff fires one
 // load per document; a refresh after submitting reloads every open document).
@@ -110,6 +165,20 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _controller: vscode.CommentController;
   private readonly _threads = new Map<string, vscode.CommentThread>();
   private readonly _commentContextMap = new Map<string, CommentContext>();
+  /**
+   * Plain text of every rendered comment, keyed by the same encoded context
+   * value as `_commentContextMap`. Kept beside it (and dropped with it) because
+   * only the reply needs it and it must stay unrendered: the thread's body is
+   * `toHardBreakMarkdown` output with attachment URLs already rewritten.
+   */
+  private readonly _commentQuoteSources = new Map<string, CommentQuoteSource>();
+  /**
+   * The replies this session posted to the pull request's timeline, keyed by
+   * thread key. A reply is never a review comment, so the review API will never
+   * return it and every rebuild of a thread would otherwise drop the only local
+   * trace of what the user did. See `pullReviewReplyEcho.ts`.
+   */
+  private readonly _echoedReplies = new EchoedReplyStore();
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS, {
     maxEntries: REVIEW_DATA_MAX_ENTRIES,
@@ -172,9 +241,22 @@ export class PullReviewCommentController implements vscode.Disposable {
   ) {
     this._controller = vscode.comments.createCommentController(CONTROLLER_ID, CONTROLLER_LABEL);
     this._controller.commentingRangeProvider = this._createRangeProvider();
+    // No `options` override: a reply is an ordinary public comment on the pull
+    // request (see `replyToComment`), which is exactly what VS Code's own
+    // "Reply…" wording and submit button describe. The override that used to be
+    // here existed only because the reply was appended to the user's pending
+    // review, where the stock wording would have promised a public submission
+    // the extension was not making.
     this._disposables.push(
       this._controller,
       this._rangeDecoration,
+      vscode.commands.registerCommand(COMMAND_REPLY_COMMENT, (reply: PullReviewCommentReply | undefined) =>
+        this.replyToComment(reply).catch((error: unknown) => {
+          const err = userFacingErrorMessage(error);
+          this._logger?.error(`Failed to reply to a pull review comment: ${err}`);
+          void vscode.window.showErrorMessage(vscode.l10n.t('Could not post the reply: {0}', err));
+        }),
+      ),
       vscode.workspace.onDidOpenTextDocument((document) => this._onOpenDocument(document)),
       // Threads render on a specific document; when that document closes
       // (for example a PR diff editor being closed), its threads must not
@@ -356,6 +438,8 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
     this._threads.clear();
     this._commentContextMap.clear();
+    this._commentQuoteSources.clear();
+    this._echoedReplies.clear();
     this._warnedIncompleteReviews.clear();
     this._warnedLoadFailures.clear();
     // The cache holds parsed diffs (several MiB for a large patch) and lives for
@@ -593,6 +677,17 @@ export class PullReviewCommentController implements vscode.Disposable {
     // and in `_threads` otherwise, with the comment created for this render
     // never attached to anything. `break` out of the loop instead of returning.
     let documentClosed = false;
+    // Comments of this document, grouped by the anchor they name: one thread per
+    // anchor is what makes a reply legible. A reply is an ordinary comment at
+    // the anchor it answers, so without the grouping it would show up as a
+    // second thread on the same line instead of joining the conversation it
+    // continues — which is how Forgejo's own web UI shows an anchor's comments.
+    const anchors = new Map<string, { anchor: PullReviewThreadAnchor; comments: RenderedComment[] }>();
+    /** Anchor keys in the order the server listed them, so threads keep that order. */
+    const anchorOrder: string[] = [];
+    // One lookup for the whole render: every rendered comment's author falls
+    // back to the instance name.
+    const instanceName = this._findInstance(params.instanceId)?.name ?? params.instanceId;
 
     for (const { review, comments } of data.reviews) {
       if (documentClosed) {
@@ -631,10 +726,6 @@ export class PullReviewCommentController implements vscode.Disposable {
           continue;
         }
 
-        const key = pullReviewThreadKey(scope, reviewId, commentId);
-
-        const instance = this._findInstance(params.instanceId);
-        const instanceName = instance?.name ?? params.instanceId;
         // Multi-line comments anchor at the first line and extend
         // `extraLines` lines forward; clamp to the document end for outdated
         // ranges whose tail lines no longer exist in this revision. The range
@@ -642,60 +733,98 @@ export class PullReviewCommentController implements vscode.Disposable {
         // leave the final line unhighlighted.
         const endLine = Math.min(resolved.line + resolved.extraLines, document.lineCount - 1);
         const endCharacter = document.lineAt(endLine).text.length;
-        const threadRange = new vscode.Range(resolved.line, 0, endLine, endCharacter);
-        const existing = this._threads.get(key);
-        if (existing) {
-          // The new comment is built first: it carries the same encoded context
-          // value as the one being replaced, so dropping the old comment's
-          // context before registering the new one would delete the entry the
-          // re-created comment depends on — leaving a comment whose Delete
-          // command finds no context and returns silently. Dropping afterwards
-          // removes only the old values that are not reused (a moved line).
-          const replacement = await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName);
-          // _createComment awaits attachment resolution, and the document may
-          // have closed while it was in flight: `_onCloseDocument` then already
-          // disposed `existing` and removed it from `_threads`, so writing the
-          // replacement into it would mutate a dead thread, and the
-          // replacement's freshly registered context would be orphaned. Drop
-          // the orphan and stop rendering a document that is gone.
-          if (document.isClosed || !this._threads.has(key)) {
-            this._dropOrphanedCommentContext(replacement);
-            if (document.isClosed) {
-              documentClosed = true;
-              break;
-            }
-            continue;
-          }
-          this._dropCommentContexts(existing);
-          existing.range = threadRange;
-          existing.comments = [replacement];
-          threadsToKeep.add(key);
-          continue;
+        const anchor: PullReviewThreadAnchor = { line: resolved.line, extraLines: endLine - resolved.line };
+        const key = pullReviewThreadKey(scope, anchor);
+        let group = anchors.get(key);
+        if (!group) {
+          group = { anchor, comments: [] };
+          anchors.set(key, group);
+          anchorOrder.push(key);
         }
-
-        // _createComment awaits attachment resolution, and the document may
-        // close while it is in flight, so the closed check must come AFTER the
-        // await and before the thread is created (same race as the post-load
-        // guard in _loadAndRender): checking before the await could never
-        // observe a close that happens during it, and a thread created for a
-        // closed document lingers in the Comments panel forever — no further
-        // close event arrives for it. The never-attached comment's context is
-        // orphaned the same way as in the existing-thread branch above.
-        const newComment = await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName);
-        if (document.isClosed) {
-          this._dropOrphanedCommentContext(newComment);
-          documentClosed = true;
-          break;
-        }
-        const thread = this._controller.createCommentThread(uri, threadRange, [newComment]);
-        thread.canReply = false;
-        thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
-        this._threads.set(key, thread);
-        // Only a thread this render actually attached is kept: a comment the
-        // loop stopped before (the document closed) must not protect its stale
-        // thread from the prune below.
-        threadsToKeep.add(key);
+        group.comments.push({
+          params,
+          reviewId,
+          comment,
+          position: resolved.line + 1,
+          instanceName,
+          threadRange: new vscode.Range(anchor.line, 0, endLine, endCharacter),
+          side: resolved.side,
+        });
       }
+    }
+
+    for (const key of anchorOrder) {
+      if (documentClosed) {
+        break;
+      }
+      const group = anchors.get(key);
+      if (!group || group.comments.length === 0) {
+        continue;
+      }
+      const first = group.comments[0];
+      const rendered = await this._createGroupComments(group.comments);
+      // _createGroupComments awaits attachment resolution, and the document may
+      // close while it is in flight: `_onCloseDocument` then already disposed an
+      // existing thread and removed it from `_threads`, so writing into it would
+      // mutate a dead thread, and the freshly registered comment contexts would
+      // be orphaned. Drop the orphans and stop rendering a document that is
+      // gone — a thread created for a closed document lingers in the Comments
+      // panel forever, because no further close event arrives for it.
+      if (document.isClosed) {
+        this._dropOrphanedCommentContexts(rendered);
+        documentClosed = true;
+        break;
+      }
+      if (rendered.length === 0) {
+        continue;
+      }
+      // The session's echoed replies go after every server comment: they were
+      // posted later, and the server will never return them. They are rebuilt
+      // into the thread here rather than carried over from the previous render,
+      // so a rebuild can neither lose an echo nor duplicate one — and an echo
+      // that is not in this map is simply not part of the server's comments.
+      const comments = [...rendered, ...this._echoedComments(key)];
+      // The new comments are built before the old thread is touched: they carry
+      // the same encoded context values as the comments being replaced, so
+      // dropping the old contexts first would delete the entry the re-created
+      // comment's Delete command needs.
+      const existing = this._threads.get(key);
+      if (existing && !this._threadsIsLive(existing)) {
+        // Disposed while the comments were built (a sweep, or the close of a
+        // document that re-opened). Writing into it would resurrect a dead
+        // thread; the freshly registered contexts are dropped with it.
+        this._dropOrphanedCommentContexts(rendered);
+        continue;
+      }
+      if (existing) {
+        existing.range = first.threadRange;
+        existing.comments = comments;
+        // Re-asserted on every render: a comment added to the thread by the
+        // user must not turn the reply box (and its Delete actions) off.
+        existing.canReply = true;
+        existing.contextValue = this._replyTargetValue(first, group.anchor);
+        this._dropReplacedCommentContexts(existing, comments);
+      } else {
+        // A thread created for a closed document lingers in the Comments panel
+        // forever, because no further close event arrives for it.
+        const thread = this._controller.createCommentThread(
+          this._buildUri({ ...params, isBase: first.side === 'base' }),
+          first.threadRange,
+          comments,
+        );
+        // The reply box exists exactly when the thread allows replies. Every
+        // review comment can be answered, and the reply is appended to the
+        // pending review — the same place the editor's own "Add Pull Review
+        // Comment" writes, and never a submitted review.
+        thread.canReply = true;
+        thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+        thread.contextValue = this._replyTargetValue(first, group.anchor);
+        this._threads.set(key, thread);
+      }
+      // Only a thread this render actually attached is kept: a comment the
+      // loop stopped before (the document closed) must not protect its stale
+      // thread from the prune below.
+      threadsToKeep.add(key);
     }
 
     // Dispose only threads of the document being re-rendered (including its
@@ -794,10 +923,29 @@ export class PullReviewCommentController implements vscode.Disposable {
   // returned silently.
   private _dropCommentContexts(thread: vscode.CommentThread): void {
     for (const comment of thread.comments) {
-      const contextValue = comment.contextValue;
-      if (contextValue && !this._contextValueInUse(contextValue)) {
-        this._commentContextMap.delete(contextValue);
+      this._dropCommentContextValue(comment.contextValue);
+    }
+  }
+
+  /**
+   * Drop the contexts of the comments a re-render replaced, now that the
+   * replacement comments are attached. Calling this before the assignment in
+   * `_renderThreads` would delete the entry a re-created comment reuses.
+   */
+  private _dropReplacedCommentContexts(thread: vscode.CommentThread, rendered: readonly vscode.Comment[]): void {
+    const kept = new Set(rendered.map((comment) => comment.contextValue));
+    for (const comment of thread.comments) {
+      if (!comment.contextValue || kept.has(comment.contextValue)) {
+        continue;
       }
+      this._dropCommentContextValue(comment.contextValue);
+    }
+  }
+
+  private _dropCommentContextValue(contextValue: string | undefined): void {
+    if (contextValue && !this._contextValueInUse(contextValue)) {
+      this._commentContextMap.delete(contextValue);
+      this._commentQuoteSources.delete(contextValue);
     }
   }
 
@@ -809,10 +957,29 @@ export class PullReviewCommentController implements vscode.Disposable {
   // carry the same encoded value (a concurrent render of the same comment),
   // whose Delete command still needs the entry.
   private _dropOrphanedCommentContext(comment: vscode.Comment): void {
-    const contextValue = comment.contextValue;
-    if (contextValue && !this._contextValueInUse(contextValue)) {
-      this._commentContextMap.delete(contextValue);
+    this._dropCommentContextValue(comment.contextValue);
+  }
+
+  private _dropOrphanedCommentContexts(comments: readonly vscode.Comment[]): void {
+    for (const comment of comments) {
+      this._dropOrphanedCommentContext(comment);
     }
+  }
+
+  /**
+   * Whether the thread is still one this controller tracks. The render chain
+   * awaits attachment resolution, and a thread disposed during that await —
+   * by the document closing and re-opening, or by the invisible-thread sweep —
+   * must not be written into: its widget is gone, so the update would resurrect
+   * nothing while its comments' contexts leak.
+   */
+  private _threadsIsLive(thread: vscode.CommentThread): boolean {
+    for (const tracked of this._threads.values()) {
+      if (tracked === thread) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Whether any thread this controller still tracks carries `contextValue`. */
@@ -841,6 +1008,81 @@ export class PullReviewCommentController implements vscode.Disposable {
     });
   }
 
+  /** The `contextValue` a thread carries so the reply command can find its anchor. */
+  private _replyTargetValue(rendered: RenderedComment, anchor: PullReviewThreadAnchor): string {
+    return encodePullReviewReplyTarget({
+      instanceId: rendered.params.instanceId,
+      owner: rendered.params.owner,
+      repo: rendered.params.repo,
+      index: rendered.params.index,
+      path: rendered.params.path,
+      position: anchor.line + 1,
+      extraLinesCount: anchor.extraLines,
+      isBase: rendered.side === 'base',
+    });
+  }
+
+  /**
+   * The thread key an echoed reply has to be remembered under, rebuilt from the
+   * thread itself.
+   *
+   * The reply target a thread carries names the anchor (path, line, range and
+   * side) but not the revision, and `pullReviewThreadKey` uses the revision —
+   * so the key is recomputed from the thread's own document URI (which carries
+   * the ref) plus the anchor the target encodes. That is the same key
+   * `_renderThreads` builds, by construction: same scope, same anchor.
+   */
+  private _threadKeyForThread(thread: vscode.CommentThread, target: PullReviewReplyTarget): string | undefined {
+    const params = parseForgejoPrUri(thread.uri);
+    if (!params) {
+      return undefined;
+    }
+    return pullReviewThreadKey(this._threadScope(params), {
+      line: target.position - 1,
+      extraLines: target.extraLinesCount,
+    });
+  }
+
+  /** The replies this session echoed into one thread, rebuilt as comments. */
+  private _echoedComments(threadKey: string): vscode.Comment[] {
+    return this._echoedReplies.get(threadKey).map((echo) => this._createEchoedComment(echo));
+  }
+
+  /**
+   * One echoed reply as a read-only thread comment.
+   *
+   * `CommentMode.Preview` and the `label` are what keep it from being mistaken
+   * for review content: the note says where the text actually lives, and the
+   * echo's `contextValue` deliberately does not carry the `forgejo:` prefix the
+   * server comments use, so the comment context menu offers it no Delete (there
+   * is nothing on the server it could delete). The body is the posted body
+   * unchanged — no hard-break rewriting and no attachment resolution, because
+   * nothing about it was read from the server.
+   */
+  private _createEchoedComment(echo: EchoedReply): vscode.Comment {
+    const body = new vscode.MarkdownString(echo.body);
+    body.supportHtml = true;
+    return {
+      body,
+      mode: vscode.CommentMode.Preview,
+      author: { name: echo.author },
+      timestamp: echo.postedAt,
+      label: echo.label,
+      contextValue: echo.contextValue,
+    };
+  }
+
+  /** Every comment of one anchor, in the order the server listed them. */
+  private async _createGroupComments(rendered: readonly RenderedComment[]): Promise<vscode.Comment[]> {
+    const comments: vscode.Comment[] = [];
+    for (const entry of rendered) {
+      comments.push(
+        await this._createComment(entry.params, entry.reviewId, entry.comment, entry.position, entry.instanceName),
+      );
+    }
+    return comments;
+  }
+
   private async _createComment(
     params: ForgejoPrUriParams,
     reviewId: number,
@@ -851,7 +1093,8 @@ export class PullReviewCommentController implements vscode.Disposable {
     const user = comment.user;
     const authorName = user?.login ?? vscode.l10n.t('Unknown');
     const instance = this._findInstance(params.instanceId);
-    let bodyText = comment.body ?? '';
+    const rawBody = comment.body ?? '';
+    let bodyText = rawBody;
     if (instance?.token && instance.url) {
       bodyText = await resolveAttachmentImages(bodyText, instance);
     }
@@ -871,6 +1114,9 @@ export class PullReviewCommentController implements vscode.Disposable {
     };
     const contextValue = this._encodeCommentContext(context);
     this._commentContextMap.set(contextValue, context);
+    // The rendered body is not the comment's text (hard breaks, rewritten
+    // attachment URLs), so keep the plain text for the reply's quote.
+    this._commentQuoteSources.set(contextValue, { authorLogin: authorName, body: rawBody });
 
     return {
       body: bodyMarkdown,
@@ -947,8 +1193,21 @@ export class PullReviewCommentController implements vscode.Disposable {
     // map only guards that the line is part of the pull request diff;
     // context lines are allowed, matching Forgejo's own web UI.
     const sideLines = params.isBase ? fileMap.baseLines : fileMap.headLines;
-    if (!sideLines.get(line) || (extraLinesCount > 0 && !sideLines.get(line + extraLinesCount))) {
+    if (!sideLines.get(line)) {
       vscode.window.showErrorMessage(vscode.l10n.t('Comments can only be added to lines within the pull request diff'));
+      return;
+    }
+    const endLine = line + extraLinesCount;
+    if (extraLinesCount > 0 && !sideLines.get(endLine)) {
+      // The anchor is commentable and only the range runs past the diff (a
+      // selection that ends below the last line of the hunk). The blanket
+      // refusal above reads as "your first line was wrong" while the caret sat
+      // on a changed line, so name the line that is actually out of range —
+      // 1-based, as the editor shows it. The range is still refused: nothing is
+      // guessed into the comment.
+      vscode.window.showErrorMessage(
+        vscode.l10n.t('The selection reaches line {0}, which is outside the pull request diff', endLine + 1),
+      );
       return;
     }
 
@@ -1124,5 +1383,199 @@ export class PullReviewCommentController implements vscode.Disposable {
       this._logger?.error(`Failed to delete pull review comment ${context.commentId}: ${err}`);
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to delete review comment: {0}', err));
     }
+  }
+
+  /**
+   * Posts the reply the user submitted in a thread's reply box.
+   *
+   * A reply is a comment on a comment — conversation, not review content — so it
+   * is posted as an ordinary pull request timeline comment through
+   * `createIssueComment` (the issue-comment endpoint) and never into the user's
+   * pending review. That is what makes it visible in the pull request timeline
+   * immediately and keeps the pending review for what the draft-only design
+   * promises: the AI pre-review's drafts, which stay invisible until the user
+   * submits the review. Forgejo's own web UI writes its replies through the
+   * review-comments endpoint with `origin=timeline` and `reply=<review id>`
+   * instead; that `reply` names the **review** the comment joins, not the comment
+   * being answered (`routers/web/repo/pull_review.go` reads it with
+   * `GetReviewByID`), and this endpoint notifies nothing, so a comment written
+   * through it creates no activity row. Both land in the timeline, and the
+   * linkage is recorded in `docs/design/pr-comment-replies.md` as a possible
+   * future refinement, not something this path does today.
+   *
+   * Forgejo has no reply object, so the body carries a quote of the comment being
+   * answered (`reviewReply.ts`): the platform's own attribution line
+   * (`@author wrote in <comment URL>:`) and line-by-line `> ` quoting, written
+   * with the reply text **first** and the quote last. The reason is the activity
+   * excerpt: `abbreviatedComment` (`services/feed/action.go`) cuts the comment
+   * body at its **first line** — split on a bare `\n`, at most 200 bytes — when
+   * the activity row is written, and the feed renders that excerpt instead of the
+   * comment. A quote-first body therefore reads there as the quote (the platform's
+   * own replies read as their attribution), while reply-first reads as the user's
+   * own words. The builder also drops leading blank lines, so that first line is
+   * never empty. The order is our only lever and costs nothing server-side: the
+   * platform's own order is a client-side convention
+   * (`web_src/js/features/repo-legacy.js`) that means nothing to the server. The
+   * reason and the measured evidence are in `docs/design/pr-comment-replies.md`.
+   *
+   * Only the user's own submission reaches here, and nothing is sent before the
+   * anchor has been revalidated against the diff's own line tables and the
+   * comment being quoted has been read back from the thread it came from, so a
+   * thread whose anchor left the diff, or which no longer carries the comment it
+   * came from, is refused instead of guessed at. A failure leaves no comment
+   * behind and is reported — the input must not look posted.
+   *
+   * A **success** additionally echoes the reply into the thread it was answered
+   * in, marked as a timeline comment (`pullReviewReplyEcho.ts`): the thread
+   * renders review comments, so without the local echo the user would see
+   * nothing happen where they took the action.
+   */
+  async replyToComment(reply: PullReviewCommentReply | undefined): Promise<void> {
+    if (!reply || typeof reply.text !== 'string' || !reply.text.trim()) {
+      // VS Code passes whatever is in the input; an empty submission is not an
+      // error worth a toast, and there is nothing to post.
+      return;
+    }
+    const thread = reply.thread;
+    const target = decodePullReviewReplyTarget(thread?.contextValue);
+    if (!thread || !target) {
+      // Not a thread this controller owns (another extension's comment
+      // controller, or a stale thread from an older build).
+      return;
+    }
+
+    const instance = this._findInstance(target.instanceId);
+    if (!instance) {
+      void vscode.window.showErrorMessage(vscode.l10n.t('Forgejo instance not found'));
+      return;
+    }
+
+    const params = {
+      instanceId: target.instanceId,
+      owner: target.owner,
+      repo: target.repo,
+      index: target.index,
+    };
+
+    // The load is for the diff the anchor is validated against; neither the
+    // pending review nor the signed-in user name matters to a timeline comment.
+    let data: PullRequestReviewCache;
+    try {
+      ({ data } = await this._loadReviewData(params));
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      this._logger?.error(
+        `Could not load the pull request before replying to a review comment on ${target.owner}/${target.repo}#${target.index}: ${err}`,
+      );
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not load the pull request for this reply: {0}', err));
+      return;
+    }
+
+    // The anchor is revalidated against the diff's line tables before anything
+    // is sent: a line that left the diff (a force-push, or a file that no
+    // longer appears) must be refused, never relocated.
+    const fileMap = data.diff.files.get(target.path);
+    if (!fileMap) {
+      void vscode.window.showErrorMessage(vscode.l10n.t('Unable to locate the file in the pull request diff'));
+      return;
+    }
+    const sideLines = target.isBase ? fileMap.baseLines : fileMap.headLines;
+    if (
+      !sideLines.get(target.position) ||
+      (target.extraLinesCount > 0 && !sideLines.get(target.position + target.extraLinesCount))
+    ) {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('This comment is no longer on a line within the pull request diff, so the reply was not posted'),
+      );
+      return;
+    }
+
+    // The comment being answered: the last **server** comment rendered in the
+    // thread. Its context names it and its stored plain text is what gets
+    // quoted. Echoed replies are skipped on purpose: they carry no context and
+    // quoting one back would both quote our own local copy and hide which
+    // server comment the reply actually answers.
+    const answered = [...thread.comments]
+      .reverse()
+      .find((comment) => comment.contextValue !== undefined && !isEchoedReply(comment));
+    const context = answered?.contextValue ? this.getCommentContext(answered.contextValue) : undefined;
+    const quoteSource = answered?.contextValue ? this._commentQuoteSources.get(answered.contextValue) : undefined;
+    if (!answered?.contextValue || !context || !quoteSource) {
+      // The thread is being replaced by a re-render (or was dropped), so the
+      // reply cannot be attributed. Say so instead of posting something the
+      // user did not aim at.
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('This comment thread is no longer available, so the reply was not posted'),
+      );
+      return;
+    }
+
+    const body = buildReviewReplyBody(
+      {
+        author: quoteSource.authorLogin,
+        url: this._commentUrl(instance.url, target.owner, target.repo, target.index, context.commentId),
+        body: quoteSource.body,
+      },
+      reply.text,
+    );
+
+    let failure: string | undefined;
+    try {
+      const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
+      // `POST /repos/{owner}/{repo}/issues/{index}/comments` — the endpoint
+      // Forgejo serves for issues *and* pull requests (a pull request is an
+      // issue), and the one the web UI's own plain comments use (its quote
+      // replies use the review-comments endpoint, see the doc above). Nothing
+      // here touches a review: no pending review is started or appended to, and
+      // no review is ever submitted.
+      await client.createIssueComment(target.owner, target.repo, target.index, body);
+    } catch (error) {
+      failure = userFacingErrorMessage(error);
+    }
+
+    if (failure !== undefined) {
+      this._logger?.error(
+        `Failed to post a reply to pull review comment ${context.commentId} on ${target.owner}/${target.repo}#${target.index}: ${failure}`,
+      );
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not post the reply: {0}', failure));
+      // Nothing was created, so the thread must not be re-rendered as if it
+      // had been: reloading would drop the input the user is looking at.
+      return;
+    }
+
+    // Echo the reply into the thread it was written in. The reply is a timeline
+    // comment, so the review API will never return it: append the local copy
+    // now, and remember it under the thread's key so every later rebuild or
+    // re-render of that thread re-applies it (`_echoedComments`). The echo is
+    // read-only and carries a note saying where the text lives, and it is never
+    // registered as a server comment — nothing about it is sent, counted or
+    // written back. It is session-scoped: a window reload rebuilds the threads
+    // from review data and drops it, while the reply itself stays on the web
+    // timeline (`docs/design/pr-comment-replies.md`).
+    const threadKey = this._threadKeyForThread(thread, target);
+    if (threadKey !== undefined) {
+      const echo = this._echoedReplies.add(threadKey, {
+        body,
+        author: instance.username || instance.name,
+        label: vscode.l10n.t('Posted to the pull request timeline'),
+        postedAt: new Date(),
+      });
+      thread.comments = [...thread.comments, this._createEchoedComment(echo)];
+    }
+
+    // Say where it went as well: it is on the pull request's timeline now,
+    // visible to everyone without any review being submitted. No refresh of the
+    // review threads runs after a reply — the echo above is what makes the post
+    // visible in place, and reloading the thread would drop the input.
+    void vscode.window.showInformationMessage(vscode.l10n.t('Reply posted as a comment on the pull request timeline.'));
+  }
+
+  /**
+   * Absolute URL of a review comment, in the shape Forgejo's own reply quotes:
+   * the pull request's file view plus the comment's global hash tag.
+   */
+  private _commentUrl(instanceUrl: string, owner: string, repo: string, index: number, commentId: number): string {
+    const base = instanceUrl.replace(/\/+$/, '');
+    return `${base}/${owner}/${repo}/pulls/${index}/files#issuecomment-${commentId}`;
   }
 }

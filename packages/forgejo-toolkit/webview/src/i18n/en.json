@@ -381,6 +381,8 @@
       "reactionFailed": "Reactions failed: {message}",
       "commentsAndTimeline": "Comments & Timeline",
       "commits": "Commits",
+      "singleCommitSummary": "1 commit · {sha} · {subject}",
+      "openCommit": "Open Commit in Browser",
       "noComments": "No comments yet",
       "showMoreComments": "Show {count} more entries",
       "forcePushed": "force pushed",

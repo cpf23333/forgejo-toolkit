@@ -21,6 +21,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Reply to a pull request review comment** from the thread itself. Forgejo has
+  no reply object, so the reply is an ordinary pull request comment carrying the
+  platform's own quote block — the attribution line naming the original author and
+  linking the original comment (`@user wrote in <url>:`), a blank line, and the
+  quoted comment line by line — but written with **your text first**, a blank
+  line, then that quote block, and with leading blank lines in your text dropped
+  so the body's first line is never empty. That order is a deliberate divergence
+  from the platform's own replies, and the reason is measured: Forgejo's instance
+  home activity feed stores the **first line** of a comment body as its
+  activity-row excerpt (hard-truncated with `…` at roughly 190 characters) and
+  renders that instead of the comment, so a quote-first body reads there as its
+  quote — our quote-first reply showed the quote (comment 123, activity row 580),
+  Forgejo's own web-UI quoted reply showed only its attribution line (comment 125,
+  row 582), and a reply whose body carried no quote at all showed its text
+  (comment 124, row 581). Reply-first puts your own words in front of every
+  excerpting consumer (home feed, notifications, mail, mobile), and the quote
+  still renders as a quote. The reply is posted as a **pull request timeline
+  comment** — the issue-comment endpoint (Forgejo's web UI writes its own replies
+  as review comments with `origin=timeline` and `reply=<comment id>`; a possible
+  future refinement, not what this path does) — so it is visible on the pull
+  request immediately and needs no review submission. A successful post is also
+  **echoed into the thread you replied in**, below its
+  comments: the reply as posted, read-only and marked **Posted to the pull
+  request timeline**, so it is not mistaken for a review comment. The echo is a
+  local rendering aid, not a server object — it is never written back, re-posted
+  or counted — and it is remembered per thread for the extension session, so
+  refreshing the pull request re-applies it and it never duplicates. It does not
+  survive a window reload: the threads are rebuilt from review data and the reply
+  is not review data, while the reply itself stays on the pull request's
+  timeline. Your **pending review** is left alone: that draft area belongs to the
+  AI pre-review, whose drafts stay invisible until you submit the review, while a
+  reply placed there (as earlier builds did) stayed hidden in the timeline until
+  you submitted the whole review and picked a verdict. All the comments on one
+  anchor render as a single thread — which is how the web UI shows an anchor — so
+  the thread you answer is the conversation, and `canReply` is on for every
+  thread the extension creates. Before anything is sent, the anchor the thread
+  carries (path, line, range and side) is revalidated against the pull request's
+  real diff lines: a line that a force-push or a rebase removed is refused with a
+  message, never moved to a nearby line, and the comment being quoted must still
+  be readable from the thread it came from. A failed POST is reported and leaves
+  nothing that looks posted. Replying is your own action, not the AI feature: it
+  works with `forgejoToolkit.aiPreReview` off.
 - `forgejoToolkit.mcpEnabled` (default on): turning it off withdraws the MCP
   server definitions and stops the workspace mapping and the local broker, so no
   agent reaches your instances through them.
@@ -566,6 +608,22 @@ checkboxes` belonged to VS Code's multi-select quick pick, which this panel
   logging nor editing a comment box schedules decoration work. The diagnostic
   itself is unchanged: on every genuine change it still reports which visible
   editor got how many ranges and which got zero.
+- Adding a review comment on a changed line of an open pull request diff no
+  longer answers "Comments can only be added to lines within the pull request
+  diff", and a selected range becomes a multi-line comment again. A diff editor
+  shows two documents of the same file, so the two sides carry the same scheme
+  and path and differ only in the query that holds `isBase`; the editor the
+  command resolved was matched on the path alone and could land on the other
+  side, whose line table does not contain the line you clicked. The match now
+  compares the whole document identity, so the side the click names is the side
+  that is validated — and the AI pre-review, which resolves its target the same
+  way, no longer reads anchors against the other side either. The command handler
+  also stopped pre-empting the selection: it passed the caret line as if it were
+  the clicked line, which collapsed every selection to one line, because the
+  comment controller only consults the selection when it is given no line
+  number. A selection that legitimately runs past the diff keeps being refused,
+  but when only its end is out of range the message now names that line instead
+  of the blanket refusal that read as "your first line was wrong".
 
 ## [0.0.1] - 2026-09-26
 

@@ -39,6 +39,12 @@ const state = vi.hoisted(() => ({
    * function directly rather than through a fire-and-forget handler.
    */
   registeredCommands: new Map<string, (...args: unknown[]) => unknown>(),
+  /**
+   * The editors `window.visibleTextEditors` reports. Empty by default, because
+   * the resolver falls back to the active editor when it names none; a case that
+   * needs the menu argument's document to be resolved sets this.
+   */
+  visibleEditors: [] as unknown[],
 }));
 
 /**
@@ -133,7 +139,7 @@ vi.mock('vscode', () => {
       ),
       activeTextEditor: undefined,
       get visibleTextEditors() {
-        return [] as never[];
+        return state.visibleEditors as never[];
       },
       showTextDocument: vi.fn(async () => ({})),
       createOutputChannel: vi.fn(() => ({ appendLine: vi.fn(), show: vi.fn(), dispose: vi.fn() })),
@@ -232,6 +238,7 @@ import {
   openAiPreReviewDiagnostics,
   probeAiPreReviewChatModels,
   registerAiPreReviewCommand,
+  resolveAiPreReviewTarget,
   runAiPreReview,
   writePreReviewDrafts,
 } from '../aiPreReview';
@@ -758,6 +765,7 @@ beforeEach(async () => {
   state.settingUpdates = [];
   state.cancelRequested = false;
   state.registeredCommands.clear();
+  state.visibleEditors = [];
   captured.length = 0;
   pendingReads.length = 0;
   panelState.payloads.length = 0;
@@ -823,6 +831,43 @@ afterEach(() => {
   for (const directory of logDirs.splice(0)) {
     removeTempDirSync(directory);
   }
+});
+
+describe('the diff side the invocation names (§4.3)', () => {
+  /** One side of a PR diff file: both sides share the path, only the query differs. */
+  const editorForSide = (isBase: boolean) => ({
+    document: {
+      uri: {
+        scheme: 'forgejo-pr',
+        path: '/i/o/r/src/index.ts',
+        query: JSON.stringify({ index: 2, ref: 'sha1', isBase }),
+      },
+    },
+    selection: { active: { line: 0 } },
+  });
+
+  it('resolves the side its menu argument names, not the first side listed', () => {
+    // A diff editor is two documents of the same file, so matching on the path
+    // alone resolved whichever side `visibleTextEditors` listed first. The
+    // pre-review then validated anchors (and wrote drafts) against the other
+    // side's line table — the interactive path had the same defect, reported as
+    // "Comments can only be added to lines within the pull request diff".
+    const baseEditor = editorForSide(true);
+    const headEditor = editorForSide(false);
+    state.visibleEditors = [baseEditor, headEditor];
+
+    const target = resolveAiPreReviewTarget(
+      {
+        scheme: 'forgejo-pr',
+        path: '/i/o/r/src/index.ts',
+        query: JSON.stringify({ index: 2, ref: 'sha1', isBase: false }),
+      },
+      undefined,
+    );
+
+    expect(target?.editor).toBe(headEditor);
+    expect(target?.params.isBase).toBe(false);
+  });
 });
 
 describe('the feature switch is checked before anything else happens', () => {

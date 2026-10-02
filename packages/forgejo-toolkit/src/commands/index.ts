@@ -74,6 +74,17 @@ function uriArgumentOf(value: unknown): unknown {
 }
 
 /**
+ * Whether the uri argument names the same document as `a`.
+ *
+ * The query is part of a document's identity: `vscode.diff` shows two documents
+ * of the same PR file (`ForgejoPrDiffFileSystemProvider`, both sides built by
+ * `PullReviewCommentController._buildUri`), and their uris carry the same scheme
+ * and path and differ only in the query, which holds `isBase` and `ref`.
+ * Comparing the path alone therefore matched whichever side
+ * `visibleTextEditors` happened to list first, so a click on the head side could
+ * resolve the base editor — whose line table then refused the head line number
+ * with "Comments can only be added to lines within the pull request diff".
+ *
  * The argument crosses the command bridge as a plain object, so identity and
  * `instanceof` are out; compare the fields a uri carries instead.
  */
@@ -83,6 +94,11 @@ function sameDocumentUri(a: vscode.Uri, b: unknown): boolean {
   }
   const candidate = b as Partial<vscode.Uri>;
   if (typeof candidate.scheme !== 'string' || candidate.scheme !== a.scheme) {
+    return false;
+  }
+  // A uri spells an absent component as the empty string, so an argument that
+  // drops one must not read as a different document.
+  if ((candidate.authority ?? '') !== (a.authority ?? '') || (candidate.query ?? '') !== (a.query ?? '')) {
     return false;
   }
   const path = typeof candidate.path === 'string' ? candidate.path : candidate.fsPath;
@@ -201,9 +217,12 @@ export function registerCommands(
       const lineNumber = toLineNumber(first, second);
       // A line number (line-number context menu) always wins: the user
       // right-clicked that line, and a stale non-empty selection elsewhere must
-      // not redirect the anchor. The selection is only consulted when no line
-      // number was passed (editor context menu / command palette).
-      const line = lineNumber === undefined ? editor.selection.active.line : lineNumber - 1;
+      // not redirect the anchor. With no line number the anchor is left to
+      // `addComment` (`undefined`), which is the layer that reads the selection:
+      // resolving it to `selection.active.line` here flattened every multi-line
+      // selection to a single line, because `addComment` only consults the
+      // selection when it was given no line number.
+      const line = lineNumber === undefined ? undefined : lineNumber - 1;
       pullReviewCommentController.addComment(editor, line).catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
         logger.error(`[addComment] ${err}`);

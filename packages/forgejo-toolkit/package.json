@@ -265,6 +265,12 @@
         "icon": "$(comment)"
       },
       {
+        "command": "forgejoToolkit.replyToPullReviewComment",
+        "title": "%command.replyToPullReviewComment.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(reply)"
+      },
+      {
         "command": "forgejoToolkit.aiPreReviewPullRequest",
         "title": "%command.aiPreReviewPullRequest.title%",
         "category": "Forgejo Toolkit",
@@ -371,12 +377,23 @@
           "when": "false"
         },
         {
+          "command": "forgejoToolkit.replyToPullReviewComment",
+          "when": "false"
+        },
+        {
           "command": "forgejoToolkit.aiPreReviewPullRequest",
           "when": "false"
         },
         {
           "command": "forgejoToolkit.aiPreReviewProbeChatModels",
           "when": "config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "forgejoToolkit.replyToPullReviewComment",
+          "when": "commentController == forgejo-pull-review-comments",
+          "group": "inline@0"
         }
       ],
       "comments/comment/context": [
@@ -451,8 +468,7 @@
   "activationEvents": [
     "onFileSystem:cpf23333-forgejo-toolkit-repofile",
     "onFileSystem:forgejo-pr",
-    "onStartupFinished",
-    "onView:forgejoToolkitView"
+    "onStartupFinished"
   ],
   "engines": {
     "vscode": "^1.102.0"

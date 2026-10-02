@@ -12,6 +12,7 @@
   "command.createPrFromCurrentBranch.title": "Create PR from Current Branch",
   "command.deletePullReviewComment.title": "Delete Review Comment",
   "command.addPullReviewComment.title": "Add Pull Review Comment",
+  "command.replyToPullReviewComment.title": "Reply",
   "command.aiPreReviewPullRequest.title": "AI Pre-Review Pull Request",
   "command.aiPreReviewChooseModel.title": "AI Pre-Review: Choose Chat Model",
   "command.aiPreReviewProbeChatModels.title": "AI Pre-Review: Probe Chat Models (debug)",

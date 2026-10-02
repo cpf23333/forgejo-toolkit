@@ -102,6 +102,39 @@ const commits = computed(() => state.pullRequestCommits.value.get(commitsKey.val
 const commitsError = computed(() => state.errors.get(commitsKey.value));
 const commitsLoading = computed(() => !state.pullRequestCommits.value.has(commitsKey.value) && !commitsError.value);
 
+/**
+ * Whether the pull request's branch holds exactly one commit.
+ *
+ * With one commit the change tree above *is* that commit's diff, and the commit
+ * list rendered the same diff again — its own tree inside a one-entry list —
+ * directly underneath it. The section states the commit instead (see the
+ * template), and keeps the list from two commits up, where a per-commit tree
+ * says something the whole-pull-request tree cannot: which file belongs to
+ * which commit.
+ */
+const isSingleCommit = computed(() => commits.value.length === 1);
+/**
+ * The short sha and the subject of that single commit, as the summary line
+ * shows them. Empty strings while the commit list is empty, so the template
+ * needs no narrowing: none of these is read unless `isSingleCommit` is true.
+ */
+const singleCommitShortSha = computed(() => (isSingleCommit.value ? (commits.value[0]?.sha ?? '').slice(0, 7) : ''));
+const singleCommitSubject = computed(() =>
+  isSingleCommit.value ? (commits.value[0]?.commit?.message ?? '').split('\n')[0] : '',
+);
+
+/**
+ * Opens the single commit on the instance's web UI, the way the branch commits
+ * in `RepoDetail` do: the commit's own `html_url` through the host's
+ * `openExternal`, which applies its http/https allowlist.
+ */
+function openSingleCommit() {
+  const url = isSingleCommit.value ? commits.value[0]?.html_url : undefined;
+  if (url) {
+    state.openExternal(url);
+  }
+}
+
 const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
 const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
 const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
@@ -1578,6 +1611,29 @@ function reloadPullRequest() {
             {{ t('dashboard.loading') }}
           </div>
           <div v-else-if="commitsError" class="error">{{ t('dashboard.error', { message: commitsError }) }}</div>
+          <!-- A one-commit pull request: the change tree above is the very same
+               diff, so the section names the commit instead of repeating that
+               tree inside a one-entry list. The sha is the link to the commit on
+               the web; the whole line stays one translatable message, which is
+               why both parts are slots rather than interpolations — a named
+               param passed as a plain attribute is not interpolated by
+               `i18n-t`, only a slot is. -->
+          <div v-else-if="isSingleCommit" class="commit-summary">
+            <i18n-t keypath="dashboard.detail.singleCommitSummary" scope="global">
+              <template #sha>
+                <button
+                  type="button"
+                  class="link-button commit-summary-sha"
+                  :title="t('dashboard.detail.openCommit')"
+                  :aria-label="t('dashboard.detail.openCommit')"
+                  @click="openSingleCommit"
+                >
+                  {{ singleCommitShortSha }}
+                </button>
+              </template>
+              <template #subject>{{ singleCommitSubject }}</template>
+            </i18n-t>
+          </div>
           <CommitDiffList
             v-else
             :commits="commits"
@@ -2358,6 +2414,18 @@ function reloadPullRequest() {
 
 .files {
   color: var(--vscode-descriptionForeground);
+}
+
+/* The one-commit summary line. Inline flow, not flex: the message's own text
+   and the sha link are one sentence, and a flex row would drop the spaces the
+   message puts around its `{sha}` slot. */
+.commit-summary {
+  font-size: 0.9em;
+  color: var(--vscode-foreground);
+}
+
+.commit-summary-sha {
+  font-family: var(--vscode-editor-font-family), monospace;
 }
 
 .label-list {

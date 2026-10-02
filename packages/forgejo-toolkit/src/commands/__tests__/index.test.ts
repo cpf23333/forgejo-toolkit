@@ -69,6 +69,17 @@ function mockActiveEditor(active: number, selection: FakeSelection) {
   };
 }
 
+/**
+ * A visible editor for one side of a PR diff file. Both sides of a diff share
+ * the path and differ only in the query, so the query is what tells them apart.
+ */
+function editorForUri(query: string) {
+  return {
+    document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/f.ts', query } },
+    selection: { active: { line: 0 }, start: { line: 0 }, end: { line: 0 }, isEmpty: true },
+  };
+}
+
 describe('registerCommands', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -292,14 +303,74 @@ describe('registerCommands', () => {
     expect(mocks.addComment).toHaveBeenCalledWith(expect.anything(), 6);
   });
 
-  it('falls back to the selection when the invocation names no line', async () => {
+  it('leaves the anchor to addComment when the invocation names no line', async () => {
+    // The editor context menu forwards the document uri, not a line, and the
+    // palette forwards nothing. `addComment` is the layer that reads the
+    // selection, so the handler must not pre-empt it: passing
+    // `selection.active.line` from here flattened every selection, because
+    // `addComment` only consults the selection when it was given no line.
     mockActiveEditor(4, { start: { line: 4 }, end: { line: 4 }, isEmpty: true });
     const handlers = registerHandlers();
 
     handlers.get('forgejoToolkit.addPullReviewComment')!();
     await flushAsync();
 
-    expect(mocks.addComment).toHaveBeenCalledWith(expect.anything(), 4);
+    expect(mocks.addComment).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it('does not flatten a two-line selection to its active line', async () => {
+    // The reported scenario: two lines selected inside one hunk of a PR diff,
+    // right-clicked, "Add Pull Review Comment". The anchor must reach
+    // `addComment` as a range (it resolves `extra_lines_count` itself) instead
+    // of collapsing to the caret line.
+    mockActiveEditor(2, { start: { line: 1 }, end: { line: 2 }, isEmpty: false });
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!();
+    await flushAsync();
+
+    expect(mocks.addComment).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it('resolves the diff side the invocation names when both sides share a path', async () => {
+    // `vscode.diff` shows two documents of the same file: both sides carry the
+    // same scheme and path and differ only in the query (which holds `isBase`
+    // and `ref`). Matching on the path alone picked whichever side
+    // `visibleTextEditors` listed first, so a right-click on the head side
+    // could resolve the base editor — and the head line number was then
+    // validated against the base line table and refused with "Comments can
+    // only be added to lines within the pull request diff".
+    const baseEditor = editorForUri('{"index":2,"ref":"base-sha","isBase":true}');
+    const headEditor = editorForUri('{"index":2,"ref":"head-sha","isBase":false}');
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [baseEditor, headEditor];
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!({
+      scheme: 'forgejo-pr',
+      path: '/i/o/r/f.ts',
+      query: '{"index":2,"ref":"head-sha","isBase":false}',
+    });
+    await flushAsync();
+
+    expect(mocks.addComment.mock.calls[0][0]).toBe(headEditor);
+  });
+
+  it('resolves the base side when the invocation names it and the head side is listed first', async () => {
+    // The same defect in the other listing order: whichever side came first won
+    // regardless of which one the click named.
+    const baseEditor = editorForUri('{"index":2,"ref":"base-sha","isBase":true}');
+    const headEditor = editorForUri('{"index":2,"ref":"head-sha","isBase":false}');
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [headEditor, baseEditor];
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!({
+      scheme: 'forgejo-pr',
+      path: '/i/o/r/f.ts',
+      query: '{"index":2,"ref":"base-sha","isBase":true}',
+    });
+    await flushAsync();
+
+    expect(mocks.addComment.mock.calls[0][0]).toBe(baseEditor);
   });
 
   it('targets the visible editor the invocation uri names, not the active one', async () => {

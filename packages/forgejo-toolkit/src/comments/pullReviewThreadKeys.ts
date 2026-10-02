@@ -20,10 +20,24 @@ export interface PullReviewThreadScope {
 }
 
 /**
+ * The anchor a thread renders at: the first line of the comment range and how
+ * many additional lines it covers. Comments that name the same range are one
+ * conversation, so they share one thread — a reply is an ordinary comment at
+ * the anchor it answers, and without this a reply would show up as a second
+ * thread on the same line.
+ */
+export interface PullReviewThreadAnchor {
+  /** 0-based first line of the range in the side's document. */
+  line: number;
+  /** Additional lines after `line` (`extra_lines_count`). */
+  extraLines: number;
+}
+
+/**
  * Build the map key for a comment thread. JSON serialization keeps the key
  * unambiguous even when a path contains characters such as `:`.
  */
-export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: number, commentId: number): string {
+export function pullReviewThreadKey(scope: PullReviewThreadScope, anchor: PullReviewThreadAnchor): string {
   return JSON.stringify([
     scope.instanceId,
     scope.owner,
@@ -32,8 +46,8 @@ export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: numb
     scope.path,
     scope.isBase,
     scope.ref,
-    reviewId,
-    commentId,
+    anchor.line,
+    anchor.extraLines,
   ]);
 }
 
@@ -41,8 +55,12 @@ export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: numb
  * Check whether a thread key belongs to the given document scope
  * (instance + repo + PR + file path + diff side + revision), so cleanup only
  * disposes threads of the document being re-rendered instead of every open
- * thread. Keys without a ref part (older format) never match, which is safe:
+ * thread. Keys without a ref part (older formats) never match, which is safe:
  * they simply cannot be cleaned up by a re-render of a different revision.
+ *
+ * The anchor parts are deliberately not compared: every thread of the
+ * re-rendered document has to be pruned when its anchor is gone, and an anchor
+ * that is still present is kept through `threadsToKeep`.
  */
 export function pullReviewThreadMatchesScope(key: string, scope: PullReviewThreadScope): boolean {
   let parts: unknown;

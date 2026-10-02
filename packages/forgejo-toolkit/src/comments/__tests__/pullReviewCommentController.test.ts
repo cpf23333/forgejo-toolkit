@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
     uriString: string;
     range: unknown;
     comments: unknown[];
+    // The reply box only appears when the controller sets this; the fake starts
+    // it off exactly as VS Code's own `CommentThread` default does.
+    canReply: boolean;
     collapsibleState: number;
     dispose: ReturnType<typeof vi.fn>;
   }>,
@@ -33,6 +36,22 @@ const state = vi.hoisted(() => ({
   // immediately. Used to observe the fan-out while requests are in flight;
   // a timer would be affected by the suite's fake-timer tests.
   commentsGate: null as { promise: Promise<void>; resolve(): void } | null,
+  // Commands the controller registered, by id: the reply command is the only
+  // one it owns, and the test invokes it the way the workbench would.
+  registeredCommands: new Map<string, (...args: unknown[]) => unknown>(),
+  // Issue/PR comments the reply created, in call order: the reply is an
+  // ordinary pull request comment, so this is the endpoint it must go through.
+  issueComments: [] as Array<{ owner: string; repo: string; index: number; body: string }>,
+  // When set, the issue-comment endpoint rejects with this error.
+  issueCommentError: null as Error | null,
+  // Review comments written into a pending review. The reply must never land
+  // here — the pending review is the AI pre-review's draft area — so the
+  // endpoints are mocked to record whether anything reached them at all.
+  reviewWrites: [] as Array<{ endpoint: string; reviewId?: number; body: unknown }>,
+  // Makes the list endpoint report a PENDING review of the signed-in user, so
+  // the interactive add-comment path finds it and the reply tests can show that
+  // a reply ignores it.
+  pendingReviewId: null as number | null,
 }));
 
 function createGate() {
@@ -63,8 +82,9 @@ vi.mock('vscode', () => {
             uriString: uri.toString(),
             range,
             comments,
-            canReply: true,
+            canReply: false,
             collapsibleState: 0,
+            contextValue: undefined as string | undefined,
             dispose: vi.fn(),
           };
           state.createdThreads.push(thread);
@@ -110,6 +130,13 @@ vi.mock('vscode', () => {
     },
     commands: {
       executeCommand: vi.fn(),
+      // The controller registers its own reply command at construction, because
+      // the command needs the thread the workbench hands it and no other module
+      // has that state.
+      registerCommand: vi.fn((command: string, handler: (...args: unknown[]) => unknown) => {
+        state.registeredCommands.set(command, handler);
+        return { dispose: vi.fn() };
+      }),
     },
     Range: class {
       start: { line: number; character: number };
@@ -133,6 +160,7 @@ vi.mock('vscode', () => {
     },
     CommentMode: { Preview: 0, Editing: 1 },
     CommentThreadCollapsibleState: { Collapsed: 0, Expanded: 1 },
+    CommentThreadState: { Unresolved: 0, Resolved: 1 },
     Uri: {
       from: vi.fn((c: { scheme: string; path: string; query?: string }) => makeUri(c.scheme, c.path, c.query)),
       parse: vi.fn((s: string) => ({ fsPath: s, scheme: s.split(':')[0] })),
@@ -178,9 +206,13 @@ vi.mock('../../api/client', () => ({
         }
         return DIFF;
       }),
-      listPullReviews: vi.fn(
-        async () => state.listReviews ?? [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }],
-      ),
+      listPullReviews: vi.fn(async () => {
+        const reviews = state.listReviews ?? [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }];
+        if (state.pendingReviewId === null) {
+          return reviews;
+        }
+        return [...reviews, { id: state.pendingReviewId, state: 'PENDING', user: { login: 'user' } }];
+      }),
       getPullReviewComments: vi.fn(async (_owner: string, _repo: string, _index: number, reviewId: number) => {
         state.commentsRequests.push(reviewId);
         state.commentsInFlight += 1;
@@ -199,6 +231,29 @@ vi.mock('../../api/client', () => ({
         } finally {
           state.commentsInFlight -= 1;
         }
+      }),
+      // `POST /repos/{owner}/{repo}/issues/{index}/comments` — the endpoint
+      // Forgejo serves for issues *and* pull requests, and the one the reply
+      // goes through so it is visible in the timeline immediately.
+      createIssueComment: vi.fn(async (owner: string, repo: string, index: number, body: string) => {
+        if (state.issueCommentError) {
+          throw state.issueCommentError;
+        }
+        state.issueComments.push({ owner, repo, index, body });
+        return { id: 900 };
+      }),
+      // The two endpoints that write into the user's pending review. Only the
+      // AI pre-review uses them; the reply must not reach either, so the mocks
+      // record what arrived instead of the reply relying on their absence.
+      addPullReviewComment: vi.fn(
+        async (_owner: string, _repo: string, _index: number, reviewId: number, body: unknown) => {
+          state.reviewWrites.push({ endpoint: 'append', reviewId, body });
+          return { id: 900 };
+        },
+      ),
+      createPendingPullReview: vi.fn(async (_owner: string, _repo: string, _index: number, body: unknown) => {
+        state.reviewWrites.push({ endpoint: 'create', reviewId: 88, body });
+        return { id: 88 };
       }),
     };
   }),
@@ -984,7 +1039,70 @@ describe('PullReviewCommentController multi-line comments', () => {
     controller.dispose();
   });
 
-  it('rejects a selection whose last line is outside the pull request diff', async () => {
+  it('accepts a two-line selection inside one hunk', async () => {
+    // The reported scenario: two lines selected inside the changed hunk of a PR
+    // diff (head lines 2 and 3, 1-based, of `DIFF`), invoked through the editor
+    // context menu, which passes no line number. Both lines are in the diff's
+    // table, so the comment must open with the range anchored on the first line
+    // and `extra_lines_count` = 1 — not be refused.
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: false,
+        start: { line: 1, character: 4 },
+        end: { line: 2, character: 6 },
+        active: { line: 2 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(panelState.createOrShow).toHaveBeenCalledTimes(1);
+    const context = panelState.createOrShow.mock.calls[0][2] as {
+      lineNumber: number;
+      position: number;
+      extraLinesCount?: number;
+    };
+    expect(context.lineNumber).toBe(1);
+    expect(context.position).toBe(2);
+    expect(context.extraLinesCount).toBe(1);
+    controller.dispose();
+  });
+
+  it('still refuses a line that is not in the pull request diff at all', async () => {
+    // The refused line is the anchor itself, so there is nothing to name beyond
+    // the blanket refusal (an empty selection: a caret on a line the diff does
+    // not contain, for example a file with no hunks for that path).
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: true,
+        start: { line: 9, character: 0 },
+        end: { line: 9, character: 0 },
+        active: { line: 9 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    expect(panelState.createOrShow).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'Comments can only be added to lines within the pull request diff',
+    );
+    controller.dispose();
+  });
+
+  it('rejects a selection whose last line is outside the pull request diff, naming it', async () => {
+    // Only the range's last line falls outside the hunk; the anchor line (0) is
+    // commentable. The blanket "lines within the pull request diff" reads as
+    // "your first line was wrong" while the caret sat on a changed line, so the
+    // refusal names the line that is actually out of range — 1-based, as the
+    // editor shows it, and the range stays refused.
     const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
     const editor = {
       document: makeDocument(false),
@@ -999,7 +1117,9 @@ describe('PullReviewCommentController multi-line comments', () => {
     await controller.addComment(editor as never);
 
     expect(panelState.createOrShow).not.toHaveBeenCalled();
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('pull request diff'));
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('reaches line 10, which is outside the pull request diff'),
+    );
     controller.dispose();
   });
 
@@ -1730,5 +1850,540 @@ describe('PullReviewCommentController range-decoration sync', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * A reply is a comment on a comment — conversation, not review content. Forgejo
+ * has no reply object, so a reply carries a quote of the comment it answers. Our
+ * reply goes through the issue-comment endpoint (timeline comment, no review
+ * submitted) with the platform's own attribution line and `> ` quoting, but
+ * writes the reply text first so the instance home feed — which stores a body's
+ * first line — shows the user's own words (see `reviewReply.test.ts` for that
+ * order). VS Code's
+ * Comments tab shows our threads but the reply button only exists when
+ * `canReply` is set, and a submitted reply arrives as the
+ * `comments/commentThread/context` command's argument — there is no other hook.
+ * These tests drive that command the way the workbench does.
+ */
+describe('PullReviewCommentController replies', () => {
+  const REVIEWED = [
+    {
+      id: 101,
+      path: 'src/index.ts',
+      position: 2,
+      original_position: 0,
+      body: 'first line\nsecond line',
+      user: { login: 'reviewer' },
+    },
+  ];
+
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.closeHandlers.length = 0;
+    state.editorHandlers.length = 0;
+    state.visibleEditors.length = 0;
+    state.comments = REVIEWED;
+    state.listReviews = null;
+    state.failedReviewIds = [];
+    state.commentsRequests = [];
+    state.pendingReviewId = null;
+    state.issueComments = [];
+    state.issueCommentError = null;
+    state.reviewWrites = [];
+    state.registeredCommands.clear();
+    state.diffError = null;
+    panelState.createOrShow.mockClear();
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+    vi.mocked(vscode.window.showInformationMessage).mockClear();
+  });
+
+  /** The reply command the controller registered, as the workbench invokes it. */
+  function replyCommand() {
+    const handler = state.registeredCommands.get('forgejoToolkit.replyToPullReviewComment');
+    expect(handler).toBeDefined();
+    return handler as (reply: unknown) => Promise<unknown>;
+  }
+
+  /** The local echoes a thread carries, in the order they appear. */
+  function echoedComments(thread: { comments: unknown[] }) {
+    return (
+      thread.comments as Array<{
+        body: { value: string };
+        mode: number;
+        label?: string;
+        contextValue?: string;
+        author: { name: string };
+      }>
+    ).filter((comment) => comment.contextValue?.startsWith('forgejo-timeline-reply:') === true);
+  }
+
+  /** The reviews a refresh reloads; the mock answers them from `state`. */
+  function refresh(controller: PullReviewCommentController): Promise<void> {
+    return controller.refreshPullRequestComments({
+      instanceId: INSTANCE_ID,
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+    });
+  }
+
+  it('allows replies on every thread it creates', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(state.createdThreads).toHaveLength(1);
+    expect(state.createdThreads[0].canReply).toBe(true);
+    controller.dispose();
+  });
+
+  it('posts the reply as a quoted issue comment on the pull request', async () => {
+    // The body is the platform's own pieces in our own order (see
+    // `reviewReply.ts`): the reply text first, a blank line, the attribution line
+    // linking the original comment, a blank line, then the quoted comment marked
+    // line by line. Reply-first is what puts the user's words on the body's first
+    // line, which is the part Forgejo's instance home activity feed stores and
+    // renders. The endpoint is the issue/PR comment one, so the reply is a
+    // timeline comment: immediately visible, and no review is created or
+    // submitted.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: '111' });
+
+    expect(state.issueComments).toEqual([
+      {
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        body: [
+          '111',
+          '',
+          '@reviewer wrote in https://forgejo.example.com/owner/repo/pulls/2/files#issuecomment-101:',
+          '',
+          '> first line',
+          '> second line',
+        ].join('\n'),
+      },
+    ]);
+    // The property the instance home feed depends on: the body starts with the
+    // reply, not with the quote or the attribution line.
+    expect(state.issueComments[0].body.split('\n')[0]).toBe('111');
+    expect(state.issueComments[0].body.endsWith('> first line\n> second line')).toBe(true);
+    // Nothing went into the pending review: the reply is not review content.
+    expect(state.reviewWrites).toEqual([]);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+      'Reply posted as a comment on the pull request timeline.',
+    );
+    controller.dispose();
+  });
+
+  it('posts a reply that starts with blank lines with the text as the body first line', async () => {
+    // The reply box only refuses a text that is empty after trimming, so a text
+    // starting with newlines reaches the post. The feed's excerpt is the body's
+    // first line, and an empty one renders a row with no text at all, so the
+    // leading blank lines must not survive into the body.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: '\n\nhello' });
+
+    const [body] = state.issueComments.map((comment) => comment.body);
+    expect(body.split('\n')[0]).toBe('hello');
+    expect(body.startsWith('\n')).toBe(false);
+    expect(body).toBe(
+      [
+        'hello',
+        '',
+        '@reviewer wrote in https://forgejo.example.com/owner/repo/pulls/2/files#issuecomment-101:',
+        '',
+        '> first line',
+        '> second line',
+      ].join('\n'),
+    );
+    controller.dispose();
+  });
+
+  it('puts a multi-line reply first, with its own first line as the body first line', async () => {
+    // A reply is free text and often several lines. The excerpting consumer takes
+    // the top of the body, so the first line must be the first line the user
+    // typed — not a quote, and not the reply's later lines.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'first line of the reply\nsecond line' });
+
+    const [body] = state.issueComments.map((comment) => comment.body);
+    expect(body.split('\n')[0]).toBe('first line of the reply');
+    expect(body.split('\n')[1]).toBe('second line');
+    expect(body.split('\n')[2]).toBe('');
+    // The quoted block is unchanged and still closes the body.
+    expect(body.endsWith('> first line\n> second line')).toBe(true);
+    expect(body).toContain(
+      '@reviewer wrote in https://forgejo.example.com/owner/repo/pulls/2/files#issuecomment-101:\n\n> first line',
+    );
+    controller.dispose();
+  });
+
+  it('echoes the posted reply into the thread as a read-only timeline comment', async () => {
+    // The reply is a timeline comment, so the review API never returns it and
+    // the thread would otherwise show nothing after a successful post. The echo
+    // is the posted body unchanged plus a marker saying where the text lives.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+    const serverComment = thread.comments[0];
+
+    await replyCommand()({ thread, text: '111' });
+
+    expect(thread.comments).toHaveLength(2);
+    // After the server comment it answers, never before it.
+    expect(thread.comments[0]).toBe(serverComment);
+    const [echo] = echoedComments(thread);
+    expect(echo).toBeDefined();
+    // The body is exactly what the POST sent — reply first, quote block included.
+    expect(echo.body.value).toBe(state.issueComments[0].body);
+    expect(echo.body.value).toBe(
+      [
+        '111',
+        '',
+        '@reviewer wrote in https://forgejo.example.com/owner/repo/pulls/2/files#issuecomment-101:',
+        '',
+        '> first line',
+        '> second line',
+      ].join('\n'),
+    );
+    // Read-only, and marked so nobody mistakes it for a server review comment.
+    expect(echo.mode).toBe(vscode.CommentMode.Preview);
+    expect(echo.label).toBe('Posted to the pull request timeline');
+    expect(echo.contextValue).toBe('forgejo-timeline-reply:0');
+    expect(echo.author.name).toBe('user');
+    // Never registered as one of the server's comments: no context, so the
+    // comment cannot be edited, deleted or quoted as review content.
+    expect(controller.getCommentContext(echo.contextValue as string)).toBeUndefined();
+    expect((controller as unknown as { _commentContextMap: Map<string, unknown> })._commentContextMap.size).toBe(1);
+    controller.dispose();
+  });
+
+  it('quotes the server comment, not the earlier echo, when replying twice', async () => {
+    // The echo carries a contextValue so it can be recognised; treating it as
+    // the comment being answered would quote our own local copy back and hide
+    // which server comment the reply belongs to.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: 'first reply' });
+    await replyCommand()({ thread, text: 'second reply' });
+
+    expect(state.issueComments).toHaveLength(2);
+    // The newest reply opens the body; the quote it carries is the server
+    // comment's, and never our own earlier echo.
+    expect(state.issueComments[1].body.split('\n')[0]).toBe('second reply');
+    expect(state.issueComments[1].body).toContain('> first line');
+    expect(state.issueComments[1].body).not.toContain('first reply');
+    expect(echoedComments(thread)).toHaveLength(2);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('re-applies the echo after a refresh without duplicating it', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: '111' });
+    const postedBody = state.issueComments[0].body;
+    expect(echoedComments(thread)).toHaveLength(1);
+
+    // The refresh path the PR detail page and every mutation use: reload the
+    // reviews and re-render every open document of the pull request. The
+    // threads are rebuilt from review data, which never carries the reply.
+    const textDocuments = (vscode.workspace as unknown as { textDocuments: unknown[] }).textDocuments;
+    textDocuments.push(document);
+    try {
+      await refresh(controller);
+      await refresh(controller);
+    } finally {
+      textDocuments.length = 0;
+    }
+
+    expect(thread.dispose).not.toHaveBeenCalled();
+    expect(thread.comments).toHaveLength(2);
+    const echoes = echoedComments(thread);
+    expect(echoes).toHaveLength(1);
+    expect(echoes[0].body.value).toBe(postedBody);
+    expect(echoes[0].contextValue).toBe('forgejo-timeline-reply:0');
+    controller.dispose();
+  });
+
+  it('re-applies the echo when the thread is rebuilt from scratch', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: '111' });
+    const postedBody = state.issueComments[0].body;
+
+    // Closing the document disposes the thread; re-opening it rebuilds a new
+    // one from review data. The echo has to come back with it.
+    closeDocument(document);
+    expect(thread.dispose).toHaveBeenCalled();
+    await openDocument(document);
+
+    const rebuilt = state.createdThreads[1];
+    expect(rebuilt).not.toBe(thread);
+    const echoes = echoedComments(rebuilt);
+    expect(echoes).toHaveLength(1);
+    expect(echoes[0].body.value).toBe(postedBody);
+    controller.dispose();
+  });
+
+  it('never re-posts or writes anything when the echo is re-applied', async () => {
+    // The echo is local-only: a refresh re-renders threads, not the timeline,
+    // and must not send the remembered reply anywhere or touch a review.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: '111' });
+    expect(state.issueComments).toHaveLength(1);
+
+    const textDocuments = (vscode.workspace as unknown as { textDocuments: unknown[] }).textDocuments;
+    textDocuments.push(document);
+    try {
+      await refresh(controller);
+    } finally {
+      textDocuments.length = 0;
+    }
+
+    // Still exactly the one POST the user submitted, and no review write.
+    expect(state.issueComments).toHaveLength(1);
+    expect(state.reviewWrites).toEqual([]);
+    expect(echoedComments(thread)).toHaveLength(1);
+    controller.dispose();
+  });
+
+  it("keeps two threads' echoes apart", async () => {
+    // Two anchors in one file are two threads; each remembers its own replies,
+    // and a refresh re-applies each thread's own echo only.
+    state.comments = [
+      { id: 201, path: 'src/index.ts', position: 2, original_position: 0, body: 'note a', user: { login: 'reviewer' } },
+      { id: 202, path: 'src/index.ts', position: 3, original_position: 0, body: 'note b', user: { login: 'reviewer' } },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const document = makeDocument(false);
+    await openDocument(document);
+    expect(state.createdThreads).toHaveLength(2);
+    const [firstThread, secondThread] = state.createdThreads;
+
+    await replyCommand()({ thread: firstThread, text: 'answer to a' });
+    await replyCommand()({ thread: secondThread, text: 'answer to b' });
+
+    expect(echoedComments(firstThread)).toHaveLength(1);
+    expect(echoedComments(secondThread)).toHaveLength(1);
+    // Each body starts with its own reply, whichever thread it belongs to.
+    expect(echoedComments(firstThread)[0].body.value.split('\n')[0]).toBe('answer to a');
+    expect(echoedComments(secondThread)[0].body.value.split('\n')[0]).toBe('answer to b');
+    expect(echoedComments(firstThread)[0].body.value).not.toContain('answer to b');
+
+    const textDocuments = (vscode.workspace as unknown as { textDocuments: unknown[] }).textDocuments;
+    textDocuments.push(document);
+    try {
+      await refresh(controller);
+    } finally {
+      textDocuments.length = 0;
+    }
+
+    expect(echoedComments(firstThread)).toHaveLength(1);
+    expect(echoedComments(secondThread)).toHaveLength(1);
+    expect(echoedComments(firstThread)[0].body.value.split('\n')[0]).toBe('answer to a');
+    expect(echoedComments(secondThread)[0].body.value.split('\n')[0]).toBe('answer to b');
+    controller.dispose();
+  });
+
+  it('leaves an existing pending review untouched', async () => {
+    // Forgejo allows one pending review per user and pull request. The reply is
+    // a timeline comment, so even with a draft in progress it must not append
+    // to it (which used to hide the reply until the user submitted the review)
+    // and must not start a second one.
+    state.listReviews = [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }];
+    state.pendingReviewId = 77;
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'agreed' });
+
+    expect(state.issueComments).toHaveLength(1);
+    expect(state.issueComments[0].body).toContain('agreed');
+    expect(state.reviewWrites).toEqual([]);
+    controller.dispose();
+  });
+
+  it('revalidates a multi-line anchor range before posting', async () => {
+    // The range the thread covers is part of the revalidation: `position` and
+    // `extra_lines_count` must both still be lines of the diff, so a range whose
+    // tail left the diff is refused rather than truncated. The fixture's head
+    // side ends at line 4, so a range of 2..5 no longer fits.
+    state.comments = [{ id: 102, path: 'src/index.ts', position: 2, extra_lines_count: 3, body: 'range' }];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'ok' });
+
+    expect(state.issueComments).toEqual([]);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'This comment is no longer on a line within the pull request diff, so the reply was not posted',
+    );
+    controller.dispose();
+  });
+
+  it('posts when the whole anchor range is still inside the diff', async () => {
+    // The positive half of the range revalidation: a multi-line thread whose
+    // lines all still exist must go through, so the guard above cannot pass by
+    // refusing every ranged anchor.
+    state.comments = [
+      {
+        id: 105,
+        path: 'src/index.ts',
+        position: 2,
+        extra_lines_count: 1,
+        body: 'range',
+        user: { login: 'reviewer' },
+      },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'ok' });
+
+    expect(state.issueComments).toHaveLength(1);
+    expect(state.issueComments[0].body).toContain('@reviewer wrote in');
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('revalidates a base-side anchor against the base side of the diff', async () => {
+    // The side the thread carries decides which line table is checked: a
+    // base-side anchor is validated against the base file's lines, so a line
+    // that only exists on the head side is refused.
+    state.comments = [{ id: 103, path: 'src/index.ts', position: 0, original_position: 9, body: 'base' }];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(true));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'ok' });
+
+    expect(state.issueComments).toEqual([]);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'This comment is no longer on a line within the pull request diff, so the reply was not posted',
+    );
+    controller.dispose();
+  });
+
+  it('surfaces a failed POST, leaves no comment that looks posted and appends no echo', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+    const commentsBefore = [...(thread.comments as unknown[])];
+    state.issueCommentError = new Error('offline');
+
+    await replyCommand()({ thread, text: 'never lands' });
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Could not post the reply: offline');
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    expect(state.issueComments).toEqual([]);
+    expect(state.reviewWrites).toEqual([]);
+    // The thread keeps exactly what it had: the input still holds the reply,
+    // nothing was appended to it as if the post had succeeded, and no echo was
+    // remembered (a failed POST must not leave a phantom comment).
+    expect(thread.comments).toEqual(commentsBefore);
+    expect(echoedComments(thread)).toHaveLength(0);
+    controller.dispose();
+  });
+
+  it('refuses an anchor that is no longer on a diff line', async () => {
+    // The comment leaves the diff (a force-push, or a line that was rolled
+    // back): the reply must be refused, never relocated to a nearby line.
+    //
+    // The guard is over the thread's *anchor*, not over the comment's presence:
+    // `replyToComment` revalidates the thread's encoded path/line/side against
+    // the diff's own line tables, so the stale line is what has to be the one
+    // outside them. The fixture's head side ends at line 4, so line 9 is a line
+    // the diff no longer carries (the render still shows the thread: it only
+    // checks that the line exists in the document).
+    state.comments = [{ id: 104, path: 'src/index.ts', position: 9, original_position: 0, body: 'stale anchor' }];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    const thread = state.createdThreads[0];
+
+    await replyCommand()({ thread, text: 'hello' });
+
+    expect(state.issueComments).toEqual([]);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'This comment is no longer on a line within the pull request diff, so the reply was not posted',
+    );
+    controller.dispose();
+  });
+
+  it('ignores a reply submitted with an empty body', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: '   ' });
+
+    expect(state.issueComments).toEqual([]);
+    expect(state.reviewWrites).toEqual([]);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('ignores a thread that is not one of ours', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    await replyCommand()({ thread: { contextValue: 'someone-elses-thread', comments: [] }, text: 'hi' });
+
+    expect(state.issueComments).toEqual([]);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('does not require the AI pre-review switch to reply', async () => {
+    // A reply is the user's own action, not the AI feature: the AI settings are
+    // off (the config manager exposes none) and the reply must still go out.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+
+    await replyCommand()({ thread: state.createdThreads[0], text: 'manual' });
+
+    expect(state.issueComments).toHaveLength(1);
+    // Reply-first: the user's own words open the body, with the quote after them.
+    expect(state.issueComments[0].body.split('\n')[0]).toBe('manual');
+    expect(state.issueComments[0].body).toContain('\n\n@reviewer wrote in');
+    controller.dispose();
   });
 });

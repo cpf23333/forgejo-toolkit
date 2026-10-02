@@ -275,13 +275,22 @@ function uriArgumentOf(value: unknown): unknown {
   return candidate.uri;
 }
 
-/** Same contract as `src/commands/index.ts`'s `sameDocumentUri`. */
+/**
+ * Same contract as `src/commands/index.ts`'s `sameDocumentUri`, including the
+ * query: a diff editor's two sides share scheme and path and differ only in the
+ * query (`isBase`/`ref`), so matching on the path alone resolved whichever side
+ * `visibleTextEditors` listed first and validated the anchors against the other
+ * side's line table.
+ */
 function sameDocumentUri(a: vscode.Uri, b: unknown): boolean {
   if (!b || typeof b !== 'object') {
     return false;
   }
   const candidate = b as Partial<vscode.Uri>;
   if (typeof candidate.scheme !== 'string' || candidate.scheme !== a.scheme) {
+    return false;
+  }
+  if ((candidate.authority ?? '') !== (a.authority ?? '') || (candidate.query ?? '') !== (a.query ?? '')) {
     return false;
   }
   const path = typeof candidate.path === 'string' ? candidate.path : candidate.fsPath;
@@ -3570,12 +3579,9 @@ interface WriteOutcome {
  * Writes the confirmed comments as pending-review drafts (§6.4, §4.2).
  *
  * The first comment either reuses the user's existing PENDING review or creates
- * one (`createPendingPullReview`, whose placeholder body the draft carries until
- * the user submits — that is the existing interactive path's behaviour, not
- * something this feature adds); the rest are appended. A failure part-way
- * through stops the run and **keeps** what was already written, because those
- * are real server objects and deleting them would be an irreversible second
- * write.
+ * one; the rest are appended. A failure part-way through stops the run and
+ * **keeps** what was already written, because those are real server objects and
+ * deleting them would be an irreversible second write.
  *
  * Exported as a pure-ish seam: it takes the pending review id it must act on
  * rather than looking it up, so the append and create branches can be exercised

@@ -292,6 +292,28 @@ The guarantees that were true of the quick pick are still true, and now they are
 
 The rest of the acceptance run verified the channel handling end to end: the probe answered `true` again, the run's answer came from the **text** candidate (not from the reasoning parts, and not from the `text` projection), and accepting the list created exactly one **PENDING** review carrying its comments — nothing was submitted.
 
+## A reply is echoed into the commenting thread only until the window reloads
+
+Replying to a review comment in the diff editor posts an ordinary pull request comment (the issue-comment endpoint), the same write Forgejo's own web UI makes when you answer a comment. That is what makes the reply visible in the pull request timeline immediately, with no review to submit — and it is also why the diff thread, which renders **review** comments, cannot get the reply back from the server: on Forgejo a review comment and a timeline comment are different objects, so no read returns it as part of the thread.
+
+What the user sees now: on a successful POST the extension appends the reply to the thread it was written in, below that thread's comments, marked **Posted to the pull request timeline** and rendered read-only. The reply remains an ordinary timeline comment, visible to everyone on the pull request (the Forgejo web UI, or this extension's pull request detail page), and the extension also reports "Reply posted as a comment on the pull request timeline.". Refreshing the pull request re-applies the echo, so it survives a re-render of the threads.
+
+The limitation: the echo is local and lives for the current extension session only. After a window reload the thread is rebuilt from review data and no longer shows it, because the reply is not review data — the reply itself is still on the timeline. The echo is a rendering aid, not a server object: it is never written back, re-posted, counted or sent anywhere, and it changes nothing about what the thread believes the server holds.
+
+Why this is accepted rather than fixed: making the echo survive a reload would mean putting the reply in a server-side object the thread renders. The only candidates are the user's pending review — the behaviour this replaced, where the reply stays invisible until the user submits that review and picks a verdict (`COMMENT` / `APPROVE` / `REQUEST_CHANGES`), so a conversation reply turns into review content and shares the single pending-review slot with the AI pre-review's drafts — or posting the reply a second time as a real review comment, which would duplicate it on the web and add a comment the user never wrote.
+
+Workaround: after a reload, open the pull request's **Conversation** view (or this extension's pull request detail page) to see the reply; the quote in its body links back to the comment it answers.
+
+## An instance home-feed activity row shows only the first line of a comment body
+
+The instance home activity feed does not render comment bodies: it renders the excerpt **stored on the activity row**, and that stored excerpt is the comment body's **first line** (split on `\n`, hard-truncated with `…` at roughly 190 characters). So a reply whose body begins with a quote of the comment it answers — which is how Forgejo's own web-UI quote reply composes one — shows that quote in the feed row, and the words the person actually wrote, which sit below the quote, are not shown there at all. It is a display limit of the feed row, not a truncation of the comment: the whole reply is on the pull request timeline, and every other reader of a comment body sees all of it.
+
+Measured on this project's instance (the activities feed of the pull request): activity row 580 for a timeline reply whose body began with the quote stores only its first line (`> @user wrote in …:`), activity row 582 for a reply composed in Forgejo's own web UI stores only its attribution line (`@user wrote in …:`), and activity row 581 for a reply whose body carried no quote at all stores that text. The platform's own quoted replies therefore read as their quote or attribution line there too.
+
+Why this is not fixed here: the excerpt is written by the server when the activity row is created, and the feed template renders that excerpt rather than the comment body, so no shape the API client sends for a comment can change how the row's excerpt is derived. It is also a snapshot of that moment: editing the comment afterwards does not refresh the row, and nothing makes the excerpt start at a later line or drop the quote. The extension's own replies work with it instead of against it: they put your text on the body's first line, so the feed row shows your words and the quote follows them.
+
+Workaround for a reply composed in the Forgejo web UI: type your answer above the quoted block before posting (the composer prefills the quote first), or read the reply on the pull request's timeline, where the full body always is.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

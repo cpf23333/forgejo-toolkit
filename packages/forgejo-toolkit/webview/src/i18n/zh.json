@@ -381,6 +381,8 @@
       "reactionFailed": "反应操作失败：{message}",
       "commentsAndTimeline": "评论 & 时间线",
       "commits": "提交",
+      "singleCommitSummary": "1 个提交 · {sha} · {subject}",
+      "openCommit": "在浏览器打开提交",
       "noComments": "暂无评论",
       "showMoreComments": "再显示 {count} 项",
       "forcePushed": "强制推送",

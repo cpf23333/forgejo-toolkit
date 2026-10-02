@@ -222,8 +222,10 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 - **行号必须落在 diff 内**：`pullReviewCommentController.addComment` 用
   `parsePullDiff`（`src/utils/parseDiff.ts`）拿到该文件的 `baseLines` / `headLines`
   （`Map<0-based 行号, 'added' | 'deleted' | 'context'>`），并断言
-  `sideLines.get(line)` 存在（多行时还要 `line + extraLinesCount` 存在），否则报
-  "Comments can only be added to lines within the pull request diff"。
+  `sideLines.get(line)` 存在（多行时还要 `line + extraLinesCount` 存在）：锚点行不在表里时报
+  "Comments can only be added to lines within the pull request diff"，而锚点在表里、只有多行区间的末行
+  越界时改为点名那一行（"The selection reaches line {0}, which is outside the pull request diff"），
+  免得用户看着光标下的改动行读不懂那句笼统的拒绝。
   **这正是 §8 校验器要复用的判定**：模型给的行号如果不在这张表里，就是无效锚点。
 
 ### 4.4 现在缺的那一段

@@ -211,6 +211,7 @@
 - [x] 源码位置：`routers/api/v1/repo/issue_comment.go:357-422`
 - [x] 差异记录：无
 - [x] MCP 写工具 `create_issue_comment`（`mcp/tools.ts`）是这条端点的**写侧**调用点，经 `ForgejoClient.createIssueComment`（`src/api/client.ts`）发起；它不做服务端幂等（Forgejo 没有幂等键概念），重复调用就重复创建，客户端侧的幂等键与审计见 `docs/architecture/mcp-server.md` 的「Write tools」一节
+- [x] 第二个写侧调用点是 PR 行级评审评论的**回复**（`src/comments/pullReviewCommentController.ts` 的 `replyToComment`，同样经 `createIssueComment`，2026-10-02 起）：回复是 PR 时间线里的普通评论，正是这条端点让"Gitea/Forgejo 的 PR 就是 issue"这件事直接可用；它不需要 `write:issue` 之外的权限，也不经过任何 review 端点
 - [x] 上述 MCP 调用点所需 scope 为 `write:issue`：token 缺该 scope 时服务端返回 403（`Permission denied. The access token may lack the required scope.`），而 MCP 子进程 / 宿主侧 toast 在无头路径是 no-op，因此工具结果文本本身必须带出该信息（`mcp/__tests__/server.test.ts` 锁定）
 
 ### `PATCH /repos/{owner}/{repo}/issues/comments/{id}`
