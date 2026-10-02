@@ -17,8 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      `## [<version>] - <date>` and opens a fresh `## [Unreleased]` (post-release
      step of the checklist in `docs/release.md`). -->
 
-## [Unreleased]
-
+## [0.1.1] - 2026-10-02
 ### Changed
 
 - The extension is bundled by the same Rolldown engine that already builds the
