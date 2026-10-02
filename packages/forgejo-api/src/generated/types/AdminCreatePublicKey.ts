@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateKeyOption } from './CreateKeyOption';
 import type { PublicKey } from './PublicKey';
 
-export type AdminCreatePublicKeyPathParams = {
+export type AdminCreatePublicKeyPath = {
   /**
    * @description username of the user
    * @type string
@@ -17,27 +17,78 @@ export type AdminCreatePublicKeyPathParams = {
 };
 
 /**
- * @description PublicKey
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type AdminCreatePublicKey201 = PublicKey;
+export type AdminCreatePublicKeyStatus201Json = PublicKey;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type AdminCreatePublicKey403 = APIForbiddenError;
+export type AdminCreatePublicKeyStatus201Html = PublicKey;
+
+export type AdminCreatePublicKeyStatus201 = AdminCreatePublicKeyStatus201Json | AdminCreatePublicKeyStatus201Html;
+
+export type AdminCreatePublicKeyStatus403Json = APIForbiddenError;
+
+export type AdminCreatePublicKeyStatus403Html = APIForbiddenError;
+
+export type AdminCreatePublicKeyStatus403 = AdminCreatePublicKeyStatus403Json | AdminCreatePublicKeyStatus403Html;
+
+export type AdminCreatePublicKeyStatus422Json = APIValidationError;
+
+export type AdminCreatePublicKeyStatus422Html = APIValidationError;
+
+export type AdminCreatePublicKeyStatus422 = AdminCreatePublicKeyStatus422Json | AdminCreatePublicKeyStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateKeyOption options when creating a key
+ * @type object | undefined
  */
-export type AdminCreatePublicKey422 = APIValidationError;
+export type AdminCreatePublicKeyBody = CreateKeyOption | undefined;
 
-export type AdminCreatePublicKeyMutationRequest = CreateKeyOption;
-
-export type AdminCreatePublicKeyMutationResponse = AdminCreatePublicKey201;
-
-export type AdminCreatePublicKeyMutation = {
-  Response: AdminCreatePublicKey201;
-  Request: AdminCreatePublicKeyMutationRequest;
-  PathParams: AdminCreatePublicKeyPathParams;
-  Errors: AdminCreatePublicKey403 | AdminCreatePublicKey422;
+export type AdminCreatePublicKeyOptions = {
+  body: AdminCreatePublicKeyBody;
+  path: AdminCreatePublicKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreatePublicKeyResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreatePublicKeyStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreatePublicKeyStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreatePublicKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreatePublicKeyStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreatePublicKeyStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreatePublicKeyStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreatePublicKeyResponse =
+  | AdminCreatePublicKeyStatus201
+  | AdminCreatePublicKeyStatus403
+  | AdminCreatePublicKeyStatus422;

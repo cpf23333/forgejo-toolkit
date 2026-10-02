@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminSearchEmailsQueryResponse, AdminSearchEmails403 } from '../types/AdminSearchEmails';
+import type { AdminSearchEmailsResponse, AdminSearchEmailsStatus403 } from '../types/AdminSearchEmails';
 import { http } from 'msw';
 
-export function adminSearchEmailsHandlerResponse200(data: AdminSearchEmailsQueryResponse) {
+export function adminSearchEmailsHandlerResponse200(data: AdminSearchEmailsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminSearchEmailsHandlerResponse200(data: AdminSearchEmailsQuery
   });
 }
 
-export function adminSearchEmailsHandlerResponse403(data: AdminSearchEmails403) {
+export function adminSearchEmailsHandlerResponse403(data: AdminSearchEmailsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminSearchEmailsHandlerResponse403(data: AdminSearchEmails403) 
 
 export function adminSearchEmailsHandler(
   data?:
-    | AdminSearchEmailsQueryResponse
+    | AdminSearchEmailsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/emails/search`, function handler(info) {

@@ -6,28 +6,65 @@
 import type { APINotFound } from './APINotFound';
 import type { Team } from './Team';
 
-export type OrgGetTeamPathParams = {
+export type OrgGetTeamPath = {
   /**
    * @description id of the team to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Team
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgGetTeam200 = Team;
+export type OrgGetTeamStatus200Json = Team;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgGetTeam404 = APINotFound;
+export type OrgGetTeamStatus200Html = Team;
 
-export type OrgGetTeamQueryResponse = OrgGetTeam200;
+export type OrgGetTeamStatus200 = OrgGetTeamStatus200Json | OrgGetTeamStatus200Html;
 
-export type OrgGetTeamQuery = {
-  Response: OrgGetTeam200;
-  PathParams: OrgGetTeamPathParams;
-  Errors: OrgGetTeam404;
+export type OrgGetTeamStatus404Json = APINotFound;
+
+export type OrgGetTeamStatus404Html = APINotFound;
+
+export type OrgGetTeamStatus404 = OrgGetTeamStatus404Json | OrgGetTeamStatus404Html;
+
+export type OrgGetTeamOptions = {
+  body?: never;
+  path: OrgGetTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetTeamResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetTeamStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetTeamStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetTeamStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetTeamResponse = OrgGetTeamStatus200 | OrgGetTeamStatus404;

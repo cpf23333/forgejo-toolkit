@@ -5,42 +5,26 @@
 
 /**
  * @description CreatePullRequestOption options when creating a pull request
+ * @type object
  */
 export type CreatePullRequestOption = {
-  /**
-   * @type string | undefined
-   */
   assignee?: string;
-  /**
-   * @type array | undefined
-   */
   assignees?: string[];
-  /**
-   * @type string | undefined
-   */
   base?: string;
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
-  /**
-   * @type string | undefined
-   */
   head?: string;
-  /**
-   * @type array | undefined
-   */
   labels?: number[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   milestone?: number;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

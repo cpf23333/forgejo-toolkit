@@ -4,13 +4,13 @@
  */
 
 import type {
-  AdminListUserAccessTokensQueryResponse,
-  AdminListUserAccessTokens403,
-  AdminListUserAccessTokens404,
+  AdminListUserAccessTokensResponse,
+  AdminListUserAccessTokensStatus403,
+  AdminListUserAccessTokensStatus404,
 } from '../types/AdminListUserAccessTokens';
 import { http } from 'msw';
 
-export function adminListUserAccessTokensHandlerResponse200(data: AdminListUserAccessTokensQueryResponse) {
+export function adminListUserAccessTokensHandlerResponse200(data: AdminListUserAccessTokensResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function adminListUserAccessTokensHandlerResponse200(data: AdminListUserA
   });
 }
 
-export function adminListUserAccessTokensHandlerResponse403(data: AdminListUserAccessTokens403) {
+export function adminListUserAccessTokensHandlerResponse403(data: AdminListUserAccessTokensStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function adminListUserAccessTokensHandlerResponse403(data: AdminListUserA
   });
 }
 
-export function adminListUserAccessTokensHandlerResponse404(data: AdminListUserAccessTokens404) {
+export function adminListUserAccessTokensHandlerResponse404(data: AdminListUserAccessTokensStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function adminListUserAccessTokensHandlerResponse404(data: AdminListUserA
 
 export function adminListUserAccessTokensHandler(
   data?:
-    | AdminListUserAccessTokensQueryResponse
+    | AdminListUserAccessTokensResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users/:username/tokens`, function handler(info) {

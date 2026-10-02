@@ -4,19 +4,19 @@
  */
 
 import type {
-  DeleteRepoSecretMutationResponse,
-  DeleteRepoSecret400,
-  DeleteRepoSecret404,
+  DeleteRepoSecretResponse,
+  DeleteRepoSecretStatus400,
+  DeleteRepoSecretStatus404,
 } from '../types/DeleteRepoSecret';
 import { http } from 'msw';
 
-export function deleteRepoSecretHandlerResponse204(data?: DeleteRepoSecretMutationResponse) {
+export function deleteRepoSecretHandlerResponse204(data?: DeleteRepoSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteRepoSecretHandlerResponse400(data: DeleteRepoSecret400) {
+export function deleteRepoSecretHandlerResponse400(data: DeleteRepoSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function deleteRepoSecretHandlerResponse400(data: DeleteRepoSecret400) {
   });
 }
 
-export function deleteRepoSecretHandlerResponse404(data: DeleteRepoSecret404) {
+export function deleteRepoSecretHandlerResponse404(data: DeleteRepoSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

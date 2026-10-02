@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetActionsRunQueryResponse } from '../types/GetActionsRun';
+import type { GetActionsRunResponse } from '../types/GetActionsRun';
 import { http } from 'msw';
 
-export function getActionsRunHandlerResponse200(data: GetActionsRunQueryResponse) {
+export function getActionsRunHandlerResponse200(data: GetActionsRunResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function getActionsRunHandlerResponse200(data: GetActionsRunQueryResponse
 
 export function getActionsRunHandler(
   data?:
-    | GetActionsRunQueryResponse
+    | GetActionsRunResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/actions/run`, function handler(info) {

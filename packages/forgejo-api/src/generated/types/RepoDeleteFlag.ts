@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteFlagPathParams = {
+export type RepoDeleteFlagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoDeleteFlagPathParams = {
   flag: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteFlag204 = any;
+export type RepoDeleteFlagStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeleteFlag403 = APIForbiddenError;
+export type RepoDeleteFlagStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteFlag404 = APINotFound;
+export type RepoDeleteFlagStatus403Html = APIForbiddenError;
 
-export type RepoDeleteFlagMutationResponse = RepoDeleteFlag204;
+export type RepoDeleteFlagStatus403 = RepoDeleteFlagStatus403Json | RepoDeleteFlagStatus403Html;
 
-export type RepoDeleteFlagMutation = {
-  Response: RepoDeleteFlag204;
-  PathParams: RepoDeleteFlagPathParams;
-  Errors: RepoDeleteFlag403 | RepoDeleteFlag404;
+export type RepoDeleteFlagStatus404Json = APINotFound;
+
+export type RepoDeleteFlagStatus404Html = APINotFound;
+
+export type RepoDeleteFlagStatus404 = RepoDeleteFlagStatus404Json | RepoDeleteFlagStatus404Html;
+
+export type RepoDeleteFlagOptions = {
+  body?: never;
+  path: RepoDeleteFlagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteFlagResponses = {
+  '204': RepoDeleteFlagStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFlagStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFlagStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFlagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFlagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteFlagResponse = RepoDeleteFlagStatus204 | RepoDeleteFlagStatus403 | RepoDeleteFlagStatus404;

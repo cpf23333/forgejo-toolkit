@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetRawFileOrLFSQueryResponse,
-  RepoGetRawFileOrLFSPathParams,
-  RepoGetRawFileOrLFSQueryParams,
-  RepoGetRawFileOrLFS404,
-} from '../types/RepoGetRawFileOrLFS';
-
-function getRepoGetRawFileOrLFSUrl(
-  owner: RepoGetRawFileOrLFSPathParams['owner'],
-  repo: RepoGetRawFileOrLFSPathParams['repo'],
-  filepath: RepoGetRawFileOrLFSPathParams['filepath'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/media/${filepath}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetRawFileOrLFSOptions, RepoGetRawFileOrLFSResponses } from '../types/RepoGetRawFileOrLFS';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a file or it's LFS object from a repository
  * {@link /repos/:owner/:repo/media/:filepath}
  */
-export async function repoGetRawFileOrLFS(
-  owner: RepoGetRawFileOrLFSPathParams['owner'],
-  repo: RepoGetRawFileOrLFSPathParams['repo'],
-  filepath: RepoGetRawFileOrLFSPathParams['filepath'],
-  params?: RepoGetRawFileOrLFSQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetRawFileOrLFS<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetRawFileOrLFSOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetRawFileOrLFSResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetRawFileOrLFSQueryResponse, ResponseErrorConfig<RepoGetRawFileOrLFS404>, unknown>({
-    method: 'GET',
-    url: getRepoGetRawFileOrLFSUrl(owner, repo, filepath).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/media/{filepath}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetRawFileOrLFSResponses, ThrowOnError>>;
 }

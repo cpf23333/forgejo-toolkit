@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { IssueGetMilestoneQueryResponse, IssueGetMilestone404 } from '../types/IssueGetMilestone';
+import type { IssueGetMilestoneResponse, IssueGetMilestoneStatus404 } from '../types/IssueGetMilestone';
 import { http } from 'msw';
 
-export function issueGetMilestoneHandlerResponse200(data: IssueGetMilestoneQueryResponse) {
+export function issueGetMilestoneHandlerResponse200(data: IssueGetMilestoneResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function issueGetMilestoneHandlerResponse200(data: IssueGetMilestoneQuery
   });
 }
 
-export function issueGetMilestoneHandlerResponse404(data: IssueGetMilestone404) {
+export function issueGetMilestoneHandlerResponse404(data: IssueGetMilestoneStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function issueGetMilestoneHandlerResponse404(data: IssueGetMilestone404) 
 
 export function issueGetMilestoneHandler(
   data?:
-    | IssueGetMilestoneQueryResponse
+    | IssueGetMilestoneResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/milestones/:id`, function handler(info) {

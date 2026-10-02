@@ -3,49 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteActionRunMutationResponse,
-  DeleteActionRunPathParams,
-  DeleteActionRun400,
-  DeleteActionRun403,
-  DeleteActionRun404,
-} from '../types/DeleteActionRun';
-
-function getDeleteActionRunUrl(
-  owner: DeleteActionRunPathParams['owner'],
-  repo: DeleteActionRunPathParams['repo'],
-  run_id: DeleteActionRunPathParams['run_id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteActionRunOptions, DeleteActionRunResponses } from '../types/DeleteActionRun';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description Remove a particular workflow run. The workflow run must have completed (succeeded, failed, cancelled) for the operation to succeed. Otherwise, an error is returned.
  * @summary Delete a completed workflow run.
  * {@link /repos/:owner/:repo/actions/runs/:run_id}
  */
-export async function deleteActionRun(
-  owner: DeleteActionRunPathParams['owner'],
-  repo: DeleteActionRunPathParams['repo'],
-  run_id: DeleteActionRunPathParams['run_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteActionRun<ThrowOnError extends boolean = true>(
+  options: Options<DeleteActionRunOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteActionRunResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteActionRunMutationResponse,
-    ResponseErrorConfig<DeleteActionRun400 | DeleteActionRun403 | DeleteActionRun404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteActionRunUrl(owner, repo, run_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteActionRunResponses, ThrowOnError>>;
 }

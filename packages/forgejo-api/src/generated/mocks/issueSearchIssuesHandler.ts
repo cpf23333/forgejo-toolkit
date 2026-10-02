@@ -4,13 +4,13 @@
  */
 
 import type {
-  IssueSearchIssuesQueryResponse,
-  IssueSearchIssues400,
-  IssueSearchIssues422,
+  IssueSearchIssuesResponse,
+  IssueSearchIssuesStatus400,
+  IssueSearchIssuesStatus422,
 } from '../types/IssueSearchIssues';
 import { http } from 'msw';
 
-export function issueSearchIssuesHandlerResponse200(data: IssueSearchIssuesQueryResponse) {
+export function issueSearchIssuesHandlerResponse200(data: IssueSearchIssuesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function issueSearchIssuesHandlerResponse200(data: IssueSearchIssuesQuery
   });
 }
 
-export function issueSearchIssuesHandlerResponse400(data: IssueSearchIssues400) {
+export function issueSearchIssuesHandlerResponse400(data: IssueSearchIssuesStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function issueSearchIssuesHandlerResponse400(data: IssueSearchIssues400) 
   });
 }
 
-export function issueSearchIssuesHandlerResponse422(data: IssueSearchIssues422) {
+export function issueSearchIssuesHandlerResponse422(data: IssueSearchIssuesStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -39,7 +39,7 @@ export function issueSearchIssuesHandlerResponse422(data: IssueSearchIssues422) 
 
 export function issueSearchIssuesHandler(
   data?:
-    | IssueSearchIssuesQueryResponse
+    | IssueSearchIssuesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/issues/search`, function handler(info) {

@@ -4,14 +4,16 @@
  */
 
 import type {
-  AdminCreateUserMutationResponse,
-  AdminCreateUser400,
-  AdminCreateUser403,
-  AdminCreateUser422,
+  AdminCreateUserResponse,
+  AdminCreateUserStatus400,
+  AdminCreateUserStatus403,
+  AdminCreateUserStatus422,
+  AdminCreateUserBody,
 } from '../types/AdminCreateUser';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateUserHandlerResponse201(data: AdminCreateUserMutationResponse) {
+export function adminCreateUserHandlerResponse201(data: AdminCreateUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function adminCreateUserHandlerResponse201(data: AdminCreateUserMutationR
   });
 }
 
-export function adminCreateUserHandlerResponse400(data: AdminCreateUser400) {
+export function adminCreateUserHandlerResponse400(data: AdminCreateUserStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function adminCreateUserHandlerResponse400(data: AdminCreateUser400) {
   });
 }
 
-export function adminCreateUserHandlerResponse403(data: AdminCreateUser403) {
+export function adminCreateUserHandlerResponse403(data: AdminCreateUserStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function adminCreateUserHandlerResponse403(data: AdminCreateUser403) {
   });
 }
 
-export function adminCreateUserHandlerResponse422(data: AdminCreateUser422) {
+export function adminCreateUserHandlerResponse422(data: AdminCreateUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,11 +50,9 @@ export function adminCreateUserHandlerResponse422(data: AdminCreateUser422) {
 }
 
 export function adminCreateUserHandler(
-  data?:
-    | AdminCreateUserMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateUserResponse | HttpResponseResolver<Record<string, string>, AdminCreateUserBody>,
 ) {
-  return http.post(`/admin/users`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateUserBody>(`/admin/users`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

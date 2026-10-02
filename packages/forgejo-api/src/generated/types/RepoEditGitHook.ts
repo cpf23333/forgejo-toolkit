@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditGitHookOption } from './EditGitHookOption';
 import type { GitHook } from './GitHook';
 
-export type RepoEditGitHookPathParams = {
+export type RepoEditGitHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,22 +26,68 @@ export type RepoEditGitHookPathParams = {
 };
 
 /**
- * @description GitHook
+ * @description GitHook represents a Git repository hook
+ * @type object
  */
-export type RepoEditGitHook200 = GitHook;
+export type RepoEditGitHookStatus200Json = GitHook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description GitHook represents a Git repository hook
+ * @type object
  */
-export type RepoEditGitHook404 = APINotFound;
+export type RepoEditGitHookStatus200Html = GitHook;
 
-export type RepoEditGitHookMutationRequest = EditGitHookOption;
+export type RepoEditGitHookStatus200 = RepoEditGitHookStatus200Json | RepoEditGitHookStatus200Html;
 
-export type RepoEditGitHookMutationResponse = RepoEditGitHook200;
+export type RepoEditGitHookStatus404Json = APINotFound;
 
-export type RepoEditGitHookMutation = {
-  Response: RepoEditGitHook200;
-  Request: RepoEditGitHookMutationRequest;
-  PathParams: RepoEditGitHookPathParams;
-  Errors: RepoEditGitHook404;
+export type RepoEditGitHookStatus404Html = APINotFound;
+
+export type RepoEditGitHookStatus404 = RepoEditGitHookStatus404Json | RepoEditGitHookStatus404Html;
+
+/**
+ * @description EditGitHookOption options when modifying one Git hook
+ * @type object | undefined
+ */
+export type RepoEditGitHookBodyJson = EditGitHookOption | undefined;
+
+/**
+ * @description EditGitHookOption options when modifying one Git hook
+ * @type object | undefined
+ */
+export type RepoEditGitHookBodyPlain = EditGitHookOption | undefined;
+
+export type RepoEditGitHookBody = RepoEditGitHookBodyJson | RepoEditGitHookBodyPlain;
+
+export type RepoEditGitHookOptions = {
+  body: RepoEditGitHookBody;
+  path: RepoEditGitHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditGitHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditGitHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditGitHookStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditGitHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditGitHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditGitHookResponse = RepoEditGitHookStatus200 | RepoEditGitHookStatus404;

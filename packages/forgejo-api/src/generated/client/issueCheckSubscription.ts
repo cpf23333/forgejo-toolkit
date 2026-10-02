@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueCheckSubscriptionQueryResponse,
-  IssueCheckSubscriptionPathParams,
-  IssueCheckSubscription404,
-} from '../types/IssueCheckSubscription';
-
-function getIssueCheckSubscriptionUrl(
-  owner: IssueCheckSubscriptionPathParams['owner'],
-  repo: IssueCheckSubscriptionPathParams['repo'],
-  index: IssueCheckSubscriptionPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/check` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueCheckSubscriptionOptions, IssueCheckSubscriptionResponses } from '../types/IssueCheckSubscription';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if user is subscribed to an issue
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/check}
  */
-export async function issueCheckSubscription(
-  owner: IssueCheckSubscriptionPathParams['owner'],
-  repo: IssueCheckSubscriptionPathParams['repo'],
-  index: IssueCheckSubscriptionPathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCheckSubscription<ThrowOnError extends boolean = true>(
+  options: Options<IssueCheckSubscriptionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCheckSubscriptionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueCheckSubscriptionQueryResponse,
-    ResponseErrorConfig<IssueCheckSubscription404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueCheckSubscriptionUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/subscriptions/check',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCheckSubscriptionResponses, ThrowOnError>>;
 }

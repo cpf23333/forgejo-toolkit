@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoListReleaseAttachmentsQueryResponse,
-  RepoListReleaseAttachments404,
+  RepoListReleaseAttachmentsResponse,
+  RepoListReleaseAttachmentsStatus404,
 } from '../types/RepoListReleaseAttachments';
 import { http } from 'msw';
 
-export function repoListReleaseAttachmentsHandlerResponse200(data: RepoListReleaseAttachmentsQueryResponse) {
+export function repoListReleaseAttachmentsHandlerResponse200(data: RepoListReleaseAttachmentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoListReleaseAttachmentsHandlerResponse200(data: RepoListRelea
   });
 }
 
-export function repoListReleaseAttachmentsHandlerResponse404(data: RepoListReleaseAttachments404) {
+export function repoListReleaseAttachmentsHandlerResponse404(data: RepoListReleaseAttachmentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoListReleaseAttachmentsHandlerResponse404(data: RepoListRelea
 
 export function repoListReleaseAttachmentsHandler(
   data?:
-    | RepoListReleaseAttachmentsQueryResponse
+    | RepoListReleaseAttachmentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/releases/:id/assets`, function handler(info) {

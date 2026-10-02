@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoCheckCollaboratorPathParams = {
+export type RepoCheckCollaboratorPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,53 @@ export type RepoCheckCollaboratorPathParams = {
   collaborator: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoCheckCollaborator204 = any;
+export type RepoCheckCollaboratorStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoCheckCollaborator404 = APINotFound;
+export type RepoCheckCollaboratorStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoCheckCollaborator422 = APIValidationError;
+export type RepoCheckCollaboratorStatus404Html = APINotFound;
 
-export type RepoCheckCollaboratorQueryResponse = RepoCheckCollaborator204;
+export type RepoCheckCollaboratorStatus404 = RepoCheckCollaboratorStatus404Json | RepoCheckCollaboratorStatus404Html;
 
-export type RepoCheckCollaboratorQuery = {
-  Response: RepoCheckCollaborator204;
-  PathParams: RepoCheckCollaboratorPathParams;
-  Errors: RepoCheckCollaborator404 | RepoCheckCollaborator422;
+export type RepoCheckCollaboratorStatus422Json = APIValidationError;
+
+export type RepoCheckCollaboratorStatus422Html = APIValidationError;
+
+export type RepoCheckCollaboratorStatus422 = RepoCheckCollaboratorStatus422Json | RepoCheckCollaboratorStatus422Html;
+
+export type RepoCheckCollaboratorOptions = {
+  body?: never;
+  path: RepoCheckCollaboratorPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCheckCollaboratorResponses = {
+  '204': RepoCheckCollaboratorStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckCollaboratorStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckCollaboratorStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckCollaboratorStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckCollaboratorStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCheckCollaboratorResponse =
+  | RepoCheckCollaboratorStatus204
+  | RepoCheckCollaboratorStatus404
+  | RepoCheckCollaboratorStatus422;

@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserDeleteHookMutationResponse,
-  UserDeleteHookPathParams,
-  UserDeleteHook401,
-  UserDeleteHook403,
-} from '../types/UserDeleteHook';
-
-function getUserDeleteHookUrl(id: UserDeleteHookPathParams['id']) {
-  const res = { method: 'DELETE', url: `/user/hooks/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserDeleteHookOptions, UserDeleteHookResponses } from '../types/UserDeleteHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a hook
  * {@link /user/hooks/:id}
  */
-export async function userDeleteHook(
-  id: UserDeleteHookPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userDeleteHook<ThrowOnError extends boolean = true>(
+  options: Options<UserDeleteHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserDeleteHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserDeleteHookMutationResponse,
-    ResponseErrorConfig<UserDeleteHook401 | UserDeleteHook403>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserDeleteHookUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserDeleteHookResponses, ThrowOnError>>;
 }

@@ -4,23 +4,20 @@
  */
 
 import type {
-  RepoGetActionRunLogsQueryResponse,
-  RepoGetActionRunLogs401,
-  RepoGetActionRunLogs403,
-  RepoGetActionRunLogs404,
+  RepoGetActionRunLogsResponse,
+  RepoGetActionRunLogsStatus401,
+  RepoGetActionRunLogsStatus403,
+  RepoGetActionRunLogsStatus404,
 } from '../types/RepoGetActionRunLogs';
 import { http } from 'msw';
 
-export function repoGetActionRunLogsHandlerResponse200(data: RepoGetActionRunLogsQueryResponse) {
+export function repoGetActionRunLogsHandlerResponse200(data?: RepoGetActionRunLogsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers: {
-      'Content-Type': 'application/zip',
-    },
   });
 }
 
-export function repoGetActionRunLogsHandlerResponse401(data: RepoGetActionRunLogs401) {
+export function repoGetActionRunLogsHandlerResponse401(data: RepoGetActionRunLogsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +26,7 @@ export function repoGetActionRunLogsHandlerResponse401(data: RepoGetActionRunLog
   });
 }
 
-export function repoGetActionRunLogsHandlerResponse403(data: RepoGetActionRunLogs403) {
+export function repoGetActionRunLogsHandlerResponse403(data: RepoGetActionRunLogsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +35,7 @@ export function repoGetActionRunLogsHandlerResponse403(data: RepoGetActionRunLog
   });
 }
 
-export function repoGetActionRunLogsHandlerResponse404(data: RepoGetActionRunLogs404) {
+export function repoGetActionRunLogsHandlerResponse404(data: RepoGetActionRunLogsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +46,11 @@ export function repoGetActionRunLogsHandlerResponse404(data: RepoGetActionRunLog
 
 export function repoGetActionRunLogsHandler(
   data?:
-    | RepoGetActionRunLogsQueryResponse
+    | string
+    | number
+    | boolean
+    | null
+    | object
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runs/:run_id/logs`, function handler(info) {
@@ -57,9 +58,6 @@ export function repoGetActionRunLogsHandler(
 
     return new Response(JSON.stringify(data), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/zip',
-      },
     });
   });
 }

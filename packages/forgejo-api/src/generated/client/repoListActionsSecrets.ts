@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListActionsSecretsQueryResponse,
-  RepoListActionsSecretsPathParams,
-  RepoListActionsSecretsQueryParams,
-  RepoListActionsSecrets404,
-} from '../types/RepoListActionsSecrets';
-
-function getRepoListActionsSecretsUrl(
-  owner: RepoListActionsSecretsPathParams['owner'],
-  repo: RepoListActionsSecretsPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/secrets` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListActionsSecretsOptions, RepoListActionsSecretsResponses } from '../types/RepoListActionsSecrets';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an repo's actions secrets
  * {@link /repos/:owner/:repo/actions/secrets}
  */
-export async function repoListActionsSecrets(
-  owner: RepoListActionsSecretsPathParams['owner'],
-  repo: RepoListActionsSecretsPathParams['repo'],
-  params?: RepoListActionsSecretsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListActionsSecrets<ThrowOnError extends boolean = true>(
+  options: Options<RepoListActionsSecretsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListActionsSecretsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListActionsSecretsQueryResponse,
-    ResponseErrorConfig<RepoListActionsSecrets404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListActionsSecretsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/secrets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListActionsSecretsResponses, ThrowOnError>>;
 }

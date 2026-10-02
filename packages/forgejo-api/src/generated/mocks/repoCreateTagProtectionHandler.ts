@@ -4,15 +4,17 @@
  */
 
 import type {
-  RepoCreateTagProtectionMutationResponse,
-  RepoCreateTagProtection403,
-  RepoCreateTagProtection404,
-  RepoCreateTagProtection422,
-  RepoCreateTagProtection423,
+  RepoCreateTagProtectionResponse,
+  RepoCreateTagProtectionStatus403,
+  RepoCreateTagProtectionStatus404,
+  RepoCreateTagProtectionStatus422,
+  RepoCreateTagProtectionStatus423,
+  RepoCreateTagProtectionBody,
 } from '../types/RepoCreateTagProtection';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateTagProtectionHandlerResponse201(data: RepoCreateTagProtectionMutationResponse) {
+export function repoCreateTagProtectionHandlerResponse201(data: RepoCreateTagProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function repoCreateTagProtectionHandlerResponse201(data: RepoCreateTagPro
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse403(data: RepoCreateTagProtection403) {
+export function repoCreateTagProtectionHandlerResponse403(data: RepoCreateTagProtectionStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -30,7 +32,7 @@ export function repoCreateTagProtectionHandlerResponse403(data: RepoCreateTagPro
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse404(data: RepoCreateTagProtection404) {
+export function repoCreateTagProtectionHandlerResponse404(data: RepoCreateTagProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +41,7 @@ export function repoCreateTagProtectionHandlerResponse404(data: RepoCreateTagPro
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse422(data: RepoCreateTagProtection422) {
+export function repoCreateTagProtectionHandlerResponse422(data: RepoCreateTagProtectionStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,7 +50,7 @@ export function repoCreateTagProtectionHandlerResponse422(data: RepoCreateTagPro
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse423(data: RepoCreateTagProtection423) {
+export function repoCreateTagProtectionHandlerResponse423(data: RepoCreateTagProtectionStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -58,18 +60,19 @@ export function repoCreateTagProtectionHandlerResponse423(data: RepoCreateTagPro
 }
 
 export function repoCreateTagProtectionHandler(
-  data?:
-    | RepoCreateTagProtectionMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateTagProtectionResponse | HttpResponseResolver<Record<string, string>, RepoCreateTagProtectionBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/tag_protections`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateTagProtectionBody>(
+    `/repos/:owner/:repo/tag_protections`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

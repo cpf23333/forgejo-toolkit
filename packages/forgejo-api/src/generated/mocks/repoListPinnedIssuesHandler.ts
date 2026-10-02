@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListPinnedIssuesQueryResponse, RepoListPinnedIssues404 } from '../types/RepoListPinnedIssues';
+import type { RepoListPinnedIssuesResponse, RepoListPinnedIssuesStatus404 } from '../types/RepoListPinnedIssues';
 import { http } from 'msw';
 
-export function repoListPinnedIssuesHandlerResponse200(data: RepoListPinnedIssuesQueryResponse) {
+export function repoListPinnedIssuesHandlerResponse200(data: RepoListPinnedIssuesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListPinnedIssuesHandlerResponse200(data: RepoListPinnedIssue
   });
 }
 
-export function repoListPinnedIssuesHandlerResponse404(data: RepoListPinnedIssues404) {
+export function repoListPinnedIssuesHandlerResponse404(data: RepoListPinnedIssuesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListPinnedIssuesHandlerResponse404(data: RepoListPinnedIssue
 
 export function repoListPinnedIssuesHandler(
   data?:
-    | RepoListPinnedIssuesQueryResponse
+    | RepoListPinnedIssuesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/pinned`, function handler(info) {

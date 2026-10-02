@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { AdminCronRunMutationResponse, AdminCronRun404 } from '../types/AdminCronRun';
+import type { AdminCronRunResponse, AdminCronRunStatus404 } from '../types/AdminCronRun';
 import { http } from 'msw';
 
-export function adminCronRunHandlerResponse204(data?: AdminCronRunMutationResponse) {
+export function adminCronRunHandlerResponse204(data?: AdminCronRunResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminCronRunHandlerResponse404(data: AdminCronRun404) {
+export function adminCronRunHandlerResponse404(data: AdminCronRunStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgGetRunnerRegistrationTokenQueryResponse } from '../types/OrgGetRunnerRegistrationToken';
+import type { OrgGetRunnerRegistrationTokenResponse } from '../types/OrgGetRunnerRegistrationToken';
 import { http } from 'msw';
 
-export function orgGetRunnerRegistrationTokenHandlerResponse200(data: OrgGetRunnerRegistrationTokenQueryResponse) {
+export function orgGetRunnerRegistrationTokenHandlerResponse200(data: OrgGetRunnerRegistrationTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function orgGetRunnerRegistrationTokenHandlerResponse200(data: OrgGetRunn
 
 export function orgGetRunnerRegistrationTokenHandler(
   data?:
-    | OrgGetRunnerRegistrationTokenQueryResponse
+    | OrgGetRunnerRegistrationTokenResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/runners/registration-token`, function handler(info) {

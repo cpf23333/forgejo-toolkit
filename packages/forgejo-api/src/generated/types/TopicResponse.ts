@@ -5,26 +5,32 @@
 
 /**
  * @description TopicResponse for returning topics
+ * @type object
  */
 export type TopicResponse = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_count?: number;
-  /**
-   * @type string | undefined
-   */
   topic_name?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated?: string;
 };

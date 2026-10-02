@@ -5,5 +5,6 @@
 
 /**
  * @description IssueFormFieldVisible defines issue form field visible
+ * @type string
  */
 export type IssueFormFieldVisible = string;

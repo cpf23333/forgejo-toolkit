@@ -5,10 +5,13 @@
 
 /**
  * @description IssueDeadline represents an issue deadline
+ * @type object
  */
 export type IssueDeadline = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
 };

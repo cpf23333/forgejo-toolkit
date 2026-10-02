@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type UnlinkPackagePathParams = {
+export type UnlinkPackagePath = {
   /**
    * @description owner of the package
    * @type string
@@ -23,20 +23,35 @@ export type UnlinkPackagePathParams = {
   name: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UnlinkPackage201 = any;
+export type UnlinkPackageStatus201 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UnlinkPackage404 = APINotFound;
+export type UnlinkPackageStatus404Json = APINotFound;
 
-export type UnlinkPackageMutationResponse = UnlinkPackage201;
+export type UnlinkPackageStatus404Html = APINotFound;
 
-export type UnlinkPackageMutation = {
-  Response: UnlinkPackage201;
-  PathParams: UnlinkPackagePathParams;
-  Errors: UnlinkPackage404;
+export type UnlinkPackageStatus404 = UnlinkPackageStatus404Json | UnlinkPackageStatus404Html;
+
+export type UnlinkPackageOptions = {
+  body?: never;
+  path: UnlinkPackagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type UnlinkPackageResponses = {
+  '201': UnlinkPackageStatus201;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UnlinkPackageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UnlinkPackageStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UnlinkPackageResponse = UnlinkPackageStatus201 | UnlinkPackageStatus404;

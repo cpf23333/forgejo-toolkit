@@ -3,52 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueCreateIssueDependenciesMutationRequest,
-  IssueCreateIssueDependenciesMutationResponse,
-  IssueCreateIssueDependenciesPathParams,
-  IssueCreateIssueDependencies404,
-  IssueCreateIssueDependencies423,
+  IssueCreateIssueDependenciesOptions,
+  IssueCreateIssueDependenciesResponses,
 } from '../types/IssueCreateIssueDependencies';
-
-function getIssueCreateIssueDependenciesUrl(
-  owner: IssueCreateIssueDependenciesPathParams['owner'],
-  repo: IssueCreateIssueDependenciesPathParams['repo'],
-  index: IssueCreateIssueDependenciesPathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/dependencies` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Make the issue in the url depend on the issue in the form.
  * {@link /repos/:owner/:repo/issues/:index/dependencies}
  */
-export async function issueCreateIssueDependencies(
-  owner: IssueCreateIssueDependenciesPathParams['owner'],
-  repo: IssueCreateIssueDependenciesPathParams['repo'],
-  index: IssueCreateIssueDependenciesPathParams['index'],
-  data?: IssueCreateIssueDependenciesMutationRequest,
-  config: Partial<RequestConfig<IssueCreateIssueDependenciesMutationRequest>> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCreateIssueDependencies<ThrowOnError extends boolean = true>(
+  options: Options<IssueCreateIssueDependenciesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCreateIssueDependenciesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueCreateIssueDependenciesMutationResponse,
-    ResponseErrorConfig<IssueCreateIssueDependencies404 | IssueCreateIssueDependencies423>,
-    IssueCreateIssueDependenciesMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueCreateIssueDependenciesUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/dependencies',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCreateIssueDependenciesResponses, ThrowOnError>>;
 }

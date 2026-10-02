@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RepoGetKeyQueryResponse, RepoGetKeyPathParams, RepoGetKey404 } from '../types/RepoGetKey';
-
-function getRepoGetKeyUrl(
-  owner: RepoGetKeyPathParams['owner'],
-  repo: RepoGetKeyPathParams['repo'],
-  id: RepoGetKeyPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/keys/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetKeyOptions, RepoGetKeyResponses } from '../types/RepoGetKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a repository's key by id
  * {@link /repos/:owner/:repo/keys/:id}
  */
-export async function repoGetKey(
-  owner: RepoGetKeyPathParams['owner'],
-  repo: RepoGetKeyPathParams['repo'],
-  id: RepoGetKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetKey<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetKeyQueryResponse, ResponseErrorConfig<RepoGetKey404>, unknown>({
-    method: 'GET',
-    url: getRepoGetKeyUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetKeyResponses, ThrowOnError>>;
 }

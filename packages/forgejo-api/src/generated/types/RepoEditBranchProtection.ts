@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { BranchProtection } from './BranchProtection';
 import type { EditBranchProtectionOption } from './EditBranchProtectionOption';
 
-export type RepoEditBranchProtectionPathParams = {
+export type RepoEditBranchProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -28,32 +28,102 @@ export type RepoEditBranchProtectionPathParams = {
 };
 
 /**
- * @description BranchProtection
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoEditBranchProtection200 = BranchProtection;
+export type RepoEditBranchProtectionStatus200Json = BranchProtection;
 
 /**
- * @description APINotFound is a not found error response
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoEditBranchProtection404 = APINotFound;
+export type RepoEditBranchProtectionStatus200Html = BranchProtection;
+
+export type RepoEditBranchProtectionStatus200 =
+  | RepoEditBranchProtectionStatus200Json
+  | RepoEditBranchProtectionStatus200Html;
+
+export type RepoEditBranchProtectionStatus404Json = APINotFound;
+
+export type RepoEditBranchProtectionStatus404Html = APINotFound;
+
+export type RepoEditBranchProtectionStatus404 =
+  | RepoEditBranchProtectionStatus404Json
+  | RepoEditBranchProtectionStatus404Html;
+
+export type RepoEditBranchProtectionStatus422Json = APIValidationError;
+
+export type RepoEditBranchProtectionStatus422Html = APIValidationError;
+
+export type RepoEditBranchProtectionStatus422 =
+  | RepoEditBranchProtectionStatus422Json
+  | RepoEditBranchProtectionStatus422Html;
+
+export type RepoEditBranchProtectionStatus423Json = APIRepoArchivedError;
+
+export type RepoEditBranchProtectionStatus423Html = APIRepoArchivedError;
+
+export type RepoEditBranchProtectionStatus423 =
+  | RepoEditBranchProtectionStatus423Json
+  | RepoEditBranchProtectionStatus423Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description EditBranchProtectionOption options for editing a branch protection
+ * @type object | undefined
  */
-export type RepoEditBranchProtection422 = APIValidationError;
+export type RepoEditBranchProtectionBody = EditBranchProtectionOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoEditBranchProtection423 = APIRepoArchivedError;
-
-export type RepoEditBranchProtectionMutationRequest = EditBranchProtectionOption;
-
-export type RepoEditBranchProtectionMutationResponse = RepoEditBranchProtection200;
-
-export type RepoEditBranchProtectionMutation = {
-  Response: RepoEditBranchProtection200;
-  Request: RepoEditBranchProtectionMutationRequest;
-  PathParams: RepoEditBranchProtectionPathParams;
-  Errors: RepoEditBranchProtection404 | RepoEditBranchProtection422 | RepoEditBranchProtection423;
+export type RepoEditBranchProtectionOptions = {
+  body: RepoEditBranchProtectionBody;
+  path: RepoEditBranchProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditBranchProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditBranchProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditBranchProtectionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditBranchProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditBranchProtectionStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoEditBranchProtectionStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditBranchProtectionStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoEditBranchProtectionStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditBranchProtectionStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditBranchProtectionResponse =
+  | RepoEditBranchProtectionStatus200
+  | RepoEditBranchProtectionStatus404
+  | RepoEditBranchProtectionStatus422
+  | RepoEditBranchProtectionStatus423;

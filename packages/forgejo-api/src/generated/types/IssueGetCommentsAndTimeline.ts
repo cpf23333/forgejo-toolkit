@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { TimelineComment } from './TimelineComment';
 
-export type IssueGetCommentsAndTimelinePathParams = {
+export type IssueGetCommentsAndTimelinePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,15 +21,19 @@ export type IssueGetCommentsAndTimelinePathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueGetCommentsAndTimelineQueryParams = {
+export type IssueGetCommentsAndTimelineQuery = {
   /**
    * @description if provided, only comments updated since the specified time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
@@ -44,36 +48,96 @@ export type IssueGetCommentsAndTimelineQueryParams = {
   limit?: number;
   /**
    * @description if provided, only comments updated before the provided time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
 };
 
-/**
- * @description TimelineList
- */
-export type IssueGetCommentsAndTimeline200 = TimelineComment[];
+export type IssueGetCommentsAndTimelineStatus200Json = TimelineComment[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetCommentsAndTimeline404 = APINotFound;
+export type IssueGetCommentsAndTimelineStatus200Html = TimelineComment[];
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueGetCommentsAndTimeline422 = APIValidationError;
+export type IssueGetCommentsAndTimelineStatus200 =
+  | IssueGetCommentsAndTimelineStatus200Json
+  | IssueGetCommentsAndTimelineStatus200Html;
 
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueGetCommentsAndTimeline500 = APIInternalServerError;
+export type IssueGetCommentsAndTimelineStatus404Json = APINotFound;
 
-export type IssueGetCommentsAndTimelineQueryResponse = IssueGetCommentsAndTimeline200;
+export type IssueGetCommentsAndTimelineStatus404Html = APINotFound;
 
-export type IssueGetCommentsAndTimelineQuery = {
-  Response: IssueGetCommentsAndTimeline200;
-  PathParams: IssueGetCommentsAndTimelinePathParams;
-  QueryParams: IssueGetCommentsAndTimelineQueryParams;
-  Errors: IssueGetCommentsAndTimeline404 | IssueGetCommentsAndTimeline422 | IssueGetCommentsAndTimeline500;
+export type IssueGetCommentsAndTimelineStatus404 =
+  | IssueGetCommentsAndTimelineStatus404Json
+  | IssueGetCommentsAndTimelineStatus404Html;
+
+export type IssueGetCommentsAndTimelineStatus422Json = APIValidationError;
+
+export type IssueGetCommentsAndTimelineStatus422Html = APIValidationError;
+
+export type IssueGetCommentsAndTimelineStatus422 =
+  | IssueGetCommentsAndTimelineStatus422Json
+  | IssueGetCommentsAndTimelineStatus422Html;
+
+export type IssueGetCommentsAndTimelineStatus500Json = APIInternalServerError;
+
+export type IssueGetCommentsAndTimelineStatus500Html = APIInternalServerError;
+
+export type IssueGetCommentsAndTimelineStatus500 =
+  | IssueGetCommentsAndTimelineStatus500Json
+  | IssueGetCommentsAndTimelineStatus500Html;
+
+export type IssueGetCommentsAndTimelineOptions = {
+  body?: never;
+  path: IssueGetCommentsAndTimelinePath;
+  query?: IssueGetCommentsAndTimelineQuery;
+  headers?: never;
 };
+
+export type IssueGetCommentsAndTimelineResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsAndTimelineStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsAndTimelineStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsAndTimelineStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsAndTimelineStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsAndTimelineStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsAndTimelineStatus422Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsAndTimelineStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsAndTimelineStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetCommentsAndTimelineResponse =
+  | IssueGetCommentsAndTimelineStatus200
+  | IssueGetCommentsAndTimelineStatus404
+  | IssueGetCommentsAndTimelineStatus422
+  | IssueGetCommentsAndTimelineStatus500;

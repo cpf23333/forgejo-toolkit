@@ -4,15 +4,17 @@
  */
 
 import type {
-  AdminCreateQuotaRuleMutationResponse,
-  AdminCreateQuotaRule400,
-  AdminCreateQuotaRule403,
-  AdminCreateQuotaRule409,
-  AdminCreateQuotaRule422,
+  AdminCreateQuotaRuleResponse,
+  AdminCreateQuotaRuleStatus400,
+  AdminCreateQuotaRuleStatus403,
+  AdminCreateQuotaRuleStatus409,
+  AdminCreateQuotaRuleStatus422,
+  AdminCreateQuotaRuleBody,
 } from '../types/AdminCreateQuotaRule';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateQuotaRuleHandlerResponse201(data: AdminCreateQuotaRuleMutationResponse) {
+export function adminCreateQuotaRuleHandlerResponse201(data: AdminCreateQuotaRuleResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function adminCreateQuotaRuleHandlerResponse201(data: AdminCreateQuotaRul
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse400(data: AdminCreateQuotaRule400) {
+export function adminCreateQuotaRuleHandlerResponse400(data: AdminCreateQuotaRuleStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +32,7 @@ export function adminCreateQuotaRuleHandlerResponse400(data: AdminCreateQuotaRul
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse403(data: AdminCreateQuotaRule403) {
+export function adminCreateQuotaRuleHandlerResponse403(data: AdminCreateQuotaRuleStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function adminCreateQuotaRuleHandlerResponse403(data: AdminCreateQuotaRul
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse409(data: AdminCreateQuotaRule409) {
+export function adminCreateQuotaRuleHandlerResponse409(data: AdminCreateQuotaRuleStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -48,7 +50,7 @@ export function adminCreateQuotaRuleHandlerResponse409(data: AdminCreateQuotaRul
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse422(data: AdminCreateQuotaRule422) {
+export function adminCreateQuotaRuleHandlerResponse422(data: AdminCreateQuotaRuleStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,11 +60,9 @@ export function adminCreateQuotaRuleHandlerResponse422(data: AdminCreateQuotaRul
 }
 
 export function adminCreateQuotaRuleHandler(
-  data?:
-    | AdminCreateQuotaRuleMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateQuotaRuleResponse | HttpResponseResolver<Record<string, string>, AdminCreateQuotaRuleBody>,
 ) {
-  return http.post(`/admin/quota/rules`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateQuotaRuleBody>(`/admin/quota/rules`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

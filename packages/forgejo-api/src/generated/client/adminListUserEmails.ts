@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminListUserEmailsQueryResponse,
-  AdminListUserEmailsPathParams,
-  AdminListUserEmails403,
-  AdminListUserEmails404,
-} from '../types/AdminListUserEmails';
-
-function getAdminListUserEmailsUrl(username: AdminListUserEmailsPathParams['username']) {
-  const res = {
-    method: 'GET',
-    url: `/admin/users/${username}/emails` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminListUserEmailsOptions, AdminListUserEmailsResponses } from '../types/AdminListUserEmails';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all email addresses for a user
  * {@link /admin/users/:username/emails}
  */
-export async function adminListUserEmails(
-  username: AdminListUserEmailsPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminListUserEmails<ThrowOnError extends boolean = true>(
+  options: Options<AdminListUserEmailsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminListUserEmailsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminListUserEmailsQueryResponse,
-    ResponseErrorConfig<AdminListUserEmails403 | AdminListUserEmails404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getAdminListUserEmailsUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/users/{username}/emails',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminListUserEmailsResponses, ThrowOnError>>;
 }

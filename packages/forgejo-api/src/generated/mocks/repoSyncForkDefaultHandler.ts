@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoSyncForkDefaultMutationResponse,
-  RepoSyncForkDefault400,
-  RepoSyncForkDefault404,
+  RepoSyncForkDefaultResponse,
+  RepoSyncForkDefaultStatus400,
+  RepoSyncForkDefaultStatus404,
 } from '../types/RepoSyncForkDefault';
 import { http } from 'msw';
 
-export function repoSyncForkDefaultHandlerResponse204(data?: RepoSyncForkDefaultMutationResponse) {
+export function repoSyncForkDefaultHandlerResponse204(data?: RepoSyncForkDefaultResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoSyncForkDefaultHandlerResponse400(data: RepoSyncForkDefault400) {
+export function repoSyncForkDefaultHandlerResponse400(data: RepoSyncForkDefaultStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function repoSyncForkDefaultHandlerResponse400(data: RepoSyncForkDefault4
   });
 }
 
-export function repoSyncForkDefaultHandlerResponse404(data: RepoSyncForkDefault404) {
+export function repoSyncForkDefaultHandlerResponse404(data: RepoSyncForkDefaultStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

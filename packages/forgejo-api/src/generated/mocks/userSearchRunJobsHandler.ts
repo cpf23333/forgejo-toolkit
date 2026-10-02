@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserSearchRunJobsQueryResponse,
-  UserSearchRunJobs401,
-  UserSearchRunJobs403,
+  UserSearchRunJobsResponse,
+  UserSearchRunJobsStatus401,
+  UserSearchRunJobsStatus403,
 } from '../types/UserSearchRunJobs';
 import { http } from 'msw';
 
-export function userSearchRunJobsHandlerResponse200(data: UserSearchRunJobsQueryResponse) {
+export function userSearchRunJobsHandlerResponse200(data: UserSearchRunJobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userSearchRunJobsHandlerResponse200(data: UserSearchRunJobsQuery
   });
 }
 
-export function userSearchRunJobsHandlerResponse401(data: UserSearchRunJobs401) {
+export function userSearchRunJobsHandlerResponse401(data: UserSearchRunJobsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userSearchRunJobsHandlerResponse401(data: UserSearchRunJobs401) 
   });
 }
 
-export function userSearchRunJobsHandlerResponse403(data: UserSearchRunJobs403) {
+export function userSearchRunJobsHandlerResponse403(data: UserSearchRunJobsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userSearchRunJobsHandlerResponse403(data: UserSearchRunJobs403) 
 
 export function userSearchRunJobsHandler(
   data?:
-    | UserSearchRunJobsQueryResponse
+    | UserSearchRunJobsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/runners/jobs`, function handler(info) {

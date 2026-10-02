@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { ReplaceFlagsOption } from './ReplaceFlagsOption';
 
-export type RepoReplaceAllFlagsPathParams = {
+export type RepoReplaceAllFlagsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,28 +20,67 @@ export type RepoReplaceAllFlagsPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoReplaceAllFlags204 = any;
+export type RepoReplaceAllFlagsStatus204 = unknown;
+
+export type RepoReplaceAllFlagsStatus403Json = APIForbiddenError;
+
+export type RepoReplaceAllFlagsStatus403Html = APIForbiddenError;
+
+export type RepoReplaceAllFlagsStatus403 = RepoReplaceAllFlagsStatus403Json | RepoReplaceAllFlagsStatus403Html;
+
+export type RepoReplaceAllFlagsStatus404Json = APINotFound;
+
+export type RepoReplaceAllFlagsStatus404Html = APINotFound;
+
+export type RepoReplaceAllFlagsStatus404 = RepoReplaceAllFlagsStatus404Json | RepoReplaceAllFlagsStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description ReplaceFlagsOption options when replacing the flags of a repository
+ * @type object | undefined
  */
-export type RepoReplaceAllFlags403 = APIForbiddenError;
+export type RepoReplaceAllFlagsBodyJson = ReplaceFlagsOption | undefined;
 
 /**
- * @description APINotFound is a not found error response
+ * @description ReplaceFlagsOption options when replacing the flags of a repository
+ * @type object | undefined
  */
-export type RepoReplaceAllFlags404 = APINotFound;
+export type RepoReplaceAllFlagsBodyPlain = ReplaceFlagsOption | undefined;
 
-export type RepoReplaceAllFlagsMutationRequest = ReplaceFlagsOption;
+export type RepoReplaceAllFlagsBody = RepoReplaceAllFlagsBodyJson | RepoReplaceAllFlagsBodyPlain;
 
-export type RepoReplaceAllFlagsMutationResponse = RepoReplaceAllFlags204;
-
-export type RepoReplaceAllFlagsMutation = {
-  Response: RepoReplaceAllFlags204;
-  Request: RepoReplaceAllFlagsMutationRequest;
-  PathParams: RepoReplaceAllFlagsPathParams;
-  Errors: RepoReplaceAllFlags403 | RepoReplaceAllFlags404;
+export type RepoReplaceAllFlagsOptions = {
+  body: RepoReplaceAllFlagsBody;
+  path: RepoReplaceAllFlagsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoReplaceAllFlagsResponses = {
+  '204': RepoReplaceAllFlagsStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoReplaceAllFlagsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoReplaceAllFlagsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoReplaceAllFlagsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoReplaceAllFlagsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoReplaceAllFlagsResponse =
+  | RepoReplaceAllFlagsStatus204
+  | RepoReplaceAllFlagsStatus403
+  | RepoReplaceAllFlagsStatus404;

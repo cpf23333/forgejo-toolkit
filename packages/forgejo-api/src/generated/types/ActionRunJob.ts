@@ -5,11 +5,14 @@
 
 /**
  * @description ActionRunJob represents a job of a run
+ * @type object
  */
 export type ActionRunJob = {
   /**
    * @description How many times the job has been attempted including the current attempt.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   attempt?: number;
   /**
@@ -19,7 +22,9 @@ export type ActionRunJob = {
   handle?: string;
   /**
    * @description Identifier of this job.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -34,17 +39,23 @@ export type ActionRunJob = {
   needs?: string[];
   /**
    * @description the owner id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   owner_id?: number;
   /**
    * @description the repository id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_id?: number;
   /**
    * @description Identifier of the workflow run this job belongs to.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   run_id?: number;
   /**
@@ -59,7 +70,9 @@ export type ActionRunJob = {
   status?: string;
   /**
    * @description the action run job latest task id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   task_id?: number;
 };

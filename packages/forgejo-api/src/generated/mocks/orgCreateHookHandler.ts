@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { OrgCreateHookMutationResponse, OrgCreateHook404 } from '../types/OrgCreateHook';
+import type { OrgCreateHookResponse, OrgCreateHookStatus404, OrgCreateHookBody } from '../types/OrgCreateHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgCreateHookHandlerResponse201(data: OrgCreateHookMutationResponse) {
+export function orgCreateHookHandlerResponse201(data: OrgCreateHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +16,7 @@ export function orgCreateHookHandlerResponse201(data: OrgCreateHookMutationRespo
   });
 }
 
-export function orgCreateHookHandlerResponse404(data: OrgCreateHook404) {
+export function orgCreateHookHandlerResponse404(data: OrgCreateHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,11 +26,9 @@ export function orgCreateHookHandlerResponse404(data: OrgCreateHook404) {
 }
 
 export function orgCreateHookHandler(
-  data?:
-    | OrgCreateHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgCreateHookResponse | HttpResponseResolver<Record<string, string>, OrgCreateHookBody>,
 ) {
-  return http.post(`/orgs/:org/hooks`, function handler(info) {
+  return http.post<Record<string, string>, OrgCreateHookBody>(`/orgs/:org/hooks`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -3,48 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCheckCollaboratorQueryResponse,
-  RepoCheckCollaboratorPathParams,
-  RepoCheckCollaborator404,
-  RepoCheckCollaborator422,
-} from '../types/RepoCheckCollaborator';
-
-function getRepoCheckCollaboratorUrl(
-  owner: RepoCheckCollaboratorPathParams['owner'],
-  repo: RepoCheckCollaboratorPathParams['repo'],
-  collaborator: RepoCheckCollaboratorPathParams['collaborator'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/collaborators/${collaborator}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCheckCollaboratorOptions, RepoCheckCollaboratorResponses } from '../types/RepoCheckCollaborator';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description If the user is a collaborator, return 204. If the user is not a collaborator, return 404.
  * @summary Check if a user is a collaborator of a repository
  * {@link /repos/:owner/:repo/collaborators/:collaborator}
  */
-export async function repoCheckCollaborator(
-  owner: RepoCheckCollaboratorPathParams['owner'],
-  repo: RepoCheckCollaboratorPathParams['repo'],
-  collaborator: RepoCheckCollaboratorPathParams['collaborator'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCheckCollaborator<ThrowOnError extends boolean = true>(
+  options: Options<RepoCheckCollaboratorOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCheckCollaboratorResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoCheckCollaboratorQueryResponse,
-    ResponseErrorConfig<RepoCheckCollaborator404 | RepoCheckCollaborator422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoCheckCollaboratorUrl(owner, repo, collaborator).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/collaborators/{collaborator}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCheckCollaboratorResponses, ThrowOnError>>;
 }

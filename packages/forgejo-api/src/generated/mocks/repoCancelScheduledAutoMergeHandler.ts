@@ -4,20 +4,20 @@
  */
 
 import type {
-  RepoCancelScheduledAutoMergeMutationResponse,
-  RepoCancelScheduledAutoMerge403,
-  RepoCancelScheduledAutoMerge404,
-  RepoCancelScheduledAutoMerge423,
+  RepoCancelScheduledAutoMergeResponse,
+  RepoCancelScheduledAutoMergeStatus403,
+  RepoCancelScheduledAutoMergeStatus404,
+  RepoCancelScheduledAutoMergeStatus423,
 } from '../types/RepoCancelScheduledAutoMerge';
 import { http } from 'msw';
 
-export function repoCancelScheduledAutoMergeHandlerResponse204(data?: RepoCancelScheduledAutoMergeMutationResponse) {
+export function repoCancelScheduledAutoMergeHandlerResponse204(data?: RepoCancelScheduledAutoMergeResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse403(data: RepoCancelScheduledAutoMerge403) {
+export function repoCancelScheduledAutoMergeHandlerResponse403(data: RepoCancelScheduledAutoMergeStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function repoCancelScheduledAutoMergeHandlerResponse403(data: RepoCancelS
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse404(data: RepoCancelScheduledAutoMerge404) {
+export function repoCancelScheduledAutoMergeHandlerResponse404(data: RepoCancelScheduledAutoMergeStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function repoCancelScheduledAutoMergeHandlerResponse404(data: RepoCancelS
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse423(data: RepoCancelScheduledAutoMerge423) {
+export function repoCancelScheduledAutoMergeHandlerResponse423(data: RepoCancelScheduledAutoMergeStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

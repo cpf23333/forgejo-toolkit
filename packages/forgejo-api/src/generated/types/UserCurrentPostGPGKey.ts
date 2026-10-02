@@ -11,36 +11,110 @@ import type { CreateGPGKeyOption } from './CreateGPGKeyOption';
 import type { GPGKey } from './GPGKey';
 
 /**
- * @description GPGKey
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserCurrentPostGPGKey201 = GPGKey;
+export type UserCurrentPostGPGKeyStatus201Json = GPGKey;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserCurrentPostGPGKey401 = APIUnauthorizedError;
+export type UserCurrentPostGPGKeyStatus201Html = GPGKey;
+
+export type UserCurrentPostGPGKeyStatus201 = UserCurrentPostGPGKeyStatus201Json | UserCurrentPostGPGKeyStatus201Html;
+
+export type UserCurrentPostGPGKeyStatus401Json = APIUnauthorizedError;
+
+export type UserCurrentPostGPGKeyStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentPostGPGKeyStatus401 = UserCurrentPostGPGKeyStatus401Json | UserCurrentPostGPGKeyStatus401Html;
+
+export type UserCurrentPostGPGKeyStatus403Json = APIForbiddenError;
+
+export type UserCurrentPostGPGKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentPostGPGKeyStatus403 = UserCurrentPostGPGKeyStatus403Json | UserCurrentPostGPGKeyStatus403Html;
+
+export type UserCurrentPostGPGKeyStatus404Json = APINotFound;
+
+export type UserCurrentPostGPGKeyStatus404Html = APINotFound;
+
+export type UserCurrentPostGPGKeyStatus404 = UserCurrentPostGPGKeyStatus404Json | UserCurrentPostGPGKeyStatus404Html;
+
+export type UserCurrentPostGPGKeyStatus422Json = APIValidationError;
+
+export type UserCurrentPostGPGKeyStatus422Html = APIValidationError;
+
+export type UserCurrentPostGPGKeyStatus422 = UserCurrentPostGPGKeyStatus422Json | UserCurrentPostGPGKeyStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateGPGKeyOption options create user GPG key
+ * @type object | undefined
  */
-export type UserCurrentPostGPGKey403 = APIForbiddenError;
+export type UserCurrentPostGPGKeyBody = CreateGPGKeyOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentPostGPGKey404 = APINotFound;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserCurrentPostGPGKey422 = APIValidationError;
-
-export type UserCurrentPostGPGKeyMutationRequest = CreateGPGKeyOption;
-
-export type UserCurrentPostGPGKeyMutationResponse = UserCurrentPostGPGKey201;
-
-export type UserCurrentPostGPGKeyMutation = {
-  Response: UserCurrentPostGPGKey201;
-  Request: UserCurrentPostGPGKeyMutationRequest;
-  Errors: UserCurrentPostGPGKey401 | UserCurrentPostGPGKey403 | UserCurrentPostGPGKey404 | UserCurrentPostGPGKey422;
+export type UserCurrentPostGPGKeyOptions = {
+  body: UserCurrentPostGPGKeyBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentPostGPGKeyResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostGPGKeyStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostGPGKeyStatus201Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostGPGKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostGPGKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostGPGKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostGPGKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostGPGKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostGPGKeyStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostGPGKeyStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostGPGKeyStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentPostGPGKeyResponse =
+  | UserCurrentPostGPGKeyStatus201
+  | UserCurrentPostGPGKeyStatus401
+  | UserCurrentPostGPGKeyStatus403
+  | UserCurrentPostGPGKeyStatus404
+  | UserCurrentPostGPGKeyStatus422;

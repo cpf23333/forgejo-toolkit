@@ -9,7 +9,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { FileResponse } from './FileResponse';
 import type { UpdateFileOptions } from './UpdateFileOptions';
 
-export type RepoUpdateFilePathParams = {
+export type RepoUpdateFilePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -28,53 +28,134 @@ export type RepoUpdateFilePathParams = {
 };
 
 /**
- * @description FileResponse
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoUpdateFile200 = FileResponse;
+export type RepoUpdateFileStatus200Json = FileResponse;
 
 /**
- * @description APIError is error format response
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoUpdateFile403 = APIError;
+export type RepoUpdateFileStatus200Html = FileResponse;
+
+export type RepoUpdateFileStatus200 = RepoUpdateFileStatus200Json | RepoUpdateFileStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoUpdateFile404 = APINotFound;
+export type RepoUpdateFileStatus403Json = APIError;
 
 /**
- * @description APIConflict is a conflict empty response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoUpdateFile409 = any;
+export type RepoUpdateFileStatus403Html = APIError;
+
+export type RepoUpdateFileStatus403 = RepoUpdateFileStatus403Json | RepoUpdateFileStatus403Html;
+
+export type RepoUpdateFileStatus404Json = APINotFound;
+
+export type RepoUpdateFileStatus404Html = APINotFound;
+
+export type RepoUpdateFileStatus404 = RepoUpdateFileStatus404Json | RepoUpdateFileStatus404Html;
+
+export type RepoUpdateFileStatus409 = unknown;
+
+export type RepoUpdateFileStatus413 = unknown;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoUpdateFile413 = any;
+export type RepoUpdateFileStatus422Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoUpdateFile422 = APIError;
+export type RepoUpdateFileStatus422Html = APIError;
+
+export type RepoUpdateFileStatus422 = RepoUpdateFileStatus422Json | RepoUpdateFileStatus422Html;
+
+export type RepoUpdateFileStatus423Json = APIRepoArchivedError;
+
+export type RepoUpdateFileStatus423Html = APIRepoArchivedError;
+
+export type RepoUpdateFileStatus423 = RepoUpdateFileStatus423Json | RepoUpdateFileStatus423Html;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description UpdateFileOptions options for updating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
-export type RepoUpdateFile423 = APIRepoArchivedError;
+export type RepoUpdateFileBody = UpdateFileOptions;
 
-export type RepoUpdateFileMutationRequest = UpdateFileOptions;
-
-export type RepoUpdateFileMutationResponse = RepoUpdateFile200;
-
-export type RepoUpdateFileMutation = {
-  Response: RepoUpdateFile200;
-  Request: RepoUpdateFileMutationRequest;
-  PathParams: RepoUpdateFilePathParams;
-  Errors:
-    | RepoUpdateFile403
-    | RepoUpdateFile404
-    | RepoUpdateFile409
-    | RepoUpdateFile413
-    | RepoUpdateFile422
-    | RepoUpdateFile423;
+export type RepoUpdateFileOptions = {
+  body: RepoUpdateFileBody;
+  path: RepoUpdateFilePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoUpdateFileResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateFileStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateFileStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateFileStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateFileStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateFileStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateFileStatus404Html;
+      };
+  '409': RepoUpdateFileStatus409;
+  '413': RepoUpdateFileStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateFileStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateFileStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateFileStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateFileStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoUpdateFileResponse =
+  | RepoUpdateFileStatus200
+  | RepoUpdateFileStatus403
+  | RepoUpdateFileStatus404
+  | RepoUpdateFileStatus409
+  | RepoUpdateFileStatus413
+  | RepoUpdateFileStatus422
+  | RepoUpdateFileStatus423;

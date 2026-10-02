@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Issue } from './Issue';
 
-export type RepoListPinnedIssuesPathParams = {
+export type RepoListPinnedIssuesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoListPinnedIssuesPathParams = {
   repo: string;
 };
 
-/**
- * @description IssueListWithoutPagination - Issues without pagination headers (used for pinned issues, dependencies, etc.)
- */
-export type RepoListPinnedIssues200 = Issue[];
+export type RepoListPinnedIssuesStatus200Json = Issue[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListPinnedIssues404 = APINotFound;
+export type RepoListPinnedIssuesStatus200Html = Issue[];
 
-export type RepoListPinnedIssuesQueryResponse = RepoListPinnedIssues200;
+export type RepoListPinnedIssuesStatus200 = RepoListPinnedIssuesStatus200Json | RepoListPinnedIssuesStatus200Html;
 
-export type RepoListPinnedIssuesQuery = {
-  Response: RepoListPinnedIssues200;
-  PathParams: RepoListPinnedIssuesPathParams;
-  Errors: RepoListPinnedIssues404;
+export type RepoListPinnedIssuesStatus404Json = APINotFound;
+
+export type RepoListPinnedIssuesStatus404Html = APINotFound;
+
+export type RepoListPinnedIssuesStatus404 = RepoListPinnedIssuesStatus404Json | RepoListPinnedIssuesStatus404Html;
+
+export type RepoListPinnedIssuesOptions = {
+  body?: never;
+  path: RepoListPinnedIssuesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListPinnedIssuesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListPinnedIssuesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPinnedIssuesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListPinnedIssuesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPinnedIssuesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListPinnedIssuesResponse = RepoListPinnedIssuesStatus200 | RepoListPinnedIssuesStatus404;

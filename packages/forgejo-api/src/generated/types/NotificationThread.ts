@@ -8,15 +8,15 @@ import type { Repository } from './Repository';
 
 /**
  * @description NotificationThread expose Notification on API
+ * @type object
  */
 export type NotificationThread = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   pinned?: boolean;
   /**
    * @description Repository represents a repository
@@ -28,16 +28,12 @@ export type NotificationThread = {
    * @type object | undefined
    */
   subject?: NotificationSubject;
-  /**
-   * @type boolean | undefined
-   */
   unread?: boolean;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
 };

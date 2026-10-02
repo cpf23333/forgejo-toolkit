@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Label } from './Label';
 
-export type IssueGetLabelsPathParams = {
+export type IssueGetLabelsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,54 @@ export type IssueGetLabelsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description LabelListWithoutPagination - Labels for a specific issue (no pagination headers)
- */
-export type IssueGetLabels200 = Label[];
+export type IssueGetLabelsStatus200Json = Label[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetLabels404 = APINotFound;
+export type IssueGetLabelsStatus200Html = Label[];
 
-export type IssueGetLabelsQueryResponse = IssueGetLabels200;
+export type IssueGetLabelsStatus200 = IssueGetLabelsStatus200Json | IssueGetLabelsStatus200Html;
 
-export type IssueGetLabelsQuery = {
-  Response: IssueGetLabels200;
-  PathParams: IssueGetLabelsPathParams;
-  Errors: IssueGetLabels404;
+export type IssueGetLabelsStatus404Json = APINotFound;
+
+export type IssueGetLabelsStatus404Html = APINotFound;
+
+export type IssueGetLabelsStatus404 = IssueGetLabelsStatus404Json | IssueGetLabelsStatus404Html;
+
+export type IssueGetLabelsOptions = {
+  body?: never;
+  path: IssueGetLabelsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetLabelsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetLabelsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetLabelsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetLabelsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetLabelsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetLabelsResponse = IssueGetLabelsStatus200 | IssueGetLabelsStatus404;

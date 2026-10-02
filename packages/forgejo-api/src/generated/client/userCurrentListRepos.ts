@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentListReposQueryResponse,
-  UserCurrentListReposQueryParams,
-  UserCurrentListRepos401,
-  UserCurrentListRepos403,
-  UserCurrentListRepos422,
-} from '../types/UserCurrentListRepos';
-
-function getUserCurrentListReposUrl() {
-  const res = { method: 'GET', url: `/user/repos` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentListReposOptions, UserCurrentListReposResponses } from '../types/UserCurrentListRepos';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the repos that the authenticated user owns
  * {@link /user/repos}
  */
-export async function userCurrentListRepos(
-  params?: UserCurrentListReposQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentListRepos<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentListReposOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentListReposResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentListReposQueryResponse,
-    ResponseErrorConfig<UserCurrentListRepos401 | UserCurrentListRepos403 | UserCurrentListRepos422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentListReposUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentListReposResponses, ThrowOnError>>;
 }

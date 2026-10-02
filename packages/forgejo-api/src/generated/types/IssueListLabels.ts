@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Label } from './Label';
 
-export type IssueListLabelsPathParams = {
+export type IssueListLabelsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,21 +19,20 @@ export type IssueListLabelsPathParams = {
   repo: string;
 };
 
-export const issueListLabelsQueryParamsSortEnum = {
+export const issueListLabelsSort = {
   mostissues: 'mostissues',
   leastissues: 'leastissues',
   reversealphabetically: 'reversealphabetically',
 } as const;
 
-export type IssueListLabelsQueryParamsSortEnumKey =
-  (typeof issueListLabelsQueryParamsSortEnum)[keyof typeof issueListLabelsQueryParamsSortEnum];
+export type IssueListLabelsSortKey = (typeof issueListLabelsSort)[keyof typeof issueListLabelsSort];
 
-export type IssueListLabelsQueryParams = {
+export type IssueListLabelsQuery = {
   /**
    * @description Specifies the sorting method: mostissues, leastissues, or reversealphabetically.
    * @type string | undefined
    */
-  sort?: IssueListLabelsQueryParamsSortEnumKey;
+  sort?: IssueListLabelsSortKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -46,21 +45,47 @@ export type IssueListLabelsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description LabelList
- */
-export type IssueListLabels200 = Label[];
+export type IssueListLabelsStatus200Json = Label[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueListLabels404 = APINotFound;
+export type IssueListLabelsStatus200Html = Label[];
 
-export type IssueListLabelsQueryResponse = IssueListLabels200;
+export type IssueListLabelsStatus200 = IssueListLabelsStatus200Json | IssueListLabelsStatus200Html;
 
-export type IssueListLabelsQuery = {
-  Response: IssueListLabels200;
-  PathParams: IssueListLabelsPathParams;
-  QueryParams: IssueListLabelsQueryParams;
-  Errors: IssueListLabels404;
+export type IssueListLabelsStatus404Json = APINotFound;
+
+export type IssueListLabelsStatus404Html = APINotFound;
+
+export type IssueListLabelsStatus404 = IssueListLabelsStatus404Json | IssueListLabelsStatus404Html;
+
+export type IssueListLabelsOptions = {
+  body?: never;
+  path: IssueListLabelsPath;
+  query?: IssueListLabelsQuery;
+  headers?: never;
 };
+
+export type IssueListLabelsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListLabelsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListLabelsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListLabelsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListLabelsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueListLabelsResponse = IssueListLabelsStatus200 | IssueListLabelsStatus404;

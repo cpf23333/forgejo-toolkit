@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentTrackedTimesQueryResponse,
-  UserCurrentTrackedTimesQueryParams,
-  UserCurrentTrackedTimes401,
-  UserCurrentTrackedTimes403,
+  UserCurrentTrackedTimesOptions,
+  UserCurrentTrackedTimesResponses,
 } from '../types/UserCurrentTrackedTimes';
-
-function getUserCurrentTrackedTimesUrl() {
-  const res = { method: 'GET', url: `/user/times` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the current user's tracked times
  * {@link /user/times}
  */
-export async function userCurrentTrackedTimes(
-  params?: UserCurrentTrackedTimesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentTrackedTimes<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentTrackedTimesOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentTrackedTimesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentTrackedTimesQueryResponse,
-    ResponseErrorConfig<UserCurrentTrackedTimes401 | UserCurrentTrackedTimes403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentTrackedTimesUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/times',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentTrackedTimesResponses, ThrowOnError>>;
 }

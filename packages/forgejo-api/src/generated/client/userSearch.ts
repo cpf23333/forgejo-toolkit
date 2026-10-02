@@ -3,30 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { UserSearchQueryResponse, UserSearchQueryParams } from '../types/UserSearch';
-
-function getUserSearchUrl() {
-  const res = { method: 'GET', url: `/users/search` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserSearchOptions, UserSearchResponses } from '../types/UserSearch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for users
  * {@link /users/search}
  */
-export async function userSearch(
-  params?: UserSearchQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userSearch<ThrowOnError extends boolean = true>(
+  options: Options<UserSearchOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserSearchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserSearchQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getUserSearchUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/search',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserSearchResponses, ThrowOnError>>;
 }

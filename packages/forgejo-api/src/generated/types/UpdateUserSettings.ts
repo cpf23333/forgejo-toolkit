@@ -9,26 +9,86 @@ import type { UserSettings } from './UserSettings';
 import type { UserSettingsOptions } from './UserSettingsOptions';
 
 /**
- * @description UserSettings
+ * @description UserSettings represents user settings
+ * @type object
  */
-export type UpdateUserSettings200 = UserSettings;
+export type UpdateUserSettingsStatus200Json = UserSettings;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description UserSettings represents user settings
+ * @type object
  */
-export type UpdateUserSettings401 = APIUnauthorizedError;
+export type UpdateUserSettingsStatus200Html = UserSettings;
+
+export type UpdateUserSettingsStatus200 = UpdateUserSettingsStatus200Json | UpdateUserSettingsStatus200Html;
+
+export type UpdateUserSettingsStatus401Json = APIUnauthorizedError;
+
+export type UpdateUserSettingsStatus401Html = APIUnauthorizedError;
+
+export type UpdateUserSettingsStatus401 = UpdateUserSettingsStatus401Json | UpdateUserSettingsStatus401Html;
+
+export type UpdateUserSettingsStatus403Json = APIForbiddenError;
+
+export type UpdateUserSettingsStatus403Html = APIForbiddenError;
+
+export type UpdateUserSettingsStatus403 = UpdateUserSettingsStatus403Json | UpdateUserSettingsStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description UserSettingsOptions represents options to change user settings
+ * @type object | undefined
  */
-export type UpdateUserSettings403 = APIForbiddenError;
+export type UpdateUserSettingsBodyJson = UserSettingsOptions | undefined;
 
-export type UpdateUserSettingsMutationRequest = UserSettingsOptions;
+/**
+ * @description UserSettingsOptions represents options to change user settings
+ * @type object | undefined
+ */
+export type UpdateUserSettingsBodyPlain = UserSettingsOptions | undefined;
 
-export type UpdateUserSettingsMutationResponse = UpdateUserSettings200;
+export type UpdateUserSettingsBody = UpdateUserSettingsBodyJson | UpdateUserSettingsBodyPlain;
 
-export type UpdateUserSettingsMutation = {
-  Response: UpdateUserSettings200;
-  Request: UpdateUserSettingsMutationRequest;
-  Errors: UpdateUserSettings401 | UpdateUserSettings403;
+export type UpdateUserSettingsOptions = {
+  body: UpdateUserSettingsBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateUserSettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSettingsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSettingsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSettingsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSettingsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSettingsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateUserSettingsResponse =
+  | UpdateUserSettingsStatus200
+  | UpdateUserSettingsStatus401
+  | UpdateUserSettingsStatus403;

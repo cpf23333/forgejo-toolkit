@@ -5,6 +5,7 @@
 
 /**
  * @description EditAttachmentOptions options for editing attachments
+ * @type object
  */
 export type EditAttachmentOptions = {
   /**
@@ -12,8 +13,5 @@ export type EditAttachmentOptions = {
    * @type string | undefined
    */
   browser_download_url?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
 };

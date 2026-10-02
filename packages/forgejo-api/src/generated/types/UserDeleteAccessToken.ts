@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type UserDeleteAccessTokenPathParams = {
+export type UserDeleteAccessTokenPath = {
   /**
    * @description username of user
    * @type string
@@ -20,30 +20,77 @@ export type UserDeleteAccessTokenPathParams = {
   token: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserDeleteAccessToken204 = any;
+export type UserDeleteAccessTokenStatus204 = unknown;
+
+export type UserDeleteAccessTokenStatus403Json = APIForbiddenError;
+
+export type UserDeleteAccessTokenStatus403Html = APIForbiddenError;
+
+export type UserDeleteAccessTokenStatus403 = UserDeleteAccessTokenStatus403Json | UserDeleteAccessTokenStatus403Html;
+
+export type UserDeleteAccessTokenStatus404Json = APINotFound;
+
+export type UserDeleteAccessTokenStatus404Html = APINotFound;
+
+export type UserDeleteAccessTokenStatus404 = UserDeleteAccessTokenStatus404Json | UserDeleteAccessTokenStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserDeleteAccessToken403 = APIForbiddenError;
+export type UserDeleteAccessTokenStatus422Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserDeleteAccessToken404 = APINotFound;
+export type UserDeleteAccessTokenStatus422Html = APIError;
 
-/**
- * @description APIError is error format response
- */
-export type UserDeleteAccessToken422 = APIError;
+export type UserDeleteAccessTokenStatus422 = UserDeleteAccessTokenStatus422Json | UserDeleteAccessTokenStatus422Html;
 
-export type UserDeleteAccessTokenMutationResponse = UserDeleteAccessToken204;
-
-export type UserDeleteAccessTokenMutation = {
-  Response: UserDeleteAccessToken204;
-  PathParams: UserDeleteAccessTokenPathParams;
-  Errors: UserDeleteAccessToken403 | UserDeleteAccessToken404 | UserDeleteAccessToken422;
+export type UserDeleteAccessTokenOptions = {
+  body?: never;
+  path: UserDeleteAccessTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserDeleteAccessTokenResponses = {
+  '204': UserDeleteAccessTokenStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteAccessTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteAccessTokenStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteAccessTokenStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteAccessTokenStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteAccessTokenStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteAccessTokenStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserDeleteAccessTokenResponse =
+  | UserDeleteAccessTokenStatus204
+  | UserDeleteAccessTokenStatus403
+  | UserDeleteAccessTokenStatus404
+  | UserDeleteAccessTokenStatus422;

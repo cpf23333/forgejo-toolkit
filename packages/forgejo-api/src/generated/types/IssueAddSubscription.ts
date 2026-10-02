@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueAddSubscriptionPathParams = {
+export type IssueAddSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,7 +18,9 @@ export type IssueAddSubscriptionPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
@@ -28,30 +30,45 @@ export type IssueAddSubscriptionPathParams = {
   user: string;
 };
 
-/**
- * @description Already subscribed
- */
-export type IssueAddSubscription200 = any;
+export type IssueAddSubscriptionStatus200 = unknown;
 
-/**
- * @description Successfully Subscribed
- */
-export type IssueAddSubscription201 = any;
+export type IssueAddSubscriptionStatus201 = unknown;
 
-/**
- * @description User can only subscribe itself if he is no admin
- */
-export type IssueAddSubscription304 = any;
+export type IssueAddSubscriptionStatus304 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueAddSubscription404 = APINotFound;
+export type IssueAddSubscriptionStatus404Json = APINotFound;
 
-export type IssueAddSubscriptionMutationResponse = IssueAddSubscription200 | IssueAddSubscription201;
+export type IssueAddSubscriptionStatus404Html = APINotFound;
 
-export type IssueAddSubscriptionMutation = {
-  Response: IssueAddSubscription200 | IssueAddSubscription201;
-  PathParams: IssueAddSubscriptionPathParams;
-  Errors: IssueAddSubscription404;
+export type IssueAddSubscriptionStatus404 = IssueAddSubscriptionStatus404Json | IssueAddSubscriptionStatus404Html;
+
+export type IssueAddSubscriptionOptions = {
+  body?: never;
+  path: IssueAddSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueAddSubscriptionResponses = {
+  '200': IssueAddSubscriptionStatus200;
+  '201': IssueAddSubscriptionStatus201;
+  '304': IssueAddSubscriptionStatus304;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueAddSubscriptionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddSubscriptionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueAddSubscriptionResponse =
+  | IssueAddSubscriptionStatus200
+  | IssueAddSubscriptionStatus201
+  | IssueAddSubscriptionStatus304
+  | IssueAddSubscriptionStatus404;

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Milestone } from './Milestone';
 
-export type IssueGetMilestonesListPathParams = {
+export type IssueGetMilestonesListPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type IssueGetMilestonesListPathParams = {
   repo: string;
 };
 
-export type IssueGetMilestonesListQueryParams = {
+export type IssueGetMilestonesListQuery = {
   /**
    * @description Milestone state, Recognized values are open, closed and all. Defaults to \"open\"
    * @type string | undefined
@@ -42,21 +42,47 @@ export type IssueGetMilestonesListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description MilestoneList
- */
-export type IssueGetMilestonesList200 = Milestone[];
+export type IssueGetMilestonesListStatus200Json = Milestone[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetMilestonesList404 = APINotFound;
+export type IssueGetMilestonesListStatus200Html = Milestone[];
 
-export type IssueGetMilestonesListQueryResponse = IssueGetMilestonesList200;
+export type IssueGetMilestonesListStatus200 = IssueGetMilestonesListStatus200Json | IssueGetMilestonesListStatus200Html;
 
-export type IssueGetMilestonesListQuery = {
-  Response: IssueGetMilestonesList200;
-  PathParams: IssueGetMilestonesListPathParams;
-  QueryParams: IssueGetMilestonesListQueryParams;
-  Errors: IssueGetMilestonesList404;
+export type IssueGetMilestonesListStatus404Json = APINotFound;
+
+export type IssueGetMilestonesListStatus404Html = APINotFound;
+
+export type IssueGetMilestonesListStatus404 = IssueGetMilestonesListStatus404Json | IssueGetMilestonesListStatus404Html;
+
+export type IssueGetMilestonesListOptions = {
+  body?: never;
+  path: IssueGetMilestonesListPath;
+  query?: IssueGetMilestonesListQuery;
+  headers?: never;
 };
+
+export type IssueGetMilestonesListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetMilestonesListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetMilestonesListStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetMilestonesListStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetMilestonesListStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetMilestonesListResponse = IssueGetMilestonesListStatus200 | IssueGetMilestonesListStatus404;

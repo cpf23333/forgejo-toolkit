@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListHooksQueryResponse,
-  OrgListHooksPathParams,
-  OrgListHooksQueryParams,
-  OrgListHooks404,
-} from '../types/OrgListHooks';
-
-function getOrgListHooksUrl(org: OrgListHooksPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/hooks` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListHooksOptions, OrgListHooksResponses } from '../types/OrgListHooks';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an organization's webhooks
  * {@link /orgs/:org/hooks}
  */
-export async function orgListHooks(
-  org: OrgListHooksPathParams['org'],
-  params?: OrgListHooksQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListHooks<ThrowOnError extends boolean = true>(
+  options: Options<OrgListHooksOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListHooksResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListHooksQueryResponse, ResponseErrorConfig<OrgListHooks404>, unknown>({
-    method: 'GET',
-    url: getOrgListHooksUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/hooks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListHooksResponses, ThrowOnError>>;
 }

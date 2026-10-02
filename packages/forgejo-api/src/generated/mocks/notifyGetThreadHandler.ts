@@ -3,10 +3,14 @@
  * Do not edit manually.
  */
 
-import type { NotifyGetThreadQueryResponse, NotifyGetThread403, NotifyGetThread404 } from '../types/NotifyGetThread';
+import type {
+  NotifyGetThreadResponse,
+  NotifyGetThreadStatus403,
+  NotifyGetThreadStatus404,
+} from '../types/NotifyGetThread';
 import { http } from 'msw';
 
-export function notifyGetThreadHandlerResponse200(data: NotifyGetThreadQueryResponse) {
+export function notifyGetThreadHandlerResponse200(data: NotifyGetThreadResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +19,7 @@ export function notifyGetThreadHandlerResponse200(data: NotifyGetThreadQueryResp
   });
 }
 
-export function notifyGetThreadHandlerResponse403(data: NotifyGetThread403) {
+export function notifyGetThreadHandlerResponse403(data: NotifyGetThreadStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +28,7 @@ export function notifyGetThreadHandlerResponse403(data: NotifyGetThread403) {
   });
 }
 
-export function notifyGetThreadHandlerResponse404(data: NotifyGetThread404) {
+export function notifyGetThreadHandlerResponse404(data: NotifyGetThreadStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +39,7 @@ export function notifyGetThreadHandlerResponse404(data: NotifyGetThread404) {
 
 export function notifyGetThreadHandler(
   data?:
-    | NotifyGetThreadQueryResponse
+    | NotifyGetThreadResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/notifications/threads/:id`, function handler(info) {

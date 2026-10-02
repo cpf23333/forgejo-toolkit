@@ -4,15 +4,15 @@
  */
 
 import type {
-  GetUserVariableQueryResponse,
-  GetUserVariable400,
-  GetUserVariable401,
-  GetUserVariable403,
-  GetUserVariable404,
+  GetUserVariableResponse,
+  GetUserVariableStatus400,
+  GetUserVariableStatus401,
+  GetUserVariableStatus403,
+  GetUserVariableStatus404,
 } from '../types/GetUserVariable';
 import { http } from 'msw';
 
-export function getUserVariableHandlerResponse200(data: GetUserVariableQueryResponse) {
+export function getUserVariableHandlerResponse200(data: GetUserVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +21,7 @@ export function getUserVariableHandlerResponse200(data: GetUserVariableQueryResp
   });
 }
 
-export function getUserVariableHandlerResponse400(data: GetUserVariable400) {
+export function getUserVariableHandlerResponse400(data: GetUserVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +30,7 @@ export function getUserVariableHandlerResponse400(data: GetUserVariable400) {
   });
 }
 
-export function getUserVariableHandlerResponse401(data: GetUserVariable401) {
+export function getUserVariableHandlerResponse401(data: GetUserVariableStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -39,7 +39,7 @@ export function getUserVariableHandlerResponse401(data: GetUserVariable401) {
   });
 }
 
-export function getUserVariableHandlerResponse403(data: GetUserVariable403) {
+export function getUserVariableHandlerResponse403(data: GetUserVariableStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -48,7 +48,7 @@ export function getUserVariableHandlerResponse403(data: GetUserVariable403) {
   });
 }
 
-export function getUserVariableHandlerResponse404(data: GetUserVariable404) {
+export function getUserVariableHandlerResponse404(data: GetUserVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -59,7 +59,7 @@ export function getUserVariableHandlerResponse404(data: GetUserVariable404) {
 
 export function getUserVariableHandler(
   data?:
-    | GetUserVariableQueryResponse
+    | GetUserVariableResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/variables/:variablename`, function handler(info) {

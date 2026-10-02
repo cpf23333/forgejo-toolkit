@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CreateVariableOption } from './CreateVariableOption';
 
-export type CreateRepoVariablePathParams = {
+export type CreateRepoVariablePath = {
   /**
    * @description name of the owner
    * @type string
@@ -25,36 +25,71 @@ export type CreateRepoVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when creating a repo-level variable
- */
-export type CreateRepoVariable201 = any;
+export type CreateRepoVariableStatus201 = unknown;
+
+export type CreateRepoVariableStatus204 = unknown;
 
 /**
- * @description response when creating a repo-level variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateRepoVariable204 = any;
+export type CreateRepoVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateRepoVariable400 = APIError;
+export type CreateRepoVariableStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type CreateRepoVariable404 = APINotFound;
+export type CreateRepoVariableStatus400 = CreateRepoVariableStatus400Json | CreateRepoVariableStatus400Html;
 
-/**
- * CreateVariableOption defines the properties of the variable to create.
- */
-export type CreateRepoVariableMutationRequest = CreateVariableOption;
+export type CreateRepoVariableStatus404Json = APINotFound;
 
-export type CreateRepoVariableMutationResponse = CreateRepoVariable201 | CreateRepoVariable204;
+export type CreateRepoVariableStatus404Html = APINotFound;
 
-export type CreateRepoVariableMutation = {
-  Response: CreateRepoVariable201 | CreateRepoVariable204;
-  Request: CreateRepoVariableMutationRequest;
-  PathParams: CreateRepoVariablePathParams;
-  Errors: CreateRepoVariable400 | CreateRepoVariable404;
+export type CreateRepoVariableStatus404 = CreateRepoVariableStatus404Json | CreateRepoVariableStatus404Html;
+
+export type CreateRepoVariableBodyJson = CreateVariableOption | undefined;
+
+export type CreateRepoVariableBodyPlain = CreateVariableOption | undefined;
+
+export type CreateRepoVariableBody = CreateRepoVariableBodyJson | CreateRepoVariableBodyPlain;
+
+export type CreateRepoVariableOptions = {
+  body: CreateRepoVariableBody;
+  path: CreateRepoVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateRepoVariableResponses = {
+  '201': CreateRepoVariableStatus201;
+  '204': CreateRepoVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: CreateRepoVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateRepoVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateRepoVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateRepoVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateRepoVariableResponse =
+  | CreateRepoVariableStatus201
+  | CreateRepoVariableStatus204
+  | CreateRepoVariableStatus400
+  | CreateRepoVariableStatus404;

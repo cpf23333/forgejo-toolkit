@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  ActivitypubPersonActivityNoteQueryResponse,
-  ActivitypubPersonActivityNotePathParams,
+  ActivitypubPersonActivityNoteOptions,
+  ActivitypubPersonActivityNoteResponses,
 } from '../types/ActivitypubPersonActivityNote';
-
-function getActivitypubPersonActivityNoteUrl(
-  userId: ActivitypubPersonActivityNotePathParams['user-id'],
-  activityId: ActivitypubPersonActivityNotePathParams['activity-id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/activitypub/user-id/${userId}/activities/${activityId}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a specific activity object of the user
- * {@link /activitypub/user-id/:user-id/activities/:activity-id}
+ * {@link /activitypub/user-id/:userId/activities/:activityId}
  */
-export async function activitypubPersonActivityNote(
-  userId: ActivitypubPersonActivityNotePathParams['user-id'],
-  activityId: ActivitypubPersonActivityNotePathParams['activity-id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubPersonActivityNote<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubPersonActivityNoteOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActivitypubPersonActivityNoteResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubPersonActivityNoteQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getActivitypubPersonActivityNoteUrl(userId, activityId).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/activitypub/user-id/{user-id}/activities/{activity-id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubPersonActivityNoteResponses, ThrowOnError>>;
 }

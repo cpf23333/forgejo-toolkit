@@ -5,5 +5,6 @@
 
 /**
  * @description ForgeLike activity data type
+ * @type object
  */
 export type ForgeLike = object;

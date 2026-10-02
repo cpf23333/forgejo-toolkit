@@ -4,15 +4,15 @@
  */
 
 import type {
-  AdminGetUserQuotaQueryResponse,
-  AdminGetUserQuota400,
-  AdminGetUserQuota403,
-  AdminGetUserQuota404,
-  AdminGetUserQuota422,
+  AdminGetUserQuotaResponse,
+  AdminGetUserQuotaStatus400,
+  AdminGetUserQuotaStatus403,
+  AdminGetUserQuotaStatus404,
+  AdminGetUserQuotaStatus422,
 } from '../types/AdminGetUserQuota';
 import { http } from 'msw';
 
-export function adminGetUserQuotaHandlerResponse200(data: AdminGetUserQuotaQueryResponse) {
+export function adminGetUserQuotaHandlerResponse200(data: AdminGetUserQuotaResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +21,7 @@ export function adminGetUserQuotaHandlerResponse200(data: AdminGetUserQuotaQuery
   });
 }
 
-export function adminGetUserQuotaHandlerResponse400(data: AdminGetUserQuota400) {
+export function adminGetUserQuotaHandlerResponse400(data: AdminGetUserQuotaStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +30,7 @@ export function adminGetUserQuotaHandlerResponse400(data: AdminGetUserQuota400) 
   });
 }
 
-export function adminGetUserQuotaHandlerResponse403(data: AdminGetUserQuota403) {
+export function adminGetUserQuotaHandlerResponse403(data: AdminGetUserQuotaStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function adminGetUserQuotaHandlerResponse403(data: AdminGetUserQuota403) 
   });
 }
 
-export function adminGetUserQuotaHandlerResponse404(data: AdminGetUserQuota404) {
+export function adminGetUserQuotaHandlerResponse404(data: AdminGetUserQuotaStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,7 +48,7 @@ export function adminGetUserQuotaHandlerResponse404(data: AdminGetUserQuota404) 
   });
 }
 
-export function adminGetUserQuotaHandlerResponse422(data: AdminGetUserQuota422) {
+export function adminGetUserQuotaHandlerResponse422(data: AdminGetUserQuotaStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -59,7 +59,7 @@ export function adminGetUserQuotaHandlerResponse422(data: AdminGetUserQuota422) 
 
 export function adminGetUserQuotaHandler(
   data?:
-    | AdminGetUserQuotaQueryResponse
+    | AdminGetUserQuotaResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users/:username/quota`, function handler(info) {

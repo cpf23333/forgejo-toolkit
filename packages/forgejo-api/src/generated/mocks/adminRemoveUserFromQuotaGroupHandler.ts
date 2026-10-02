@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminRemoveUserFromQuotaGroupMutationResponse,
-  AdminRemoveUserFromQuotaGroup400,
-  AdminRemoveUserFromQuotaGroup403,
-  AdminRemoveUserFromQuotaGroup404,
+  AdminRemoveUserFromQuotaGroupResponse,
+  AdminRemoveUserFromQuotaGroupStatus400,
+  AdminRemoveUserFromQuotaGroupStatus403,
+  AdminRemoveUserFromQuotaGroupStatus404,
 } from '../types/AdminRemoveUserFromQuotaGroup';
 import { http } from 'msw';
 
-export function adminRemoveUserFromQuotaGroupHandlerResponse204(data?: AdminRemoveUserFromQuotaGroupMutationResponse) {
+export function adminRemoveUserFromQuotaGroupHandlerResponse204(data?: AdminRemoveUserFromQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminRemoveUserFromQuotaGroupHandlerResponse400(data: AdminRemoveUserFromQuotaGroup400) {
+export function adminRemoveUserFromQuotaGroupHandlerResponse400(data: AdminRemoveUserFromQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function adminRemoveUserFromQuotaGroupHandlerResponse400(data: AdminRemov
   });
 }
 
-export function adminRemoveUserFromQuotaGroupHandlerResponse403(data: AdminRemoveUserFromQuotaGroup403) {
+export function adminRemoveUserFromQuotaGroupHandlerResponse403(data: AdminRemoveUserFromQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function adminRemoveUserFromQuotaGroupHandlerResponse403(data: AdminRemov
   });
 }
 
-export function adminRemoveUserFromQuotaGroupHandlerResponse404(data: AdminRemoveUserFromQuotaGroup404) {
+export function adminRemoveUserFromQuotaGroupHandlerResponse404(data: AdminRemoveUserFromQuotaGroupStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

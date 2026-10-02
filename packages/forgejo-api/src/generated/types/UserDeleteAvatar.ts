@@ -6,24 +6,53 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserDeleteAvatar204 = any;
+export type UserDeleteAvatarStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserDeleteAvatar401 = APIUnauthorizedError;
+export type UserDeleteAvatarStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserDeleteAvatar403 = APIForbiddenError;
+export type UserDeleteAvatarStatus401Html = APIUnauthorizedError;
 
-export type UserDeleteAvatarMutationResponse = UserDeleteAvatar204;
+export type UserDeleteAvatarStatus401 = UserDeleteAvatarStatus401Json | UserDeleteAvatarStatus401Html;
 
-export type UserDeleteAvatarMutation = {
-  Response: UserDeleteAvatar204;
-  Errors: UserDeleteAvatar401 | UserDeleteAvatar403;
+export type UserDeleteAvatarStatus403Json = APIForbiddenError;
+
+export type UserDeleteAvatarStatus403Html = APIForbiddenError;
+
+export type UserDeleteAvatarStatus403 = UserDeleteAvatarStatus403Json | UserDeleteAvatarStatus403Html;
+
+export type UserDeleteAvatarOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserDeleteAvatarResponses = {
+  '204': UserDeleteAvatarStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteAvatarStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteAvatarStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteAvatarStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteAvatarStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserDeleteAvatarResponse =
+  | UserDeleteAvatarStatus204
+  | UserDeleteAvatarStatus401
+  | UserDeleteAvatarStatus403;

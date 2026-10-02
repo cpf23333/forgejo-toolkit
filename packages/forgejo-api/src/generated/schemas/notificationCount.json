@@ -1,9 +1,0 @@
-{
-  "description": "NotificationCount number of unread notifications",
-  "type": "object",
-  "properties": {
-    "new": { "type": "integer", "format": "int64", "x-go-name": "New" }
-  },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "NotificationCount"
-}

@@ -5,15 +5,15 @@
 
 import type { APINotFound } from './APINotFound';
 
-export const repoDownloadPullDiffOrPatchPathParamsDiffTypeEnum = {
+export const repoDownloadPullDiffOrPatchDiffType = {
   diff: 'diff',
   patch: 'patch',
 } as const;
 
-export type RepoDownloadPullDiffOrPatchPathParamsDiffTypeEnumKey =
-  (typeof repoDownloadPullDiffOrPatchPathParamsDiffTypeEnum)[keyof typeof repoDownloadPullDiffOrPatchPathParamsDiffTypeEnum];
+export type RepoDownloadPullDiffOrPatchDiffTypeKey =
+  (typeof repoDownloadPullDiffOrPatchDiffType)[keyof typeof repoDownloadPullDiffOrPatchDiffType];
 
-export type RepoDownloadPullDiffOrPatchPathParams = {
+export type RepoDownloadPullDiffOrPatchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,17 +26,19 @@ export type RepoDownloadPullDiffOrPatchPathParams = {
   repo: string;
   /**
    * @description index of the pull request to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description whether the output is diff or patch
    * @type string
    */
-  diffType: RepoDownloadPullDiffOrPatchPathParamsDiffTypeEnumKey;
+  diffType: RepoDownloadPullDiffOrPatchDiffTypeKey;
 };
 
-export type RepoDownloadPullDiffOrPatchQueryParams = {
+export type RepoDownloadPullDiffOrPatchQuery = {
   /**
    * @description whether to include binary file changes. if true, the diff is applicable with `git apply`
    * @type boolean | undefined
@@ -44,21 +46,53 @@ export type RepoDownloadPullDiffOrPatchQueryParams = {
   binary?: boolean;
 };
 
-/**
- * @description APIString is a string response
- */
-export type RepoDownloadPullDiffOrPatch200 = string;
+export type RepoDownloadPullDiffOrPatchStatus200Json = string;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDownloadPullDiffOrPatch404 = APINotFound;
+export type RepoDownloadPullDiffOrPatchStatus200Html = string;
 
-export type RepoDownloadPullDiffOrPatchQueryResponse = RepoDownloadPullDiffOrPatch200;
+export type RepoDownloadPullDiffOrPatchStatus200 =
+  | RepoDownloadPullDiffOrPatchStatus200Json
+  | RepoDownloadPullDiffOrPatchStatus200Html;
 
-export type RepoDownloadPullDiffOrPatchQuery = {
-  Response: RepoDownloadPullDiffOrPatch200;
-  PathParams: RepoDownloadPullDiffOrPatchPathParams;
-  QueryParams: RepoDownloadPullDiffOrPatchQueryParams;
-  Errors: RepoDownloadPullDiffOrPatch404;
+export type RepoDownloadPullDiffOrPatchStatus404Json = APINotFound;
+
+export type RepoDownloadPullDiffOrPatchStatus404Html = APINotFound;
+
+export type RepoDownloadPullDiffOrPatchStatus404 =
+  | RepoDownloadPullDiffOrPatchStatus404Json
+  | RepoDownloadPullDiffOrPatchStatus404Html;
+
+export type RepoDownloadPullDiffOrPatchOptions = {
+  body?: never;
+  path: RepoDownloadPullDiffOrPatchPath;
+  query?: RepoDownloadPullDiffOrPatchQuery;
+  headers?: never;
 };
+
+export type RepoDownloadPullDiffOrPatchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoDownloadPullDiffOrPatchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDownloadPullDiffOrPatchStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDownloadPullDiffOrPatchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDownloadPullDiffOrPatchStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDownloadPullDiffOrPatchResponse =
+  | RepoDownloadPullDiffOrPatchStatus200
+  | RepoDownloadPullDiffOrPatchStatus404;

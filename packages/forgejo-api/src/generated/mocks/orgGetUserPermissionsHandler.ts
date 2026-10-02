@@ -4,13 +4,13 @@
  */
 
 import type {
-  OrgGetUserPermissionsQueryResponse,
-  OrgGetUserPermissions403,
-  OrgGetUserPermissions404,
+  OrgGetUserPermissionsResponse,
+  OrgGetUserPermissionsStatus403,
+  OrgGetUserPermissionsStatus404,
 } from '../types/OrgGetUserPermissions';
 import { http } from 'msw';
 
-export function orgGetUserPermissionsHandlerResponse200(data: OrgGetUserPermissionsQueryResponse) {
+export function orgGetUserPermissionsHandlerResponse200(data: OrgGetUserPermissionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function orgGetUserPermissionsHandlerResponse200(data: OrgGetUserPermissi
   });
 }
 
-export function orgGetUserPermissionsHandlerResponse403(data: OrgGetUserPermissions403) {
+export function orgGetUserPermissionsHandlerResponse403(data: OrgGetUserPermissionsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function orgGetUserPermissionsHandlerResponse403(data: OrgGetUserPermissi
   });
 }
 
-export function orgGetUserPermissionsHandlerResponse404(data: OrgGetUserPermissions404) {
+export function orgGetUserPermissionsHandlerResponse404(data: OrgGetUserPermissionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function orgGetUserPermissionsHandlerResponse404(data: OrgGetUserPermissi
 
 export function orgGetUserPermissionsHandler(
   data?:
-    | OrgGetUserPermissionsQueryResponse
+    | OrgGetUserPermissionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/orgs/:org/permissions`, function handler(info) {

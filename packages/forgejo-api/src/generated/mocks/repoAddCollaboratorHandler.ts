@@ -4,20 +4,22 @@
  */
 
 import type {
-  RepoAddCollaboratorMutationResponse,
-  RepoAddCollaborator403,
-  RepoAddCollaborator404,
-  RepoAddCollaborator422,
+  RepoAddCollaboratorResponse,
+  RepoAddCollaboratorStatus403,
+  RepoAddCollaboratorStatus404,
+  RepoAddCollaboratorStatus422,
+  RepoAddCollaboratorBody,
 } from '../types/RepoAddCollaborator';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoAddCollaboratorHandlerResponse204(data?: RepoAddCollaboratorMutationResponse) {
+export function repoAddCollaboratorHandlerResponse204(data?: RepoAddCollaboratorResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoAddCollaboratorHandlerResponse403(data: RepoAddCollaborator403) {
+export function repoAddCollaboratorHandlerResponse403(data: RepoAddCollaboratorStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +28,7 @@ export function repoAddCollaboratorHandlerResponse403(data: RepoAddCollaborator4
   });
 }
 
-export function repoAddCollaboratorHandlerResponse404(data: RepoAddCollaborator404) {
+export function repoAddCollaboratorHandlerResponse404(data: RepoAddCollaboratorStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +37,7 @@ export function repoAddCollaboratorHandlerResponse404(data: RepoAddCollaborator4
   });
 }
 
-export function repoAddCollaboratorHandlerResponse422(data: RepoAddCollaborator422) {
+export function repoAddCollaboratorHandlerResponse422(data: RepoAddCollaboratorStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -51,13 +53,16 @@ export function repoAddCollaboratorHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, RepoAddCollaboratorBody>,
 ) {
-  return http.put(`/repos/:owner/:repo/collaborators/:collaborator`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, RepoAddCollaboratorBody>(
+    `/repos/:owner/:repo/collaborators/:collaborator`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

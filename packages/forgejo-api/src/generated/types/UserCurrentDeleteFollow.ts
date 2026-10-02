@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentDeleteFollowPathParams = {
+export type UserCurrentDeleteFollowPath = {
   /**
    * @description username of user to unfollow
    * @type string
@@ -15,30 +15,75 @@ export type UserCurrentDeleteFollowPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentDeleteFollow204 = any;
+export type UserCurrentDeleteFollowStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentDeleteFollow401 = APIUnauthorizedError;
+export type UserCurrentDeleteFollowStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentDeleteFollow403 = APIForbiddenError;
+export type UserCurrentDeleteFollowStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentDeleteFollow404 = APINotFound;
+export type UserCurrentDeleteFollowStatus401 =
+  | UserCurrentDeleteFollowStatus401Json
+  | UserCurrentDeleteFollowStatus401Html;
 
-export type UserCurrentDeleteFollowMutationResponse = UserCurrentDeleteFollow204;
+export type UserCurrentDeleteFollowStatus403Json = APIForbiddenError;
 
-export type UserCurrentDeleteFollowMutation = {
-  Response: UserCurrentDeleteFollow204;
-  PathParams: UserCurrentDeleteFollowPathParams;
-  Errors: UserCurrentDeleteFollow401 | UserCurrentDeleteFollow403 | UserCurrentDeleteFollow404;
+export type UserCurrentDeleteFollowStatus403Html = APIForbiddenError;
+
+export type UserCurrentDeleteFollowStatus403 =
+  | UserCurrentDeleteFollowStatus403Json
+  | UserCurrentDeleteFollowStatus403Html;
+
+export type UserCurrentDeleteFollowStatus404Json = APINotFound;
+
+export type UserCurrentDeleteFollowStatus404Html = APINotFound;
+
+export type UserCurrentDeleteFollowStatus404 =
+  | UserCurrentDeleteFollowStatus404Json
+  | UserCurrentDeleteFollowStatus404Html;
+
+export type UserCurrentDeleteFollowOptions = {
+  body?: never;
+  path: UserCurrentDeleteFollowPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentDeleteFollowResponses = {
+  '204': UserCurrentDeleteFollowStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteFollowStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteFollowStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteFollowStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteFollowStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteFollowStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteFollowStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentDeleteFollowResponse =
+  | UserCurrentDeleteFollowStatus204
+  | UserCurrentDeleteFollowStatus401
+  | UserCurrentDeleteFollowStatus403
+  | UserCurrentDeleteFollowStatus404;

@@ -5,14 +5,32 @@
 
 import type { LicensesTemplateListEntry } from './LicensesTemplateListEntry';
 
-/**
- * @description LicenseTemplateList
- */
-export type ListLicenseTemplates200 = LicensesTemplateListEntry[];
+export type ListLicenseTemplatesStatus200Json = LicensesTemplateListEntry[];
 
-export type ListLicenseTemplatesQueryResponse = ListLicenseTemplates200;
+export type ListLicenseTemplatesStatus200Html = LicensesTemplateListEntry[];
 
-export type ListLicenseTemplatesQuery = {
-  Response: ListLicenseTemplates200;
-  Errors: any;
+export type ListLicenseTemplatesStatus200 = ListLicenseTemplatesStatus200Json | ListLicenseTemplatesStatus200Html;
+
+export type ListLicenseTemplatesOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ListLicenseTemplatesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListLicenseTemplatesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListLicenseTemplatesStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListLicenseTemplatesResponse = ListLicenseTemplatesStatus200;

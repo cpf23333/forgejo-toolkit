@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubInstanceActorInboxMutationResponse } from '../types/ActivitypubInstanceActorInbox';
+import type { ActivitypubInstanceActorInboxResponse } from '../types/ActivitypubInstanceActorInbox';
 import { http } from 'msw';
 
-export function activitypubInstanceActorInboxHandlerResponse204(data?: ActivitypubInstanceActorInboxMutationResponse) {
+export function activitypubInstanceActorInboxHandlerResponse204(data?: ActivitypubInstanceActorInboxResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });

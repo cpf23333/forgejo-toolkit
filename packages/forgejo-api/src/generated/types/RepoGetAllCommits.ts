@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { Commit } from './Commit';
 
-export type RepoGetAllCommitsPathParams = {
+export type RepoGetAllCommitsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,7 +20,7 @@ export type RepoGetAllCommitsPathParams = {
   repo: string;
 };
 
-export type RepoGetAllCommitsQueryParams = {
+export type RepoGetAllCommitsQuery = {
   /**
    * @description SHA or branch to start listing commits from (usually \'master\')
    * @type string | undefined
@@ -63,26 +63,73 @@ export type RepoGetAllCommitsQueryParams = {
   not?: string;
 };
 
-/**
- * @description CommitList
- */
-export type RepoGetAllCommits200 = Commit[];
+export type RepoGetAllCommitsStatus200Json = Commit[];
+
+export type RepoGetAllCommitsStatus200Html = Commit[];
+
+export type RepoGetAllCommitsStatus200 = RepoGetAllCommitsStatus200Json | RepoGetAllCommitsStatus200Html;
+
+export type RepoGetAllCommitsStatus404Json = APINotFound;
+
+export type RepoGetAllCommitsStatus404Html = APINotFound;
+
+export type RepoGetAllCommitsStatus404 = RepoGetAllCommitsStatus404Json | RepoGetAllCommitsStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoGetAllCommits404 = APINotFound;
+export type RepoGetAllCommitsStatus409Json = APIError;
 
 /**
- * @description EmptyRepository
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoGetAllCommits409 = APIError;
+export type RepoGetAllCommitsStatus409Html = APIError;
 
-export type RepoGetAllCommitsQueryResponse = RepoGetAllCommits200;
+export type RepoGetAllCommitsStatus409 = RepoGetAllCommitsStatus409Json | RepoGetAllCommitsStatus409Html;
 
-export type RepoGetAllCommitsQuery = {
-  Response: RepoGetAllCommits200;
-  PathParams: RepoGetAllCommitsPathParams;
-  QueryParams: RepoGetAllCommitsQueryParams;
-  Errors: RepoGetAllCommits404 | RepoGetAllCommits409;
+export type RepoGetAllCommitsOptions = {
+  body?: never;
+  path: RepoGetAllCommitsPath;
+  query?: RepoGetAllCommitsQuery;
+  headers?: never;
 };
+
+export type RepoGetAllCommitsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetAllCommitsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetAllCommitsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetAllCommitsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetAllCommitsStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoGetAllCommitsStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetAllCommitsStatus409Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetAllCommitsResponse =
+  | RepoGetAllCommitsStatus200
+  | RepoGetAllCommitsStatus404
+  | RepoGetAllCommitsStatus409;

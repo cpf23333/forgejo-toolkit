@@ -5,10 +5,13 @@
 
 /**
  * @description DeleteLabelOption options for deleting a label
+ * @type object
  */
 export type DeleteLabelsOption = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

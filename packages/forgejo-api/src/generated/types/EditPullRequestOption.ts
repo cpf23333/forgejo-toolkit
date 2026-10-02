@@ -5,50 +5,28 @@
 
 /**
  * @description EditPullRequestOption options when modify pull request
+ * @type object
  */
 export type EditPullRequestOption = {
-  /**
-   * @type boolean | undefined
-   */
   allow_maintainer_edit?: boolean;
-  /**
-   * @type string | undefined
-   */
   assignee?: string;
-  /**
-   * @type array | undefined
-   */
   assignees?: string[];
-  /**
-   * @type string | undefined
-   */
   base?: string;
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
-  /**
-   * @type array | undefined
-   */
   labels?: number[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   milestone?: number;
-  /**
-   * @type string | undefined
-   */
   state?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
-  /**
-   * @type boolean | undefined
-   */
   unset_due_date?: boolean;
 };

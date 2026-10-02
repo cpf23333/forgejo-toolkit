@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminRemoveRuleFromQuotaGroupMutationResponse,
-  AdminRemoveRuleFromQuotaGroup400,
-  AdminRemoveRuleFromQuotaGroup403,
-  AdminRemoveRuleFromQuotaGroup404,
+  AdminRemoveRuleFromQuotaGroupResponse,
+  AdminRemoveRuleFromQuotaGroupStatus400,
+  AdminRemoveRuleFromQuotaGroupStatus403,
+  AdminRemoveRuleFromQuotaGroupStatus404,
 } from '../types/AdminRemoveRuleFromQuotaGroup';
 import { http } from 'msw';
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse201(data?: AdminRemoveRuleFromQuotaGroupMutationResponse) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse201(data?: AdminRemoveRuleFromQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse400(data: AdminRemoveRuleFromQuotaGroup400) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse400(data: AdminRemoveRuleFromQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function adminRemoveRuleFromQuotaGroupHandlerResponse400(data: AdminRemov
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse403(data: AdminRemoveRuleFromQuotaGroup403) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse403(data: AdminRemoveRuleFromQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function adminRemoveRuleFromQuotaGroupHandlerResponse403(data: AdminRemov
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse404(data: AdminRemoveRuleFromQuotaGroup404) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse404(data: AdminRemoveRuleFromQuotaGroupStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentCheckFollowingPathParams = {
+export type UserCurrentCheckFollowingPath = {
   /**
    * @description username of followed user
    * @type string
@@ -15,30 +15,75 @@ export type UserCurrentCheckFollowingPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentCheckFollowing204 = any;
+export type UserCurrentCheckFollowingStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentCheckFollowing401 = APIUnauthorizedError;
+export type UserCurrentCheckFollowingStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentCheckFollowing403 = APIForbiddenError;
+export type UserCurrentCheckFollowingStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentCheckFollowing404 = APINotFound;
+export type UserCurrentCheckFollowingStatus401 =
+  | UserCurrentCheckFollowingStatus401Json
+  | UserCurrentCheckFollowingStatus401Html;
 
-export type UserCurrentCheckFollowingQueryResponse = UserCurrentCheckFollowing204;
+export type UserCurrentCheckFollowingStatus403Json = APIForbiddenError;
 
-export type UserCurrentCheckFollowingQuery = {
-  Response: UserCurrentCheckFollowing204;
-  PathParams: UserCurrentCheckFollowingPathParams;
-  Errors: UserCurrentCheckFollowing401 | UserCurrentCheckFollowing403 | UserCurrentCheckFollowing404;
+export type UserCurrentCheckFollowingStatus403Html = APIForbiddenError;
+
+export type UserCurrentCheckFollowingStatus403 =
+  | UserCurrentCheckFollowingStatus403Json
+  | UserCurrentCheckFollowingStatus403Html;
+
+export type UserCurrentCheckFollowingStatus404Json = APINotFound;
+
+export type UserCurrentCheckFollowingStatus404Html = APINotFound;
+
+export type UserCurrentCheckFollowingStatus404 =
+  | UserCurrentCheckFollowingStatus404Json
+  | UserCurrentCheckFollowingStatus404Html;
+
+export type UserCurrentCheckFollowingOptions = {
+  body?: never;
+  path: UserCurrentCheckFollowingPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentCheckFollowingResponses = {
+  '204': UserCurrentCheckFollowingStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckFollowingStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckFollowingStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckFollowingStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckFollowingStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckFollowingStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckFollowingStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentCheckFollowingResponse =
+  | UserCurrentCheckFollowingStatus204
+  | UserCurrentCheckFollowingStatus401
+  | UserCurrentCheckFollowingStatus403
+  | UserCurrentCheckFollowingStatus404;

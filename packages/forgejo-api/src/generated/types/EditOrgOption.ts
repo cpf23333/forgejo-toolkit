@@ -14,35 +14,18 @@ export type EditOrgOptionVisibilityEnumKey =
 
 /**
  * @description EditOrgOption options for editing an organization
+ * @type object
  */
 export type EditOrgOption = {
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type string | undefined
-   */
   email?: string;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
-  /**
-   * @type string | undefined
-   */
   location?: string;
-  /**
-   * @type boolean | undefined
-   */
   repo_admin_change_team_access?: boolean;
   /**
    * @description possible values are `public`, `limited` or `private`
    * @type string | undefined
    */
   visibility?: EditOrgOptionVisibilityEnumKey;
-  /**
-   * @type string | undefined
-   */
   website?: string;
 };

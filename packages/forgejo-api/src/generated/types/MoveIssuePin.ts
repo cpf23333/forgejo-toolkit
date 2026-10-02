@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type MoveIssuePinPathParams = {
+export type MoveIssuePinPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,35 +19,64 @@ export type MoveIssuePinPathParams = {
   repo: string;
   /**
    * @description index of issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description the new position
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   position: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type MoveIssuePin204 = any;
+export type MoveIssuePinStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type MoveIssuePin403 = APIForbiddenError;
+export type MoveIssuePinStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type MoveIssuePin404 = APINotFound;
+export type MoveIssuePinStatus403Html = APIForbiddenError;
 
-export type MoveIssuePinMutationResponse = MoveIssuePin204;
+export type MoveIssuePinStatus403 = MoveIssuePinStatus403Json | MoveIssuePinStatus403Html;
 
-export type MoveIssuePinMutation = {
-  Response: MoveIssuePin204;
-  PathParams: MoveIssuePinPathParams;
-  Errors: MoveIssuePin403 | MoveIssuePin404;
+export type MoveIssuePinStatus404Json = APINotFound;
+
+export type MoveIssuePinStatus404Html = APINotFound;
+
+export type MoveIssuePinStatus404 = MoveIssuePinStatus404Json | MoveIssuePinStatus404Html;
+
+export type MoveIssuePinOptions = {
+  body?: never;
+  path: MoveIssuePinPath;
+  query?: never;
+  headers?: never;
 };
+
+export type MoveIssuePinResponses = {
+  '204': MoveIssuePinStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: MoveIssuePinStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: MoveIssuePinStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: MoveIssuePinStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: MoveIssuePinStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type MoveIssuePinResponse = MoveIssuePinStatus204 | MoveIssuePinStatus403 | MoveIssuePinStatus404;

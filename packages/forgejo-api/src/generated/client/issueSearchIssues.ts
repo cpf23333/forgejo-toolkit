@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueSearchIssuesQueryResponse,
-  IssueSearchIssuesQueryParams,
-  IssueSearchIssues400,
-  IssueSearchIssues422,
-} from '../types/IssueSearchIssues';
-
-function getIssueSearchIssuesUrl() {
-  const res = { method: 'GET', url: `/repos/issues/search` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueSearchIssuesOptions, IssueSearchIssuesResponses } from '../types/IssueSearchIssues';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for issues across the repositories that the user has access to
  * {@link /repos/issues/search}
  */
-export async function issueSearchIssues(
-  params?: IssueSearchIssuesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueSearchIssues<ThrowOnError extends boolean = true>(
+  options: Options<IssueSearchIssuesOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<IssueSearchIssuesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueSearchIssuesQueryResponse,
-    ResponseErrorConfig<IssueSearchIssues400 | IssueSearchIssues422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueSearchIssuesUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/issues/search',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueSearchIssuesResponses, ThrowOnError>>;
 }

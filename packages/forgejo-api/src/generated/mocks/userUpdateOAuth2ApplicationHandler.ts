@@ -4,14 +4,16 @@
  */
 
 import type {
-  UserUpdateOAuth2ApplicationMutationResponse,
-  UserUpdateOAuth2Application401,
-  UserUpdateOAuth2Application403,
-  UserUpdateOAuth2Application404,
+  UserUpdateOAuth2ApplicationResponse,
+  UserUpdateOAuth2ApplicationStatus401,
+  UserUpdateOAuth2ApplicationStatus403,
+  UserUpdateOAuth2ApplicationStatus404,
+  UserUpdateOAuth2ApplicationBody,
 } from '../types/UserUpdateOAuth2Application';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userUpdateOAuth2ApplicationHandlerResponse200(data: UserUpdateOAuth2ApplicationMutationResponse) {
+export function userUpdateOAuth2ApplicationHandlerResponse200(data: UserUpdateOAuth2ApplicationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function userUpdateOAuth2ApplicationHandlerResponse200(data: UserUpdateOA
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse401(data: UserUpdateOAuth2Application401) {
+export function userUpdateOAuth2ApplicationHandlerResponse401(data: UserUpdateOAuth2ApplicationStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +31,7 @@ export function userUpdateOAuth2ApplicationHandlerResponse401(data: UserUpdateOA
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse403(data: UserUpdateOAuth2Application403) {
+export function userUpdateOAuth2ApplicationHandlerResponse403(data: UserUpdateOAuth2ApplicationStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function userUpdateOAuth2ApplicationHandlerResponse403(data: UserUpdateOA
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse404(data: UserUpdateOAuth2Application404) {
+export function userUpdateOAuth2ApplicationHandlerResponse404(data: UserUpdateOAuth2ApplicationStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,17 +51,20 @@ export function userUpdateOAuth2ApplicationHandlerResponse404(data: UserUpdateOA
 
 export function userUpdateOAuth2ApplicationHandler(
   data?:
-    | UserUpdateOAuth2ApplicationMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+    | UserUpdateOAuth2ApplicationResponse
+    | HttpResponseResolver<Record<string, string>, UserUpdateOAuth2ApplicationBody>,
 ) {
-  return http.patch(`/user/applications/oauth2/:id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, UserUpdateOAuth2ApplicationBody>(
+    `/user/applications/oauth2/:id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

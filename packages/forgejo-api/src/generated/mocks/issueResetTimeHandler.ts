@@ -4,20 +4,20 @@
  */
 
 import type {
-  IssueResetTimeMutationResponse,
-  IssueResetTime400,
-  IssueResetTime403,
-  IssueResetTime404,
+  IssueResetTimeResponse,
+  IssueResetTimeStatus400,
+  IssueResetTimeStatus403,
+  IssueResetTimeStatus404,
 } from '../types/IssueResetTime';
 import { http } from 'msw';
 
-export function issueResetTimeHandlerResponse204(data?: IssueResetTimeMutationResponse) {
+export function issueResetTimeHandlerResponse204(data?: IssueResetTimeResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueResetTimeHandlerResponse400(data: IssueResetTime400) {
+export function issueResetTimeHandlerResponse400(data: IssueResetTimeStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function issueResetTimeHandlerResponse400(data: IssueResetTime400) {
   });
 }
 
-export function issueResetTimeHandlerResponse403(data: IssueResetTime403) {
+export function issueResetTimeHandlerResponse403(data: IssueResetTimeStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function issueResetTimeHandlerResponse403(data: IssueResetTime403) {
   });
 }
 
-export function issueResetTimeHandlerResponse404(data: IssueResetTime404) {
+export function issueResetTimeHandlerResponse404(data: IssueResetTimeStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

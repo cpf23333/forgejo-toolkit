@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { AccessToken } from './AccessToken';
 import type { CreateAccessTokenOption } from './CreateAccessTokenOption';
 
-export type UserCreateTokenPathParams = {
+export type UserCreateTokenPath = {
   /**
    * @description username of user
    * @type string
@@ -17,34 +17,95 @@ export type UserCreateTokenPathParams = {
   username: string;
 };
 
-/**
- * AccessToken represents an API access token.
- * @description AccessToken represents an API access token.
- */
-export type UserCreateToken201 = AccessToken;
+export type UserCreateTokenStatus201Json = AccessToken;
+
+export type UserCreateTokenStatus201Html = AccessToken;
+
+export type UserCreateTokenStatus201 = UserCreateTokenStatus201Json | UserCreateTokenStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserCreateToken400 = APIError;
+export type UserCreateTokenStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserCreateToken403 = APIForbiddenError;
+export type UserCreateTokenStatus400Html = APIError;
+
+export type UserCreateTokenStatus400 = UserCreateTokenStatus400Json | UserCreateTokenStatus400Html;
+
+export type UserCreateTokenStatus403Json = APIForbiddenError;
+
+export type UserCreateTokenStatus403Html = APIForbiddenError;
+
+export type UserCreateTokenStatus403 = UserCreateTokenStatus403Json | UserCreateTokenStatus403Html;
+
+export type UserCreateTokenStatus404Json = APINotFound;
+
+export type UserCreateTokenStatus404Html = APINotFound;
+
+export type UserCreateTokenStatus404 = UserCreateTokenStatus404Json | UserCreateTokenStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateAccessTokenOption options when create access token
+ * @type object | undefined
  */
-export type UserCreateToken404 = APINotFound;
+export type UserCreateTokenBody = CreateAccessTokenOption | undefined;
 
-export type UserCreateTokenMutationRequest = CreateAccessTokenOption;
-
-export type UserCreateTokenMutationResponse = UserCreateToken201;
-
-export type UserCreateTokenMutation = {
-  Response: UserCreateToken201;
-  Request: UserCreateTokenMutationRequest;
-  PathParams: UserCreateTokenPathParams;
-  Errors: UserCreateToken400 | UserCreateToken403 | UserCreateToken404;
+export type UserCreateTokenOptions = {
+  body: UserCreateTokenBody;
+  path: UserCreateTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCreateTokenResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserCreateTokenStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateTokenStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UserCreateTokenStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateTokenStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCreateTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateTokenStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCreateTokenStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateTokenStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCreateTokenResponse =
+  | UserCreateTokenStatus201
+  | UserCreateTokenStatus400
+  | UserCreateTokenStatus403
+  | UserCreateTokenStatus404;

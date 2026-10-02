@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
-export type RepoDeleteBranchPathParams = {
+export type RepoDeleteBranchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,30 +25,77 @@ export type RepoDeleteBranchPathParams = {
   branch: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteBranch204 = any;
+export type RepoDeleteBranchStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteBranch403 = APIError;
+export type RepoDeleteBranchStatus403Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteBranch404 = APINotFound;
+export type RepoDeleteBranchStatus403Html = APIError;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoDeleteBranch423 = APIRepoArchivedError;
+export type RepoDeleteBranchStatus403 = RepoDeleteBranchStatus403Json | RepoDeleteBranchStatus403Html;
 
-export type RepoDeleteBranchMutationResponse = RepoDeleteBranch204;
+export type RepoDeleteBranchStatus404Json = APINotFound;
 
-export type RepoDeleteBranchMutation = {
-  Response: RepoDeleteBranch204;
-  PathParams: RepoDeleteBranchPathParams;
-  Errors: RepoDeleteBranch403 | RepoDeleteBranch404 | RepoDeleteBranch423;
+export type RepoDeleteBranchStatus404Html = APINotFound;
+
+export type RepoDeleteBranchStatus404 = RepoDeleteBranchStatus404Json | RepoDeleteBranchStatus404Html;
+
+export type RepoDeleteBranchStatus423Json = APIRepoArchivedError;
+
+export type RepoDeleteBranchStatus423Html = APIRepoArchivedError;
+
+export type RepoDeleteBranchStatus423 = RepoDeleteBranchStatus423Json | RepoDeleteBranchStatus423Html;
+
+export type RepoDeleteBranchOptions = {
+  body?: never;
+  path: RepoDeleteBranchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteBranchResponses = {
+  '204': RepoDeleteBranchStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteBranchStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteBranchStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteBranchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteBranchStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteBranchStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteBranchStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteBranchResponse =
+  | RepoDeleteBranchStatus204
+  | RepoDeleteBranchStatus403
+  | RepoDeleteBranchStatus404
+  | RepoDeleteBranchStatus423;

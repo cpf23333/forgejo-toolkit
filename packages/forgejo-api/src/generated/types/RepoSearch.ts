@@ -6,7 +6,7 @@
 import type { APIValidationError } from './APIValidationError';
 import type { SearchResults } from './SearchResults';
 
-export const repoSearchQueryParamsSortEnum = {
+export const repoSearchSort = {
   alpha: 'alpha',
   created: 'created',
   updated: 'updated',
@@ -18,18 +18,16 @@ export const repoSearchQueryParamsSortEnum = {
   forks: 'forks',
 } as const;
 
-export type RepoSearchQueryParamsSortEnumKey =
-  (typeof repoSearchQueryParamsSortEnum)[keyof typeof repoSearchQueryParamsSortEnum];
+export type RepoSearchSortKey = (typeof repoSearchSort)[keyof typeof repoSearchSort];
 
-export const repoSearchQueryParamsOrderEnum = {
+export const repoSearchOrder = {
   asc: 'asc',
   desc: 'desc',
 } as const;
 
-export type RepoSearchQueryParamsOrderEnumKey =
-  (typeof repoSearchQueryParamsOrderEnum)[keyof typeof repoSearchQueryParamsOrderEnum];
+export type RepoSearchOrderKey = (typeof repoSearchOrder)[keyof typeof repoSearchOrder];
 
-export type RepoSearchQueryParams = {
+export type RepoSearchQuery = {
   /**
    * @description keyword
    * @type string | undefined
@@ -47,22 +45,30 @@ export type RepoSearchQueryParams = {
   includeDesc?: boolean;
   /**
    * @description search only for repos that the user with the given id owns or contributes to
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   uid?: number;
   /**
    * @description repo owner to prioritize in the results
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   priority_owner_id?: number;
   /**
    * @description search only for repos that belong to the given team id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   team_id?: number;
   /**
    * @description search only for repos that the user with the given id has starred
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   starredBy?: number;
   /**
@@ -99,12 +105,12 @@ export type RepoSearchQueryParams = {
    * @description sort repos by attribute. Supported values are \"alpha\", \"created\", \"updated\", \"size\", \"git_size\", \"lfs_size\", \"stars\", \"forks\" and \"id\". Default is \"alpha\"
    * @type string | undefined
    */
-  sort?: RepoSearchQueryParamsSortEnumKey;
+  sort?: RepoSearchSortKey;
   /**
    * @description sort order, either \"asc\" (ascending) or \"desc\" (descending). Default is \"asc\", ignored if \"sort\" is not specified.
    * @type string | undefined
    */
-  order?: RepoSearchQueryParamsOrderEnumKey;
+  order?: RepoSearchOrderKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -118,19 +124,54 @@ export type RepoSearchQueryParams = {
 };
 
 /**
- * @description SearchResults
+ * @description SearchResults results of a successful search
+ * @type object
  */
-export type RepoSearch200 = SearchResults;
+export type RepoSearchStatus200Json = SearchResults;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description SearchResults results of a successful search
+ * @type object
  */
-export type RepoSearch422 = APIValidationError;
+export type RepoSearchStatus200Html = SearchResults;
 
-export type RepoSearchQueryResponse = RepoSearch200;
+export type RepoSearchStatus200 = RepoSearchStatus200Json | RepoSearchStatus200Html;
 
-export type RepoSearchQuery = {
-  Response: RepoSearch200;
-  QueryParams: RepoSearchQueryParams;
-  Errors: RepoSearch422;
+export type RepoSearchStatus422Json = APIValidationError;
+
+export type RepoSearchStatus422Html = APIValidationError;
+
+export type RepoSearchStatus422 = RepoSearchStatus422Json | RepoSearchStatus422Html;
+
+export type RepoSearchOptions = {
+  body?: never;
+  path?: never;
+  query?: RepoSearchQuery;
+  headers?: never;
 };
+
+export type RepoSearchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSearchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSearchStatus200Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoSearchStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSearchStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSearchResponse = RepoSearchStatus200 | RepoSearchStatus422;

@@ -12,68 +12,70 @@ import type { User } from './User';
 
 /**
  * @description PullRequest represents a pull request
+ * @type object
  */
 export type PullRequest = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   additions?: number;
-  /**
-   * @type boolean | undefined
-   */
   allow_maintainer_edit?: boolean;
   /**
    * @description User represents a user
    * @type object | undefined
    */
   assignee?: User;
-  /**
-   * @type array | undefined
-   */
   assignees?: User[];
   /**
    * @description PRBranchInfo information about a branch
    * @type object | undefined
    */
   base?: PRBranchInfo;
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   changed_files?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   closed_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   comments?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   deletions?: number;
-  /**
-   * @type string | undefined
-   */
   diff_url?: string;
-  /**
-   * @type boolean | undefined
-   */
   draft?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   flow?: number;
   /**
@@ -81,40 +83,23 @@ export type PullRequest = {
    * @type object | undefined
    */
   head?: PRBranchInfo;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   is_locked?: boolean;
-  /**
-   * @type array | undefined
-   */
   labels?: Label[];
-  /**
-   * @type string | undefined
-   */
   merge_base?: string;
-  /**
-   * @type string | undefined
-   */
   merge_commit_sha?: string;
-  /**
-   * @type boolean | undefined
-   */
   mergeable?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   merged?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   merged_at?: string;
   /**
@@ -128,28 +113,25 @@ export type PullRequest = {
    */
   milestone?: Milestone;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   number?: number;
-  /**
-   * @type string | undefined
-   */
   patch_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   pin_order?: number;
-  /**
-   * @type array | undefined
-   */
   requested_reviewers?: User[];
-  /**
-   * @type array | undefined
-   */
   requested_reviewers_teams?: Team[];
   /**
    * @description number of review comments made on the diff of a PR review (not including comments on commits or issues in a PR)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   review_comments?: number;
   /**
@@ -157,17 +139,13 @@ export type PullRequest = {
    * @type string | undefined
    */
   state?: StateType;
-  /**
-   * @type string | undefined
-   */
   title?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
   /**
    * @description User represents a user

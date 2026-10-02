@@ -7,14 +7,9 @@ import type { Commit } from './Commit';
 
 /**
  * @description Note contains information related to a git note
+ * @type object
  */
 export type Note = {
-  /**
-   * @type object | undefined
-   */
   commit?: Commit;
-  /**
-   * @type string | undefined
-   */
   message?: string;
 };

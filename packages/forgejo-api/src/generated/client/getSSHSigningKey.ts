@@ -3,26 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetSSHSigningKeyQueryResponse, GetSSHSigningKey404 } from '../types/GetSSHSigningKey';
-
-function getGetSSHSigningKeyUrl() {
-  const res = { method: 'GET', url: `/signing-key.ssh` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetSSHSigningKeyOptions, GetSSHSigningKeyResponses } from '../types/GetSSHSigningKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get default signing-key.ssh
  * {@link /signing-key.ssh}
  */
-export async function getSSHSigningKey(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getSSHSigningKey<ThrowOnError extends boolean = true>(
+  options: Options<GetSSHSigningKeyOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetSSHSigningKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetSSHSigningKeyQueryResponse, ResponseErrorConfig<GetSSHSigningKey404>, unknown>({
-    method: 'GET',
-    url: getGetSSHSigningKeyUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/signing-key.ssh',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetSSHSigningKeyResponses, ThrowOnError>>;
 }

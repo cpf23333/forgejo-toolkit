@@ -5,14 +5,19 @@
 
 /**
  * @description TagArchiveDownloadCount counts how many times a archive was downloaded
+ * @type object
  */
 export type TagArchiveDownloadCount = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   tar_gz?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   zip?: number;
 };

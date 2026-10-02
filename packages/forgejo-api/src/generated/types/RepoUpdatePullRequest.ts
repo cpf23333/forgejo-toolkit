@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoUpdatePullRequestPathParams = {
+export type RepoUpdatePullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,67 +21,120 @@ export type RepoUpdatePullRequestPathParams = {
   repo: string;
   /**
    * @description index of the pull request to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export const repoUpdatePullRequestQueryParamsStyleEnum = {
+export const repoUpdatePullRequestStyle = {
   merge: 'merge',
   rebase: 'rebase',
 } as const;
 
-export type RepoUpdatePullRequestQueryParamsStyleEnumKey =
-  (typeof repoUpdatePullRequestQueryParamsStyleEnum)[keyof typeof repoUpdatePullRequestQueryParamsStyleEnum];
+export type RepoUpdatePullRequestStyleKey =
+  (typeof repoUpdatePullRequestStyle)[keyof typeof repoUpdatePullRequestStyle];
 
-export type RepoUpdatePullRequestQueryParams = {
+export type RepoUpdatePullRequestQuery = {
   /**
    * @description how to update pull request
    * @type string | undefined
    */
-  style?: RepoUpdatePullRequestQueryParamsStyleEnumKey;
+  style?: RepoUpdatePullRequestStyleKey;
+};
+
+export type RepoUpdatePullRequestStatus200 = unknown;
+
+export type RepoUpdatePullRequestStatus403Json = APIForbiddenError;
+
+export type RepoUpdatePullRequestStatus403Html = APIForbiddenError;
+
+export type RepoUpdatePullRequestStatus403 = RepoUpdatePullRequestStatus403Json | RepoUpdatePullRequestStatus403Html;
+
+export type RepoUpdatePullRequestStatus404Json = APINotFound;
+
+export type RepoUpdatePullRequestStatus404Html = APINotFound;
+
+export type RepoUpdatePullRequestStatus404 = RepoUpdatePullRequestStatus404Json | RepoUpdatePullRequestStatus404Html;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoUpdatePullRequestStatus409Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoUpdatePullRequestStatus409Html = APIError;
+
+export type RepoUpdatePullRequestStatus409 = RepoUpdatePullRequestStatus409Json | RepoUpdatePullRequestStatus409Html;
+
+export type RepoUpdatePullRequestStatus413 = unknown;
+
+export type RepoUpdatePullRequestStatus422Json = APIValidationError;
+
+export type RepoUpdatePullRequestStatus422Html = APIValidationError;
+
+export type RepoUpdatePullRequestStatus422 = RepoUpdatePullRequestStatus422Json | RepoUpdatePullRequestStatus422Html;
+
+export type RepoUpdatePullRequestOptions = {
+  body?: never;
+  path: RepoUpdatePullRequestPath;
+  query?: RepoUpdatePullRequestQuery;
+  headers?: never;
+};
+
+export type RepoUpdatePullRequestResponses = {
+  '200': RepoUpdatePullRequestStatus200;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdatePullRequestStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdatePullRequestStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdatePullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdatePullRequestStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdatePullRequestStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdatePullRequestStatus409Html;
+      };
+  '413': RepoUpdatePullRequestStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdatePullRequestStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdatePullRequestStatus422Html;
+      };
 };
 
 /**
- * @description APIEmpty is an empty response
+ * @description Union of all possible responses
  */
-export type RepoUpdatePullRequest200 = any;
-
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoUpdatePullRequest403 = APIForbiddenError;
-
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoUpdatePullRequest404 = APINotFound;
-
-/**
- * @description APIError is error format response
- */
-export type RepoUpdatePullRequest409 = APIError;
-
-/**
- * @description QuotaExceeded
- */
-export type RepoUpdatePullRequest413 = any;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoUpdatePullRequest422 = APIValidationError;
-
-export type RepoUpdatePullRequestMutationResponse = RepoUpdatePullRequest200;
-
-export type RepoUpdatePullRequestMutation = {
-  Response: RepoUpdatePullRequest200;
-  PathParams: RepoUpdatePullRequestPathParams;
-  QueryParams: RepoUpdatePullRequestQueryParams;
-  Errors:
-    | RepoUpdatePullRequest403
-    | RepoUpdatePullRequest404
-    | RepoUpdatePullRequest409
-    | RepoUpdatePullRequest413
-    | RepoUpdatePullRequest422;
-};
+export type RepoUpdatePullRequestResponse =
+  | RepoUpdatePullRequestStatus200
+  | RepoUpdatePullRequestStatus403
+  | RepoUpdatePullRequestStatus404
+  | RepoUpdatePullRequestStatus409
+  | RepoUpdatePullRequestStatus413
+  | RepoUpdatePullRequestStatus422;

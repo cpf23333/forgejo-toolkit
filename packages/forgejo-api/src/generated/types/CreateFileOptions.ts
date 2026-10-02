@@ -8,6 +8,7 @@ import type { Identity } from './Identity';
 
 /**
  * @description CreateFileOptions options for creating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
 export type CreateFileOptions = {
   /**

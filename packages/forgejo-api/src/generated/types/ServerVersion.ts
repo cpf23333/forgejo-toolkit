@@ -5,10 +5,8 @@
 
 /**
  * @description ServerVersion wraps the version of the server
+ * @type object
  */
 export type ServerVersion = {
-  /**
-   * @type string | undefined
-   */
   version?: string;
 };

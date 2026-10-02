@@ -5,14 +5,14 @@
 
 /**
  * @description Identity for a person\'s identity like an author or committer
+ * @type object
  */
 export type Identity = {
   /**
-   * @type string | undefined, email
-   */
-  email?: string;
-  /**
+   * @description
+   * Format: `email`
    * @type string | undefined
    */
+  email?: string;
   name?: string;
 };

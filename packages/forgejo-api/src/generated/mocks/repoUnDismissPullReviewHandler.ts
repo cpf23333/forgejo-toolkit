@@ -4,14 +4,14 @@
  */
 
 import type {
-  RepoUnDismissPullReviewMutationResponse,
-  RepoUnDismissPullReview403,
-  RepoUnDismissPullReview404,
-  RepoUnDismissPullReview422,
+  RepoUnDismissPullReviewResponse,
+  RepoUnDismissPullReviewStatus403,
+  RepoUnDismissPullReviewStatus404,
+  RepoUnDismissPullReviewStatus422,
 } from '../types/RepoUnDismissPullReview';
 import { http } from 'msw';
 
-export function repoUnDismissPullReviewHandlerResponse200(data: RepoUnDismissPullReviewMutationResponse) {
+export function repoUnDismissPullReviewHandlerResponse200(data: RepoUnDismissPullReviewResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function repoUnDismissPullReviewHandlerResponse200(data: RepoUnDismissPul
   });
 }
 
-export function repoUnDismissPullReviewHandlerResponse403(data: RepoUnDismissPullReview403) {
+export function repoUnDismissPullReviewHandlerResponse403(data: RepoUnDismissPullReviewStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +29,7 @@ export function repoUnDismissPullReviewHandlerResponse403(data: RepoUnDismissPul
   });
 }
 
-export function repoUnDismissPullReviewHandlerResponse404(data: RepoUnDismissPullReview404) {
+export function repoUnDismissPullReviewHandlerResponse404(data: RepoUnDismissPullReviewStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +38,7 @@ export function repoUnDismissPullReviewHandlerResponse404(data: RepoUnDismissPul
   });
 }
 
-export function repoUnDismissPullReviewHandlerResponse422(data: RepoUnDismissPullReview422) {
+export function repoUnDismissPullReviewHandlerResponse422(data: RepoUnDismissPullReviewStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,7 +49,7 @@ export function repoUnDismissPullReviewHandlerResponse422(data: RepoUnDismissPul
 
 export function repoUnDismissPullReviewHandler(
   data?:
-    | RepoUnDismissPullReviewMutationResponse
+    | RepoUnDismissPullReviewResponse
     | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id/undismissals`, function handler(info) {

@@ -3,46 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoDeleteTagProtectionMutationResponse,
-  RepoDeleteTagProtectionPathParams,
-  RepoDeleteTagProtection404,
+  RepoDeleteTagProtectionOptions,
+  RepoDeleteTagProtectionResponses,
 } from '../types/RepoDeleteTagProtection';
-
-function getRepoDeleteTagProtectionUrl(
-  owner: RepoDeleteTagProtectionPathParams['owner'],
-  repo: RepoDeleteTagProtectionPathParams['repo'],
-  id: RepoDeleteTagProtectionPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/tag_protections/${id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a specific tag protection for the repository
  * {@link /repos/:owner/:repo/tag_protections/:id}
  */
-export async function repoDeleteTagProtection(
-  owner: RepoDeleteTagProtectionPathParams['owner'],
-  repo: RepoDeleteTagProtectionPathParams['repo'],
-  id: RepoDeleteTagProtectionPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteTagProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteTagProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteTagProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteTagProtectionMutationResponse,
-    ResponseErrorConfig<RepoDeleteTagProtection404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteTagProtectionUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/tag_protections/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteTagProtectionResponses, ThrowOnError>>;
 }

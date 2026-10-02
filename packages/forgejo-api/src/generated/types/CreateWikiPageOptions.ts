@@ -5,6 +5,7 @@
 
 /**
  * @description CreateWikiPageOptions form for creating wiki
+ * @type object
  */
 export type CreateWikiPageOptions = {
   /**

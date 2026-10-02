@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { BranchProtection } from './BranchProtection';
 import type { CreateBranchProtectionOption } from './CreateBranchProtectionOption';
 
-export type RepoCreateBranchProtectionPathParams = {
+export type RepoCreateBranchProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,41 +24,120 @@ export type RepoCreateBranchProtectionPathParams = {
 };
 
 /**
- * @description BranchProtection
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoCreateBranchProtection201 = BranchProtection;
+export type RepoCreateBranchProtectionStatus201Json = BranchProtection;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoCreateBranchProtection403 = APIForbiddenError;
+export type RepoCreateBranchProtectionStatus201Html = BranchProtection;
+
+export type RepoCreateBranchProtectionStatus201 =
+  | RepoCreateBranchProtectionStatus201Json
+  | RepoCreateBranchProtectionStatus201Html;
+
+export type RepoCreateBranchProtectionStatus403Json = APIForbiddenError;
+
+export type RepoCreateBranchProtectionStatus403Html = APIForbiddenError;
+
+export type RepoCreateBranchProtectionStatus403 =
+  | RepoCreateBranchProtectionStatus403Json
+  | RepoCreateBranchProtectionStatus403Html;
+
+export type RepoCreateBranchProtectionStatus404Json = APINotFound;
+
+export type RepoCreateBranchProtectionStatus404Html = APINotFound;
+
+export type RepoCreateBranchProtectionStatus404 =
+  | RepoCreateBranchProtectionStatus404Json
+  | RepoCreateBranchProtectionStatus404Html;
+
+export type RepoCreateBranchProtectionStatus422Json = APIValidationError;
+
+export type RepoCreateBranchProtectionStatus422Html = APIValidationError;
+
+export type RepoCreateBranchProtectionStatus422 =
+  | RepoCreateBranchProtectionStatus422Json
+  | RepoCreateBranchProtectionStatus422Html;
+
+export type RepoCreateBranchProtectionStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateBranchProtectionStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateBranchProtectionStatus423 =
+  | RepoCreateBranchProtectionStatus423Json
+  | RepoCreateBranchProtectionStatus423Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateBranchProtectionOption options for creating a branch protection
+ * @type object | undefined
  */
-export type RepoCreateBranchProtection404 = APINotFound;
+export type RepoCreateBranchProtectionBody = CreateBranchProtectionOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoCreateBranchProtection422 = APIValidationError;
-
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreateBranchProtection423 = APIRepoArchivedError;
-
-export type RepoCreateBranchProtectionMutationRequest = CreateBranchProtectionOption;
-
-export type RepoCreateBranchProtectionMutationResponse = RepoCreateBranchProtection201;
-
-export type RepoCreateBranchProtectionMutation = {
-  Response: RepoCreateBranchProtection201;
-  Request: RepoCreateBranchProtectionMutationRequest;
-  PathParams: RepoCreateBranchProtectionPathParams;
-  Errors:
-    | RepoCreateBranchProtection403
-    | RepoCreateBranchProtection404
-    | RepoCreateBranchProtection422
-    | RepoCreateBranchProtection423;
+export type RepoCreateBranchProtectionOptions = {
+  body: RepoCreateBranchProtectionBody;
+  path: RepoCreateBranchProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateBranchProtectionResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchProtectionStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchProtectionStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchProtectionStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchProtectionStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchProtectionStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchProtectionStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchProtectionStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchProtectionStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchProtectionStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateBranchProtectionResponse =
+  | RepoCreateBranchProtectionStatus201
+  | RepoCreateBranchProtectionStatus403
+  | RepoCreateBranchProtectionStatus404
+  | RepoCreateBranchProtectionStatus422
+  | RepoCreateBranchProtectionStatus423;

@@ -4,14 +4,16 @@
  */
 
 import type {
-  AdminEditUserMutationResponse,
-  AdminEditUser400,
-  AdminEditUser403,
-  AdminEditUser422,
+  AdminEditUserResponse,
+  AdminEditUserStatus400,
+  AdminEditUserStatus403,
+  AdminEditUserStatus422,
+  AdminEditUserBody,
 } from '../types/AdminEditUser';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminEditUserHandlerResponse200(data: AdminEditUserMutationResponse) {
+export function adminEditUserHandlerResponse200(data: AdminEditUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function adminEditUserHandlerResponse200(data: AdminEditUserMutationRespo
   });
 }
 
-export function adminEditUserHandlerResponse400(data: AdminEditUser400) {
+export function adminEditUserHandlerResponse400(data: AdminEditUserStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function adminEditUserHandlerResponse400(data: AdminEditUser400) {
   });
 }
 
-export function adminEditUserHandlerResponse403(data: AdminEditUser403) {
+export function adminEditUserHandlerResponse403(data: AdminEditUserStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function adminEditUserHandlerResponse403(data: AdminEditUser403) {
   });
 }
 
-export function adminEditUserHandlerResponse422(data: AdminEditUser422) {
+export function adminEditUserHandlerResponse422(data: AdminEditUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,11 +50,9 @@ export function adminEditUserHandlerResponse422(data: AdminEditUser422) {
 }
 
 export function adminEditUserHandler(
-  data?:
-    | AdminEditUserMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminEditUserResponse | HttpResponseResolver<Record<string, string>, AdminEditUserBody>,
 ) {
-  return http.patch(`/admin/users/:username`, function handler(info) {
+  return http.patch<Record<string, string>, AdminEditUserBody>(`/admin/users/:username`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

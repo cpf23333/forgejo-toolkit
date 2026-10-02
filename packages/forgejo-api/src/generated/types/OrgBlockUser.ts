@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type OrgBlockUserPathParams = {
+export type OrgBlockUserPath = {
   /**
    * @description name of the org
    * @type string
@@ -19,25 +19,50 @@ export type OrgBlockUserPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgBlockUser204 = any;
+export type OrgBlockUserStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgBlockUser404 = APINotFound;
+export type OrgBlockUserStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type OrgBlockUser422 = APIValidationError;
+export type OrgBlockUserStatus404Html = APINotFound;
 
-export type OrgBlockUserMutationResponse = OrgBlockUser204;
+export type OrgBlockUserStatus404 = OrgBlockUserStatus404Json | OrgBlockUserStatus404Html;
 
-export type OrgBlockUserMutation = {
-  Response: OrgBlockUser204;
-  PathParams: OrgBlockUserPathParams;
-  Errors: OrgBlockUser404 | OrgBlockUser422;
+export type OrgBlockUserStatus422Json = APIValidationError;
+
+export type OrgBlockUserStatus422Html = APIValidationError;
+
+export type OrgBlockUserStatus422 = OrgBlockUserStatus422Json | OrgBlockUserStatus422Html;
+
+export type OrgBlockUserOptions = {
+  body?: never;
+  path: OrgBlockUserPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgBlockUserResponses = {
+  '204': OrgBlockUserStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgBlockUserStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgBlockUserStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgBlockUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgBlockUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgBlockUserResponse = OrgBlockUserStatus204 | OrgBlockUserStatus404 | OrgBlockUserStatus422;

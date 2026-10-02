@@ -7,6 +7,7 @@ import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 /**
  * @description QuotaGroup represents a quota group
+ * @type object
  */
 export type QuotaGroup = {
   /**

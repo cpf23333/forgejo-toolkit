@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListBlockedUsersQueryResponse,
-  UserListBlockedUsersQueryParams,
-  UserListBlockedUsers401,
-  UserListBlockedUsers403,
-} from '../types/UserListBlockedUsers';
-
-function getUserListBlockedUsersUrl() {
-  const res = { method: 'GET', url: `/user/list_blocked` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListBlockedUsersOptions, UserListBlockedUsersResponses } from '../types/UserListBlockedUsers';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the authenticated user's blocked users
  * {@link /user/list_blocked}
  */
-export async function userListBlockedUsers(
-  params?: UserListBlockedUsersQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListBlockedUsers<ThrowOnError extends boolean = true>(
+  options: Options<UserListBlockedUsersOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserListBlockedUsersResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserListBlockedUsersQueryResponse,
-    ResponseErrorConfig<UserListBlockedUsers401 | UserListBlockedUsers403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserListBlockedUsersUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/list_blocked',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListBlockedUsersResponses, ThrowOnError>>;
 }

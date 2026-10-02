@@ -4,25 +4,27 @@
  */
 
 import type {
-  UpdateRepoSecretMutationResponse,
-  UpdateRepoSecret400,
-  UpdateRepoSecret404,
+  UpdateRepoSecretResponse,
+  UpdateRepoSecretStatus400,
+  UpdateRepoSecretStatus404,
+  UpdateRepoSecretBody,
 } from '../types/UpdateRepoSecret';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateRepoSecretHandlerResponse201(data?: UpdateRepoSecretMutationResponse) {
+export function updateRepoSecretHandlerResponse201(data?: UpdateRepoSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateRepoSecretHandlerResponse204(data?: UpdateRepoSecretMutationResponse) {
+export function updateRepoSecretHandlerResponse204(data?: UpdateRepoSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateRepoSecretHandlerResponse400(data: UpdateRepoSecret400) {
+export function updateRepoSecretHandlerResponse400(data: UpdateRepoSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function updateRepoSecretHandlerResponse400(data: UpdateRepoSecret400) {
   });
 }
 
-export function updateRepoSecretHandlerResponse404(data: UpdateRepoSecret404) {
+export function updateRepoSecretHandlerResponse404(data: UpdateRepoSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -41,19 +43,16 @@ export function updateRepoSecretHandlerResponse404(data: UpdateRepoSecret404) {
 }
 
 export function updateRepoSecretHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, UpdateRepoSecretBody>,
 ) {
-  return http.put(`/repos/:owner/:repo/actions/secrets/:secretname`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, UpdateRepoSecretBody>(
+    `/repos/:owner/:repo/actions/secrets/:secretname`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+      });
+    },
+  );
 }

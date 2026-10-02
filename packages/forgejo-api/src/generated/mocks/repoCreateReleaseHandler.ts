@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoCreateReleaseMutationResponse,
-  RepoCreateRelease404,
-  RepoCreateRelease409,
-  RepoCreateRelease422,
+  RepoCreateReleaseResponse,
+  RepoCreateReleaseStatus404,
+  RepoCreateReleaseStatus409,
+  RepoCreateReleaseStatus422,
+  RepoCreateReleaseBody,
 } from '../types/RepoCreateRelease';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateReleaseHandlerResponse201(data: RepoCreateReleaseMutationResponse) {
+export function repoCreateReleaseHandlerResponse201(data: RepoCreateReleaseResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function repoCreateReleaseHandlerResponse201(data: RepoCreateReleaseMutat
   });
 }
 
-export function repoCreateReleaseHandlerResponse404(data: RepoCreateRelease404) {
+export function repoCreateReleaseHandlerResponse404(data: RepoCreateReleaseStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +31,7 @@ export function repoCreateReleaseHandlerResponse404(data: RepoCreateRelease404) 
   });
 }
 
-export function repoCreateReleaseHandlerResponse409(data: RepoCreateRelease409) {
+export function repoCreateReleaseHandlerResponse409(data: RepoCreateReleaseStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -38,7 +40,7 @@ export function repoCreateReleaseHandlerResponse409(data: RepoCreateRelease409) 
   });
 }
 
-export function repoCreateReleaseHandlerResponse422(data: RepoCreateRelease422) {
+export function repoCreateReleaseHandlerResponse422(data: RepoCreateReleaseStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,18 +50,19 @@ export function repoCreateReleaseHandlerResponse422(data: RepoCreateRelease422) 
 }
 
 export function repoCreateReleaseHandler(
-  data?:
-    | RepoCreateReleaseMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateReleaseResponse | HttpResponseResolver<Record<string, string>, RepoCreateReleaseBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/releases`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateReleaseBody>(
+    `/repos/:owner/:repo/releases`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

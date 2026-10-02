@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Release } from './Release';
 
-export type RepoListReleasesPathParams = {
+export type RepoListReleasesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListReleasesPathParams = {
   repo: string;
 };
 
-export type RepoListReleasesQueryParams = {
+export type RepoListReleasesQuery = {
   /**
    * @description filter (exclude / include) drafts, if you dont have repo write access none will show
    * @type boolean | undefined
@@ -47,21 +47,47 @@ export type RepoListReleasesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ReleaseList
- */
-export type RepoListReleases200 = Release[];
+export type RepoListReleasesStatus200Json = Release[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListReleases404 = APINotFound;
+export type RepoListReleasesStatus200Html = Release[];
 
-export type RepoListReleasesQueryResponse = RepoListReleases200;
+export type RepoListReleasesStatus200 = RepoListReleasesStatus200Json | RepoListReleasesStatus200Html;
 
-export type RepoListReleasesQuery = {
-  Response: RepoListReleases200;
-  PathParams: RepoListReleasesPathParams;
-  QueryParams: RepoListReleasesQueryParams;
-  Errors: RepoListReleases404;
+export type RepoListReleasesStatus404Json = APINotFound;
+
+export type RepoListReleasesStatus404Html = APINotFound;
+
+export type RepoListReleasesStatus404 = RepoListReleasesStatus404Json | RepoListReleasesStatus404Html;
+
+export type RepoListReleasesOptions = {
+  body?: never;
+  path: RepoListReleasesPath;
+  query?: RepoListReleasesQuery;
+  headers?: never;
 };
+
+export type RepoListReleasesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListReleasesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListReleasesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListReleasesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListReleasesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListReleasesResponse = RepoListReleasesStatus200 | RepoListReleasesStatus404;

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteAllFlagsPathParams = {
+export type RepoDeleteAllFlagsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,53 @@ export type RepoDeleteAllFlagsPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteAllFlags204 = any;
+export type RepoDeleteAllFlagsStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeleteAllFlags403 = APIForbiddenError;
+export type RepoDeleteAllFlagsStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteAllFlags404 = APINotFound;
+export type RepoDeleteAllFlagsStatus403Html = APIForbiddenError;
 
-export type RepoDeleteAllFlagsMutationResponse = RepoDeleteAllFlags204;
+export type RepoDeleteAllFlagsStatus403 = RepoDeleteAllFlagsStatus403Json | RepoDeleteAllFlagsStatus403Html;
 
-export type RepoDeleteAllFlagsMutation = {
-  Response: RepoDeleteAllFlags204;
-  PathParams: RepoDeleteAllFlagsPathParams;
-  Errors: RepoDeleteAllFlags403 | RepoDeleteAllFlags404;
+export type RepoDeleteAllFlagsStatus404Json = APINotFound;
+
+export type RepoDeleteAllFlagsStatus404Html = APINotFound;
+
+export type RepoDeleteAllFlagsStatus404 = RepoDeleteAllFlagsStatus404Json | RepoDeleteAllFlagsStatus404Html;
+
+export type RepoDeleteAllFlagsOptions = {
+  body?: never;
+  path: RepoDeleteAllFlagsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteAllFlagsResponses = {
+  '204': RepoDeleteAllFlagsStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteAllFlagsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteAllFlagsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteAllFlagsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteAllFlagsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteAllFlagsResponse =
+  | RepoDeleteAllFlagsStatus204
+  | RepoDeleteAllFlagsStatus403
+  | RepoDeleteAllFlagsStatus404;

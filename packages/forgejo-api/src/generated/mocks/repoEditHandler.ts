@@ -3,10 +3,17 @@
  * Do not edit manually.
  */
 
-import type { RepoEditMutationResponse, RepoEdit403, RepoEdit404, RepoEdit422 } from '../types/RepoEdit';
+import type {
+  RepoEditResponse,
+  RepoEditStatus403,
+  RepoEditStatus404,
+  RepoEditStatus422,
+  RepoEditBody,
+} from '../types/RepoEdit';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditHandlerResponse200(data: RepoEditMutationResponse) {
+export function repoEditHandlerResponse200(data: RepoEditResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +22,7 @@ export function repoEditHandlerResponse200(data: RepoEditMutationResponse) {
   });
 }
 
-export function repoEditHandlerResponse403(data: RepoEdit403) {
+export function repoEditHandlerResponse403(data: RepoEditStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +31,7 @@ export function repoEditHandlerResponse403(data: RepoEdit403) {
   });
 }
 
-export function repoEditHandlerResponse404(data: RepoEdit404) {
+export function repoEditHandlerResponse404(data: RepoEditStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -33,7 +40,7 @@ export function repoEditHandlerResponse404(data: RepoEdit404) {
   });
 }
 
-export function repoEditHandlerResponse422(data: RepoEdit422) {
+export function repoEditHandlerResponse422(data: RepoEditStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -42,12 +49,8 @@ export function repoEditHandlerResponse422(data: RepoEdit422) {
   });
 }
 
-export function repoEditHandler(
-  data?:
-    | RepoEditMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
-) {
-  return http.patch(`/repos/:owner/:repo`, function handler(info) {
+export function repoEditHandler(data?: RepoEditResponse | HttpResponseResolver<Record<string, string>, RepoEditBody>) {
+  return http.patch<Record<string, string>, RepoEditBody>(`/repos/:owner/:repo`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

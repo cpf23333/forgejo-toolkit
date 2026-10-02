@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListStargazersQueryResponse, RepoListStargazers404 } from '../types/RepoListStargazers';
+import type { RepoListStargazersResponse, RepoListStargazersStatus404 } from '../types/RepoListStargazers';
 import { http } from 'msw';
 
-export function repoListStargazersHandlerResponse200(data: RepoListStargazersQueryResponse) {
+export function repoListStargazersHandlerResponse200(data: RepoListStargazersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListStargazersHandlerResponse200(data: RepoListStargazersQue
   });
 }
 
-export function repoListStargazersHandlerResponse404(data: RepoListStargazers404) {
+export function repoListStargazersHandlerResponse404(data: RepoListStargazersStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListStargazersHandlerResponse404(data: RepoListStargazers404
 
 export function repoListStargazersHandler(
   data?:
-    | RepoListStargazersQueryResponse
+    | RepoListStargazersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/stargazers`, function handler(info) {

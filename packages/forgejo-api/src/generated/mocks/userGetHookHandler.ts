@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetHookQueryResponse, UserGetHook401, UserGetHook403 } from '../types/UserGetHook';
+import type { UserGetHookResponse, UserGetHookStatus401, UserGetHookStatus403 } from '../types/UserGetHook';
 import { http } from 'msw';
 
-export function userGetHookHandlerResponse200(data: UserGetHookQueryResponse) {
+export function userGetHookHandlerResponse200(data: UserGetHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetHookHandlerResponse200(data: UserGetHookQueryResponse) {
   });
 }
 
-export function userGetHookHandlerResponse401(data: UserGetHook401) {
+export function userGetHookHandlerResponse401(data: UserGetHookStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +24,7 @@ export function userGetHookHandlerResponse401(data: UserGetHook401) {
   });
 }
 
-export function userGetHookHandlerResponse403(data: UserGetHook403) {
+export function userGetHookHandlerResponse403(data: UserGetHookStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -34,9 +34,7 @@ export function userGetHookHandlerResponse403(data: UserGetHook403) {
 }
 
 export function userGetHookHandler(
-  data?:
-    | UserGetHookQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: UserGetHookResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/hooks/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);

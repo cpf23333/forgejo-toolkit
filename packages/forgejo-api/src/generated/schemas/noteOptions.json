@@ -1,6 +1,0 @@
-{
-  "type": "object",
-  "properties": { "message": { "type": "string", "x-go-name": "Message" } },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "NoteOptions"
-}

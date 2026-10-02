@@ -5,15 +5,15 @@
 
 import type { APINotFound } from './APINotFound';
 
-export const repoDownloadCommitDiffOrPatchPathParamsDiffTypeEnum = {
+export const repoDownloadCommitDiffOrPatchDiffType = {
   diff: 'diff',
   patch: 'patch',
 } as const;
 
-export type RepoDownloadCommitDiffOrPatchPathParamsDiffTypeEnumKey =
-  (typeof repoDownloadCommitDiffOrPatchPathParamsDiffTypeEnum)[keyof typeof repoDownloadCommitDiffOrPatchPathParamsDiffTypeEnum];
+export type RepoDownloadCommitDiffOrPatchDiffTypeKey =
+  (typeof repoDownloadCommitDiffOrPatchDiffType)[keyof typeof repoDownloadCommitDiffOrPatchDiffType];
 
-export type RepoDownloadCommitDiffOrPatchPathParams = {
+export type RepoDownloadCommitDiffOrPatchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -33,23 +33,56 @@ export type RepoDownloadCommitDiffOrPatchPathParams = {
    * @description whether the output is diff or patch
    * @type string
    */
-  diffType: RepoDownloadCommitDiffOrPatchPathParamsDiffTypeEnumKey;
+  diffType: RepoDownloadCommitDiffOrPatchDiffTypeKey;
+};
+
+export type RepoDownloadCommitDiffOrPatchStatus200Json = string;
+
+export type RepoDownloadCommitDiffOrPatchStatus200Html = string;
+
+export type RepoDownloadCommitDiffOrPatchStatus200 =
+  | RepoDownloadCommitDiffOrPatchStatus200Json
+  | RepoDownloadCommitDiffOrPatchStatus200Html;
+
+export type RepoDownloadCommitDiffOrPatchStatus404Json = APINotFound;
+
+export type RepoDownloadCommitDiffOrPatchStatus404Html = APINotFound;
+
+export type RepoDownloadCommitDiffOrPatchStatus404 =
+  | RepoDownloadCommitDiffOrPatchStatus404Json
+  | RepoDownloadCommitDiffOrPatchStatus404Html;
+
+export type RepoDownloadCommitDiffOrPatchOptions = {
+  body?: never;
+  path: RepoDownloadCommitDiffOrPatchPath;
+  query?: never;
+  headers?: never;
+};
+
+export type RepoDownloadCommitDiffOrPatchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoDownloadCommitDiffOrPatchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDownloadCommitDiffOrPatchStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDownloadCommitDiffOrPatchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDownloadCommitDiffOrPatchStatus404Html;
+      };
 };
 
 /**
- * @description APIString is a string response
+ * @description Union of all possible responses
  */
-export type RepoDownloadCommitDiffOrPatch200 = string;
-
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDownloadCommitDiffOrPatch404 = APINotFound;
-
-export type RepoDownloadCommitDiffOrPatchQueryResponse = RepoDownloadCommitDiffOrPatch200;
-
-export type RepoDownloadCommitDiffOrPatchQuery = {
-  Response: RepoDownloadCommitDiffOrPatch200;
-  PathParams: RepoDownloadCommitDiffOrPatchPathParams;
-  Errors: RepoDownloadCommitDiffOrPatch404;
-};
+export type RepoDownloadCommitDiffOrPatchResponse =
+  | RepoDownloadCommitDiffOrPatchStatus200
+  | RepoDownloadCommitDiffOrPatchStatus404;

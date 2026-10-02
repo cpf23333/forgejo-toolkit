@@ -5,37 +5,26 @@
 
 import type { RepositoryMeta } from './RepositoryMeta';
 
-/**
- * AccessToken represents an API access token.
- */
 export type AccessToken = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
   /**
    * @description Indicates that an access token only has access to the specified repositories.  Will be null if the access token\nis not limited to a set of specified repositories.
    * @type array | undefined
    */
   repositories?: RepositoryMeta[];
-  /**
-   * @type array | undefined
-   */
   scopes?: string[];
-  /**
-   * @type string | undefined
-   */
   sha1?: string;
-  /**
-   * @type string | undefined
-   */
   token_last_eight?: string;
 };

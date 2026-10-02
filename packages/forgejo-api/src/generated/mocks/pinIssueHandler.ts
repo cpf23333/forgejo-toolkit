@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { PinIssueMutationResponse, PinIssue403, PinIssue404 } from '../types/PinIssue';
+import type { PinIssueResponse, PinIssueStatus403, PinIssueStatus404 } from '../types/PinIssue';
 import { http } from 'msw';
 
-export function pinIssueHandlerResponse204(data?: PinIssueMutationResponse) {
+export function pinIssueHandlerResponse204(data?: PinIssueResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function pinIssueHandlerResponse403(data: PinIssue403) {
+export function pinIssueHandlerResponse403(data: PinIssueStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function pinIssueHandlerResponse403(data: PinIssue403) {
   });
 }
 
-export function pinIssueHandlerResponse404(data: PinIssue404) {
+export function pinIssueHandlerResponse404(data: PinIssueStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

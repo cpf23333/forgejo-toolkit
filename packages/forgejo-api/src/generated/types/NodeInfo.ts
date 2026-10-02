@@ -9,19 +9,11 @@ import type { NodeInfoUsage } from './NodeInfoUsage';
 
 /**
  * @description NodeInfo contains standardized way of exposing metadata about a server running one of the distributed social networks
+ * @type object
  */
 export type NodeInfo = {
-  /**
-   * @type object | undefined
-   */
   metadata?: object;
-  /**
-   * @type boolean | undefined
-   */
   openRegistrations?: boolean;
-  /**
-   * @type array | undefined
-   */
   protocols?: string[];
   /**
    * @description NodeInfoServices contains the third party sites this server can connect to via their application API
@@ -38,8 +30,5 @@ export type NodeInfo = {
    * @type object | undefined
    */
   usage?: NodeInfoUsage;
-  /**
-   * @type string | undefined
-   */
   version?: string;
 };

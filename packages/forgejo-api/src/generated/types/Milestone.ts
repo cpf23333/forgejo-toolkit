@@ -7,34 +7,44 @@ import type { StateType } from './StateType';
 
 /**
  * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
 export type Milestone = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   closed_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   closed_issues?: number;
   /**
-   * @type string | undefined, date-time
-   */
-  created_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  created_at?: string;
   description?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_on?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   open_issues?: number;
   /**
@@ -42,12 +52,11 @@ export type Milestone = {
    * @type string | undefined
    */
   state?: StateType;
-  /**
-   * @type string | undefined
-   */
   title?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

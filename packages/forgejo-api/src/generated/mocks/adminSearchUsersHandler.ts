@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminSearchUsersQueryResponse, AdminSearchUsers403 } from '../types/AdminSearchUsers';
+import type { AdminSearchUsersResponse, AdminSearchUsersStatus403 } from '../types/AdminSearchUsers';
 import { http } from 'msw';
 
-export function adminSearchUsersHandlerResponse200(data: AdminSearchUsersQueryResponse) {
+export function adminSearchUsersHandlerResponse200(data: AdminSearchUsersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminSearchUsersHandlerResponse200(data: AdminSearchUsersQueryRe
   });
 }
 
-export function adminSearchUsersHandlerResponse403(data: AdminSearchUsers403) {
+export function adminSearchUsersHandlerResponse403(data: AdminSearchUsersStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminSearchUsersHandlerResponse403(data: AdminSearchUsers403) {
 
 export function adminSearchUsersHandler(
   data?:
-    | AdminSearchUsersQueryResponse
+    | AdminSearchUsersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users`, function handler(info) {

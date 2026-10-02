@@ -3,16 +3,17 @@
  * Do not edit manually.
  */
 
-/**
- * BlockedUser represents a blocked user.
- */
 export type BlockedUser = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   block_id?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
 };

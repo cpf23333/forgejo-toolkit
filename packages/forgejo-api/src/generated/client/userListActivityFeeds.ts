@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListActivityFeedsQueryResponse,
-  UserListActivityFeedsPathParams,
-  UserListActivityFeedsQueryParams,
-  UserListActivityFeeds404,
-} from '../types/UserListActivityFeeds';
-
-function getUserListActivityFeedsUrl(username: UserListActivityFeedsPathParams['username']) {
-  const res = {
-    method: 'GET',
-    url: `/users/${username}/activities/feeds` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListActivityFeedsOptions, UserListActivityFeedsResponses } from '../types/UserListActivityFeeds';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a user's activity feeds
  * {@link /users/:username/activities/feeds}
  */
-export async function userListActivityFeeds(
-  username: UserListActivityFeedsPathParams['username'],
-  params?: UserListActivityFeedsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListActivityFeeds<ThrowOnError extends boolean = true>(
+  options: Options<UserListActivityFeedsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserListActivityFeedsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserListActivityFeedsQueryResponse, ResponseErrorConfig<UserListActivityFeeds404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getUserListActivityFeedsUrl(username).url.toString(),
-      params,
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/users/{username}/activities/feeds',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListActivityFeedsResponses, ThrowOnError>>;
 }

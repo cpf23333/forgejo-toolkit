@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgDeleteHookMutationResponse, OrgDeleteHook404 } from '../types/OrgDeleteHook';
+import type { OrgDeleteHookResponse, OrgDeleteHookStatus404 } from '../types/OrgDeleteHook';
 import { http } from 'msw';
 
-export function orgDeleteHookHandlerResponse204(data?: OrgDeleteHookMutationResponse) {
+export function orgDeleteHookHandlerResponse204(data?: OrgDeleteHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgDeleteHookHandlerResponse404(data: OrgDeleteHook404) {
+export function orgDeleteHookHandlerResponse404(data: OrgDeleteHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

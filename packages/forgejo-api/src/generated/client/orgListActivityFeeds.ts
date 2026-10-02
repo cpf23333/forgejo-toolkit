@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListActivityFeedsQueryResponse,
-  OrgListActivityFeedsPathParams,
-  OrgListActivityFeedsQueryParams,
-  OrgListActivityFeeds404,
-} from '../types/OrgListActivityFeeds';
-
-function getOrgListActivityFeedsUrl(org: OrgListActivityFeedsPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/activities/feeds` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListActivityFeedsOptions, OrgListActivityFeedsResponses } from '../types/OrgListActivityFeeds';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an organization's activity feeds
  * {@link /orgs/:org/activities/feeds}
  */
-export async function orgListActivityFeeds(
-  org: OrgListActivityFeedsPathParams['org'],
-  params?: OrgListActivityFeedsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListActivityFeeds<ThrowOnError extends boolean = true>(
+  options: Options<OrgListActivityFeedsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListActivityFeedsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListActivityFeedsQueryResponse, ResponseErrorConfig<OrgListActivityFeeds404>, unknown>({
-    method: 'GET',
-    url: getOrgListActivityFeedsUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/activities/feeds',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListActivityFeedsResponses, ThrowOnError>>;
 }

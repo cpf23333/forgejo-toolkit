@@ -5,55 +5,23 @@
 
 /**
  * @description UserSettingsOptions represents options to change user settings
+ * @type object
  */
 export type UserSettingsOptions = {
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type string | undefined
-   */
   diff_view_style?: string;
-  /**
-   * @type boolean | undefined
-   */
   enable_repo_unit_hints?: boolean;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
-  /**
-   * @type boolean | undefined
-   */
   hide_activity?: boolean;
   /**
    * @description Privacy
    * @type boolean | undefined
    */
   hide_email?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   hide_pronouns?: boolean;
-  /**
-   * @type string | undefined
-   */
   language?: string;
-  /**
-   * @type string | undefined
-   */
   location?: string;
-  /**
-   * @type string | undefined
-   */
   pronouns?: string;
-  /**
-   * @type string | undefined
-   */
   theme?: string;
-  /**
-   * @type string | undefined
-   */
   website?: string;
 };

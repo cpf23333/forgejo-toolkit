@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditDeadlineOption } from './EditDeadlineOption';
 import type { IssueDeadline } from './IssueDeadline';
 
-export type IssueEditIssueDeadlinePathParams = {
+export type IssueEditIssueDeadlinePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,86 @@ export type IssueEditIssueDeadlinePathParams = {
   repo: string;
   /**
    * @description index of the issue to create or update a deadline on
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description IssueDeadline
+ * @description IssueDeadline represents an issue deadline
+ * @type object
  */
-export type IssueEditIssueDeadline201 = IssueDeadline;
+export type IssueEditIssueDeadlineStatus201Json = IssueDeadline;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description IssueDeadline represents an issue deadline
+ * @type object
  */
-export type IssueEditIssueDeadline403 = APIForbiddenError;
+export type IssueEditIssueDeadlineStatus201Html = IssueDeadline;
+
+export type IssueEditIssueDeadlineStatus201 = IssueEditIssueDeadlineStatus201Json | IssueEditIssueDeadlineStatus201Html;
+
+export type IssueEditIssueDeadlineStatus403Json = APIForbiddenError;
+
+export type IssueEditIssueDeadlineStatus403Html = APIForbiddenError;
+
+export type IssueEditIssueDeadlineStatus403 = IssueEditIssueDeadlineStatus403Json | IssueEditIssueDeadlineStatus403Html;
+
+export type IssueEditIssueDeadlineStatus404Json = APINotFound;
+
+export type IssueEditIssueDeadlineStatus404Html = APINotFound;
+
+export type IssueEditIssueDeadlineStatus404 = IssueEditIssueDeadlineStatus404Json | IssueEditIssueDeadlineStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description EditDeadlineOption options for creating a deadline
+ * @type object | undefined
  */
-export type IssueEditIssueDeadline404 = APINotFound;
+export type IssueEditIssueDeadlineBody = EditDeadlineOption | undefined;
 
-export type IssueEditIssueDeadlineMutationRequest = EditDeadlineOption;
-
-export type IssueEditIssueDeadlineMutationResponse = IssueEditIssueDeadline201;
-
-export type IssueEditIssueDeadlineMutation = {
-  Response: IssueEditIssueDeadline201;
-  Request: IssueEditIssueDeadlineMutationRequest;
-  PathParams: IssueEditIssueDeadlinePathParams;
-  Errors: IssueEditIssueDeadline403 | IssueEditIssueDeadline404;
+export type IssueEditIssueDeadlineOptions = {
+  body: IssueEditIssueDeadlineBody;
+  path: IssueEditIssueDeadlinePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditIssueDeadlineResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueDeadlineStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueDeadlineStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueDeadlineStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueDeadlineStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueDeadlineStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueDeadlineStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditIssueDeadlineResponse =
+  | IssueEditIssueDeadlineStatus201
+  | IssueEditIssueDeadlineStatus403
+  | IssueEditIssueDeadlineStatus404;

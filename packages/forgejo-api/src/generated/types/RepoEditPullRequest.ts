@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditPullRequestOption } from './EditPullRequestOption';
 import type { PullRequest } from './PullRequest';
 
-export type RepoEditPullRequestPathParams = {
+export type RepoEditPullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,53 +23,150 @@ export type RepoEditPullRequestPathParams = {
   repo: string;
   /**
    * @description index of the pull request to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description PullRequest
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoEditPullRequest201 = PullRequest;
+export type RepoEditPullRequestStatus201Json = PullRequest;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoEditPullRequest403 = APIForbiddenError;
+export type RepoEditPullRequestStatus201Html = PullRequest;
+
+export type RepoEditPullRequestStatus201 = RepoEditPullRequestStatus201Json | RepoEditPullRequestStatus201Html;
+
+export type RepoEditPullRequestStatus403Json = APIForbiddenError;
+
+export type RepoEditPullRequestStatus403Html = APIForbiddenError;
+
+export type RepoEditPullRequestStatus403 = RepoEditPullRequestStatus403Json | RepoEditPullRequestStatus403Html;
+
+export type RepoEditPullRequestStatus404Json = APINotFound;
+
+export type RepoEditPullRequestStatus404Html = APINotFound;
+
+export type RepoEditPullRequestStatus404 = RepoEditPullRequestStatus404Json | RepoEditPullRequestStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditPullRequest404 = APINotFound;
+export type RepoEditPullRequestStatus409Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditPullRequest409 = APIError;
+export type RepoEditPullRequestStatus409Html = APIError;
+
+export type RepoEditPullRequestStatus409 = RepoEditPullRequestStatus409Json | RepoEditPullRequestStatus409Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditPullRequest412 = APIError;
+export type RepoEditPullRequestStatus412Json = APIError;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditPullRequest422 = APIValidationError;
+export type RepoEditPullRequestStatus412Html = APIError;
 
-export type RepoEditPullRequestMutationRequest = EditPullRequestOption;
+export type RepoEditPullRequestStatus412 = RepoEditPullRequestStatus412Json | RepoEditPullRequestStatus412Html;
 
-export type RepoEditPullRequestMutationResponse = RepoEditPullRequest201;
+export type RepoEditPullRequestStatus422Json = APIValidationError;
 
-export type RepoEditPullRequestMutation = {
-  Response: RepoEditPullRequest201;
-  Request: RepoEditPullRequestMutationRequest;
-  PathParams: RepoEditPullRequestPathParams;
-  Errors:
-    | RepoEditPullRequest403
-    | RepoEditPullRequest404
-    | RepoEditPullRequest409
-    | RepoEditPullRequest412
-    | RepoEditPullRequest422;
+export type RepoEditPullRequestStatus422Html = APIValidationError;
+
+export type RepoEditPullRequestStatus422 = RepoEditPullRequestStatus422Json | RepoEditPullRequestStatus422Html;
+
+/**
+ * @description EditPullRequestOption options when modify pull request
+ * @type object | undefined
+ */
+export type RepoEditPullRequestBody = EditPullRequestOption | undefined;
+
+export type RepoEditPullRequestOptions = {
+  body: RepoEditPullRequestBody;
+  path: RepoEditPullRequestPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditPullRequestResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus409Html;
+      };
+  '412':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus412Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus412Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoEditPullRequestStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditPullRequestStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditPullRequestResponse =
+  | RepoEditPullRequestStatus201
+  | RepoEditPullRequestStatus403
+  | RepoEditPullRequestStatus404
+  | RepoEditPullRequestStatus409
+  | RepoEditPullRequestStatus412
+  | RepoEditPullRequestStatus422;

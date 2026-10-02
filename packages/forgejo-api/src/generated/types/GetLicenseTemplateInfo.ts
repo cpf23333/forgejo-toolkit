@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { LicenseTemplateInfo } from './LicenseTemplateInfo';
 
-export type GetLicenseTemplateInfoPathParams = {
+export type GetLicenseTemplateInfoPath = {
   /**
    * @description name of the license
    * @type string
@@ -15,19 +15,54 @@ export type GetLicenseTemplateInfoPathParams = {
 };
 
 /**
- * @description LicenseTemplateInfo
+ * @description LicensesInfo contains information about a License
+ * @type object
  */
-export type GetLicenseTemplateInfo200 = LicenseTemplateInfo;
+export type GetLicenseTemplateInfoStatus200Json = LicenseTemplateInfo;
 
 /**
- * @description APINotFound is a not found error response
+ * @description LicensesInfo contains information about a License
+ * @type object
  */
-export type GetLicenseTemplateInfo404 = APINotFound;
+export type GetLicenseTemplateInfoStatus200Html = LicenseTemplateInfo;
 
-export type GetLicenseTemplateInfoQueryResponse = GetLicenseTemplateInfo200;
+export type GetLicenseTemplateInfoStatus200 = GetLicenseTemplateInfoStatus200Json | GetLicenseTemplateInfoStatus200Html;
 
-export type GetLicenseTemplateInfoQuery = {
-  Response: GetLicenseTemplateInfo200;
-  PathParams: GetLicenseTemplateInfoPathParams;
-  Errors: GetLicenseTemplateInfo404;
+export type GetLicenseTemplateInfoStatus404Json = APINotFound;
+
+export type GetLicenseTemplateInfoStatus404Html = APINotFound;
+
+export type GetLicenseTemplateInfoStatus404 = GetLicenseTemplateInfoStatus404Json | GetLicenseTemplateInfoStatus404Html;
+
+export type GetLicenseTemplateInfoOptions = {
+  body?: never;
+  path: GetLicenseTemplateInfoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetLicenseTemplateInfoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetLicenseTemplateInfoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetLicenseTemplateInfoStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetLicenseTemplateInfoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetLicenseTemplateInfoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetLicenseTemplateInfoResponse = GetLicenseTemplateInfoStatus200 | GetLicenseTemplateInfoStatus404;

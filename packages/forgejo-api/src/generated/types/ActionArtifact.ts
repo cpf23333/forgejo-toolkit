@@ -5,6 +5,7 @@
 
 /**
  * @description ActionArtifact represents an artifact of a workflow run
+ * @type object
  */
 export type ActionArtifact = {
   /**
@@ -13,7 +14,9 @@ export type ActionArtifact = {
    */
   archive_download_url?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
@@ -22,12 +25,16 @@ export type ActionArtifact = {
    */
   expired?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   expires_at?: string;
   /**
    * @description the artifact\'s ID
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -37,16 +44,22 @@ export type ActionArtifact = {
   name?: string;
   /**
    * @description the ID of the workflow run that produced this artifact
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   run_id?: number;
   /**
    * @description the total size of the artifact in bytes
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   size_in_bytes?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralRepositorySettingsQueryResponse } from '../types/GetGeneralRepositorySettings';
+import type { GetGeneralRepositorySettingsResponse } from '../types/GetGeneralRepositorySettings';
 import { http } from 'msw';
 
-export function getGeneralRepositorySettingsHandlerResponse200(data: GetGeneralRepositorySettingsQueryResponse) {
+export function getGeneralRepositorySettingsHandlerResponse200(data: GetGeneralRepositorySettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function getGeneralRepositorySettingsHandlerResponse200(data: GetGeneralR
 
 export function getGeneralRepositorySettingsHandler(
   data?:
-    | GetGeneralRepositorySettingsQueryResponse
+    | GetGeneralRepositorySettingsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/repository`, function handler(info) {

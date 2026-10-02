@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { APIValidationError } from './APIValidationError';
 
-export type UserCheckQuotaQueryParams = {
+export type UserCheckQuotaQuery = {
   /**
    * @description subject of the quota
    * @type string
@@ -15,30 +15,81 @@ export type UserCheckQuotaQueryParams = {
   subject: string;
 };
 
-/**
- * @description Returns true if the action is accepted.
- */
-export type UserCheckQuota200 = boolean;
+export type UserCheckQuotaStatus200Json = boolean;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCheckQuota401 = APIUnauthorizedError;
+export type UserCheckQuotaStatus200Html = boolean;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCheckQuota403 = APIForbiddenError;
+export type UserCheckQuotaStatus200 = UserCheckQuotaStatus200Json | UserCheckQuotaStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserCheckQuota422 = APIValidationError;
+export type UserCheckQuotaStatus401Json = APIUnauthorizedError;
 
-export type UserCheckQuotaQueryResponse = UserCheckQuota200;
+export type UserCheckQuotaStatus401Html = APIUnauthorizedError;
 
-export type UserCheckQuotaQuery = {
-  Response: UserCheckQuota200;
-  QueryParams: UserCheckQuotaQueryParams;
-  Errors: UserCheckQuota401 | UserCheckQuota403 | UserCheckQuota422;
+export type UserCheckQuotaStatus401 = UserCheckQuotaStatus401Json | UserCheckQuotaStatus401Html;
+
+export type UserCheckQuotaStatus403Json = APIForbiddenError;
+
+export type UserCheckQuotaStatus403Html = APIForbiddenError;
+
+export type UserCheckQuotaStatus403 = UserCheckQuotaStatus403Json | UserCheckQuotaStatus403Html;
+
+export type UserCheckQuotaStatus422Json = APIValidationError;
+
+export type UserCheckQuotaStatus422Html = APIValidationError;
+
+export type UserCheckQuotaStatus422 = UserCheckQuotaStatus422Json | UserCheckQuotaStatus422Html;
+
+export type UserCheckQuotaOptions = {
+  body?: never;
+  path?: never;
+  query: UserCheckQuotaQuery;
+  headers?: never;
 };
+
+export type UserCheckQuotaResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCheckQuotaStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCheckQuotaStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCheckQuotaStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCheckQuotaStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCheckQuotaStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCheckQuotaStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserCheckQuotaStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCheckQuotaStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCheckQuotaResponse =
+  | UserCheckQuotaStatus200
+  | UserCheckQuotaStatus401
+  | UserCheckQuotaStatus403
+  | UserCheckQuotaStatus422;

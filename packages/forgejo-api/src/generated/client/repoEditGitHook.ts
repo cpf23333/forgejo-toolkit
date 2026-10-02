@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditGitHookMutationRequest,
-  RepoEditGitHookMutationResponse,
-  RepoEditGitHookPathParams,
-  RepoEditGitHook404,
-} from '../types/RepoEditGitHook';
-
-function getRepoEditGitHookUrl(
-  owner: RepoEditGitHookPathParams['owner'],
-  repo: RepoEditGitHookPathParams['repo'],
-  id: RepoEditGitHookPathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/hooks/git/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditGitHookOptions, RepoEditGitHookResponses } from '../types/RepoEditGitHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a Git hook in a repository
  * {@link /repos/:owner/:repo/hooks/git/:id}
  */
-export async function repoEditGitHook(
-  owner: RepoEditGitHookPathParams['owner'],
-  repo: RepoEditGitHookPathParams['repo'],
-  id: RepoEditGitHookPathParams['id'],
-  data?: RepoEditGitHookMutationRequest,
-  config: Partial<RequestConfig<RepoEditGitHookMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditGitHook<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditGitHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditGitHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditGitHookMutationResponse,
-    ResponseErrorConfig<RepoEditGitHook404>,
-    RepoEditGitHookMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditGitHookUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/hooks/git/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditGitHookResponses, ThrowOnError>>;
 }

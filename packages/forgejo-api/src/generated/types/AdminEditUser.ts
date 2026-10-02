@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditUserOption } from './EditUserOption';
 import type { User } from './User';
 
-export type AdminEditUserPathParams = {
+export type AdminEditUserPath = {
   /**
    * @description username of user to edit
    * @type string
@@ -18,32 +18,102 @@ export type AdminEditUserPathParams = {
 };
 
 /**
- * @description User
+ * @description User represents a user
+ * @type object
  */
-export type AdminEditUser200 = User;
+export type AdminEditUserStatus200Json = User;
 
 /**
- * @description APIError is error format response
+ * @description User represents a user
+ * @type object
  */
-export type AdminEditUser400 = APIError;
+export type AdminEditUserStatus200Html = User;
+
+export type AdminEditUserStatus200 = AdminEditUserStatus200Json | AdminEditUserStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminEditUser403 = APIForbiddenError;
+export type AdminEditUserStatus400Json = APIError;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminEditUser422 = APIValidationError;
+export type AdminEditUserStatus400Html = APIError;
 
-export type AdminEditUserMutationRequest = EditUserOption;
+export type AdminEditUserStatus400 = AdminEditUserStatus400Json | AdminEditUserStatus400Html;
 
-export type AdminEditUserMutationResponse = AdminEditUser200;
+export type AdminEditUserStatus403Json = APIForbiddenError;
 
-export type AdminEditUserMutation = {
-  Response: AdminEditUser200;
-  Request: AdminEditUserMutationRequest;
-  PathParams: AdminEditUserPathParams;
-  Errors: AdminEditUser400 | AdminEditUser403 | AdminEditUser422;
+export type AdminEditUserStatus403Html = APIForbiddenError;
+
+export type AdminEditUserStatus403 = AdminEditUserStatus403Json | AdminEditUserStatus403Html;
+
+export type AdminEditUserStatus422Json = APIValidationError;
+
+export type AdminEditUserStatus422Html = APIValidationError;
+
+export type AdminEditUserStatus422 = AdminEditUserStatus422Json | AdminEditUserStatus422Html;
+
+/**
+ * @description EditUserOption edit user options
+ * @type object | undefined
+ */
+export type AdminEditUserBody = EditUserOption | undefined;
+
+export type AdminEditUserOptions = {
+  body: AdminEditUserBody;
+  path: AdminEditUserPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminEditUserResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminEditUserStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditUserStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminEditUserStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditUserStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminEditUserStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditUserStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminEditUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminEditUserResponse =
+  | AdminEditUserStatus200
+  | AdminEditUserStatus400
+  | AdminEditUserStatus403
+  | AdminEditUserStatus422;

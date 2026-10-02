@@ -3,65 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoUpdateFileMutationRequest,
-  RepoUpdateFileMutationResponse,
-  RepoUpdateFilePathParams,
-  RepoUpdateFile403,
-  RepoUpdateFile404,
-  RepoUpdateFile409,
-  RepoUpdateFile413,
-  RepoUpdateFile422,
-  RepoUpdateFile423,
-} from '../types/RepoUpdateFile';
-
-function getRepoUpdateFileUrl(
-  owner: RepoUpdateFilePathParams['owner'],
-  repo: RepoUpdateFilePathParams['repo'],
-  filepath: RepoUpdateFilePathParams['filepath'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoUpdateFileOptions, RepoUpdateFileResponses } from '../types/RepoUpdateFile';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a file in a repository
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
-export async function repoUpdateFile(
-  owner: RepoUpdateFilePathParams['owner'],
-  repo: RepoUpdateFilePathParams['repo'],
-  filepath: RepoUpdateFilePathParams['filepath'],
-  data: RepoUpdateFileMutationRequest,
-  config: Partial<RequestConfig<RepoUpdateFileMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoUpdateFile<ThrowOnError extends boolean = true>(
+  options: Options<RepoUpdateFileOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoUpdateFileResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoUpdateFileMutationResponse,
-    ResponseErrorConfig<
-      | RepoUpdateFile403
-      | RepoUpdateFile404
-      | RepoUpdateFile409
-      | RepoUpdateFile413
-      | RepoUpdateFile422
-      | RepoUpdateFile423
-    >,
-    RepoUpdateFileMutationRequest
-  >({
-    method: 'PUT',
-    url: getRepoUpdateFileUrl(owner, repo, filepath).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/contents/{filepath}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoUpdateFileResponses, ThrowOnError>>;
 }

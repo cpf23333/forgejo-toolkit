@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIValidationError } from './APIValidationError';
 import type { RenameOrgOption } from './RenameOrgOption';
 
-export type RenameOrgPathParams = {
+export type RenameOrgPath = {
   /**
    * @description existing org name
    * @type string
@@ -15,28 +15,64 @@ export type RenameOrgPathParams = {
   org: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RenameOrg204 = any;
+export type RenameOrgStatus204 = unknown;
+
+export type RenameOrgStatus403Json = APIForbiddenError;
+
+export type RenameOrgStatus403Html = APIForbiddenError;
+
+export type RenameOrgStatus403 = RenameOrgStatus403Json | RenameOrgStatus403Html;
+
+export type RenameOrgStatus422Json = APIValidationError;
+
+export type RenameOrgStatus422Html = APIValidationError;
+
+export type RenameOrgStatus422 = RenameOrgStatus422Json | RenameOrgStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description RenameOrgOption options when renaming an organization
+ * @type object
  */
-export type RenameOrg403 = APIForbiddenError;
+export type RenameOrgBodyJson = RenameOrgOption;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description RenameOrgOption options when renaming an organization
+ * @type object
  */
-export type RenameOrg422 = APIValidationError;
+export type RenameOrgBodyPlain = RenameOrgOption;
 
-export type RenameOrgMutationRequest = RenameOrgOption;
+export type RenameOrgBody = RenameOrgBodyJson | RenameOrgBodyPlain;
 
-export type RenameOrgMutationResponse = RenameOrg204;
-
-export type RenameOrgMutation = {
-  Response: RenameOrg204;
-  Request: RenameOrgMutationRequest;
-  PathParams: RenameOrgPathParams;
-  Errors: RenameOrg403 | RenameOrg422;
+export type RenameOrgOptions = {
+  body: RenameOrgBody;
+  path: RenameOrgPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RenameOrgResponses = {
+  '204': RenameOrgStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RenameOrgStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenameOrgStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RenameOrgStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenameOrgStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RenameOrgResponse = RenameOrgStatus204 | RenameOrgStatus403 | RenameOrgStatus422;

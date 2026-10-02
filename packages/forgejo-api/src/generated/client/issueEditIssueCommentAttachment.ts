@@ -3,57 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueEditIssueCommentAttachmentMutationRequest,
-  IssueEditIssueCommentAttachmentMutationResponse,
-  IssueEditIssueCommentAttachmentPathParams,
-  IssueEditIssueCommentAttachment404,
-  IssueEditIssueCommentAttachment413,
-  IssueEditIssueCommentAttachment423,
+  IssueEditIssueCommentAttachmentOptions,
+  IssueEditIssueCommentAttachmentResponses,
 } from '../types/IssueEditIssueCommentAttachment';
-
-function getIssueEditIssueCommentAttachmentUrl(
-  owner: IssueEditIssueCommentAttachmentPathParams['owner'],
-  repo: IssueEditIssueCommentAttachmentPathParams['repo'],
-  id: IssueEditIssueCommentAttachmentPathParams['id'],
-  attachment_id: IssueEditIssueCommentAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a comment attachment
  * {@link /repos/:owner/:repo/issues/comments/:id/assets/:attachment_id}
  */
-export async function issueEditIssueCommentAttachment(
-  owner: IssueEditIssueCommentAttachmentPathParams['owner'],
-  repo: IssueEditIssueCommentAttachmentPathParams['repo'],
-  id: IssueEditIssueCommentAttachmentPathParams['id'],
-  attachment_id: IssueEditIssueCommentAttachmentPathParams['attachment_id'],
-  data?: IssueEditIssueCommentAttachmentMutationRequest,
-  config: Partial<RequestConfig<IssueEditIssueCommentAttachmentMutationRequest>> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditIssueCommentAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditIssueCommentAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditIssueCommentAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditIssueCommentAttachmentMutationResponse,
-    ResponseErrorConfig<
-      IssueEditIssueCommentAttachment404 | IssueEditIssueCommentAttachment413 | IssueEditIssueCommentAttachment423
-    >,
-    IssueEditIssueCommentAttachmentMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditIssueCommentAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditIssueCommentAttachmentResponses, ThrowOnError>>;
 }

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeletePullReviewCommentPathParams = {
+export type RepoDeletePullReviewCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,40 +19,78 @@ export type RepoDeletePullReviewCommentPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   comment: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeletePullReviewComment204 = any;
+export type RepoDeletePullReviewCommentStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeletePullReviewComment403 = APIForbiddenError;
+export type RepoDeletePullReviewCommentStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeletePullReviewComment404 = APINotFound;
+export type RepoDeletePullReviewCommentStatus403Html = APIForbiddenError;
 
-export type RepoDeletePullReviewCommentMutationResponse = RepoDeletePullReviewComment204;
+export type RepoDeletePullReviewCommentStatus403 =
+  | RepoDeletePullReviewCommentStatus403Json
+  | RepoDeletePullReviewCommentStatus403Html;
 
-export type RepoDeletePullReviewCommentMutation = {
-  Response: RepoDeletePullReviewComment204;
-  PathParams: RepoDeletePullReviewCommentPathParams;
-  Errors: RepoDeletePullReviewComment403 | RepoDeletePullReviewComment404;
+export type RepoDeletePullReviewCommentStatus404Json = APINotFound;
+
+export type RepoDeletePullReviewCommentStatus404Html = APINotFound;
+
+export type RepoDeletePullReviewCommentStatus404 =
+  | RepoDeletePullReviewCommentStatus404Json
+  | RepoDeletePullReviewCommentStatus404Html;
+
+export type RepoDeletePullReviewCommentOptions = {
+  body?: never;
+  path: RepoDeletePullReviewCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeletePullReviewCommentResponses = {
+  '204': RepoDeletePullReviewCommentStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewCommentStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewCommentStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeletePullReviewCommentResponse =
+  | RepoDeletePullReviewCommentStatus204
+  | RepoDeletePullReviewCommentStatus403
+  | RepoDeletePullReviewCommentStatus404;

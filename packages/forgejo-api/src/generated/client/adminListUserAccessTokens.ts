@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminListUserAccessTokensQueryResponse,
-  AdminListUserAccessTokensPathParams,
-  AdminListUserAccessTokensQueryParams,
-  AdminListUserAccessTokens403,
-  AdminListUserAccessTokens404,
+  AdminListUserAccessTokensOptions,
+  AdminListUserAccessTokensResponses,
 } from '../types/AdminListUserAccessTokens';
-
-function getAdminListUserAccessTokensUrl(username: AdminListUserAccessTokensPathParams['username']) {
-  const res = {
-    method: 'GET',
-    url: `/admin/users/${username}/tokens` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the specified user's access tokens
  * {@link /admin/users/:username/tokens}
  */
-export async function adminListUserAccessTokens(
-  username: AdminListUserAccessTokensPathParams['username'],
-  params?: AdminListUserAccessTokensQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminListUserAccessTokens<ThrowOnError extends boolean = true>(
+  options: Options<AdminListUserAccessTokensOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminListUserAccessTokensResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminListUserAccessTokensQueryResponse,
-    ResponseErrorConfig<AdminListUserAccessTokens403 | AdminListUserAccessTokens404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getAdminListUserAccessTokensUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/users/{username}/tokens',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminListUserAccessTokensResponses, ThrowOnError>>;
 }

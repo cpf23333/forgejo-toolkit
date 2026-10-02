@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type UserListReposPathParams = {
+export type UserListReposPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListReposPathParams = {
   username: string;
 };
 
-export type UserListReposQueryParams = {
+export type UserListReposQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type UserListReposQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type UserListRepos200 = Repository[];
+export type UserListReposStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListRepos404 = APINotFound;
+export type UserListReposStatus200Html = Repository[];
 
-export type UserListReposQueryResponse = UserListRepos200;
+export type UserListReposStatus200 = UserListReposStatus200Json | UserListReposStatus200Html;
 
-export type UserListReposQuery = {
-  Response: UserListRepos200;
-  PathParams: UserListReposPathParams;
-  QueryParams: UserListReposQueryParams;
-  Errors: UserListRepos404;
+export type UserListReposStatus404Json = APINotFound;
+
+export type UserListReposStatus404Html = APINotFound;
+
+export type UserListReposStatus404 = UserListReposStatus404Json | UserListReposStatus404Html;
+
+export type UserListReposOptions = {
+  body?: never;
+  path: UserListReposPath;
+  query?: UserListReposQuery;
+  headers?: never;
 };
+
+export type UserListReposResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListReposStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListReposStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListReposStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListReposStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListReposResponse = UserListReposStatus200 | UserListReposStatus404;

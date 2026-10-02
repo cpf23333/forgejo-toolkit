@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { IssueConfigValidation } from './IssueConfigValidation';
 
-export type RepoValidateIssueConfigPathParams = {
+export type RepoValidateIssueConfigPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,51 @@ export type RepoValidateIssueConfigPathParams = {
   repo: string;
 };
 
-/**
- * @description RepoIssueConfigValidation
- */
-export type RepoValidateIssueConfig200 = IssueConfigValidation;
+export type RepoValidateIssueConfigStatus200Json = IssueConfigValidation;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoValidateIssueConfig404 = APINotFound;
+export type RepoValidateIssueConfigStatus200Html = IssueConfigValidation;
 
-export type RepoValidateIssueConfigQueryResponse = RepoValidateIssueConfig200;
+export type RepoValidateIssueConfigStatus200 =
+  | RepoValidateIssueConfigStatus200Json
+  | RepoValidateIssueConfigStatus200Html;
 
-export type RepoValidateIssueConfigQuery = {
-  Response: RepoValidateIssueConfig200;
-  PathParams: RepoValidateIssueConfigPathParams;
-  Errors: RepoValidateIssueConfig404;
+export type RepoValidateIssueConfigStatus404Json = APINotFound;
+
+export type RepoValidateIssueConfigStatus404Html = APINotFound;
+
+export type RepoValidateIssueConfigStatus404 =
+  | RepoValidateIssueConfigStatus404Json
+  | RepoValidateIssueConfigStatus404Html;
+
+export type RepoValidateIssueConfigOptions = {
+  body?: never;
+  path: RepoValidateIssueConfigPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoValidateIssueConfigResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoValidateIssueConfigStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoValidateIssueConfigStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoValidateIssueConfigStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoValidateIssueConfigStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoValidateIssueConfigResponse = RepoValidateIssueConfigStatus200 | RepoValidateIssueConfigStatus404;

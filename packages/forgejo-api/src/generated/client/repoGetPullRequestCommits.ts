@@ -3,49 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetPullRequestCommitsQueryResponse,
-  RepoGetPullRequestCommitsPathParams,
-  RepoGetPullRequestCommitsQueryParams,
-  RepoGetPullRequestCommits404,
+  RepoGetPullRequestCommitsOptions,
+  RepoGetPullRequestCommitsResponses,
 } from '../types/RepoGetPullRequestCommits';
-
-function getRepoGetPullRequestCommitsUrl(
-  owner: RepoGetPullRequestCommitsPathParams['owner'],
-  repo: RepoGetPullRequestCommitsPathParams['repo'],
-  index: RepoGetPullRequestCommitsPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}/commits` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get commits for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/commits}
  */
-export async function repoGetPullRequestCommits(
-  owner: RepoGetPullRequestCommitsPathParams['owner'],
-  repo: RepoGetPullRequestCommitsPathParams['repo'],
-  index: RepoGetPullRequestCommitsPathParams['index'],
-  params?: RepoGetPullRequestCommitsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetPullRequestCommits<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetPullRequestCommitsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetPullRequestCommitsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetPullRequestCommitsQueryResponse,
-    ResponseErrorConfig<RepoGetPullRequestCommits404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetPullRequestCommitsUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}/commits',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetPullRequestCommitsResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { Email } from './Email';
 
-export type AdminListUserEmailsPathParams = {
+export type AdminListUserEmailsPath = {
   /**
    * @description username of user to get email addresses of
    * @type string
@@ -15,25 +15,65 @@ export type AdminListUserEmailsPathParams = {
   username: string;
 };
 
-/**
- * @description EmailList
- */
-export type AdminListUserEmails200 = Email[];
+export type AdminListUserEmailsStatus200Json = Email[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminListUserEmails403 = APIForbiddenError;
+export type AdminListUserEmailsStatus200Html = Email[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminListUserEmails404 = APINotFound;
+export type AdminListUserEmailsStatus200 = AdminListUserEmailsStatus200Json | AdminListUserEmailsStatus200Html;
 
-export type AdminListUserEmailsQueryResponse = AdminListUserEmails200;
+export type AdminListUserEmailsStatus403Json = APIForbiddenError;
 
-export type AdminListUserEmailsQuery = {
-  Response: AdminListUserEmails200;
-  PathParams: AdminListUserEmailsPathParams;
-  Errors: AdminListUserEmails403 | AdminListUserEmails404;
+export type AdminListUserEmailsStatus403Html = APIForbiddenError;
+
+export type AdminListUserEmailsStatus403 = AdminListUserEmailsStatus403Json | AdminListUserEmailsStatus403Html;
+
+export type AdminListUserEmailsStatus404Json = APINotFound;
+
+export type AdminListUserEmailsStatus404Html = APINotFound;
+
+export type AdminListUserEmailsStatus404 = AdminListUserEmailsStatus404Json | AdminListUserEmailsStatus404Html;
+
+export type AdminListUserEmailsOptions = {
+  body?: never;
+  path: AdminListUserEmailsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminListUserEmailsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserEmailsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserEmailsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserEmailsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserEmailsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserEmailsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserEmailsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListUserEmailsResponse =
+  | AdminListUserEmailsStatus200
+  | AdminListUserEmailsStatus403
+  | AdminListUserEmailsStatus404;

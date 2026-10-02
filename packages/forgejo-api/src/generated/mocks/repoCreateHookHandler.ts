@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { RepoCreateHookMutationResponse, RepoCreateHook404 } from '../types/RepoCreateHook';
+import type { RepoCreateHookResponse, RepoCreateHookStatus404, RepoCreateHookBody } from '../types/RepoCreateHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateHookHandlerResponse201(data: RepoCreateHookMutationResponse) {
+export function repoCreateHookHandlerResponse201(data: RepoCreateHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +16,7 @@ export function repoCreateHookHandlerResponse201(data: RepoCreateHookMutationRes
   });
 }
 
-export function repoCreateHookHandlerResponse404(data: RepoCreateHook404) {
+export function repoCreateHookHandlerResponse404(data: RepoCreateHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,11 +26,9 @@ export function repoCreateHookHandlerResponse404(data: RepoCreateHook404) {
 }
 
 export function repoCreateHookHandler(
-  data?:
-    | RepoCreateHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateHookResponse | HttpResponseResolver<Record<string, string>, RepoCreateHookBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/hooks`, function handler(info) {
+  return http.post<Record<string, string>, RepoCreateHookBody>(`/repos/:owner/:repo/hooks`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

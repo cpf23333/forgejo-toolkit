@@ -5,14 +5,9 @@
 
 /**
  * @description GPGKeyEmail an email attached to a GPGKey
+ * @type object
  */
 export type GPGKeyEmail = {
-  /**
-   * @type string | undefined
-   */
   email?: string;
-  /**
-   * @type boolean | undefined
-   */
   verified?: boolean;
 };

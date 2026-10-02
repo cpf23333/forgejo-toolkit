@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueDeleteMutationResponse,
-  IssueDeletePathParams,
-  IssueDelete403,
-  IssueDelete404,
-} from '../types/IssueDelete';
-
-function getIssueDeleteUrl(
-  owner: IssueDeletePathParams['owner'],
-  repo: IssueDeletePathParams['repo'],
-  index: IssueDeletePathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueDeleteOptions, IssueDeleteResponses } from '../types/IssueDelete';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an issue
  * {@link /repos/:owner/:repo/issues/:index}
  */
-export async function issueDelete(
-  owner: IssueDeletePathParams['owner'],
-  repo: IssueDeletePathParams['repo'],
-  index: IssueDeletePathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDelete<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<IssueDeleteMutationResponse, ResponseErrorConfig<IssueDelete403 | IssueDelete404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'DELETE',
-      url: getIssueDeleteUrl(owner, repo, index).url.toString(),
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/repos/{owner}/{repo}/issues/{index}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteResponses, ThrowOnError>>;
 }

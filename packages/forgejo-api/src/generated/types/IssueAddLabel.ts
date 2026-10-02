@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { IssueLabelsOption } from './IssueLabelsOption';
 import type { Label } from './Label';
 
-export type IssueAddLabelPathParams = {
+export type IssueAddLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,75 @@ export type IssueAddLabelPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description LabelListWithoutPagination - Labels for a specific issue (no pagination headers)
- */
-export type IssueAddLabel200 = Label[];
+export type IssueAddLabelStatus200Json = Label[];
+
+export type IssueAddLabelStatus200Html = Label[];
+
+export type IssueAddLabelStatus200 = IssueAddLabelStatus200Json | IssueAddLabelStatus200Html;
+
+export type IssueAddLabelStatus403Json = APIForbiddenError;
+
+export type IssueAddLabelStatus403Html = APIForbiddenError;
+
+export type IssueAddLabelStatus403 = IssueAddLabelStatus403Json | IssueAddLabelStatus403Html;
+
+export type IssueAddLabelStatus404Json = APINotFound;
+
+export type IssueAddLabelStatus404Html = APINotFound;
+
+export type IssueAddLabelStatus404 = IssueAddLabelStatus404Json | IssueAddLabelStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description IssueLabelsOption a collection of labels
+ * @type object | undefined
  */
-export type IssueAddLabel403 = APIForbiddenError;
+export type IssueAddLabelBody = IssueLabelsOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueAddLabel404 = APINotFound;
-
-export type IssueAddLabelMutationRequest = IssueLabelsOption;
-
-export type IssueAddLabelMutationResponse = IssueAddLabel200;
-
-export type IssueAddLabelMutation = {
-  Response: IssueAddLabel200;
-  Request: IssueAddLabelMutationRequest;
-  PathParams: IssueAddLabelPathParams;
-  Errors: IssueAddLabel403 | IssueAddLabel404;
+export type IssueAddLabelOptions = {
+  body: IssueAddLabelBody;
+  path: IssueAddLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueAddLabelResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueAddLabelStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddLabelStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueAddLabelStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddLabelStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueAddLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddLabelStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueAddLabelResponse = IssueAddLabelStatus200 | IssueAddLabelStatus403 | IssueAddLabelStatus404;

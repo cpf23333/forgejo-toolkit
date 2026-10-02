@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CombinedStatus } from './CombinedStatus';
 
-export type RepoGetCombinedStatusByRefPathParams = {
+export type RepoGetCombinedStatusByRefPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type RepoGetCombinedStatusByRefPathParams = {
   ref: string;
 };
 
-export type RepoGetCombinedStatusByRefQueryParams = {
+export type RepoGetCombinedStatusByRefQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -39,25 +39,86 @@ export type RepoGetCombinedStatusByRefQueryParams = {
 };
 
 /**
- * @description CombinedStatus
+ * @description CombinedStatus holds the combined state of several statuses for a single commit
+ * @type object
  */
-export type RepoGetCombinedStatusByRef200 = CombinedStatus;
+export type RepoGetCombinedStatusByRefStatus200Json = CombinedStatus;
 
 /**
- * @description APIError is error format response
+ * @description CombinedStatus holds the combined state of several statuses for a single commit
+ * @type object
  */
-export type RepoGetCombinedStatusByRef400 = APIError;
+export type RepoGetCombinedStatusByRefStatus200Html = CombinedStatus;
+
+export type RepoGetCombinedStatusByRefStatus200 =
+  | RepoGetCombinedStatusByRefStatus200Json
+  | RepoGetCombinedStatusByRefStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoGetCombinedStatusByRef404 = APINotFound;
+export type RepoGetCombinedStatusByRefStatus400Json = APIError;
 
-export type RepoGetCombinedStatusByRefQueryResponse = RepoGetCombinedStatusByRef200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoGetCombinedStatusByRefStatus400Html = APIError;
 
-export type RepoGetCombinedStatusByRefQuery = {
-  Response: RepoGetCombinedStatusByRef200;
-  PathParams: RepoGetCombinedStatusByRefPathParams;
-  QueryParams: RepoGetCombinedStatusByRefQueryParams;
-  Errors: RepoGetCombinedStatusByRef400 | RepoGetCombinedStatusByRef404;
+export type RepoGetCombinedStatusByRefStatus400 =
+  | RepoGetCombinedStatusByRefStatus400Json
+  | RepoGetCombinedStatusByRefStatus400Html;
+
+export type RepoGetCombinedStatusByRefStatus404Json = APINotFound;
+
+export type RepoGetCombinedStatusByRefStatus404Html = APINotFound;
+
+export type RepoGetCombinedStatusByRefStatus404 =
+  | RepoGetCombinedStatusByRefStatus404Json
+  | RepoGetCombinedStatusByRefStatus404Html;
+
+export type RepoGetCombinedStatusByRefOptions = {
+  body?: never;
+  path: RepoGetCombinedStatusByRefPath;
+  query?: RepoGetCombinedStatusByRefQuery;
+  headers?: never;
 };
+
+export type RepoGetCombinedStatusByRefResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetCombinedStatusByRefStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetCombinedStatusByRefStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoGetCombinedStatusByRefStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetCombinedStatusByRefStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetCombinedStatusByRefStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetCombinedStatusByRefStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetCombinedStatusByRefResponse =
+  | RepoGetCombinedStatusByRefStatus200
+  | RepoGetCombinedStatusByRefStatus400
+  | RepoGetCombinedStatusByRefStatus404;

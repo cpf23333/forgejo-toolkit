@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssuePostIssueReactionMutationResponse,
-  IssuePostIssueReaction403,
-  IssuePostIssueReaction404,
+  IssuePostIssueReactionResponse,
+  IssuePostIssueReactionStatus403,
+  IssuePostIssueReactionStatus404,
+  IssuePostIssueReactionBody,
 } from '../types/IssuePostIssueReaction';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issuePostIssueReactionHandlerResponse200(data: IssuePostIssueReactionMutationResponse) {
+export function issuePostIssueReactionHandlerResponse200(data: IssuePostIssueReactionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function issuePostIssueReactionHandlerResponse200(data: IssuePostIssueRea
   });
 }
 
-export function issuePostIssueReactionHandlerResponse201(data: IssuePostIssueReactionMutationResponse) {
+export function issuePostIssueReactionHandlerResponse201(data: IssuePostIssueReactionResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -28,7 +30,7 @@ export function issuePostIssueReactionHandlerResponse201(data: IssuePostIssueRea
   });
 }
 
-export function issuePostIssueReactionHandlerResponse403(data: IssuePostIssueReaction403) {
+export function issuePostIssueReactionHandlerResponse403(data: IssuePostIssueReactionStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -37,7 +39,7 @@ export function issuePostIssueReactionHandlerResponse403(data: IssuePostIssueRea
   });
 }
 
-export function issuePostIssueReactionHandlerResponse404(data: IssuePostIssueReaction404) {
+export function issuePostIssueReactionHandlerResponse404(data: IssuePostIssueReactionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -47,18 +49,19 @@ export function issuePostIssueReactionHandlerResponse404(data: IssuePostIssueRea
 }
 
 export function issuePostIssueReactionHandler(
-  data?:
-    | IssuePostIssueReactionMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssuePostIssueReactionResponse | HttpResponseResolver<Record<string, string>, IssuePostIssueReactionBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/reactions`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssuePostIssueReactionBody>(
+    `/repos/:owner/:repo/issues/:index/reactions`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

@@ -9,7 +9,7 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { RegisterRunnerOptions } from './RegisterRunnerOptions';
 import type { RegisterRunnerResponse } from './RegisterRunnerResponse';
 
-export type RegisterRepoRunnerPathParams = {
+export type RegisterRepoRunnerPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,37 +22,91 @@ export type RegisterRepoRunnerPathParams = {
   repo: string;
 };
 
-/**
- * RegisterRunnerResponse contains the details of the just registered runner.
- * @description RegisterRunnerResponse contains the details of the just registered runner.
- */
-export type RegisterRepoRunner201 = RegisterRunnerResponse;
+export type RegisterRepoRunnerStatus201Json = RegisterRunnerResponse;
+
+export type RegisterRepoRunnerStatus201Html = RegisterRunnerResponse;
+
+export type RegisterRepoRunnerStatus201 = RegisterRepoRunnerStatus201Json | RegisterRepoRunnerStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RegisterRepoRunner400 = APIError;
+export type RegisterRepoRunnerStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RegisterRepoRunner401 = APIUnauthorizedError;
+export type RegisterRepoRunnerStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RegisterRepoRunner404 = APINotFound;
+export type RegisterRepoRunnerStatus400 = RegisterRepoRunnerStatus400Json | RegisterRepoRunnerStatus400Html;
 
-/**
- * RegisterRunnerOptions declares the accepted options for registering runners.
- */
-export type RegisterRepoRunnerMutationRequest = RegisterRunnerOptions;
+export type RegisterRepoRunnerStatus401Json = APIUnauthorizedError;
 
-export type RegisterRepoRunnerMutationResponse = RegisterRepoRunner201;
+export type RegisterRepoRunnerStatus401Html = APIUnauthorizedError;
 
-export type RegisterRepoRunnerMutation = {
-  Response: RegisterRepoRunner201;
-  Request: RegisterRepoRunnerMutationRequest;
-  PathParams: RegisterRepoRunnerPathParams;
-  Errors: RegisterRepoRunner400 | RegisterRepoRunner401 | RegisterRepoRunner404;
+export type RegisterRepoRunnerStatus401 = RegisterRepoRunnerStatus401Json | RegisterRepoRunnerStatus401Html;
+
+export type RegisterRepoRunnerStatus404Json = APINotFound;
+
+export type RegisterRepoRunnerStatus404Html = APINotFound;
+
+export type RegisterRepoRunnerStatus404 = RegisterRepoRunnerStatus404Json | RegisterRepoRunnerStatus404Html;
+
+export type RegisterRepoRunnerBody = RegisterRunnerOptions | undefined;
+
+export type RegisterRepoRunnerOptions = {
+  body: RegisterRepoRunnerBody;
+  path: RegisterRepoRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RegisterRepoRunnerResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RegisterRepoRunnerStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterRepoRunnerStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RegisterRepoRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterRepoRunnerStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: RegisterRepoRunnerStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterRepoRunnerStatus401Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RegisterRepoRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterRepoRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RegisterRepoRunnerResponse =
+  | RegisterRepoRunnerStatus201
+  | RegisterRepoRunnerStatus400
+  | RegisterRepoRunnerStatus401
+  | RegisterRepoRunnerStatus404;

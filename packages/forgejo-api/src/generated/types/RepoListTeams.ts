@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { Team } from './Team';
 
-export type RepoListTeamsPathParams = {
+export type RepoListTeamsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,25 +20,70 @@ export type RepoListTeamsPathParams = {
   repo: string;
 };
 
-/**
- * @description TeamListWithoutPagination - Teams without pagination headers
- */
-export type RepoListTeams200 = Team[];
+export type RepoListTeamsStatus200Json = Team[];
+
+export type RepoListTeamsStatus200Html = Team[];
+
+export type RepoListTeamsStatus200 = RepoListTeamsStatus200Json | RepoListTeamsStatus200Html;
+
+export type RepoListTeamsStatus404Json = APINotFound;
+
+export type RepoListTeamsStatus404Html = APINotFound;
+
+export type RepoListTeamsStatus404 = RepoListTeamsStatus404Json | RepoListTeamsStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListTeams404 = APINotFound;
+export type RepoListTeamsStatus405Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListTeams405 = APIError;
+export type RepoListTeamsStatus405Html = APIError;
 
-export type RepoListTeamsQueryResponse = RepoListTeams200;
+export type RepoListTeamsStatus405 = RepoListTeamsStatus405Json | RepoListTeamsStatus405Html;
 
-export type RepoListTeamsQuery = {
-  Response: RepoListTeams200;
-  PathParams: RepoListTeamsPathParams;
-  Errors: RepoListTeams404 | RepoListTeams405;
+export type RepoListTeamsOptions = {
+  body?: never;
+  path: RepoListTeamsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListTeamsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListTeamsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTeamsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListTeamsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTeamsStatus404Html;
+      };
+  '405':
+    | {
+        contentType: 'application/json';
+        data: RepoListTeamsStatus405Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTeamsStatus405Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListTeamsResponse = RepoListTeamsStatus200 | RepoListTeamsStatus404 | RepoListTeamsStatus405;

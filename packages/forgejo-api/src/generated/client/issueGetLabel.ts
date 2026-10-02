@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { IssueGetLabelQueryResponse, IssueGetLabelPathParams, IssueGetLabel404 } from '../types/IssueGetLabel';
-
-function getIssueGetLabelUrl(
-  owner: IssueGetLabelPathParams['owner'],
-  repo: IssueGetLabelPathParams['repo'],
-  id: IssueGetLabelPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/labels/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueGetLabelOptions, IssueGetLabelResponses } from '../types/IssueGetLabel';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a single label
  * {@link /repos/:owner/:repo/labels/:id}
  */
-export async function issueGetLabel(
-  owner: IssueGetLabelPathParams['owner'],
-  repo: IssueGetLabelPathParams['repo'],
-  id: IssueGetLabelPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetLabel<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetLabelOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetLabelResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<IssueGetLabelQueryResponse, ResponseErrorConfig<IssueGetLabel404>, unknown>({
-    method: 'GET',
-    url: getIssueGetLabelUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/labels/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetLabelResponses, ThrowOnError>>;
 }

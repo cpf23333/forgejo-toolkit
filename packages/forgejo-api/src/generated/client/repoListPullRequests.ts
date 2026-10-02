@@ -3,46 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListPullRequestsQueryResponse,
-  RepoListPullRequestsPathParams,
-  RepoListPullRequestsQueryParams,
-  RepoListPullRequests400,
-  RepoListPullRequests404,
-  RepoListPullRequests500,
-} from '../types/RepoListPullRequests';
-
-function getRepoListPullRequestsUrl(
-  owner: RepoListPullRequestsPathParams['owner'],
-  repo: RepoListPullRequestsPathParams['repo'],
-) {
-  const res = { method: 'GET', url: `/repos/${owner}/${repo}/pulls` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListPullRequestsOptions, RepoListPullRequestsResponses } from '../types/RepoListPullRequests';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repo's pull requests. If a pull request is selected but fails to be retrieved for any reason, it will be a null value in the list of results.
  * {@link /repos/:owner/:repo/pulls}
  */
-export async function repoListPullRequests(
-  owner: RepoListPullRequestsPathParams['owner'],
-  repo: RepoListPullRequestsPathParams['repo'],
-  params?: RepoListPullRequestsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListPullRequests<ThrowOnError extends boolean = true>(
+  options: Options<RepoListPullRequestsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListPullRequestsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListPullRequestsQueryResponse,
-    ResponseErrorConfig<RepoListPullRequests400 | RepoListPullRequests404 | RepoListPullRequests500>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListPullRequestsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      styles: { query: { labels: { style: 'form', explode: true } } },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListPullRequestsResponses, ThrowOnError>>;
 }

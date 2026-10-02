@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { DeleteLabelsOption } from './DeleteLabelsOption';
 
-export type IssueRemoveLabelPathParams = {
+export type IssueRemoveLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,7 +21,9 @@ export type IssueRemoveLabelPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
@@ -31,33 +33,83 @@ export type IssueRemoveLabelPathParams = {
   identifier: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueRemoveLabel204 = any;
+export type IssueRemoveLabelStatus204 = unknown;
+
+export type IssueRemoveLabelStatus403Json = APIForbiddenError;
+
+export type IssueRemoveLabelStatus403Html = APIForbiddenError;
+
+export type IssueRemoveLabelStatus403 = IssueRemoveLabelStatus403Json | IssueRemoveLabelStatus403Html;
+
+export type IssueRemoveLabelStatus404Json = APINotFound;
+
+export type IssueRemoveLabelStatus404Html = APINotFound;
+
+export type IssueRemoveLabelStatus404 = IssueRemoveLabelStatus404Json | IssueRemoveLabelStatus404Html;
+
+export type IssueRemoveLabelStatus422Json = APIValidationError;
+
+export type IssueRemoveLabelStatus422Html = APIValidationError;
+
+export type IssueRemoveLabelStatus422 = IssueRemoveLabelStatus422Json | IssueRemoveLabelStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description DeleteLabelOption options for deleting a label
+ * @type object | undefined
  */
-export type IssueRemoveLabel403 = APIForbiddenError;
+export type IssueRemoveLabelBodyJson = DeleteLabelsOption | undefined;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DeleteLabelOption options for deleting a label
+ * @type object | undefined
  */
-export type IssueRemoveLabel404 = APINotFound;
+export type IssueRemoveLabelBodyPlain = DeleteLabelsOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueRemoveLabel422 = APIValidationError;
+export type IssueRemoveLabelBody = IssueRemoveLabelBodyJson | IssueRemoveLabelBodyPlain;
 
-export type IssueRemoveLabelMutationRequest = DeleteLabelsOption;
-
-export type IssueRemoveLabelMutationResponse = IssueRemoveLabel204;
-
-export type IssueRemoveLabelMutation = {
-  Response: IssueRemoveLabel204;
-  Request: IssueRemoveLabelMutationRequest;
-  PathParams: IssueRemoveLabelPathParams;
-  Errors: IssueRemoveLabel403 | IssueRemoveLabel404 | IssueRemoveLabel422;
+export type IssueRemoveLabelOptions = {
+  body: IssueRemoveLabelBody;
+  path: IssueRemoveLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueRemoveLabelResponses = {
+  '204': IssueRemoveLabelStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveLabelStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveLabelStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveLabelStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveLabelStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveLabelStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueRemoveLabelResponse =
+  | IssueRemoveLabelStatus204
+  | IssueRemoveLabelStatus403
+  | IssueRemoveLabelStatus404
+  | IssueRemoveLabelStatus422;

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type AdminDeleteUserPathParams = {
+export type AdminDeleteUserPath = {
   /**
    * @description username of user to delete
    * @type string
@@ -15,7 +15,7 @@ export type AdminDeleteUserPathParams = {
   username: string;
 };
 
-export type AdminDeleteUserQueryParams = {
+export type AdminDeleteUserQuery = {
   /**
    * @description purge the user from the system completely
    * @type boolean | undefined
@@ -23,31 +23,69 @@ export type AdminDeleteUserQueryParams = {
   purge?: boolean;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteUser204 = any;
+export type AdminDeleteUserStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminDeleteUser403 = APIForbiddenError;
+export type AdminDeleteUserStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminDeleteUser404 = APINotFound;
+export type AdminDeleteUserStatus403Html = APIForbiddenError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type AdminDeleteUser422 = APIValidationError;
+export type AdminDeleteUserStatus403 = AdminDeleteUserStatus403Json | AdminDeleteUserStatus403Html;
 
-export type AdminDeleteUserMutationResponse = AdminDeleteUser204;
+export type AdminDeleteUserStatus404Json = APINotFound;
 
-export type AdminDeleteUserMutation = {
-  Response: AdminDeleteUser204;
-  PathParams: AdminDeleteUserPathParams;
-  QueryParams: AdminDeleteUserQueryParams;
-  Errors: AdminDeleteUser403 | AdminDeleteUser404 | AdminDeleteUser422;
+export type AdminDeleteUserStatus404Html = APINotFound;
+
+export type AdminDeleteUserStatus404 = AdminDeleteUserStatus404Json | AdminDeleteUserStatus404Html;
+
+export type AdminDeleteUserStatus422Json = APIValidationError;
+
+export type AdminDeleteUserStatus422Html = APIValidationError;
+
+export type AdminDeleteUserStatus422 = AdminDeleteUserStatus422Json | AdminDeleteUserStatus422Html;
+
+export type AdminDeleteUserOptions = {
+  body?: never;
+  path: AdminDeleteUserPath;
+  query?: AdminDeleteUserQuery;
+  headers?: never;
 };
+
+export type AdminDeleteUserResponses = {
+  '204': AdminDeleteUserStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteUserResponse =
+  | AdminDeleteUserStatus204
+  | AdminDeleteUserStatus403
+  | AdminDeleteUserStatus404
+  | AdminDeleteUserStatus422;

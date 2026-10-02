@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Release } from './Release';
 
-export type RepoGetLatestReleasePathParams = {
+export type RepoGetLatestReleasePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,19 +20,54 @@ export type RepoGetLatestReleasePathParams = {
 };
 
 /**
- * @description Release
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetLatestRelease200 = Release;
+export type RepoGetLatestReleaseStatus200Json = Release;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetLatestRelease404 = APINotFound;
+export type RepoGetLatestReleaseStatus200Html = Release;
 
-export type RepoGetLatestReleaseQueryResponse = RepoGetLatestRelease200;
+export type RepoGetLatestReleaseStatus200 = RepoGetLatestReleaseStatus200Json | RepoGetLatestReleaseStatus200Html;
 
-export type RepoGetLatestReleaseQuery = {
-  Response: RepoGetLatestRelease200;
-  PathParams: RepoGetLatestReleasePathParams;
-  Errors: RepoGetLatestRelease404;
+export type RepoGetLatestReleaseStatus404Json = APINotFound;
+
+export type RepoGetLatestReleaseStatus404Html = APINotFound;
+
+export type RepoGetLatestReleaseStatus404 = RepoGetLatestReleaseStatus404Json | RepoGetLatestReleaseStatus404Html;
+
+export type RepoGetLatestReleaseOptions = {
+  body?: never;
+  path: RepoGetLatestReleasePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetLatestReleaseResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetLatestReleaseStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetLatestReleaseStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetLatestReleaseStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetLatestReleaseStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetLatestReleaseResponse = RepoGetLatestReleaseStatus200 | RepoGetLatestReleaseStatus404;

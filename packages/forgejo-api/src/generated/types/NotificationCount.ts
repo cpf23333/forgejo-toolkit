@@ -5,10 +5,13 @@
 
 /**
  * @description NotificationCount number of unread notifications
+ * @type object
  */
 export type NotificationCount = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   new?: number;
 };

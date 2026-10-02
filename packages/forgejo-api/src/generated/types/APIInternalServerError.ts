@@ -4,12 +4,6 @@
  */
 
 export type APIInternalServerError = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

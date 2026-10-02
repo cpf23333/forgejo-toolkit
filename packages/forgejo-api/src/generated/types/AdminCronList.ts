@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { Cron } from './Cron';
 
-export type AdminCronListQueryParams = {
+export type AdminCronListQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -19,20 +19,47 @@ export type AdminCronListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description CronList
- */
-export type AdminCronList200 = Cron[];
+export type AdminCronListStatus200Json = Cron[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminCronList403 = APIForbiddenError;
+export type AdminCronListStatus200Html = Cron[];
 
-export type AdminCronListQueryResponse = AdminCronList200;
+export type AdminCronListStatus200 = AdminCronListStatus200Json | AdminCronListStatus200Html;
 
-export type AdminCronListQuery = {
-  Response: AdminCronList200;
-  QueryParams: AdminCronListQueryParams;
-  Errors: AdminCronList403;
+export type AdminCronListStatus403Json = APIForbiddenError;
+
+export type AdminCronListStatus403Html = APIForbiddenError;
+
+export type AdminCronListStatus403 = AdminCronListStatus403Json | AdminCronListStatus403Html;
+
+export type AdminCronListOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminCronListQuery;
+  headers?: never;
 };
+
+export type AdminCronListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminCronListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCronListStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCronListStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCronListStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCronListResponse = AdminCronListStatus200 | AdminCronListStatus403;

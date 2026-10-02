@@ -4,13 +4,13 @@
  */
 
 import type {
-  IssueGetCommentReactionsQueryResponse,
-  IssueGetCommentReactions403,
-  IssueGetCommentReactions404,
+  IssueGetCommentReactionsResponse,
+  IssueGetCommentReactionsStatus403,
+  IssueGetCommentReactionsStatus404,
 } from '../types/IssueGetCommentReactions';
 import { http } from 'msw';
 
-export function issueGetCommentReactionsHandlerResponse200(data: IssueGetCommentReactionsQueryResponse) {
+export function issueGetCommentReactionsHandlerResponse200(data: IssueGetCommentReactionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function issueGetCommentReactionsHandlerResponse200(data: IssueGetComment
   });
 }
 
-export function issueGetCommentReactionsHandlerResponse403(data: IssueGetCommentReactions403) {
+export function issueGetCommentReactionsHandlerResponse403(data: IssueGetCommentReactionsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function issueGetCommentReactionsHandlerResponse403(data: IssueGetComment
   });
 }
 
-export function issueGetCommentReactionsHandlerResponse404(data: IssueGetCommentReactions404) {
+export function issueGetCommentReactionsHandlerResponse404(data: IssueGetCommentReactionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function issueGetCommentReactionsHandlerResponse404(data: IssueGetComment
 
 export function issueGetCommentReactionsHandler(
   data?:
-    | IssueGetCommentReactionsQueryResponse
+    | IssueGetCommentReactionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/comments/:id/reactions`, function handler(info) {

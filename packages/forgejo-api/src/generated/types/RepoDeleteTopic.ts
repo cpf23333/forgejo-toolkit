@@ -6,7 +6,7 @@
 import type { APIInvalidTopicsError } from './APIInvalidTopicsError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteTopicPathParams = {
+export type RepoDeleteTopicPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoDeleteTopicPathParams = {
   topic: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteTopic204 = any;
+export type RepoDeleteTopicStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteTopic404 = APINotFound;
+export type RepoDeleteTopicStatus404Json = APINotFound;
 
-/**
- * @description APIInvalidTopicsError is error format response to invalid topics
- */
-export type RepoDeleteTopic422 = APIInvalidTopicsError;
+export type RepoDeleteTopicStatus404Html = APINotFound;
 
-export type RepoDeleteTopicMutationResponse = RepoDeleteTopic204;
+export type RepoDeleteTopicStatus404 = RepoDeleteTopicStatus404Json | RepoDeleteTopicStatus404Html;
 
-export type RepoDeleteTopicMutation = {
-  Response: RepoDeleteTopic204;
-  PathParams: RepoDeleteTopicPathParams;
-  Errors: RepoDeleteTopic404 | RepoDeleteTopic422;
+export type RepoDeleteTopicStatus422Json = APIInvalidTopicsError;
+
+export type RepoDeleteTopicStatus422Html = APIInvalidTopicsError;
+
+export type RepoDeleteTopicStatus422 = RepoDeleteTopicStatus422Json | RepoDeleteTopicStatus422Html;
+
+export type RepoDeleteTopicOptions = {
+  body?: never;
+  path: RepoDeleteTopicPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteTopicResponses = {
+  '204': RepoDeleteTopicStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTopicStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTopicStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTopicStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTopicStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteTopicResponse = RepoDeleteTopicStatus204 | RepoDeleteTopicStatus404 | RepoDeleteTopicStatus422;

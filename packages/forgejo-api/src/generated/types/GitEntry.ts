@@ -5,30 +5,18 @@
 
 /**
  * @description GitEntry represents a git tree
+ * @type object
  */
 export type GitEntry = {
-  /**
-   * @type string | undefined
-   */
   mode?: string;
-  /**
-   * @type string | undefined
-   */
   path?: string;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
-  /**
-   * @type string | undefined
-   */
   type?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

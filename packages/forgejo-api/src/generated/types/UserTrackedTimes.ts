@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { TrackedTime } from './TrackedTime';
 
-export type UserTrackedTimesPathParams = {
+export type UserTrackedTimesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,30 +26,93 @@ export type UserTrackedTimesPathParams = {
   user: string;
 };
 
-/**
- * @description TrackedTimeListWithoutPagination - Tracked times for a specific user (no pagination headers)
- */
-export type UserTrackedTimes200 = TrackedTime[];
+export type UserTrackedTimesStatus200Json = TrackedTime[];
+
+export type UserTrackedTimesStatus200Html = TrackedTime[];
+
+export type UserTrackedTimesStatus200 = UserTrackedTimesStatus200Json | UserTrackedTimesStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserTrackedTimes400 = APIError;
+export type UserTrackedTimesStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserTrackedTimes403 = APIForbiddenError;
+export type UserTrackedTimesStatus400Html = APIError;
+
+export type UserTrackedTimesStatus400 = UserTrackedTimesStatus400Json | UserTrackedTimesStatus400Html;
+
+export type UserTrackedTimesStatus403Json = APIForbiddenError;
+
+export type UserTrackedTimesStatus403Html = APIForbiddenError;
+
+export type UserTrackedTimesStatus403 = UserTrackedTimesStatus403Json | UserTrackedTimesStatus403Html;
+
+export type UserTrackedTimesStatus404Json = APINotFound;
+
+export type UserTrackedTimesStatus404Html = APINotFound;
+
+export type UserTrackedTimesStatus404 = UserTrackedTimesStatus404Json | UserTrackedTimesStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @deprecated
+ * @type object
  */
-export type UserTrackedTimes404 = APINotFound;
-
-export type UserTrackedTimesQueryResponse = UserTrackedTimes200;
-
-export type UserTrackedTimesQuery = {
-  Response: UserTrackedTimes200;
-  PathParams: UserTrackedTimesPathParams;
-  Errors: UserTrackedTimes400 | UserTrackedTimes403 | UserTrackedTimes404;
+export type UserTrackedTimesOptions = {
+  body?: never;
+  path: UserTrackedTimesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserTrackedTimesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserTrackedTimesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserTrackedTimesStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UserTrackedTimesStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserTrackedTimesStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserTrackedTimesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserTrackedTimesStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserTrackedTimesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserTrackedTimesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserTrackedTimesResponse =
+  | UserTrackedTimesStatus200
+  | UserTrackedTimesStatus400
+  | UserTrackedTimesStatus403
+  | UserTrackedTimesStatus404;

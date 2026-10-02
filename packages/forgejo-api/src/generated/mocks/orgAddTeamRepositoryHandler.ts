@@ -4,19 +4,19 @@
  */
 
 import type {
-  OrgAddTeamRepositoryMutationResponse,
-  OrgAddTeamRepository403,
-  OrgAddTeamRepository404,
+  OrgAddTeamRepositoryResponse,
+  OrgAddTeamRepositoryStatus403,
+  OrgAddTeamRepositoryStatus404,
 } from '../types/OrgAddTeamRepository';
 import { http } from 'msw';
 
-export function orgAddTeamRepositoryHandlerResponse204(data?: OrgAddTeamRepositoryMutationResponse) {
+export function orgAddTeamRepositoryHandlerResponse204(data?: OrgAddTeamRepositoryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgAddTeamRepositoryHandlerResponse403(data: OrgAddTeamRepository403) {
+export function orgAddTeamRepositoryHandlerResponse403(data: OrgAddTeamRepositoryStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function orgAddTeamRepositoryHandlerResponse403(data: OrgAddTeamRepositor
   });
 }
 
-export function orgAddTeamRepositoryHandlerResponse404(data: OrgAddTeamRepository404) {
+export function orgAddTeamRepositoryHandlerResponse404(data: OrgAddTeamRepositoryStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

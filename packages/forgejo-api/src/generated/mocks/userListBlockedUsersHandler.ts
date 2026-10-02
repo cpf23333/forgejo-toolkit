@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserListBlockedUsersQueryResponse,
-  UserListBlockedUsers401,
-  UserListBlockedUsers403,
+  UserListBlockedUsersResponse,
+  UserListBlockedUsersStatus401,
+  UserListBlockedUsersStatus403,
 } from '../types/UserListBlockedUsers';
 import { http } from 'msw';
 
-export function userListBlockedUsersHandlerResponse200(data: UserListBlockedUsersQueryResponse) {
+export function userListBlockedUsersHandlerResponse200(data: UserListBlockedUsersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userListBlockedUsersHandlerResponse200(data: UserListBlockedUser
   });
 }
 
-export function userListBlockedUsersHandlerResponse401(data: UserListBlockedUsers401) {
+export function userListBlockedUsersHandlerResponse401(data: UserListBlockedUsersStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userListBlockedUsersHandlerResponse401(data: UserListBlockedUser
   });
 }
 
-export function userListBlockedUsersHandlerResponse403(data: UserListBlockedUsers403) {
+export function userListBlockedUsersHandlerResponse403(data: UserListBlockedUsersStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userListBlockedUsersHandlerResponse403(data: UserListBlockedUser
 
 export function userListBlockedUsersHandler(
   data?:
-    | UserListBlockedUsersQueryResponse
+    | UserListBlockedUsersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/list_blocked`, function handler(info) {

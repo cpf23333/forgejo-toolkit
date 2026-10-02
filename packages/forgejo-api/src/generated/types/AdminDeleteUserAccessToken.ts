@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminDeleteUserAccessTokenPathParams = {
+export type AdminDeleteUserAccessTokenPath = {
   /**
    * @description username of user
    * @type string
@@ -20,30 +20,83 @@ export type AdminDeleteUserAccessTokenPathParams = {
   token: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteUserAccessToken204 = any;
+export type AdminDeleteUserAccessTokenStatus204 = unknown;
+
+export type AdminDeleteUserAccessTokenStatus403Json = APIForbiddenError;
+
+export type AdminDeleteUserAccessTokenStatus403Html = APIForbiddenError;
+
+export type AdminDeleteUserAccessTokenStatus403 =
+  | AdminDeleteUserAccessTokenStatus403Json
+  | AdminDeleteUserAccessTokenStatus403Html;
+
+export type AdminDeleteUserAccessTokenStatus404Json = APINotFound;
+
+export type AdminDeleteUserAccessTokenStatus404Html = APINotFound;
+
+export type AdminDeleteUserAccessTokenStatus404 =
+  | AdminDeleteUserAccessTokenStatus404Json
+  | AdminDeleteUserAccessTokenStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteUserAccessToken403 = APIForbiddenError;
+export type AdminDeleteUserAccessTokenStatus422Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteUserAccessToken404 = APINotFound;
+export type AdminDeleteUserAccessTokenStatus422Html = APIError;
 
-/**
- * @description APIError is error format response
- */
-export type AdminDeleteUserAccessToken422 = APIError;
+export type AdminDeleteUserAccessTokenStatus422 =
+  | AdminDeleteUserAccessTokenStatus422Json
+  | AdminDeleteUserAccessTokenStatus422Html;
 
-export type AdminDeleteUserAccessTokenMutationResponse = AdminDeleteUserAccessToken204;
-
-export type AdminDeleteUserAccessTokenMutation = {
-  Response: AdminDeleteUserAccessToken204;
-  PathParams: AdminDeleteUserAccessTokenPathParams;
-  Errors: AdminDeleteUserAccessToken403 | AdminDeleteUserAccessToken404 | AdminDeleteUserAccessToken422;
+export type AdminDeleteUserAccessTokenOptions = {
+  body?: never;
+  path: AdminDeleteUserAccessTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteUserAccessTokenResponses = {
+  '204': AdminDeleteUserAccessTokenStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserAccessTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserAccessTokenStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserAccessTokenStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserAccessTokenStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserAccessTokenStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserAccessTokenStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteUserAccessTokenResponse =
+  | AdminDeleteUserAccessTokenStatus204
+  | AdminDeleteUserAccessTokenStatus403
+  | AdminDeleteUserAccessTokenStatus404
+  | AdminDeleteUserAccessTokenStatus422;

@@ -5,6 +5,7 @@
 
 /**
  * @description EditIssueCommentOption options for editing a comment
+ * @type object
  */
 export type EditIssueCommentOption = {
   /**
@@ -14,7 +15,9 @@ export type EditIssueCommentOption = {
   body: string;
   /**
    * @description The time of the comment\'s update, needs admin or repository owner permission
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

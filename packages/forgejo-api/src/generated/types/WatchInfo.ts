@@ -5,27 +5,18 @@
 
 /**
  * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
 export type WatchInfo = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type boolean | undefined
-   */
   ignored?: boolean;
-  reason?: any;
-  /**
-   * @type string | undefined
-   */
+  reason?: unknown;
   repository_url?: string;
-  /**
-   * @type boolean | undefined
-   */
   subscribed?: boolean;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

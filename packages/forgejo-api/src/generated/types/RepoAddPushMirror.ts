@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { CreatePushMirrorOption } from './CreatePushMirrorOption';
 import type { PushMirror } from './PushMirror';
 
-export type RepoAddPushMirrorPathParams = {
+export type RepoAddPushMirrorPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,40 +23,102 @@ export type RepoAddPushMirrorPathParams = {
 };
 
 /**
- * @description PushMirror
+ * @description PushMirror represents information of a push mirror
+ * @type object
  */
-export type RepoAddPushMirror200 = PushMirror;
+export type RepoAddPushMirrorStatus200Json = PushMirror;
 
 /**
- * @description APIError is error format response
+ * @description PushMirror represents information of a push mirror
+ * @type object
  */
-export type RepoAddPushMirror400 = APIError;
+export type RepoAddPushMirrorStatus200Html = PushMirror;
+
+export type RepoAddPushMirrorStatus200 = RepoAddPushMirrorStatus200Json | RepoAddPushMirrorStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoAddPushMirror403 = APIForbiddenError;
+export type RepoAddPushMirrorStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoAddPushMirror404 = APINotFound;
+export type RepoAddPushMirrorStatus400Html = APIError;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoAddPushMirror413 = any;
+export type RepoAddPushMirrorStatus400 = RepoAddPushMirrorStatus400Json | RepoAddPushMirrorStatus400Html;
 
-/**
- * CreatePushMirrorOption represents need information to create a push mirror of a repository.
- */
-export type RepoAddPushMirrorMutationRequest = CreatePushMirrorOption;
+export type RepoAddPushMirrorStatus403Json = APIForbiddenError;
 
-export type RepoAddPushMirrorMutationResponse = RepoAddPushMirror200;
+export type RepoAddPushMirrorStatus403Html = APIForbiddenError;
 
-export type RepoAddPushMirrorMutation = {
-  Response: RepoAddPushMirror200;
-  Request: RepoAddPushMirrorMutationRequest;
-  PathParams: RepoAddPushMirrorPathParams;
-  Errors: RepoAddPushMirror400 | RepoAddPushMirror403 | RepoAddPushMirror404 | RepoAddPushMirror413;
+export type RepoAddPushMirrorStatus403 = RepoAddPushMirrorStatus403Json | RepoAddPushMirrorStatus403Html;
+
+export type RepoAddPushMirrorStatus404Json = APINotFound;
+
+export type RepoAddPushMirrorStatus404Html = APINotFound;
+
+export type RepoAddPushMirrorStatus404 = RepoAddPushMirrorStatus404Json | RepoAddPushMirrorStatus404Html;
+
+export type RepoAddPushMirrorStatus413 = unknown;
+
+export type RepoAddPushMirrorBody = CreatePushMirrorOption | undefined;
+
+export type RepoAddPushMirrorOptions = {
+  body: RepoAddPushMirrorBody;
+  path: RepoAddPushMirrorPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoAddPushMirrorResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoAddPushMirrorStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddPushMirrorStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoAddPushMirrorStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddPushMirrorStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoAddPushMirrorStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddPushMirrorStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoAddPushMirrorStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddPushMirrorStatus404Html;
+      };
+  '413': RepoAddPushMirrorStatus413;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoAddPushMirrorResponse =
+  | RepoAddPushMirrorStatus200
+  | RepoAddPushMirrorStatus400
+  | RepoAddPushMirrorStatus403
+  | RepoAddPushMirrorStatus404
+  | RepoAddPushMirrorStatus413;

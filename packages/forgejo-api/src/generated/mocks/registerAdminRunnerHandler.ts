@@ -4,14 +4,16 @@
  */
 
 import type {
-  RegisterAdminRunnerMutationResponse,
-  RegisterAdminRunner400,
-  RegisterAdminRunner401,
-  RegisterAdminRunner404,
+  RegisterAdminRunnerResponse,
+  RegisterAdminRunnerStatus400,
+  RegisterAdminRunnerStatus401,
+  RegisterAdminRunnerStatus404,
+  RegisterAdminRunnerBody,
 } from '../types/RegisterAdminRunner';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function registerAdminRunnerHandlerResponse201(data: RegisterAdminRunnerMutationResponse) {
+export function registerAdminRunnerHandlerResponse201(data: RegisterAdminRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function registerAdminRunnerHandlerResponse201(data: RegisterAdminRunnerM
   });
 }
 
-export function registerAdminRunnerHandlerResponse400(data: RegisterAdminRunner400) {
+export function registerAdminRunnerHandlerResponse400(data: RegisterAdminRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function registerAdminRunnerHandlerResponse400(data: RegisterAdminRunner4
   });
 }
 
-export function registerAdminRunnerHandlerResponse401(data: RegisterAdminRunner401) {
+export function registerAdminRunnerHandlerResponse401(data: RegisterAdminRunnerStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +40,7 @@ export function registerAdminRunnerHandlerResponse401(data: RegisterAdminRunner4
   });
 }
 
-export function registerAdminRunnerHandlerResponse404(data: RegisterAdminRunner404) {
+export function registerAdminRunnerHandlerResponse404(data: RegisterAdminRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,11 +50,9 @@ export function registerAdminRunnerHandlerResponse404(data: RegisterAdminRunner4
 }
 
 export function registerAdminRunnerHandler(
-  data?:
-    | RegisterAdminRunnerMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RegisterAdminRunnerResponse | HttpResponseResolver<Record<string, string>, RegisterAdminRunnerBody>,
 ) {
-  return http.post(`/admin/actions/runners`, function handler(info) {
+  return http.post<Record<string, string>, RegisterAdminRunnerBody>(`/admin/actions/runners`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

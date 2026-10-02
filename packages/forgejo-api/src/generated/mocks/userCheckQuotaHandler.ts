@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserCheckQuotaQueryResponse,
-  UserCheckQuota401,
-  UserCheckQuota403,
-  UserCheckQuota422,
+  UserCheckQuotaResponse,
+  UserCheckQuotaStatus401,
+  UserCheckQuotaStatus403,
+  UserCheckQuotaStatus422,
 } from '../types/UserCheckQuota';
 import { http } from 'msw';
 
-export function userCheckQuotaHandlerResponse200(data: UserCheckQuotaQueryResponse) {
+export function userCheckQuotaHandlerResponse200(data: UserCheckQuotaResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userCheckQuotaHandlerResponse200(data: UserCheckQuotaQueryRespon
   });
 }
 
-export function userCheckQuotaHandlerResponse401(data: UserCheckQuota401) {
+export function userCheckQuotaHandlerResponse401(data: UserCheckQuotaStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function userCheckQuotaHandlerResponse401(data: UserCheckQuota401) {
   });
 }
 
-export function userCheckQuotaHandlerResponse403(data: UserCheckQuota403) {
+export function userCheckQuotaHandlerResponse403(data: UserCheckQuotaStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userCheckQuotaHandlerResponse403(data: UserCheckQuota403) {
   });
 }
 
-export function userCheckQuotaHandlerResponse422(data: UserCheckQuota422) {
+export function userCheckQuotaHandlerResponse422(data: UserCheckQuotaStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,7 +49,7 @@ export function userCheckQuotaHandlerResponse422(data: UserCheckQuota422) {
 
 export function userCheckQuotaHandler(
   data?:
-    | UserCheckQuotaQueryResponse
+    | UserCheckQuotaResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota/check`, function handler(info) {

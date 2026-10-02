@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullRequest } from './PullRequest';
 
-export type RepoListPinnedPullRequestsPathParams = {
+export type RepoListPinnedPullRequestsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,53 @@ export type RepoListPinnedPullRequestsPathParams = {
   repo: string;
 };
 
-/**
- * @description PullRequestList
- */
-export type RepoListPinnedPullRequests200 = PullRequest[];
+export type RepoListPinnedPullRequestsStatus200Json = PullRequest[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListPinnedPullRequests404 = APINotFound;
+export type RepoListPinnedPullRequestsStatus200Html = PullRequest[];
 
-export type RepoListPinnedPullRequestsQueryResponse = RepoListPinnedPullRequests200;
+export type RepoListPinnedPullRequestsStatus200 =
+  | RepoListPinnedPullRequestsStatus200Json
+  | RepoListPinnedPullRequestsStatus200Html;
 
-export type RepoListPinnedPullRequestsQuery = {
-  Response: RepoListPinnedPullRequests200;
-  PathParams: RepoListPinnedPullRequestsPathParams;
-  Errors: RepoListPinnedPullRequests404;
+export type RepoListPinnedPullRequestsStatus404Json = APINotFound;
+
+export type RepoListPinnedPullRequestsStatus404Html = APINotFound;
+
+export type RepoListPinnedPullRequestsStatus404 =
+  | RepoListPinnedPullRequestsStatus404Json
+  | RepoListPinnedPullRequestsStatus404Html;
+
+export type RepoListPinnedPullRequestsOptions = {
+  body?: never;
+  path: RepoListPinnedPullRequestsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListPinnedPullRequestsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListPinnedPullRequestsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPinnedPullRequestsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListPinnedPullRequestsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPinnedPullRequestsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListPinnedPullRequestsResponse =
+  | RepoListPinnedPullRequestsStatus200
+  | RepoListPinnedPullRequestsStatus404;

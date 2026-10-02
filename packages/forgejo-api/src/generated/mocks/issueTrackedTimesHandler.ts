@@ -4,14 +4,14 @@
  */
 
 import type {
-  IssueTrackedTimesQueryResponse,
-  IssueTrackedTimes403,
-  IssueTrackedTimes404,
-  IssueTrackedTimes422,
+  IssueTrackedTimesResponse,
+  IssueTrackedTimesStatus403,
+  IssueTrackedTimesStatus404,
+  IssueTrackedTimesStatus422,
 } from '../types/IssueTrackedTimes';
 import { http } from 'msw';
 
-export function issueTrackedTimesHandlerResponse200(data: IssueTrackedTimesQueryResponse) {
+export function issueTrackedTimesHandlerResponse200(data: IssueTrackedTimesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function issueTrackedTimesHandlerResponse200(data: IssueTrackedTimesQuery
   });
 }
 
-export function issueTrackedTimesHandlerResponse403(data: IssueTrackedTimes403) {
+export function issueTrackedTimesHandlerResponse403(data: IssueTrackedTimesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +29,7 @@ export function issueTrackedTimesHandlerResponse403(data: IssueTrackedTimes403) 
   });
 }
 
-export function issueTrackedTimesHandlerResponse404(data: IssueTrackedTimes404) {
+export function issueTrackedTimesHandlerResponse404(data: IssueTrackedTimesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +38,7 @@ export function issueTrackedTimesHandlerResponse404(data: IssueTrackedTimes404) 
   });
 }
 
-export function issueTrackedTimesHandlerResponse422(data: IssueTrackedTimes422) {
+export function issueTrackedTimesHandlerResponse422(data: IssueTrackedTimesStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,7 +49,7 @@ export function issueTrackedTimesHandlerResponse422(data: IssueTrackedTimes422) 
 
 export function issueTrackedTimesHandler(
   data?:
-    | IssueTrackedTimesQueryResponse
+    | IssueTrackedTimesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/times`, function handler(info) {

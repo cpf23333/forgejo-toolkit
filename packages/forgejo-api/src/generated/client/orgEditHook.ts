@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgEditHookMutationRequest,
-  OrgEditHookMutationResponse,
-  OrgEditHookPathParams,
-  OrgEditHook404,
-} from '../types/OrgEditHook';
-
-function getOrgEditHookUrl(org: OrgEditHookPathParams['org'], id: OrgEditHookPathParams['id']) {
-  const res = { method: 'PATCH', url: `/orgs/${org}/hooks/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgEditHookOptions, OrgEditHookResponses } from '../types/OrgEditHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a hook
  * {@link /orgs/:org/hooks/:id}
  */
-export async function orgEditHook(
-  org: OrgEditHookPathParams['org'],
-  id: OrgEditHookPathParams['id'],
-  data?: OrgEditHookMutationRequest,
-  config: Partial<RequestConfig<OrgEditHookMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgEditHook<ThrowOnError extends boolean = true>(
+  options: Options<OrgEditHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgEditHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    OrgEditHookMutationResponse,
-    ResponseErrorConfig<OrgEditHook404>,
-    OrgEditHookMutationRequest
-  >({
-    method: 'PATCH',
-    url: getOrgEditHookUrl(org, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/orgs/{org}/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgEditHookResponses, ThrowOnError>>;
 }

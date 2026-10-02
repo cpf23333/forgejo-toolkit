@@ -7,30 +7,23 @@ import type { GitEntry } from './GitEntry';
 
 /**
  * @description GitTreeResponse returns a git tree
+ * @type object
  */
 export type GitTreeResponse = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   page?: number;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total_count?: number;
-  /**
-   * @type array | undefined
-   */
   tree?: GitEntry[];
-  /**
-   * @type boolean | undefined
-   */
   truncated?: boolean;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

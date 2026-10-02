@@ -3,10 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetRepoVariableQueryResponse, GetRepoVariable400, GetRepoVariable404 } from '../types/GetRepoVariable';
+import type {
+  GetRepoVariableResponse,
+  GetRepoVariableStatus400,
+  GetRepoVariableStatus404,
+} from '../types/GetRepoVariable';
 import { http } from 'msw';
 
-export function getRepoVariableHandlerResponse200(data: GetRepoVariableQueryResponse) {
+export function getRepoVariableHandlerResponse200(data: GetRepoVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +19,7 @@ export function getRepoVariableHandlerResponse200(data: GetRepoVariableQueryResp
   });
 }
 
-export function getRepoVariableHandlerResponse400(data: GetRepoVariable400) {
+export function getRepoVariableHandlerResponse400(data: GetRepoVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +28,7 @@ export function getRepoVariableHandlerResponse400(data: GetRepoVariable400) {
   });
 }
 
-export function getRepoVariableHandlerResponse404(data: GetRepoVariable404) {
+export function getRepoVariableHandlerResponse404(data: GetRepoVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +39,7 @@ export function getRepoVariableHandlerResponse404(data: GetRepoVariable404) {
 
 export function getRepoVariableHandler(
   data?:
-    | GetRepoVariableQueryResponse
+    | GetRepoVariableResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/variables/:variablename`, function handler(info) {

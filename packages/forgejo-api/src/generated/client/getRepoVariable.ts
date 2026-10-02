@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetRepoVariableQueryResponse,
-  GetRepoVariablePathParams,
-  GetRepoVariable400,
-  GetRepoVariable404,
-} from '../types/GetRepoVariable';
-
-function getGetRepoVariableUrl(
-  owner: GetRepoVariablePathParams['owner'],
-  repo: GetRepoVariablePathParams['repo'],
-  variablename: GetRepoVariablePathParams['variablename'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetRepoVariableOptions, GetRepoVariableResponses } from '../types/GetRepoVariable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a repo-level variable
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
-export async function getRepoVariable(
-  owner: GetRepoVariablePathParams['owner'],
-  repo: GetRepoVariablePathParams['repo'],
-  variablename: GetRepoVariablePathParams['variablename'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getRepoVariable<ThrowOnError extends boolean = true>(
+  options: Options<GetRepoVariableOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetRepoVariableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetRepoVariableQueryResponse,
-    ResponseErrorConfig<GetRepoVariable400 | GetRepoVariable404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetRepoVariableUrl(owner, repo, variablename).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/variables/{variablename}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetRepoVariableResponses, ThrowOnError>>;
 }

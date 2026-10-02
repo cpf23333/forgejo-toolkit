@@ -5,10 +5,12 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgRemoveTeamMemberPathParams = {
+export type OrgRemoveTeamMemberPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -18,20 +20,35 @@ export type OrgRemoveTeamMemberPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgRemoveTeamMember204 = any;
+export type OrgRemoveTeamMemberStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgRemoveTeamMember404 = APINotFound;
+export type OrgRemoveTeamMemberStatus404Json = APINotFound;
 
-export type OrgRemoveTeamMemberMutationResponse = OrgRemoveTeamMember204;
+export type OrgRemoveTeamMemberStatus404Html = APINotFound;
 
-export type OrgRemoveTeamMemberMutation = {
-  Response: OrgRemoveTeamMember204;
-  PathParams: OrgRemoveTeamMemberPathParams;
-  Errors: OrgRemoveTeamMember404;
+export type OrgRemoveTeamMemberStatus404 = OrgRemoveTeamMemberStatus404Json | OrgRemoveTeamMemberStatus404Html;
+
+export type OrgRemoveTeamMemberOptions = {
+  body?: never;
+  path: OrgRemoveTeamMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgRemoveTeamMemberResponses = {
+  '204': OrgRemoveTeamMemberStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgRemoveTeamMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgRemoveTeamMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgRemoveTeamMemberResponse = OrgRemoveTeamMemberStatus204 | OrgRemoveTeamMemberStatus404;

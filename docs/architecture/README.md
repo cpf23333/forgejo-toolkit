@@ -25,7 +25,7 @@ The webview UI is a Vue 3 single-page application built with Vite. It communicat
 
 ## API layer
 
-The `forgejo-api` package is generated from the Forgejo OpenAPI specification using Kubb. It exports typed fetch functions and MSW handlers for testing. The `shared` package provides a thin transport client that builds URLs, sets the default headers (`Accept`, plus `Content-Type` on a JSON body) and parses responses. Authentication is not part of it: the extension host's `ForgejoClient` adds `Authorization: token <token>` (see [api-client.md](./api-client.md)).
+The `forgejo-api` package is generated from the Forgejo OpenAPI specification using Kubb. It exports typed operations (each taking one grouped `{ path, query, body, client, … }` options object) and MSW handlers for testing, and exposes Kubb's bundled client core through its `./kubb` subpath. The `shared` package provides a thin transport that merges headers, encodes the body and parses responses; `packages/forgejo-toolkit/src/api/sharedTransport.ts` wires it in as the transport of the generated client, so the generated operations send through the shared layer without a line of generated code being rewritten. Authentication is not part of either: the extension host's `ForgejoClient` adds `Authorization: token <token>` (see [api-client.md](./api-client.md)).
 
 ## Communication
 

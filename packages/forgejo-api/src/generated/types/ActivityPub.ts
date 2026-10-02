@@ -5,10 +5,8 @@
 
 /**
  * @description ActivityPub type
+ * @type object
  */
 export type ActivityPub = {
-  /**
-   * @type string | undefined
-   */
   '@context'?: string;
 };

@@ -5,6 +5,7 @@
 
 /**
  * @description ExternalTracker represents settings for external tracker
+ * @type object
  */
 export type ExternalTracker = {
   /**

@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetNoteQueryResponse,
-  RepoGetNotePathParams,
-  RepoGetNoteQueryParams,
-  RepoGetNote404,
-  RepoGetNote422,
-} from '../types/RepoGetNote';
-
-function getRepoGetNoteUrl(
-  owner: RepoGetNotePathParams['owner'],
-  repo: RepoGetNotePathParams['repo'],
-  sha: RepoGetNotePathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/notes/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetNoteOptions, RepoGetNoteResponses } from '../types/RepoGetNote';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a note corresponding to a single commit from a repository
  * {@link /repos/:owner/:repo/git/notes/:sha}
  */
-export async function repoGetNote(
-  owner: RepoGetNotePathParams['owner'],
-  repo: RepoGetNotePathParams['repo'],
-  sha: RepoGetNotePathParams['sha'],
-  params?: RepoGetNoteQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetNote<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetNoteOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetNoteResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetNoteQueryResponse, ResponseErrorConfig<RepoGetNote404 | RepoGetNote422>, unknown>({
-    method: 'GET',
-    url: getRepoGetNoteUrl(owner, repo, sha).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/notes/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetNoteResponses, ThrowOnError>>;
 }

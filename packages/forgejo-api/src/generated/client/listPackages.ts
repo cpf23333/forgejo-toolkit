@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ListPackagesQueryResponse,
-  ListPackagesPathParams,
-  ListPackagesQueryParams,
-  ListPackages404,
-} from '../types/ListPackages';
-
-function getListPackagesUrl(owner: ListPackagesPathParams['owner']) {
-  const res = { method: 'GET', url: `/packages/${owner}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ListPackagesOptions, ListPackagesResponses } from '../types/ListPackages';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets all packages of an owner
  * {@link /packages/:owner}
  */
-export async function listPackages(
-  owner: ListPackagesPathParams['owner'],
-  params?: ListPackagesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function listPackages<ThrowOnError extends boolean = true>(
+  options: Options<ListPackagesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ListPackagesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ListPackagesQueryResponse, ResponseErrorConfig<ListPackages404>, unknown>({
-    method: 'GET',
-    url: getListPackagesUrl(owner).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/packages/{owner}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ListPackagesResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type DeleteUserRunnerPathParams = {
+export type DeleteUserRunnerPath = {
   /**
    * @description ID of the runner
    * @type string
@@ -15,30 +15,77 @@ export type DeleteUserRunnerPathParams = {
   runner_id: string;
 };
 
-/**
- * @description runner has been deleted
- */
-export type DeleteUserRunner204 = any;
+export type DeleteUserRunnerStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserRunner400 = APIError;
+export type DeleteUserRunnerStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserRunner401 = APIUnauthorizedError;
+export type DeleteUserRunnerStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeleteUserRunner404 = APINotFound;
+export type DeleteUserRunnerStatus400 = DeleteUserRunnerStatus400Json | DeleteUserRunnerStatus400Html;
 
-export type DeleteUserRunnerMutationResponse = DeleteUserRunner204;
+export type DeleteUserRunnerStatus401Json = APIUnauthorizedError;
 
-export type DeleteUserRunnerMutation = {
-  Response: DeleteUserRunner204;
-  PathParams: DeleteUserRunnerPathParams;
-  Errors: DeleteUserRunner400 | DeleteUserRunner401 | DeleteUserRunner404;
+export type DeleteUserRunnerStatus401Html = APIUnauthorizedError;
+
+export type DeleteUserRunnerStatus401 = DeleteUserRunnerStatus401Json | DeleteUserRunnerStatus401Html;
+
+export type DeleteUserRunnerStatus404Json = APINotFound;
+
+export type DeleteUserRunnerStatus404Html = APINotFound;
+
+export type DeleteUserRunnerStatus404 = DeleteUserRunnerStatus404Json | DeleteUserRunnerStatus404Html;
+
+export type DeleteUserRunnerOptions = {
+  body?: never;
+  path: DeleteUserRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteUserRunnerResponses = {
+  '204': DeleteUserRunnerStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserRunnerStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserRunnerStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserRunnerStatus401Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteUserRunnerResponse =
+  | DeleteUserRunnerStatus204
+  | DeleteUserRunnerStatus400
+  | DeleteUserRunnerStatus401
+  | DeleteUserRunnerStatus404;

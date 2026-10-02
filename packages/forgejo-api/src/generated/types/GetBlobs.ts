@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { GitBlob } from './GitBlob';
 
-export type GetBlobsPathParams = {
+export type GetBlobsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type GetBlobsPathParams = {
   repo: string;
 };
 
-export type GetBlobsQueryParams = {
+export type GetBlobsQuery = {
   /**
    * @description a comma separated list of blob-sha (mind the overall URL-length limit of ~2,083 chars)
    * @type string
@@ -27,21 +27,55 @@ export type GetBlobsQueryParams = {
   shas: string;
 };
 
-/**
- * @description GitBlobList
- */
-export type GetBlobs200 = GitBlob[];
+export type GetBlobsStatus200Json = GitBlob[];
+
+export type GetBlobsStatus200Html = GitBlob[];
+
+export type GetBlobsStatus200 = GetBlobsStatus200Json | GetBlobsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetBlobs400 = APIError;
+export type GetBlobsStatus400Json = APIError;
 
-export type GetBlobsQueryResponse = GetBlobs200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetBlobsStatus400Html = APIError;
 
-export type GetBlobsQuery = {
-  Response: GetBlobs200;
-  PathParams: GetBlobsPathParams;
-  QueryParams: GetBlobsQueryParams;
-  Errors: GetBlobs400;
+export type GetBlobsStatus400 = GetBlobsStatus400Json | GetBlobsStatus400Html;
+
+export type GetBlobsOptions = {
+  body?: never;
+  path: GetBlobsPath;
+  query: GetBlobsQuery;
+  headers?: never;
 };
+
+export type GetBlobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetBlobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetBlobsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetBlobsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetBlobsStatus400Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetBlobsResponse = GetBlobsStatus200 | GetBlobsStatus400;

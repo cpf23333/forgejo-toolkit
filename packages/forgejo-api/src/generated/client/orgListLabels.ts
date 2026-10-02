@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListLabelsQueryResponse,
-  OrgListLabelsPathParams,
-  OrgListLabelsQueryParams,
-  OrgListLabels404,
-} from '../types/OrgListLabels';
-
-function getOrgListLabelsUrl(org: OrgListLabelsPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/labels` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListLabelsOptions, OrgListLabelsResponses } from '../types/OrgListLabels';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an organization's labels
  * {@link /orgs/:org/labels}
  */
-export async function orgListLabels(
-  org: OrgListLabelsPathParams['org'],
-  params?: OrgListLabelsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListLabels<ThrowOnError extends boolean = true>(
+  options: Options<OrgListLabelsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListLabelsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListLabelsQueryResponse, ResponseErrorConfig<OrgListLabels404>, unknown>({
-    method: 'GET',
-    url: getOrgListLabelsUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/labels',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListLabelsResponses, ThrowOnError>>;
 }

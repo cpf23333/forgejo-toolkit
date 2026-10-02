@@ -4,19 +4,19 @@
  */
 
 import type {
-  AdminAdoptRepositoryMutationResponse,
-  AdminAdoptRepository403,
-  AdminAdoptRepository404,
+  AdminAdoptRepositoryResponse,
+  AdminAdoptRepositoryStatus403,
+  AdminAdoptRepositoryStatus404,
 } from '../types/AdminAdoptRepository';
 import { http } from 'msw';
 
-export function adminAdoptRepositoryHandlerResponse204(data?: AdminAdoptRepositoryMutationResponse) {
+export function adminAdoptRepositoryHandlerResponse204(data?: AdminAdoptRepositoryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminAdoptRepositoryHandlerResponse403(data: AdminAdoptRepository403) {
+export function adminAdoptRepositoryHandlerResponse403(data: AdminAdoptRepositoryStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function adminAdoptRepositoryHandlerResponse403(data: AdminAdoptRepositor
   });
 }
 
-export function adminAdoptRepositoryHandlerResponse404(data: AdminAdoptRepository404) {
+export function adminAdoptRepositoryHandlerResponse404(data: AdminAdoptRepositoryStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { EditReactionOption } from './EditReactionOption';
 
-export type IssueDeleteIssueReactionPathParams = {
+export type IssueDeleteIssueReactionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,33 +20,70 @@ export type IssueDeleteIssueReactionPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteIssueReaction200 = any;
+export type IssueDeleteIssueReactionStatus200 = unknown;
+
+export type IssueDeleteIssueReactionStatus403Json = APIForbiddenError;
+
+export type IssueDeleteIssueReactionStatus403Html = APIForbiddenError;
+
+export type IssueDeleteIssueReactionStatus403 =
+  | IssueDeleteIssueReactionStatus403Json
+  | IssueDeleteIssueReactionStatus403Html;
+
+export type IssueDeleteIssueReactionStatus404Json = APINotFound;
+
+export type IssueDeleteIssueReactionStatus404Html = APINotFound;
+
+export type IssueDeleteIssueReactionStatus404 =
+  | IssueDeleteIssueReactionStatus404Json
+  | IssueDeleteIssueReactionStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description EditReactionOption contain the reaction type
+ * @type object | undefined
  */
-export type IssueDeleteIssueReaction403 = APIForbiddenError;
+export type IssueDeleteIssueReactionBody = EditReactionOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteIssueReaction404 = APINotFound;
-
-export type IssueDeleteIssueReactionMutationRequest = EditReactionOption;
-
-export type IssueDeleteIssueReactionMutationResponse = IssueDeleteIssueReaction200;
-
-export type IssueDeleteIssueReactionMutation = {
-  Response: IssueDeleteIssueReaction200;
-  Request: IssueDeleteIssueReactionMutationRequest;
-  PathParams: IssueDeleteIssueReactionPathParams;
-  Errors: IssueDeleteIssueReaction403 | IssueDeleteIssueReaction404;
+export type IssueDeleteIssueReactionOptions = {
+  body: IssueDeleteIssueReactionBody;
+  path: IssueDeleteIssueReactionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteIssueReactionResponses = {
+  '200': IssueDeleteIssueReactionStatus200;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueReactionStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueReactionStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueReactionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueReactionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteIssueReactionResponse =
+  | IssueDeleteIssueReactionStatus200
+  | IssueDeleteIssueReactionStatus403
+  | IssueDeleteIssueReactionStatus404;

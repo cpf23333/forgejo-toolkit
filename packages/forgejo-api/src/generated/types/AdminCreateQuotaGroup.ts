@@ -10,39 +10,134 @@ import type { CreateQuotaGroupOptions } from './CreateQuotaGroupOptions';
 import type { QuotaGroup } from './QuotaGroup';
 
 /**
- * @description QuotaGroup
+ * @description QuotaGroup represents a quota group
+ * @type object
  */
-export type AdminCreateQuotaGroup201 = QuotaGroup;
+export type AdminCreateQuotaGroupStatus201Json = QuotaGroup;
 
 /**
- * @description APIError is error format response
+ * @description QuotaGroup represents a quota group
+ * @type object
  */
-export type AdminCreateQuotaGroup400 = APIError;
+export type AdminCreateQuotaGroupStatus201Html = QuotaGroup;
+
+export type AdminCreateQuotaGroupStatus201 = AdminCreateQuotaGroupStatus201Json | AdminCreateQuotaGroupStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaGroup403 = APIForbiddenError;
+export type AdminCreateQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaGroup409 = APIError;
+export type AdminCreateQuotaGroupStatus400Html = APIError;
+
+export type AdminCreateQuotaGroupStatus400 = AdminCreateQuotaGroupStatus400Json | AdminCreateQuotaGroupStatus400Html;
+
+export type AdminCreateQuotaGroupStatus403Json = APIForbiddenError;
+
+export type AdminCreateQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminCreateQuotaGroupStatus403 = AdminCreateQuotaGroupStatus403Json | AdminCreateQuotaGroupStatus403Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaGroup422 = APIValidationError;
+export type AdminCreateQuotaGroupStatus409Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type AdminCreateQuotaGroupStatus409Html = APIError;
+
+export type AdminCreateQuotaGroupStatus409 = AdminCreateQuotaGroupStatus409Json | AdminCreateQuotaGroupStatus409Html;
+
+export type AdminCreateQuotaGroupStatus422Json = APIValidationError;
+
+export type AdminCreateQuotaGroupStatus422Html = APIValidationError;
+
+export type AdminCreateQuotaGroupStatus422 = AdminCreateQuotaGroupStatus422Json | AdminCreateQuotaGroupStatus422Html;
 
 /**
  * @description Definition of the quota group
+ * @type object
  */
-export type AdminCreateQuotaGroupMutationRequest = CreateQuotaGroupOptions;
+export type AdminCreateQuotaGroupBodyJson = CreateQuotaGroupOptions;
 
-export type AdminCreateQuotaGroupMutationResponse = AdminCreateQuotaGroup201;
+/**
+ * @description Definition of the quota group
+ * @type object
+ */
+export type AdminCreateQuotaGroupBodyPlain = CreateQuotaGroupOptions;
 
-export type AdminCreateQuotaGroupMutation = {
-  Response: AdminCreateQuotaGroup201;
-  Request: AdminCreateQuotaGroupMutationRequest;
-  Errors: AdminCreateQuotaGroup400 | AdminCreateQuotaGroup403 | AdminCreateQuotaGroup409 | AdminCreateQuotaGroup422;
+export type AdminCreateQuotaGroupBody = AdminCreateQuotaGroupBodyJson | AdminCreateQuotaGroupBodyPlain;
+
+export type AdminCreateQuotaGroupOptions = {
+  body: AdminCreateQuotaGroupBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateQuotaGroupResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaGroupStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaGroupStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaGroupStatus403Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaGroupStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaGroupStatus409Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaGroupStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaGroupStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateQuotaGroupResponse =
+  | AdminCreateQuotaGroupStatus201
+  | AdminCreateQuotaGroupStatus400
+  | AdminCreateQuotaGroupStatus403
+  | AdminCreateQuotaGroupStatus409
+  | AdminCreateQuotaGroupStatus422;

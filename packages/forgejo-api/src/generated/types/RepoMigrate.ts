@@ -9,36 +9,86 @@ import type { MigrateRepoOptions } from './MigrateRepoOptions';
 import type { Repository } from './Repository';
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoMigrate201 = Repository;
+export type RepoMigrateStatus201Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoMigrate403 = APIForbiddenError;
+export type RepoMigrateStatus201Html = Repository;
+
+export type RepoMigrateStatus201 = RepoMigrateStatus201Json | RepoMigrateStatus201Html;
+
+export type RepoMigrateStatus403Json = APIForbiddenError;
+
+export type RepoMigrateStatus403Html = APIForbiddenError;
+
+export type RepoMigrateStatus403 = RepoMigrateStatus403Json | RepoMigrateStatus403Html;
+
+export type RepoMigrateStatus409 = unknown;
+
+export type RepoMigrateStatus413 = unknown;
+
+export type RepoMigrateStatus422Json = APIValidationError;
+
+export type RepoMigrateStatus422Html = APIValidationError;
+
+export type RepoMigrateStatus422 = RepoMigrateStatus422Json | RepoMigrateStatus422Html;
 
 /**
- * @description The repository with the same name already exists.
+ * @description MigrateRepoOptions options for migrating repository\'s\nthis is used to interact with api v1
+ * @type object | undefined
  */
-export type RepoMigrate409 = any;
+export type RepoMigrateBody = MigrateRepoOptions | undefined;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoMigrate413 = any;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoMigrate422 = APIValidationError;
-
-export type RepoMigrateMutationRequest = MigrateRepoOptions;
-
-export type RepoMigrateMutationResponse = RepoMigrate201;
-
-export type RepoMigrateMutation = {
-  Response: RepoMigrate201;
-  Request: RepoMigrateMutationRequest;
-  Errors: RepoMigrate403 | RepoMigrate409 | RepoMigrate413 | RepoMigrate422;
+export type RepoMigrateOptions = {
+  body: RepoMigrateBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoMigrateResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoMigrateStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMigrateStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoMigrateStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMigrateStatus403Html;
+      };
+  '409': RepoMigrateStatus409;
+  '413': RepoMigrateStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoMigrateStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMigrateStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoMigrateResponse =
+  | RepoMigrateStatus201
+  | RepoMigrateStatus403
+  | RepoMigrateStatus409
+  | RepoMigrateStatus413
+  | RepoMigrateStatus422;

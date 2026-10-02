@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RegisterRepoRunnerMutationRequest,
-  RegisterRepoRunnerMutationResponse,
-  RegisterRepoRunnerPathParams,
-  RegisterRepoRunner400,
-  RegisterRepoRunner401,
-  RegisterRepoRunner404,
-} from '../types/RegisterRepoRunner';
-
-function getRegisterRepoRunnerUrl(
-  owner: RegisterRepoRunnerPathParams['owner'],
-  repo: RegisterRepoRunnerPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/actions/runners` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RegisterRepoRunnerOptions, RegisterRepoRunnerResponses } from '../types/RegisterRepoRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Register a new repository-level runner
  * {@link /repos/:owner/:repo/actions/runners}
  */
-export async function registerRepoRunner(
-  owner: RegisterRepoRunnerPathParams['owner'],
-  repo: RegisterRepoRunnerPathParams['repo'],
-  data: RegisterRepoRunnerMutationRequest,
-  config: Partial<RequestConfig<RegisterRepoRunnerMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function registerRepoRunner<ThrowOnError extends boolean = true>(
+  options: Options<RegisterRepoRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RegisterRepoRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RegisterRepoRunnerMutationResponse,
-    ResponseErrorConfig<RegisterRepoRunner400 | RegisterRepoRunner401 | RegisterRepoRunner404>,
-    RegisterRepoRunnerMutationRequest
-  >({
-    method: 'POST',
-    url: getRegisterRepoRunnerUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RegisterRepoRunnerResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoDeleteTagPathParams = {
+export type RepoDeleteTagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,40 +25,77 @@ export type RepoDeleteTagPathParams = {
   tag: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteTag204 = any;
+export type RepoDeleteTagStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteTag404 = APINotFound;
+export type RepoDeleteTagStatus404Json = APINotFound;
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteTag405 = any;
+export type RepoDeleteTagStatus404Html = APINotFound;
 
-/**
- * @description APIConflict is a conflict empty response
- */
-export type RepoDeleteTag409 = any;
+export type RepoDeleteTagStatus404 = RepoDeleteTagStatus404Json | RepoDeleteTagStatus404Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoDeleteTag422 = APIValidationError;
+export type RepoDeleteTagStatus405 = unknown;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoDeleteTag423 = APIRepoArchivedError;
+export type RepoDeleteTagStatus409 = unknown;
 
-export type RepoDeleteTagMutationResponse = RepoDeleteTag204;
+export type RepoDeleteTagStatus422Json = APIValidationError;
 
-export type RepoDeleteTagMutation = {
-  Response: RepoDeleteTag204;
-  PathParams: RepoDeleteTagPathParams;
-  Errors: RepoDeleteTag404 | RepoDeleteTag405 | RepoDeleteTag409 | RepoDeleteTag422 | RepoDeleteTag423;
+export type RepoDeleteTagStatus422Html = APIValidationError;
+
+export type RepoDeleteTagStatus422 = RepoDeleteTagStatus422Json | RepoDeleteTagStatus422Html;
+
+export type RepoDeleteTagStatus423Json = APIRepoArchivedError;
+
+export type RepoDeleteTagStatus423Html = APIRepoArchivedError;
+
+export type RepoDeleteTagStatus423 = RepoDeleteTagStatus423Json | RepoDeleteTagStatus423Html;
+
+export type RepoDeleteTagOptions = {
+  body?: never;
+  path: RepoDeleteTagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteTagResponses = {
+  '204': RepoDeleteTagStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTagStatus404Html;
+      };
+  '405': RepoDeleteTagStatus405;
+  '409': RepoDeleteTagStatus409;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTagStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTagStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTagStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTagStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteTagResponse =
+  | RepoDeleteTagStatus204
+  | RepoDeleteTagStatus404
+  | RepoDeleteTagStatus405
+  | RepoDeleteTagStatus409
+  | RepoDeleteTagStatus422
+  | RepoDeleteTagStatus423;

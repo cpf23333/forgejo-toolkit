@@ -5,6 +5,7 @@
 
 /**
  * @description CreateForkOption options for creating a fork
+ * @type object
  */
 export type CreateForkOption = {
   /**

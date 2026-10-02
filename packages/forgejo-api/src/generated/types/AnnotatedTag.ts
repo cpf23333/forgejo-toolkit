@@ -10,6 +10,7 @@ import type { TagArchiveDownloadCount } from './TagArchiveDownloadCount';
 
 /**
  * @description AnnotatedTag represents an annotated tag
+ * @type object
  */
 export type AnnotatedTag = {
   /**
@@ -17,30 +18,15 @@ export type AnnotatedTag = {
    * @type object | undefined
    */
   archive_download_count?: TagArchiveDownloadCount;
-  /**
-   * @type string | undefined
-   */
   message?: string;
   /**
    * @description AnnotatedTagObject contains meta information of the tag object
    * @type object | undefined
    */
   object?: AnnotatedTagObject;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
-  /**
-   * @type string | undefined
-   */
   tag?: string;
-  /**
-   * @type object | undefined
-   */
   tagger?: CommitUser;
-  /**
-   * @type string | undefined
-   */
   url?: string;
   /**
    * @description PayloadCommitVerification represents the GPG verification of a commit

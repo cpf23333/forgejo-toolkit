@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { ActionTaskResponse } from './ActionTaskResponse';
 
-export type ListActionTasksPathParams = {
+export type ListActionTasksPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,7 +22,7 @@ export type ListActionTasksPathParams = {
   repo: string;
 };
 
-export const listActionTasksQueryParamsStatusEnum = {
+export const listActionTasksStatusEnum = {
   unknown: 'unknown',
   waiting: 'waiting',
   running: 'running',
@@ -33,10 +33,9 @@ export const listActionTasksQueryParamsStatusEnum = {
   blocked: 'blocked',
 } as const;
 
-export type ListActionTasksQueryParamsStatusEnumKey =
-  (typeof listActionTasksQueryParamsStatusEnum)[keyof typeof listActionTasksQueryParamsStatusEnum];
+export type ListActionTasksStatusEnumKey = (typeof listActionTasksStatusEnum)[keyof typeof listActionTasksStatusEnum];
 
-export type ListActionTasksQueryParams = {
+export type ListActionTasksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -51,44 +50,120 @@ export type ListActionTasksQueryParams = {
    * @description Returns workflow tasks with the check run status or conclusion that is specified.\n For example, a conclusion can be success or a status can be in_progress.\n
    * @type array | undefined
    */
-  status?: ListActionTasksQueryParamsStatusEnumKey[];
+  status?: ListActionTasksStatusEnumKey[];
 };
 
 /**
- * @description TasksList
+ * @description ActionTaskResponse returns a ActionTask
+ * @type object
  */
-export type ListActionTasks200 = ActionTaskResponse;
+export type ListActionTasksStatus200Json = ActionTaskResponse;
 
 /**
- * @description APIError is error format response
+ * @description ActionTaskResponse returns a ActionTask
+ * @type object
  */
-export type ListActionTasks400 = APIError;
+export type ListActionTasksStatus200Html = ActionTaskResponse;
+
+export type ListActionTasksStatus200 = ListActionTasksStatus200Json | ListActionTasksStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionTasks403 = APIForbiddenError;
+export type ListActionTasksStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionTasks404 = APINotFound;
+export type ListActionTasksStatus400Html = APIError;
 
-/**
- * @description APIConflict is a conflict empty response
- */
-export type ListActionTasks409 = any;
+export type ListActionTasksStatus400 = ListActionTasksStatus400Json | ListActionTasksStatus400Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type ListActionTasks422 = APIValidationError;
+export type ListActionTasksStatus403Json = APIForbiddenError;
 
-export type ListActionTasksQueryResponse = ListActionTasks200;
+export type ListActionTasksStatus403Html = APIForbiddenError;
 
-export type ListActionTasksQuery = {
-  Response: ListActionTasks200;
-  PathParams: ListActionTasksPathParams;
-  QueryParams: ListActionTasksQueryParams;
-  Errors: ListActionTasks400 | ListActionTasks403 | ListActionTasks404 | ListActionTasks409 | ListActionTasks422;
+export type ListActionTasksStatus403 = ListActionTasksStatus403Json | ListActionTasksStatus403Html;
+
+export type ListActionTasksStatus404Json = APINotFound;
+
+export type ListActionTasksStatus404Html = APINotFound;
+
+export type ListActionTasksStatus404 = ListActionTasksStatus404Json | ListActionTasksStatus404Html;
+
+export type ListActionTasksStatus409 = unknown;
+
+export type ListActionTasksStatus422Json = APIValidationError;
+
+export type ListActionTasksStatus422Html = APIValidationError;
+
+export type ListActionTasksStatus422 = ListActionTasksStatus422Json | ListActionTasksStatus422Html;
+
+export type ListActionTasksOptions = {
+  body?: never;
+  path: ListActionTasksPath;
+  query?: ListActionTasksQuery;
+  headers?: never;
 };
+
+export type ListActionTasksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListActionTasksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionTasksStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ListActionTasksStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionTasksStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ListActionTasksStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionTasksStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListActionTasksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionTasksStatus404Html;
+      };
+  '409': ListActionTasksStatus409;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: ListActionTasksStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionTasksStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListActionTasksResponse =
+  | ListActionTasksStatus200
+  | ListActionTasksStatus400
+  | ListActionTasksStatus403
+  | ListActionTasksStatus404
+  | ListActionTasksStatus409
+  | ListActionTasksStatus422;

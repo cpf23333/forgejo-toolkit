@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoDeleteCollaboratorPathParams = {
+export type RepoDeleteCollaboratorPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,53 @@ export type RepoDeleteCollaboratorPathParams = {
   collaborator: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteCollaborator204 = any;
+export type RepoDeleteCollaboratorStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteCollaborator404 = APINotFound;
+export type RepoDeleteCollaboratorStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoDeleteCollaborator422 = APIValidationError;
+export type RepoDeleteCollaboratorStatus404Html = APINotFound;
 
-export type RepoDeleteCollaboratorMutationResponse = RepoDeleteCollaborator204;
+export type RepoDeleteCollaboratorStatus404 = RepoDeleteCollaboratorStatus404Json | RepoDeleteCollaboratorStatus404Html;
 
-export type RepoDeleteCollaboratorMutation = {
-  Response: RepoDeleteCollaborator204;
-  PathParams: RepoDeleteCollaboratorPathParams;
-  Errors: RepoDeleteCollaborator404 | RepoDeleteCollaborator422;
+export type RepoDeleteCollaboratorStatus422Json = APIValidationError;
+
+export type RepoDeleteCollaboratorStatus422Html = APIValidationError;
+
+export type RepoDeleteCollaboratorStatus422 = RepoDeleteCollaboratorStatus422Json | RepoDeleteCollaboratorStatus422Html;
+
+export type RepoDeleteCollaboratorOptions = {
+  body?: never;
+  path: RepoDeleteCollaboratorPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteCollaboratorResponses = {
+  '204': RepoDeleteCollaboratorStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteCollaboratorStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteCollaboratorStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteCollaboratorStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteCollaboratorStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteCollaboratorResponse =
+  | RepoDeleteCollaboratorStatus204
+  | RepoDeleteCollaboratorStatus404
+  | RepoDeleteCollaboratorStatus422;

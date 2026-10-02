@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { ActionArtifact } from './ActionArtifact';
 
-export type ListActionRunArtifactsPathParams = {
+export type ListActionRunArtifactsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,12 +21,14 @@ export type ListActionRunArtifactsPathParams = {
   repo: string;
   /**
    * @description ID of the workflow run
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
-export type ListActionRunArtifactsQueryParams = {
+export type ListActionRunArtifactsQuery = {
   /**
    * @description filter by artifact name
    * @type string | undefined
@@ -44,31 +46,89 @@ export type ListActionRunArtifactsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionArtifactList
- */
-export type ListActionRunArtifacts200 = ActionArtifact[];
+export type ListActionRunArtifactsStatus200Json = ActionArtifact[];
+
+export type ListActionRunArtifactsStatus200Html = ActionArtifact[];
+
+export type ListActionRunArtifactsStatus200 = ListActionRunArtifactsStatus200Json | ListActionRunArtifactsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionRunArtifacts400 = APIError;
+export type ListActionRunArtifactsStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionRunArtifacts403 = APIForbiddenError;
+export type ListActionRunArtifactsStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type ListActionRunArtifacts404 = APINotFound;
+export type ListActionRunArtifactsStatus400 = ListActionRunArtifactsStatus400Json | ListActionRunArtifactsStatus400Html;
 
-export type ListActionRunArtifactsQueryResponse = ListActionRunArtifacts200;
+export type ListActionRunArtifactsStatus403Json = APIForbiddenError;
 
-export type ListActionRunArtifactsQuery = {
-  Response: ListActionRunArtifacts200;
-  PathParams: ListActionRunArtifactsPathParams;
-  QueryParams: ListActionRunArtifactsQueryParams;
-  Errors: ListActionRunArtifacts400 | ListActionRunArtifacts403 | ListActionRunArtifacts404;
+export type ListActionRunArtifactsStatus403Html = APIForbiddenError;
+
+export type ListActionRunArtifactsStatus403 = ListActionRunArtifactsStatus403Json | ListActionRunArtifactsStatus403Html;
+
+export type ListActionRunArtifactsStatus404Json = APINotFound;
+
+export type ListActionRunArtifactsStatus404Html = APINotFound;
+
+export type ListActionRunArtifactsStatus404 = ListActionRunArtifactsStatus404Json | ListActionRunArtifactsStatus404Html;
+
+export type ListActionRunArtifactsOptions = {
+  body?: never;
+  path: ListActionRunArtifactsPath;
+  query?: ListActionRunArtifactsQuery;
+  headers?: never;
 };
+
+export type ListActionRunArtifactsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunArtifactsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunArtifactsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunArtifactsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunArtifactsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunArtifactsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunArtifactsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunArtifactsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunArtifactsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListActionRunArtifactsResponse =
+  | ListActionRunArtifactsStatus200
+  | ListActionRunArtifactsStatus400
+  | ListActionRunArtifactsStatus403
+  | ListActionRunArtifactsStatus404;

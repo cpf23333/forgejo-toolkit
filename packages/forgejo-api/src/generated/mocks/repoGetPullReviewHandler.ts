@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetPullReviewQueryResponse, RepoGetPullReview404 } from '../types/RepoGetPullReview';
+import type { RepoGetPullReviewResponse, RepoGetPullReviewStatus404 } from '../types/RepoGetPullReview';
 import { http } from 'msw';
 
-export function repoGetPullReviewHandlerResponse200(data: RepoGetPullReviewQueryResponse) {
+export function repoGetPullReviewHandlerResponse200(data: RepoGetPullReviewResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetPullReviewHandlerResponse200(data: RepoGetPullReviewQuery
   });
 }
 
-export function repoGetPullReviewHandlerResponse404(data: RepoGetPullReview404) {
+export function repoGetPullReviewHandlerResponse404(data: RepoGetPullReviewStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetPullReviewHandlerResponse404(data: RepoGetPullReview404) 
 
 export function repoGetPullReviewHandler(
   data?:
-    | RepoGetPullReviewQueryResponse
+    | RepoGetPullReviewResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index/reviews/:id`, function handler(info) {

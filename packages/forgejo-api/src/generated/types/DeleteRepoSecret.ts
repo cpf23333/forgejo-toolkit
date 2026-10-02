@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteRepoSecretPathParams = {
+export type DeleteRepoSecretPath = {
   /**
    * @description owner of the repository
    * @type string
@@ -24,25 +24,61 @@ export type DeleteRepoSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description delete one secret of the organization
- */
-export type DeleteRepoSecret204 = any;
+export type DeleteRepoSecretStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoSecret400 = APIError;
+export type DeleteRepoSecretStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoSecret404 = APINotFound;
+export type DeleteRepoSecretStatus400Html = APIError;
 
-export type DeleteRepoSecretMutationResponse = DeleteRepoSecret204;
+export type DeleteRepoSecretStatus400 = DeleteRepoSecretStatus400Json | DeleteRepoSecretStatus400Html;
 
-export type DeleteRepoSecretMutation = {
-  Response: DeleteRepoSecret204;
-  PathParams: DeleteRepoSecretPathParams;
-  Errors: DeleteRepoSecret400 | DeleteRepoSecret404;
+export type DeleteRepoSecretStatus404Json = APINotFound;
+
+export type DeleteRepoSecretStatus404Html = APINotFound;
+
+export type DeleteRepoSecretStatus404 = DeleteRepoSecretStatus404Json | DeleteRepoSecretStatus404Html;
+
+export type DeleteRepoSecretOptions = {
+  body?: never;
+  path: DeleteRepoSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteRepoSecretResponses = {
+  '204': DeleteRepoSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoSecretStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteRepoSecretResponse =
+  | DeleteRepoSecretStatus204
+  | DeleteRepoSecretStatus400
+  | DeleteRepoSecretStatus404;

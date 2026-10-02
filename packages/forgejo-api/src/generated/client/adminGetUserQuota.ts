@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminGetUserQuotaQueryResponse,
-  AdminGetUserQuotaPathParams,
-  AdminGetUserQuota400,
-  AdminGetUserQuota403,
-  AdminGetUserQuota404,
-  AdminGetUserQuota422,
-} from '../types/AdminGetUserQuota';
-
-function getAdminGetUserQuotaUrl(username: AdminGetUserQuotaPathParams['username']) {
-  const res = { method: 'GET', url: `/admin/users/${username}/quota` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminGetUserQuotaOptions, AdminGetUserQuotaResponses } from '../types/AdminGetUserQuota';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get the user's quota info
  * {@link /admin/users/:username/quota}
  */
-export async function adminGetUserQuota(
-  username: AdminGetUserQuotaPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminGetUserQuota<ThrowOnError extends boolean = true>(
+  options: Options<AdminGetUserQuotaOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminGetUserQuotaResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminGetUserQuotaQueryResponse,
-    ResponseErrorConfig<AdminGetUserQuota400 | AdminGetUserQuota403 | AdminGetUserQuota404 | AdminGetUserQuota422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getAdminGetUserQuotaUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/users/{username}/quota',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminGetUserQuotaResponses, ThrowOnError>>;
 }

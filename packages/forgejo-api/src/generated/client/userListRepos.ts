@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListReposQueryResponse,
-  UserListReposPathParams,
-  UserListReposQueryParams,
-  UserListRepos404,
-} from '../types/UserListRepos';
-
-function getUserListReposUrl(username: UserListReposPathParams['username']) {
-  const res = { method: 'GET', url: `/users/${username}/repos` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListReposOptions, UserListReposResponses } from '../types/UserListRepos';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the repos owned by the given user
  * {@link /users/:username/repos}
  */
-export async function userListRepos(
-  username: UserListReposPathParams['username'],
-  params?: UserListReposQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListRepos<ThrowOnError extends boolean = true>(
+  options: Options<UserListReposOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserListReposResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserListReposQueryResponse, ResponseErrorConfig<UserListRepos404>, unknown>({
-    method: 'GET',
-    url: getUserListReposUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListReposResponses, ThrowOnError>>;
 }

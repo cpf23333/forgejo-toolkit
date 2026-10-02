@@ -3,55 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueEditIssueMutationRequest,
-  IssueEditIssueMutationResponse,
-  IssueEditIssuePathParams,
-  IssueEditIssue403,
-  IssueEditIssue404,
-  IssueEditIssue412,
-} from '../types/IssueEditIssue';
-
-function getIssueEditIssueUrl(
-  owner: IssueEditIssuePathParams['owner'],
-  repo: IssueEditIssuePathParams['repo'],
-  index: IssueEditIssuePathParams['index'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/${index}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueEditIssueOptions, IssueEditIssueResponses } from '../types/IssueEditIssue';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit an issue. If using deadline only the date will be taken into account, and time of day ignored.
  * {@link /repos/:owner/:repo/issues/:index}
  */
-export async function issueEditIssue(
-  owner: IssueEditIssuePathParams['owner'],
-  repo: IssueEditIssuePathParams['repo'],
-  index: IssueEditIssuePathParams['index'],
-  data?: IssueEditIssueMutationRequest,
-  config: Partial<RequestConfig<IssueEditIssueMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditIssue<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditIssueOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditIssueResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditIssueMutationResponse,
-    ResponseErrorConfig<IssueEditIssue403 | IssueEditIssue404 | IssueEditIssue412>,
-    IssueEditIssueMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditIssueUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/{index}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditIssueResponses, ThrowOnError>>;
 }

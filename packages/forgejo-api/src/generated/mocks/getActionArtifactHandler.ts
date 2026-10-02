@@ -4,14 +4,14 @@
  */
 
 import type {
-  GetActionArtifactQueryResponse,
-  GetActionArtifact400,
-  GetActionArtifact403,
-  GetActionArtifact404,
+  GetActionArtifactResponse,
+  GetActionArtifactStatus400,
+  GetActionArtifactStatus403,
+  GetActionArtifactStatus404,
 } from '../types/GetActionArtifact';
 import { http } from 'msw';
 
-export function getActionArtifactHandlerResponse200(data: GetActionArtifactQueryResponse) {
+export function getActionArtifactHandlerResponse200(data: GetActionArtifactResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function getActionArtifactHandlerResponse200(data: GetActionArtifactQuery
   });
 }
 
-export function getActionArtifactHandlerResponse400(data: GetActionArtifact400) {
+export function getActionArtifactHandlerResponse400(data: GetActionArtifactStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function getActionArtifactHandlerResponse400(data: GetActionArtifact400) 
   });
 }
 
-export function getActionArtifactHandlerResponse403(data: GetActionArtifact403) {
+export function getActionArtifactHandlerResponse403(data: GetActionArtifactStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function getActionArtifactHandlerResponse403(data: GetActionArtifact403) 
   });
 }
 
-export function getActionArtifactHandlerResponse404(data: GetActionArtifact404) {
+export function getActionArtifactHandlerResponse404(data: GetActionArtifactStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function getActionArtifactHandlerResponse404(data: GetActionArtifact404) 
 
 export function getActionArtifactHandler(
   data?:
-    | GetActionArtifactQueryResponse
+    | GetActionArtifactResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/artifacts/:artifact_id`, function handler(info) {

@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { CommitStatus } from './CommitStatus';
 import type { CreateStatusOption } from './CreateStatusOption';
 
-export type RepoCreateStatusPathParams = {
+export type RepoCreateStatusPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,27 +27,94 @@ export type RepoCreateStatusPathParams = {
 };
 
 /**
- * @description CommitStatus
+ * @description CommitStatus holds a single status of a single Commit
+ * @type object
  */
-export type RepoCreateStatus201 = CommitStatus;
+export type RepoCreateStatusStatus201Json = CommitStatus;
 
 /**
- * @description APIError is error format response
+ * @description CommitStatus holds a single status of a single Commit
+ * @type object
  */
-export type RepoCreateStatus400 = APIError;
+export type RepoCreateStatusStatus201Html = CommitStatus;
+
+export type RepoCreateStatusStatus201 = RepoCreateStatusStatus201Json | RepoCreateStatusStatus201Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateStatus404 = APINotFound;
+export type RepoCreateStatusStatus400Json = APIError;
 
-export type RepoCreateStatusMutationRequest = CreateStatusOption;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoCreateStatusStatus400Html = APIError;
 
-export type RepoCreateStatusMutationResponse = RepoCreateStatus201;
+export type RepoCreateStatusStatus400 = RepoCreateStatusStatus400Json | RepoCreateStatusStatus400Html;
 
-export type RepoCreateStatusMutation = {
-  Response: RepoCreateStatus201;
-  Request: RepoCreateStatusMutationRequest;
-  PathParams: RepoCreateStatusPathParams;
-  Errors: RepoCreateStatus400 | RepoCreateStatus404;
+export type RepoCreateStatusStatus404Json = APINotFound;
+
+export type RepoCreateStatusStatus404Html = APINotFound;
+
+export type RepoCreateStatusStatus404 = RepoCreateStatusStatus404Json | RepoCreateStatusStatus404Html;
+
+/**
+ * @description CreateStatusOption holds the information needed to create a new CommitStatus for a Commit
+ * @type object | undefined
+ */
+export type RepoCreateStatusBodyJson = CreateStatusOption | undefined;
+
+/**
+ * @description CreateStatusOption holds the information needed to create a new CommitStatus for a Commit
+ * @type object | undefined
+ */
+export type RepoCreateStatusBodyPlain = CreateStatusOption | undefined;
+
+export type RepoCreateStatusBody = RepoCreateStatusBodyJson | RepoCreateStatusBodyPlain;
+
+export type RepoCreateStatusOptions = {
+  body: RepoCreateStatusBody;
+  path: RepoCreateStatusPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateStatusResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateStatusStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateStatusStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateStatusStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateStatusStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateStatusStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateStatusStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateStatusResponse =
+  | RepoCreateStatusStatus201
+  | RepoCreateStatusStatus400
+  | RepoCreateStatusStatus404;

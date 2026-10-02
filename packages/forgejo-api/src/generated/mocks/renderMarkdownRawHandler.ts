@@ -3,10 +3,15 @@
  * Do not edit manually.
  */
 
-import type { RenderMarkdownRawMutationResponse, RenderMarkdownRaw422 } from '../types/RenderMarkdownRaw';
+import type {
+  RenderMarkdownRawResponse,
+  RenderMarkdownRawStatus422,
+  RenderMarkdownRawBody,
+} from '../types/RenderMarkdownRaw';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function renderMarkdownRawHandlerResponse200(data: RenderMarkdownRawMutationResponse) {
+export function renderMarkdownRawHandlerResponse200(data: RenderMarkdownRawResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +20,7 @@ export function renderMarkdownRawHandlerResponse200(data: RenderMarkdownRawMutat
   });
 }
 
-export function renderMarkdownRawHandlerResponse422(data: RenderMarkdownRaw422) {
+export function renderMarkdownRawHandlerResponse422(data: RenderMarkdownRawStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -25,11 +30,9 @@ export function renderMarkdownRawHandlerResponse422(data: RenderMarkdownRaw422) 
 }
 
 export function renderMarkdownRawHandler(
-  data?:
-    | RenderMarkdownRawMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RenderMarkdownRawResponse | HttpResponseResolver<Record<string, string>, RenderMarkdownRawBody>,
 ) {
-  return http.post(`/markdown/raw`, function handler(info) {
+  return http.post<Record<string, string>, RenderMarkdownRawBody>(`/markdown/raw`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

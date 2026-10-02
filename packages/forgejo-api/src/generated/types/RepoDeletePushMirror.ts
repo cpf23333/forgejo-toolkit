@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeletePushMirrorPathParams = {
+export type RepoDeletePushMirrorPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,61 @@ export type RepoDeletePushMirrorPathParams = {
   name: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeletePushMirror204 = any;
+export type RepoDeletePushMirrorStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeletePushMirror400 = APIError;
+export type RepoDeletePushMirrorStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeletePushMirror404 = APINotFound;
+export type RepoDeletePushMirrorStatus400Html = APIError;
 
-export type RepoDeletePushMirrorMutationResponse = RepoDeletePushMirror204;
+export type RepoDeletePushMirrorStatus400 = RepoDeletePushMirrorStatus400Json | RepoDeletePushMirrorStatus400Html;
 
-export type RepoDeletePushMirrorMutation = {
-  Response: RepoDeletePushMirror204;
-  PathParams: RepoDeletePushMirrorPathParams;
-  Errors: RepoDeletePushMirror400 | RepoDeletePushMirror404;
+export type RepoDeletePushMirrorStatus404Json = APINotFound;
+
+export type RepoDeletePushMirrorStatus404Html = APINotFound;
+
+export type RepoDeletePushMirrorStatus404 = RepoDeletePushMirrorStatus404Json | RepoDeletePushMirrorStatus404Html;
+
+export type RepoDeletePushMirrorOptions = {
+  body?: never;
+  path: RepoDeletePushMirrorPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeletePushMirrorResponses = {
+  '204': RepoDeletePushMirrorStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePushMirrorStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePushMirrorStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePushMirrorStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePushMirrorStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeletePushMirrorResponse =
+  | RepoDeletePushMirrorStatus204
+  | RepoDeletePushMirrorStatus400
+  | RepoDeletePushMirrorStatus404;

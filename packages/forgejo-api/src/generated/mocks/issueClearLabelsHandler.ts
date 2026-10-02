@@ -4,19 +4,21 @@
  */
 
 import type {
-  IssueClearLabelsMutationResponse,
-  IssueClearLabels403,
-  IssueClearLabels404,
+  IssueClearLabelsResponse,
+  IssueClearLabelsStatus403,
+  IssueClearLabelsStatus404,
+  IssueClearLabelsBody,
 } from '../types/IssueClearLabels';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueClearLabelsHandlerResponse204(data?: IssueClearLabelsMutationResponse) {
+export function issueClearLabelsHandlerResponse204(data?: IssueClearLabelsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueClearLabelsHandlerResponse403(data: IssueClearLabels403) {
+export function issueClearLabelsHandlerResponse403(data: IssueClearLabelsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +27,7 @@ export function issueClearLabelsHandlerResponse403(data: IssueClearLabels403) {
   });
 }
 
-export function issueClearLabelsHandlerResponse404(data: IssueClearLabels404) {
+export function issueClearLabelsHandlerResponse404(data: IssueClearLabelsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,19 +37,16 @@ export function issueClearLabelsHandlerResponse404(data: IssueClearLabels404) {
 }
 
 export function issueClearLabelsHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, IssueClearLabelsBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/issues/:index/labels`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, IssueClearLabelsBody>(
+    `/repos/:owner/:repo/issues/:index/labels`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

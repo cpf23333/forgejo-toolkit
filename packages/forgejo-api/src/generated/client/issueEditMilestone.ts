@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueEditMilestoneMutationRequest,
-  IssueEditMilestoneMutationResponse,
-  IssueEditMilestonePathParams,
-  IssueEditMilestone404,
-} from '../types/IssueEditMilestone';
-
-function getIssueEditMilestoneUrl(
-  owner: IssueEditMilestonePathParams['owner'],
-  repo: IssueEditMilestonePathParams['repo'],
-  id: IssueEditMilestonePathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/milestones/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueEditMilestoneOptions, IssueEditMilestoneResponses } from '../types/IssueEditMilestone';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a milestone
  * {@link /repos/:owner/:repo/milestones/:id}
  */
-export async function issueEditMilestone(
-  owner: IssueEditMilestonePathParams['owner'],
-  repo: IssueEditMilestonePathParams['repo'],
-  id: IssueEditMilestonePathParams['id'],
-  data?: IssueEditMilestoneMutationRequest,
-  config: Partial<RequestConfig<IssueEditMilestoneMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditMilestone<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditMilestoneOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditMilestoneResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditMilestoneMutationResponse,
-    ResponseErrorConfig<IssueEditMilestone404>,
-    IssueEditMilestoneMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditMilestoneUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/milestones/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditMilestoneResponses, ThrowOnError>>;
 }

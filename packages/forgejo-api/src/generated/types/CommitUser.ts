@@ -3,20 +3,13 @@
  * Do not edit manually.
  */
 
-/**
- * CommitUser contains information of a user in the context of a commit.
- */
 export type CommitUser = {
-  /**
-   * @type string | undefined
-   */
   date?: string;
   /**
-   * @type string | undefined, email
-   */
-  email?: string;
-  /**
+   * @description
+   * Format: `email`
    * @type string | undefined
    */
+  email?: string;
   name?: string;
 };

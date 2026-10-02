@@ -5,23 +5,50 @@
 
 import type { ActivityPub } from './ActivityPub';
 
-export type ActivitypubPersonPathParams = {
+export type ActivitypubPersonPath = {
   /**
    * @description user ID of the user
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   'user-id': number;
 };
 
 /**
- * @description ActivityPub
+ * @description ActivityPub type
+ * @type object
  */
-export type ActivitypubPerson200 = ActivityPub;
+export type ActivitypubPersonStatus200Json = ActivityPub;
 
-export type ActivitypubPersonQueryResponse = ActivitypubPerson200;
+/**
+ * @description ActivityPub type
+ * @type object
+ */
+export type ActivitypubPersonStatus200Html = ActivityPub;
 
-export type ActivitypubPersonQuery = {
-  Response: ActivitypubPerson200;
-  PathParams: ActivitypubPersonPathParams;
-  Errors: any;
+export type ActivitypubPersonStatus200 = ActivitypubPersonStatus200Json | ActivitypubPersonStatus200Html;
+
+export type ActivitypubPersonOptions = {
+  body?: never;
+  path: ActivitypubPersonPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubPersonResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubPersonStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubPersonStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubPersonResponse = ActivitypubPersonStatus200;

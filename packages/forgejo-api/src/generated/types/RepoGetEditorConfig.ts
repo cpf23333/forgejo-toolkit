@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoGetEditorConfigPathParams = {
+export type RepoGetEditorConfigPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,7 +23,7 @@ export type RepoGetEditorConfigPathParams = {
   filepath: string;
 };
 
-export type RepoGetEditorConfigQueryParams = {
+export type RepoGetEditorConfigQuery = {
   /**
    * @description The name of the commit/branch/tag. Default the repository’s default branch (usually master)
    * @type string | undefined
@@ -31,23 +31,51 @@ export type RepoGetEditorConfigQueryParams = {
   ref?: string;
 };
 
-/**
- * @description definitions
- */
-export type RepoGetEditorConfig200 = {
+export type RepoGetEditorConfigStatus200Json = {
   [key: string]: string;
 };
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetEditorConfig404 = APINotFound;
-
-export type RepoGetEditorConfigQueryResponse = RepoGetEditorConfig200;
-
-export type RepoGetEditorConfigQuery = {
-  Response: RepoGetEditorConfig200;
-  PathParams: RepoGetEditorConfigPathParams;
-  QueryParams: RepoGetEditorConfigQueryParams;
-  Errors: RepoGetEditorConfig404;
+export type RepoGetEditorConfigStatus200Html = {
+  [key: string]: string;
 };
+
+export type RepoGetEditorConfigStatus200 = RepoGetEditorConfigStatus200Json | RepoGetEditorConfigStatus200Html;
+
+export type RepoGetEditorConfigStatus404Json = APINotFound;
+
+export type RepoGetEditorConfigStatus404Html = APINotFound;
+
+export type RepoGetEditorConfigStatus404 = RepoGetEditorConfigStatus404Json | RepoGetEditorConfigStatus404Html;
+
+export type RepoGetEditorConfigOptions = {
+  body?: never;
+  path: RepoGetEditorConfigPath;
+  query?: RepoGetEditorConfigQuery;
+  headers?: never;
+};
+
+export type RepoGetEditorConfigResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetEditorConfigStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetEditorConfigStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetEditorConfigStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetEditorConfigStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetEditorConfigResponse = RepoGetEditorConfigStatus200 | RepoGetEditorConfigStatus404;

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Compare } from './Compare';
 
-export type RepoCompareDiffPathParams = {
+export type RepoCompareDiffPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,20 +24,47 @@ export type RepoCompareDiffPathParams = {
   basehead: string;
 };
 
-/**
- * Compare represents a comparison between two commits.
- */
-export type RepoCompareDiff200 = Compare;
+export type RepoCompareDiffStatus200Json = Compare;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoCompareDiff404 = APINotFound;
+export type RepoCompareDiffStatus200Html = Compare;
 
-export type RepoCompareDiffQueryResponse = RepoCompareDiff200;
+export type RepoCompareDiffStatus200 = RepoCompareDiffStatus200Json | RepoCompareDiffStatus200Html;
 
-export type RepoCompareDiffQuery = {
-  Response: RepoCompareDiff200;
-  PathParams: RepoCompareDiffPathParams;
-  Errors: RepoCompareDiff404;
+export type RepoCompareDiffStatus404Json = APINotFound;
+
+export type RepoCompareDiffStatus404Html = APINotFound;
+
+export type RepoCompareDiffStatus404 = RepoCompareDiffStatus404Json | RepoCompareDiffStatus404Html;
+
+export type RepoCompareDiffOptions = {
+  body?: never;
+  path: RepoCompareDiffPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCompareDiffResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoCompareDiffStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCompareDiffStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCompareDiffStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCompareDiffStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCompareDiffResponse = RepoCompareDiffStatus200 | RepoCompareDiffStatus404;

@@ -10,39 +10,134 @@ import type { CreateQuotaRuleOptions } from './CreateQuotaRuleOptions';
 import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 /**
- * @description QuotaRuleInfo
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminCreateQuotaRule201 = QuotaRuleInfo;
+export type AdminCreateQuotaRuleStatus201Json = QuotaRuleInfo;
 
 /**
- * @description APIError is error format response
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminCreateQuotaRule400 = APIError;
+export type AdminCreateQuotaRuleStatus201Html = QuotaRuleInfo;
+
+export type AdminCreateQuotaRuleStatus201 = AdminCreateQuotaRuleStatus201Json | AdminCreateQuotaRuleStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaRule403 = APIForbiddenError;
+export type AdminCreateQuotaRuleStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaRule409 = APIError;
+export type AdminCreateQuotaRuleStatus400Html = APIError;
+
+export type AdminCreateQuotaRuleStatus400 = AdminCreateQuotaRuleStatus400Json | AdminCreateQuotaRuleStatus400Html;
+
+export type AdminCreateQuotaRuleStatus403Json = APIForbiddenError;
+
+export type AdminCreateQuotaRuleStatus403Html = APIForbiddenError;
+
+export type AdminCreateQuotaRuleStatus403 = AdminCreateQuotaRuleStatus403Json | AdminCreateQuotaRuleStatus403Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateQuotaRule422 = APIValidationError;
+export type AdminCreateQuotaRuleStatus409Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type AdminCreateQuotaRuleStatus409Html = APIError;
+
+export type AdminCreateQuotaRuleStatus409 = AdminCreateQuotaRuleStatus409Json | AdminCreateQuotaRuleStatus409Html;
+
+export type AdminCreateQuotaRuleStatus422Json = APIValidationError;
+
+export type AdminCreateQuotaRuleStatus422Html = APIValidationError;
+
+export type AdminCreateQuotaRuleStatus422 = AdminCreateQuotaRuleStatus422Json | AdminCreateQuotaRuleStatus422Html;
 
 /**
  * @description Definition of the quota rule
+ * @type object
  */
-export type AdminCreateQuotaRuleMutationRequest = CreateQuotaRuleOptions;
+export type AdminCreateQuotaRuleBodyJson = CreateQuotaRuleOptions;
 
-export type AdminCreateQuotaRuleMutationResponse = AdminCreateQuotaRule201;
+/**
+ * @description Definition of the quota rule
+ * @type object
+ */
+export type AdminCreateQuotaRuleBodyPlain = CreateQuotaRuleOptions;
 
-export type AdminCreateQuotaRuleMutation = {
-  Response: AdminCreateQuotaRule201;
-  Request: AdminCreateQuotaRuleMutationRequest;
-  Errors: AdminCreateQuotaRule400 | AdminCreateQuotaRule403 | AdminCreateQuotaRule409 | AdminCreateQuotaRule422;
+export type AdminCreateQuotaRuleBody = AdminCreateQuotaRuleBodyJson | AdminCreateQuotaRuleBodyPlain;
+
+export type AdminCreateQuotaRuleOptions = {
+  body: AdminCreateQuotaRuleBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateQuotaRuleResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaRuleStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaRuleStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaRuleStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaRuleStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaRuleStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaRuleStatus403Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaRuleStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaRuleStatus409Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateQuotaRuleStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateQuotaRuleStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateQuotaRuleResponse =
+  | AdminCreateQuotaRuleStatus201
+  | AdminCreateQuotaRuleStatus400
+  | AdminCreateQuotaRuleStatus403
+  | AdminCreateQuotaRuleStatus409
+  | AdminCreateQuotaRuleStatus422;

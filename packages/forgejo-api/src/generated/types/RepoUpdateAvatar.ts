@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { UpdateRepoAvatarOption } from './UpdateRepoAvatarOption';
 
-export type RepoUpdateAvatarPathParams = {
+export type RepoUpdateAvatarPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,23 +19,49 @@ export type RepoUpdateAvatarPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoUpdateAvatar204 = any;
+export type RepoUpdateAvatarStatus204 = unknown;
+
+export type RepoUpdateAvatarStatus404Json = APINotFound;
+
+export type RepoUpdateAvatarStatus404Html = APINotFound;
+
+export type RepoUpdateAvatarStatus404 = RepoUpdateAvatarStatus404Json | RepoUpdateAvatarStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description UpdateRepoAvatarUserOption options when updating the repo avatar
+ * @type object | undefined
  */
-export type RepoUpdateAvatar404 = APINotFound;
+export type RepoUpdateAvatarBodyJson = UpdateRepoAvatarOption | undefined;
 
-export type RepoUpdateAvatarMutationRequest = UpdateRepoAvatarOption;
+/**
+ * @description UpdateRepoAvatarUserOption options when updating the repo avatar
+ * @type object | undefined
+ */
+export type RepoUpdateAvatarBodyPlain = UpdateRepoAvatarOption | undefined;
 
-export type RepoUpdateAvatarMutationResponse = RepoUpdateAvatar204;
+export type RepoUpdateAvatarBody = RepoUpdateAvatarBodyJson | RepoUpdateAvatarBodyPlain;
 
-export type RepoUpdateAvatarMutation = {
-  Response: RepoUpdateAvatar204;
-  Request: RepoUpdateAvatarMutationRequest;
-  PathParams: RepoUpdateAvatarPathParams;
-  Errors: RepoUpdateAvatar404;
+export type RepoUpdateAvatarOptions = {
+  body: RepoUpdateAvatarBody;
+  path: RepoUpdateAvatarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoUpdateAvatarResponses = {
+  '204': RepoUpdateAvatarStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateAvatarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateAvatarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoUpdateAvatarResponse = RepoUpdateAvatarStatus204 | RepoUpdateAvatarStatus404;

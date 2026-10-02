@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type RepoListSubscribersPathParams = {
+export type RepoListSubscribersPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListSubscribersPathParams = {
   repo: string;
 };
 
-export type RepoListSubscribersQueryParams = {
+export type RepoListSubscribersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListSubscribersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type RepoListSubscribers200 = User[];
+export type RepoListSubscribersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListSubscribers404 = APINotFound;
+export type RepoListSubscribersStatus200Html = User[];
 
-export type RepoListSubscribersQueryResponse = RepoListSubscribers200;
+export type RepoListSubscribersStatus200 = RepoListSubscribersStatus200Json | RepoListSubscribersStatus200Html;
 
-export type RepoListSubscribersQuery = {
-  Response: RepoListSubscribers200;
-  PathParams: RepoListSubscribersPathParams;
-  QueryParams: RepoListSubscribersQueryParams;
-  Errors: RepoListSubscribers404;
+export type RepoListSubscribersStatus404Json = APINotFound;
+
+export type RepoListSubscribersStatus404Html = APINotFound;
+
+export type RepoListSubscribersStatus404 = RepoListSubscribersStatus404Json | RepoListSubscribersStatus404Html;
+
+export type RepoListSubscribersOptions = {
+  body?: never;
+  path: RepoListSubscribersPath;
+  query?: RepoListSubscribersQuery;
+  headers?: never;
 };
+
+export type RepoListSubscribersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListSubscribersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListSubscribersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListSubscribersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListSubscribersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListSubscribersResponse = RepoListSubscribersStatus200 | RepoListSubscribersStatus404;

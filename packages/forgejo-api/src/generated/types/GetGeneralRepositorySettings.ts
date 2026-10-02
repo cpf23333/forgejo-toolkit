@@ -6,13 +6,41 @@
 import type { GeneralRepoSettings } from './GeneralRepoSettings';
 
 /**
- * @description GeneralRepoSettings
+ * @description GeneralRepoSettings contains global repository settings exposed by API
+ * @type object
  */
-export type GetGeneralRepositorySettings200 = GeneralRepoSettings;
+export type GetGeneralRepositorySettingsStatus200Json = GeneralRepoSettings;
 
-export type GetGeneralRepositorySettingsQueryResponse = GetGeneralRepositorySettings200;
+/**
+ * @description GeneralRepoSettings contains global repository settings exposed by API
+ * @type object
+ */
+export type GetGeneralRepositorySettingsStatus200Html = GeneralRepoSettings;
 
-export type GetGeneralRepositorySettingsQuery = {
-  Response: GetGeneralRepositorySettings200;
-  Errors: any;
+export type GetGeneralRepositorySettingsStatus200 =
+  | GetGeneralRepositorySettingsStatus200Json
+  | GetGeneralRepositorySettingsStatus200Html;
+
+export type GetGeneralRepositorySettingsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetGeneralRepositorySettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetGeneralRepositorySettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGeneralRepositorySettingsStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetGeneralRepositorySettingsResponse = GetGeneralRepositorySettingsStatus200;

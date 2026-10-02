@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type DeleteUserVariablePathParams = {
+export type DeleteUserVariablePath = {
   /**
    * @description name of the variable
    * @type string
@@ -16,40 +16,97 @@ export type DeleteUserVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when deleting a variable
- */
-export type DeleteUserVariable201 = any;
+export type DeleteUserVariableStatus201 = unknown;
+
+export type DeleteUserVariableStatus204 = unknown;
 
 /**
- * @description response when deleting a variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserVariable204 = any;
+export type DeleteUserVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserVariable400 = APIError;
+export type DeleteUserVariableStatus400Html = APIError;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type DeleteUserVariable401 = APIUnauthorizedError;
+export type DeleteUserVariableStatus400 = DeleteUserVariableStatus400Json | DeleteUserVariableStatus400Html;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type DeleteUserVariable403 = APIForbiddenError;
+export type DeleteUserVariableStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeleteUserVariable404 = APINotFound;
+export type DeleteUserVariableStatus401Html = APIUnauthorizedError;
 
-export type DeleteUserVariableMutationResponse = DeleteUserVariable201 | DeleteUserVariable204;
+export type DeleteUserVariableStatus401 = DeleteUserVariableStatus401Json | DeleteUserVariableStatus401Html;
 
-export type DeleteUserVariableMutation = {
-  Response: DeleteUserVariable201 | DeleteUserVariable204;
-  PathParams: DeleteUserVariablePathParams;
-  Errors: DeleteUserVariable400 | DeleteUserVariable401 | DeleteUserVariable403 | DeleteUserVariable404;
+export type DeleteUserVariableStatus403Json = APIForbiddenError;
+
+export type DeleteUserVariableStatus403Html = APIForbiddenError;
+
+export type DeleteUserVariableStatus403 = DeleteUserVariableStatus403Json | DeleteUserVariableStatus403Html;
+
+export type DeleteUserVariableStatus404Json = APINotFound;
+
+export type DeleteUserVariableStatus404Html = APINotFound;
+
+export type DeleteUserVariableStatus404 = DeleteUserVariableStatus404Json | DeleteUserVariableStatus404Html;
+
+export type DeleteUserVariableOptions = {
+  body?: never;
+  path: DeleteUserVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteUserVariableResponses = {
+  '201': DeleteUserVariableStatus201;
+  '204': DeleteUserVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserVariableStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserVariableStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserVariableStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserVariableStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserVariableStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteUserVariableResponse =
+  | DeleteUserVariableStatus201
+  | DeleteUserVariableStatus204
+  | DeleteUserVariableStatus400
+  | DeleteUserVariableStatus401
+  | DeleteUserVariableStatus403
+  | DeleteUserVariableStatus404;

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { QuotaUsedPackageList } from './QuotaUsedPackageList';
 
-export type OrgListQuotaPackagesPathParams = {
+export type OrgListQuotaPackagesPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,7 +15,7 @@ export type OrgListQuotaPackagesPathParams = {
   org: string;
 };
 
-export type OrgListQuotaPackagesQueryParams = {
+export type OrgListQuotaPackagesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -29,25 +29,72 @@ export type OrgListQuotaPackagesQueryParams = {
 };
 
 /**
- * @description QuotaUsedPackageList
+ * @description QuotaUsedPackageList represents a list of packages counting towards a user\'s quota
+ * @type array
  */
-export type OrgListQuotaPackages200 = QuotaUsedPackageList;
+export type OrgListQuotaPackagesStatus200Json = QuotaUsedPackageList;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description QuotaUsedPackageList represents a list of packages counting towards a user\'s quota
+ * @type array
  */
-export type OrgListQuotaPackages403 = APIForbiddenError;
+export type OrgListQuotaPackagesStatus200Html = QuotaUsedPackageList;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListQuotaPackages404 = APINotFound;
+export type OrgListQuotaPackagesStatus200 = OrgListQuotaPackagesStatus200Json | OrgListQuotaPackagesStatus200Html;
 
-export type OrgListQuotaPackagesQueryResponse = OrgListQuotaPackages200;
+export type OrgListQuotaPackagesStatus403Json = APIForbiddenError;
 
-export type OrgListQuotaPackagesQuery = {
-  Response: OrgListQuotaPackages200;
-  PathParams: OrgListQuotaPackagesPathParams;
-  QueryParams: OrgListQuotaPackagesQueryParams;
-  Errors: OrgListQuotaPackages403 | OrgListQuotaPackages404;
+export type OrgListQuotaPackagesStatus403Html = APIForbiddenError;
+
+export type OrgListQuotaPackagesStatus403 = OrgListQuotaPackagesStatus403Json | OrgListQuotaPackagesStatus403Html;
+
+export type OrgListQuotaPackagesStatus404Json = APINotFound;
+
+export type OrgListQuotaPackagesStatus404Html = APINotFound;
+
+export type OrgListQuotaPackagesStatus404 = OrgListQuotaPackagesStatus404Json | OrgListQuotaPackagesStatus404Html;
+
+export type OrgListQuotaPackagesOptions = {
+  body?: never;
+  path: OrgListQuotaPackagesPath;
+  query?: OrgListQuotaPackagesQuery;
+  headers?: never;
 };
+
+export type OrgListQuotaPackagesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaPackagesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaPackagesStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaPackagesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaPackagesStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaPackagesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaPackagesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListQuotaPackagesResponse =
+  | OrgListQuotaPackagesStatus200
+  | OrgListQuotaPackagesStatus403
+  | OrgListQuotaPackagesStatus404;

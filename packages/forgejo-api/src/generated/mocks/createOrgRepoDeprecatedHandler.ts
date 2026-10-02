@@ -4,14 +4,16 @@
  */
 
 import type {
-  CreateOrgRepoDeprecatedMutationResponse,
-  CreateOrgRepoDeprecated403,
-  CreateOrgRepoDeprecated404,
-  CreateOrgRepoDeprecated422,
+  CreateOrgRepoDeprecatedResponse,
+  CreateOrgRepoDeprecatedStatus403,
+  CreateOrgRepoDeprecatedStatus404,
+  CreateOrgRepoDeprecatedStatus422,
+  CreateOrgRepoDeprecatedBody,
 } from '../types/CreateOrgRepoDeprecated';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function createOrgRepoDeprecatedHandlerResponse201(data: CreateOrgRepoDeprecatedMutationResponse) {
+export function createOrgRepoDeprecatedHandlerResponse201(data: CreateOrgRepoDeprecatedResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function createOrgRepoDeprecatedHandlerResponse201(data: CreateOrgRepoDep
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse403(data: CreateOrgRepoDeprecated403) {
+export function createOrgRepoDeprecatedHandlerResponse403(data: CreateOrgRepoDeprecatedStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +31,7 @@ export function createOrgRepoDeprecatedHandlerResponse403(data: CreateOrgRepoDep
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse404(data: CreateOrgRepoDeprecated404) {
+export function createOrgRepoDeprecatedHandlerResponse404(data: CreateOrgRepoDeprecatedStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +40,7 @@ export function createOrgRepoDeprecatedHandlerResponse404(data: CreateOrgRepoDep
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse422(data: CreateOrgRepoDeprecated422) {
+export function createOrgRepoDeprecatedHandlerResponse422(data: CreateOrgRepoDeprecatedStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,11 +50,9 @@ export function createOrgRepoDeprecatedHandlerResponse422(data: CreateOrgRepoDep
 }
 
 export function createOrgRepoDeprecatedHandler(
-  data?:
-    | CreateOrgRepoDeprecatedMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: CreateOrgRepoDeprecatedResponse | HttpResponseResolver<Record<string, string>, CreateOrgRepoDeprecatedBody>,
 ) {
-  return http.post(`/org/:org/repos`, function handler(info) {
+  return http.post<Record<string, string>, CreateOrgRepoDeprecatedBody>(`/org/:org/repos`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

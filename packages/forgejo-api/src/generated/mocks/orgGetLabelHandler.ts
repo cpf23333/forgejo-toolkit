@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgGetLabelQueryResponse, OrgGetLabel404 } from '../types/OrgGetLabel';
+import type { OrgGetLabelResponse, OrgGetLabelStatus404 } from '../types/OrgGetLabel';
 import { http } from 'msw';
 
-export function orgGetLabelHandlerResponse200(data: OrgGetLabelQueryResponse) {
+export function orgGetLabelHandlerResponse200(data: OrgGetLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgGetLabelHandlerResponse200(data: OrgGetLabelQueryResponse) {
   });
 }
 
-export function orgGetLabelHandlerResponse404(data: OrgGetLabel404) {
+export function orgGetLabelHandlerResponse404(data: OrgGetLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function orgGetLabelHandlerResponse404(data: OrgGetLabel404) {
 }
 
 export function orgGetLabelHandler(
-  data?:
-    | OrgGetLabelQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgGetLabelResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/labels/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);

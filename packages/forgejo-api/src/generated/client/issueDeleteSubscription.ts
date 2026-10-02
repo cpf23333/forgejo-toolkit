@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueDeleteSubscriptionMutationResponse,
-  IssueDeleteSubscriptionPathParams,
-  IssueDeleteSubscription404,
+  IssueDeleteSubscriptionOptions,
+  IssueDeleteSubscriptionResponses,
 } from '../types/IssueDeleteSubscription';
-
-function getIssueDeleteSubscriptionUrl(
-  owner: IssueDeleteSubscriptionPathParams['owner'],
-  repo: IssueDeleteSubscriptionPathParams['repo'],
-  index: IssueDeleteSubscriptionPathParams['index'],
-  user: IssueDeleteSubscriptionPathParams['user'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/${user}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unsubscribe user from issue
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/:user}
  */
-export async function issueDeleteSubscription(
-  owner: IssueDeleteSubscriptionPathParams['owner'],
-  repo: IssueDeleteSubscriptionPathParams['repo'],
-  index: IssueDeleteSubscriptionPathParams['index'],
-  user: IssueDeleteSubscriptionPathParams['user'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteSubscription<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteSubscriptionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteSubscriptionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueDeleteSubscriptionMutationResponse,
-    ResponseErrorConfig<IssueDeleteSubscription404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteSubscriptionUrl(owner, repo, index, user).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/subscriptions/{user}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteSubscriptionResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListLicenseTemplatesQueryResponse } from '../types/ListLicenseTemplates';
+import type { ListLicenseTemplatesResponse } from '../types/ListLicenseTemplates';
 import { http } from 'msw';
 
-export function listLicenseTemplatesHandlerResponse200(data: ListLicenseTemplatesQueryResponse) {
+export function listLicenseTemplatesHandlerResponse200(data: ListLicenseTemplatesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function listLicenseTemplatesHandlerResponse200(data: ListLicenseTemplate
 
 export function listLicenseTemplatesHandler(
   data?:
-    | ListLicenseTemplatesQueryResponse
+    | ListLicenseTemplatesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/licenses`, function handler(info) {

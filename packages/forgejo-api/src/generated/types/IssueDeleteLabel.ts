@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeleteLabelPathParams = {
+export type IssueDeleteLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,25 +18,42 @@ export type IssueDeleteLabelPathParams = {
   repo: string;
   /**
    * @description id of the label to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteLabel204 = any;
+export type IssueDeleteLabelStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteLabel404 = APINotFound;
+export type IssueDeleteLabelStatus404Json = APINotFound;
 
-export type IssueDeleteLabelMutationResponse = IssueDeleteLabel204;
+export type IssueDeleteLabelStatus404Html = APINotFound;
 
-export type IssueDeleteLabelMutation = {
-  Response: IssueDeleteLabel204;
-  PathParams: IssueDeleteLabelPathParams;
-  Errors: IssueDeleteLabel404;
+export type IssueDeleteLabelStatus404 = IssueDeleteLabelStatus404Json | IssueDeleteLabelStatus404Html;
+
+export type IssueDeleteLabelOptions = {
+  body?: never;
+  path: IssueDeleteLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteLabelResponses = {
+  '204': IssueDeleteLabelStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteLabelStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteLabelResponse = IssueDeleteLabelStatus204 | IssueDeleteLabelStatus404;

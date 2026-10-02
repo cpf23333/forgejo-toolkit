@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetWikiPagesQueryResponse, RepoGetWikiPages404 } from '../types/RepoGetWikiPages';
+import type { RepoGetWikiPagesResponse, RepoGetWikiPagesStatus404 } from '../types/RepoGetWikiPages';
 import { http } from 'msw';
 
-export function repoGetWikiPagesHandlerResponse200(data: RepoGetWikiPagesQueryResponse) {
+export function repoGetWikiPagesHandlerResponse200(data: RepoGetWikiPagesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetWikiPagesHandlerResponse200(data: RepoGetWikiPagesQueryRe
   });
 }
 
-export function repoGetWikiPagesHandlerResponse404(data: RepoGetWikiPages404) {
+export function repoGetWikiPagesHandlerResponse404(data: RepoGetWikiPagesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetWikiPagesHandlerResponse404(data: RepoGetWikiPages404) {
 
 export function repoGetWikiPagesHandler(
   data?:
-    | RepoGetWikiPagesQueryResponse
+    | RepoGetWikiPagesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/wiki/pages`, function handler(info) {

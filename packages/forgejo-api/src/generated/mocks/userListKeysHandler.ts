@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListKeysQueryResponse, UserListKeys404 } from '../types/UserListKeys';
+import type { UserListKeysResponse, UserListKeysStatus404 } from '../types/UserListKeys';
 import { http } from 'msw';
 
-export function userListKeysHandlerResponse200(data: UserListKeysQueryResponse) {
+export function userListKeysHandlerResponse200(data: UserListKeysResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListKeysHandlerResponse200(data: UserListKeysQueryResponse) 
   });
 }
 
-export function userListKeysHandlerResponse404(data: UserListKeys404) {
+export function userListKeysHandlerResponse404(data: UserListKeysStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function userListKeysHandlerResponse404(data: UserListKeys404) {
 }
 
 export function userListKeysHandler(
-  data?:
-    | UserListKeysQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: UserListKeysResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/keys`, function handler(info) {
     if (typeof data === 'function') return data(info);

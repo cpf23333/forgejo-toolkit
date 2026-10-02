@@ -3,46 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueListIssueAttachmentsQueryResponse,
-  IssueListIssueAttachmentsPathParams,
-  IssueListIssueAttachments404,
+  IssueListIssueAttachmentsOptions,
+  IssueListIssueAttachmentsResponses,
 } from '../types/IssueListIssueAttachments';
-
-function getIssueListIssueAttachmentsUrl(
-  owner: IssueListIssueAttachmentsPathParams['owner'],
-  repo: IssueListIssueAttachmentsPathParams['repo'],
-  index: IssueListIssueAttachmentsPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/assets` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List issue's attachments
  * {@link /repos/:owner/:repo/issues/:index/assets}
  */
-export async function issueListIssueAttachments(
-  owner: IssueListIssueAttachmentsPathParams['owner'],
-  repo: IssueListIssueAttachmentsPathParams['repo'],
-  index: IssueListIssueAttachmentsPathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueListIssueAttachments<ThrowOnError extends boolean = true>(
+  options: Options<IssueListIssueAttachmentsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueListIssueAttachmentsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueListIssueAttachmentsQueryResponse,
-    ResponseErrorConfig<IssueListIssueAttachments404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueListIssueAttachmentsUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/assets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueListIssueAttachmentsResponses, ThrowOnError>>;
 }

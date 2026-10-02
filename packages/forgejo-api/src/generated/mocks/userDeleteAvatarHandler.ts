@@ -4,19 +4,19 @@
  */
 
 import type {
-  UserDeleteAvatarMutationResponse,
-  UserDeleteAvatar401,
-  UserDeleteAvatar403,
+  UserDeleteAvatarResponse,
+  UserDeleteAvatarStatus401,
+  UserDeleteAvatarStatus403,
 } from '../types/UserDeleteAvatar';
 import { http } from 'msw';
 
-export function userDeleteAvatarHandlerResponse204(data?: UserDeleteAvatarMutationResponse) {
+export function userDeleteAvatarHandlerResponse204(data?: UserDeleteAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteAvatarHandlerResponse401(data: UserDeleteAvatar401) {
+export function userDeleteAvatarHandlerResponse401(data: UserDeleteAvatarStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -25,7 +25,7 @@ export function userDeleteAvatarHandlerResponse401(data: UserDeleteAvatar401) {
   });
 }
 
-export function userDeleteAvatarHandlerResponse403(data: UserDeleteAvatar403) {
+export function userDeleteAvatarHandlerResponse403(data: UserDeleteAvatarStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {

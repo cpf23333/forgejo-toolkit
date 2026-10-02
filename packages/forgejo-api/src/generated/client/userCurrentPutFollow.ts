@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentPutFollowMutationResponse,
-  UserCurrentPutFollowPathParams,
-  UserCurrentPutFollow401,
-  UserCurrentPutFollow403,
-  UserCurrentPutFollow404,
-} from '../types/UserCurrentPutFollow';
-
-function getUserCurrentPutFollowUrl(username: UserCurrentPutFollowPathParams['username']) {
-  const res = { method: 'PUT', url: `/user/following/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentPutFollowOptions, UserCurrentPutFollowResponses } from '../types/UserCurrentPutFollow';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Follow a user
  * {@link /user/following/:username}
  */
-export async function userCurrentPutFollow(
-  username: UserCurrentPutFollowPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentPutFollow<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentPutFollowOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentPutFollowResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentPutFollowMutationResponse,
-    ResponseErrorConfig<UserCurrentPutFollow401 | UserCurrentPutFollow403 | UserCurrentPutFollow404>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getUserCurrentPutFollowUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/user/following/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentPutFollowResponses, ThrowOnError>>;
 }

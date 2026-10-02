@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgConcealMemberMutationResponse,
-  OrgConcealMemberPathParams,
-  OrgConcealMember403,
-  OrgConcealMember404,
-} from '../types/OrgConcealMember';
-
-function getOrgConcealMemberUrl(
-  org: OrgConcealMemberPathParams['org'],
-  username: OrgConcealMemberPathParams['username'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/orgs/${org}/public_members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgConcealMemberOptions, OrgConcealMemberResponses } from '../types/OrgConcealMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Conceal a user's membership
  * {@link /orgs/:org/public_members/:username}
  */
-export async function orgConcealMember(
-  org: OrgConcealMemberPathParams['org'],
-  username: OrgConcealMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgConcealMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgConcealMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgConcealMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    OrgConcealMemberMutationResponse,
-    ResponseErrorConfig<OrgConcealMember403 | OrgConcealMember404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getOrgConcealMemberUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/public_members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgConcealMemberResponses, ThrowOnError>>;
 }

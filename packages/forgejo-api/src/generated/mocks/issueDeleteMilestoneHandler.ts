@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { IssueDeleteMilestoneMutationResponse, IssueDeleteMilestone404 } from '../types/IssueDeleteMilestone';
+import type { IssueDeleteMilestoneResponse, IssueDeleteMilestoneStatus404 } from '../types/IssueDeleteMilestone';
 import { http } from 'msw';
 
-export function issueDeleteMilestoneHandlerResponse204(data?: IssueDeleteMilestoneMutationResponse) {
+export function issueDeleteMilestoneHandlerResponse204(data?: IssueDeleteMilestoneResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteMilestoneHandlerResponse404(data: IssueDeleteMilestone404) {
+export function issueDeleteMilestoneHandlerResponse404(data: IssueDeleteMilestoneStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

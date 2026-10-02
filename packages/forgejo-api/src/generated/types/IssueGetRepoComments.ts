@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Comment } from './Comment';
 
-export type IssueGetRepoCommentsPathParams = {
+export type IssueGetRepoCommentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,15 +21,19 @@ export type IssueGetRepoCommentsPathParams = {
   repo: string;
 };
 
-export type IssueGetRepoCommentsQueryParams = {
+export type IssueGetRepoCommentsQuery = {
   /**
    * @description if provided, only comments updated since the provided time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description if provided, only comments updated before the provided time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -44,31 +48,81 @@ export type IssueGetRepoCommentsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description CommentList
- */
-export type IssueGetRepoComments200 = Comment[];
+export type IssueGetRepoCommentsStatus200Json = Comment[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetRepoComments404 = APINotFound;
+export type IssueGetRepoCommentsStatus200Html = Comment[];
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueGetRepoComments422 = APIValidationError;
+export type IssueGetRepoCommentsStatus200 = IssueGetRepoCommentsStatus200Json | IssueGetRepoCommentsStatus200Html;
 
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueGetRepoComments500 = APIInternalServerError;
+export type IssueGetRepoCommentsStatus404Json = APINotFound;
 
-export type IssueGetRepoCommentsQueryResponse = IssueGetRepoComments200;
+export type IssueGetRepoCommentsStatus404Html = APINotFound;
 
-export type IssueGetRepoCommentsQuery = {
-  Response: IssueGetRepoComments200;
-  PathParams: IssueGetRepoCommentsPathParams;
-  QueryParams: IssueGetRepoCommentsQueryParams;
-  Errors: IssueGetRepoComments404 | IssueGetRepoComments422 | IssueGetRepoComments500;
+export type IssueGetRepoCommentsStatus404 = IssueGetRepoCommentsStatus404Json | IssueGetRepoCommentsStatus404Html;
+
+export type IssueGetRepoCommentsStatus422Json = APIValidationError;
+
+export type IssueGetRepoCommentsStatus422Html = APIValidationError;
+
+export type IssueGetRepoCommentsStatus422 = IssueGetRepoCommentsStatus422Json | IssueGetRepoCommentsStatus422Html;
+
+export type IssueGetRepoCommentsStatus500Json = APIInternalServerError;
+
+export type IssueGetRepoCommentsStatus500Html = APIInternalServerError;
+
+export type IssueGetRepoCommentsStatus500 = IssueGetRepoCommentsStatus500Json | IssueGetRepoCommentsStatus500Html;
+
+export type IssueGetRepoCommentsOptions = {
+  body?: never;
+  path: IssueGetRepoCommentsPath;
+  query?: IssueGetRepoCommentsQuery;
+  headers?: never;
 };
+
+export type IssueGetRepoCommentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetRepoCommentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetRepoCommentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetRepoCommentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetRepoCommentsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueGetRepoCommentsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetRepoCommentsStatus422Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueGetRepoCommentsStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetRepoCommentsStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetRepoCommentsResponse =
+  | IssueGetRepoCommentsStatus200
+  | IssueGetRepoCommentsStatus404
+  | IssueGetRepoCommentsStatus422
+  | IssueGetRepoCommentsStatus500;

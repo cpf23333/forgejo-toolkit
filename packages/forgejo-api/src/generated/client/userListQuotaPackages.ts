@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListQuotaPackagesQueryResponse,
-  UserListQuotaPackagesQueryParams,
-  UserListQuotaPackages401,
-  UserListQuotaPackages403,
-} from '../types/UserListQuotaPackages';
-
-function getUserListQuotaPackagesUrl() {
-  const res = { method: 'GET', url: `/user/quota/packages` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListQuotaPackagesOptions, UserListQuotaPackagesResponses } from '../types/UserListQuotaPackages';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the packages affecting the authenticated user's quota
  * {@link /user/quota/packages}
  */
-export async function userListQuotaPackages(
-  params?: UserListQuotaPackagesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListQuotaPackages<ThrowOnError extends boolean = true>(
+  options: Options<UserListQuotaPackagesOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserListQuotaPackagesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserListQuotaPackagesQueryResponse,
-    ResponseErrorConfig<UserListQuotaPackages401 | UserListQuotaPackages403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserListQuotaPackagesUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/quota/packages',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListQuotaPackagesResponses, ThrowOnError>>;
 }

@@ -3,14 +3,32 @@
  * Do not edit manually.
  */
 
-/**
- * @description LabelTemplateList
- */
-export type ListLabelTemplates200 = string[];
+export type ListLabelTemplatesStatus200Json = string[];
 
-export type ListLabelTemplatesQueryResponse = ListLabelTemplates200;
+export type ListLabelTemplatesStatus200Html = string[];
 
-export type ListLabelTemplatesQuery = {
-  Response: ListLabelTemplates200;
-  Errors: any;
+export type ListLabelTemplatesStatus200 = ListLabelTemplatesStatus200Json | ListLabelTemplatesStatus200Html;
+
+export type ListLabelTemplatesOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ListLabelTemplatesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListLabelTemplatesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListLabelTemplatesStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListLabelTemplatesResponse = ListLabelTemplatesStatus200;

@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoSyncForkBranchInfoQueryResponse,
-  RepoSyncForkBranchInfo400,
-  RepoSyncForkBranchInfo404,
+  RepoSyncForkBranchInfoResponse,
+  RepoSyncForkBranchInfoStatus400,
+  RepoSyncForkBranchInfoStatus404,
 } from '../types/RepoSyncForkBranchInfo';
 import { http } from 'msw';
 
-export function repoSyncForkBranchInfoHandlerResponse200(data: RepoSyncForkBranchInfoQueryResponse) {
+export function repoSyncForkBranchInfoHandlerResponse200(data: RepoSyncForkBranchInfoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoSyncForkBranchInfoHandlerResponse200(data: RepoSyncForkBranc
   });
 }
 
-export function repoSyncForkBranchInfoHandlerResponse400(data: RepoSyncForkBranchInfo400) {
+export function repoSyncForkBranchInfoHandlerResponse400(data: RepoSyncForkBranchInfoStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function repoSyncForkBranchInfoHandlerResponse400(data: RepoSyncForkBranc
   });
 }
 
-export function repoSyncForkBranchInfoHandlerResponse404(data: RepoSyncForkBranchInfo404) {
+export function repoSyncForkBranchInfoHandlerResponse404(data: RepoSyncForkBranchInfoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoSyncForkBranchInfoHandlerResponse404(data: RepoSyncForkBranc
 
 export function repoSyncForkBranchInfoHandler(
   data?:
-    | RepoSyncForkBranchInfoQueryResponse
+    | RepoSyncForkBranchInfoResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/sync_fork/:branch`, function handler(info) {

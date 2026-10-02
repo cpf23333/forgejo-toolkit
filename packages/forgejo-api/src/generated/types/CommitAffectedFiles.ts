@@ -5,14 +5,9 @@
 
 /**
  * @description CommitAffectedFiles store information about files affected by the commit
+ * @type object
  */
 export type CommitAffectedFiles = {
-  /**
-   * @type string | undefined
-   */
   filename?: string;
-  /**
-   * @type string | undefined
-   */
   status?: string;
 };

@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ActionRunQueryResponse,
-  ActionRunPathParams,
-  ActionRun400,
-  ActionRun403,
-  ActionRun404,
-} from '../types/ActionRun';
-
-function getActionRunUrl(
-  owner: ActionRunPathParams['owner'],
-  repo: ActionRunPathParams['repo'],
-  run_id: ActionRunPathParams['run_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ActionRunOptions, ActionRunResponses } from '../types/ActionRun';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get an action run
  * {@link /repos/:owner/:repo/actions/runs/:run_id}
  */
-export async function actionRun(
-  owner: ActionRunPathParams['owner'],
-  repo: ActionRunPathParams['repo'],
-  run_id: ActionRunPathParams['run_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function actionRun<ThrowOnError extends boolean = true>(
+  options: Options<ActionRunOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActionRunResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    ActionRunQueryResponse,
-    ResponseErrorConfig<ActionRun400 | ActionRun403 | ActionRun404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getActionRunUrl(owner, repo, run_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActionRunResponses, ThrowOnError>>;
 }

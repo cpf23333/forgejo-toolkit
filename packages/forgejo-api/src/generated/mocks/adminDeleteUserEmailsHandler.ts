@@ -4,19 +4,21 @@
  */
 
 import type {
-  AdminDeleteUserEmailsMutationResponse,
-  AdminDeleteUserEmails403,
-  AdminDeleteUserEmails422,
+  AdminDeleteUserEmailsResponse,
+  AdminDeleteUserEmailsStatus403,
+  AdminDeleteUserEmailsStatus422,
+  AdminDeleteUserEmailsBody,
 } from '../types/AdminDeleteUserEmails';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminDeleteUserEmailsHandlerResponse204(data?: AdminDeleteUserEmailsMutationResponse) {
+export function adminDeleteUserEmailsHandlerResponse204(data?: AdminDeleteUserEmailsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserEmailsHandlerResponse403(data: AdminDeleteUserEmails403) {
+export function adminDeleteUserEmailsHandlerResponse403(data: AdminDeleteUserEmailsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +27,7 @@ export function adminDeleteUserEmailsHandlerResponse403(data: AdminDeleteUserEma
   });
 }
 
-export function adminDeleteUserEmailsHandlerResponse422(data: AdminDeleteUserEmails422) {
+export function adminDeleteUserEmailsHandlerResponse422(data: AdminDeleteUserEmailsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -41,13 +43,16 @@ export function adminDeleteUserEmailsHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, AdminDeleteUserEmailsBody>,
 ) {
-  return http.delete(`/admin/users/:username/emails`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, AdminDeleteUserEmailsBody>(
+    `/admin/users/:username/emails`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

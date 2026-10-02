@@ -3,26 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { NotifyNewAvailableQueryResponse } from '../types/NotifyNewAvailable';
-
-function getNotifyNewAvailableUrl() {
-  const res = { method: 'GET', url: `/notifications/new` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { NotifyNewAvailableOptions, NotifyNewAvailableResponses } from '../types/NotifyNewAvailable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if unread notifications exist
  * {@link /notifications/new}
  */
-export async function notifyNewAvailable(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function notifyNewAvailable<ThrowOnError extends boolean = true>(
+  options: Options<NotifyNewAvailableOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<NotifyNewAvailableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<NotifyNewAvailableQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getNotifyNewAvailableUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/notifications/new',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<NotifyNewAvailableResponses, ThrowOnError>>;
 }

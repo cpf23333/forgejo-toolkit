@@ -5,98 +5,35 @@
 
 /**
  * @description EditBranchProtectionOption options for editing a branch protection
+ * @type object
  */
 export type EditBranchProtectionOption = {
-  /**
-   * @type boolean | undefined
-   */
   apply_to_admins?: boolean;
-  /**
-   * @type array | undefined
-   */
   approvals_whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   approvals_whitelist_username?: string[];
-  /**
-   * @type boolean | undefined
-   */
   block_on_official_review_requests?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   block_on_outdated_branch?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   block_on_rejected_reviews?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   dismiss_stale_approvals?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   enable_approvals_whitelist?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   enable_merge_whitelist?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   enable_push?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   enable_push_whitelist?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   enable_status_check?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   ignore_stale_approvals?: boolean;
-  /**
-   * @type array | undefined
-   */
   merge_whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   merge_whitelist_usernames?: string[];
-  /**
-   * @type string | undefined
-   */
   protected_file_patterns?: string;
-  /**
-   * @type boolean | undefined
-   */
   push_whitelist_deploy_keys?: boolean;
-  /**
-   * @type array | undefined
-   */
   push_whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   push_whitelist_usernames?: string[];
-  /**
-   * @type boolean | undefined
-   */
   require_signed_commits?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   required_approvals?: number;
-  /**
-   * @type array | undefined
-   */
   status_check_contexts?: string[];
-  /**
-   * @type string | undefined
-   */
   unprotected_file_patterns?: string;
 };

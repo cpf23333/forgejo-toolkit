@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListTeamsQueryResponse, RepoListTeams404, RepoListTeams405 } from '../types/RepoListTeams';
+import type { RepoListTeamsResponse, RepoListTeamsStatus404, RepoListTeamsStatus405 } from '../types/RepoListTeams';
 import { http } from 'msw';
 
-export function repoListTeamsHandlerResponse200(data: RepoListTeamsQueryResponse) {
+export function repoListTeamsHandlerResponse200(data: RepoListTeamsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListTeamsHandlerResponse200(data: RepoListTeamsQueryResponse
   });
 }
 
-export function repoListTeamsHandlerResponse404(data: RepoListTeams404) {
+export function repoListTeamsHandlerResponse404(data: RepoListTeamsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +24,7 @@ export function repoListTeamsHandlerResponse404(data: RepoListTeams404) {
   });
 }
 
-export function repoListTeamsHandlerResponse405(data: RepoListTeams405) {
+export function repoListTeamsHandlerResponse405(data: RepoListTeamsStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
@@ -35,7 +35,7 @@ export function repoListTeamsHandlerResponse405(data: RepoListTeams405) {
 
 export function repoListTeamsHandler(
   data?:
-    | RepoListTeamsQueryResponse
+    | RepoListTeamsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/teams`, function handler(info) {

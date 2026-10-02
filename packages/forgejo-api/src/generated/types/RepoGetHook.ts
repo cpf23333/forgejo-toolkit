@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Hook } from './Hook';
 
-export type RepoGetHookPathParams = {
+export type RepoGetHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoGetHookPathParams = {
   repo: string;
   /**
    * @description id of the hook to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type RepoGetHook200 = Hook;
+export type RepoGetHookStatus200Json = Hook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type RepoGetHook404 = APINotFound;
+export type RepoGetHookStatus200Html = Hook;
 
-export type RepoGetHookQueryResponse = RepoGetHook200;
+export type RepoGetHookStatus200 = RepoGetHookStatus200Json | RepoGetHookStatus200Html;
 
-export type RepoGetHookQuery = {
-  Response: RepoGetHook200;
-  PathParams: RepoGetHookPathParams;
-  Errors: RepoGetHook404;
+export type RepoGetHookStatus404Json = APINotFound;
+
+export type RepoGetHookStatus404Html = APINotFound;
+
+export type RepoGetHookStatus404 = RepoGetHookStatus404Json | RepoGetHookStatus404Html;
+
+export type RepoGetHookOptions = {
+  body?: never;
+  path: RepoGetHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetHookStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetHookResponse = RepoGetHookStatus200 | RepoGetHookStatus404;

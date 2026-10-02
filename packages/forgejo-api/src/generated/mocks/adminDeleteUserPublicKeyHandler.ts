@@ -4,19 +4,19 @@
  */
 
 import type {
-  AdminDeleteUserPublicKeyMutationResponse,
-  AdminDeleteUserPublicKey403,
-  AdminDeleteUserPublicKey404,
+  AdminDeleteUserPublicKeyResponse,
+  AdminDeleteUserPublicKeyStatus403,
+  AdminDeleteUserPublicKeyStatus404,
 } from '../types/AdminDeleteUserPublicKey';
 import { http } from 'msw';
 
-export function adminDeleteUserPublicKeyHandlerResponse204(data?: AdminDeleteUserPublicKeyMutationResponse) {
+export function adminDeleteUserPublicKeyHandlerResponse204(data?: AdminDeleteUserPublicKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserPublicKeyHandlerResponse403(data: AdminDeleteUserPublicKey403) {
+export function adminDeleteUserPublicKeyHandlerResponse403(data: AdminDeleteUserPublicKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function adminDeleteUserPublicKeyHandlerResponse403(data: AdminDeleteUser
   });
 }
 
-export function adminDeleteUserPublicKeyHandlerResponse404(data: AdminDeleteUserPublicKey404) {
+export function adminDeleteUserPublicKeyHandlerResponse404(data: AdminDeleteUserPublicKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

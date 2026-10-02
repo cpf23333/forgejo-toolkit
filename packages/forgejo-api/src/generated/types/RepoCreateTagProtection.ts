@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateTagProtectionOption } from './CreateTagProtectionOption';
 import type { TagProtection } from './TagProtection';
 
-export type RepoCreateTagProtectionPathParams = {
+export type RepoCreateTagProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,41 +24,120 @@ export type RepoCreateTagProtectionPathParams = {
 };
 
 /**
- * @description TagProtection
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoCreateTagProtection201 = TagProtection;
+export type RepoCreateTagProtectionStatus201Json = TagProtection;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoCreateTagProtection403 = APIForbiddenError;
+export type RepoCreateTagProtectionStatus201Html = TagProtection;
+
+export type RepoCreateTagProtectionStatus201 =
+  | RepoCreateTagProtectionStatus201Json
+  | RepoCreateTagProtectionStatus201Html;
+
+export type RepoCreateTagProtectionStatus403Json = APIForbiddenError;
+
+export type RepoCreateTagProtectionStatus403Html = APIForbiddenError;
+
+export type RepoCreateTagProtectionStatus403 =
+  | RepoCreateTagProtectionStatus403Json
+  | RepoCreateTagProtectionStatus403Html;
+
+export type RepoCreateTagProtectionStatus404Json = APINotFound;
+
+export type RepoCreateTagProtectionStatus404Html = APINotFound;
+
+export type RepoCreateTagProtectionStatus404 =
+  | RepoCreateTagProtectionStatus404Json
+  | RepoCreateTagProtectionStatus404Html;
+
+export type RepoCreateTagProtectionStatus422Json = APIValidationError;
+
+export type RepoCreateTagProtectionStatus422Html = APIValidationError;
+
+export type RepoCreateTagProtectionStatus422 =
+  | RepoCreateTagProtectionStatus422Json
+  | RepoCreateTagProtectionStatus422Html;
+
+export type RepoCreateTagProtectionStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateTagProtectionStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateTagProtectionStatus423 =
+  | RepoCreateTagProtectionStatus423Json
+  | RepoCreateTagProtectionStatus423Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateTagProtectionOption options for creating a tag protection
+ * @type object | undefined
  */
-export type RepoCreateTagProtection404 = APINotFound;
+export type RepoCreateTagProtectionBody = CreateTagProtectionOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoCreateTagProtection422 = APIValidationError;
-
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreateTagProtection423 = APIRepoArchivedError;
-
-export type RepoCreateTagProtectionMutationRequest = CreateTagProtectionOption;
-
-export type RepoCreateTagProtectionMutationResponse = RepoCreateTagProtection201;
-
-export type RepoCreateTagProtectionMutation = {
-  Response: RepoCreateTagProtection201;
-  Request: RepoCreateTagProtectionMutationRequest;
-  PathParams: RepoCreateTagProtectionPathParams;
-  Errors:
-    | RepoCreateTagProtection403
-    | RepoCreateTagProtection404
-    | RepoCreateTagProtection422
-    | RepoCreateTagProtection423;
+export type RepoCreateTagProtectionOptions = {
+  body: RepoCreateTagProtectionBody;
+  path: RepoCreateTagProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateTagProtectionResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagProtectionStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagProtectionStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagProtectionStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagProtectionStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagProtectionStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagProtectionStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagProtectionStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagProtectionStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagProtectionStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateTagProtectionResponse =
+  | RepoCreateTagProtectionStatus201
+  | RepoCreateTagProtectionStatus403
+  | RepoCreateTagProtectionStatus404
+  | RepoCreateTagProtectionStatus422
+  | RepoCreateTagProtectionStatus423;

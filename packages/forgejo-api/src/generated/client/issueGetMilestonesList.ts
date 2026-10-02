@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueGetMilestonesListQueryResponse,
-  IssueGetMilestonesListPathParams,
-  IssueGetMilestonesListQueryParams,
-  IssueGetMilestonesList404,
-} from '../types/IssueGetMilestonesList';
-
-function getIssueGetMilestonesListUrl(
-  owner: IssueGetMilestonesListPathParams['owner'],
-  repo: IssueGetMilestonesListPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/milestones` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueGetMilestonesListOptions, IssueGetMilestonesListResponses } from '../types/IssueGetMilestonesList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get all of a repository's opened milestones
  * {@link /repos/:owner/:repo/milestones}
  */
-export async function issueGetMilestonesList(
-  owner: IssueGetMilestonesListPathParams['owner'],
-  repo: IssueGetMilestonesListPathParams['repo'],
-  params?: IssueGetMilestonesListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetMilestonesList<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetMilestonesListOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetMilestonesListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetMilestonesListQueryResponse,
-    ResponseErrorConfig<IssueGetMilestonesList404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetMilestonesListUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/milestones',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetMilestonesListResponses, ThrowOnError>>;
 }

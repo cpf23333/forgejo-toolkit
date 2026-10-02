@@ -4,26 +4,26 @@
  */
 
 import type {
-  IssueStopStopWatchMutationResponse,
-  IssueStopStopWatch403,
-  IssueStopStopWatch404,
-  IssueStopStopWatch409,
+  IssueStopStopWatchResponse,
+  IssueStopStopWatchStatus403,
+  IssueStopStopWatchStatus404,
+  IssueStopStopWatchStatus409,
 } from '../types/IssueStopStopWatch';
 import { http } from 'msw';
 
-export function issueStopStopWatchHandlerResponse201(data?: IssueStopStopWatchMutationResponse) {
+export function issueStopStopWatchHandlerResponse201(data?: IssueStopStopWatchResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueStopStopWatchHandlerResponse403(data?: IssueStopStopWatch403) {
+export function issueStopStopWatchHandlerResponse403(data?: IssueStopStopWatchStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
   });
 }
 
-export function issueStopStopWatchHandlerResponse404(data: IssueStopStopWatch404) {
+export function issueStopStopWatchHandlerResponse404(data: IssueStopStopWatchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -32,7 +32,7 @@ export function issueStopStopWatchHandlerResponse404(data: IssueStopStopWatch404
   });
 }
 
-export function issueStopStopWatchHandlerResponse409(data?: IssueStopStopWatch409) {
+export function issueStopStopWatchHandlerResponse409(data?: IssueStopStopWatchStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { IssueCheckSubscriptionQueryResponse, IssueCheckSubscription404 } from '../types/IssueCheckSubscription';
+import type { IssueCheckSubscriptionResponse, IssueCheckSubscriptionStatus404 } from '../types/IssueCheckSubscription';
 import { http } from 'msw';
 
-export function issueCheckSubscriptionHandlerResponse200(data: IssueCheckSubscriptionQueryResponse) {
+export function issueCheckSubscriptionHandlerResponse200(data: IssueCheckSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function issueCheckSubscriptionHandlerResponse200(data: IssueCheckSubscri
   });
 }
 
-export function issueCheckSubscriptionHandlerResponse404(data: IssueCheckSubscription404) {
+export function issueCheckSubscriptionHandlerResponse404(data: IssueCheckSubscriptionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function issueCheckSubscriptionHandlerResponse404(data: IssueCheckSubscri
 
 export function issueCheckSubscriptionHandler(
   data?:
-    | IssueCheckSubscriptionQueryResponse
+    | IssueCheckSubscriptionResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/subscriptions/check`, function handler(info) {

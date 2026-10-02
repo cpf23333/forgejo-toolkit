@@ -5,6 +5,7 @@
 
 /**
  * @description MarkupOption markup options
+ * @type object
  */
 export type MarkupOption = {
   /**

@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetActionArtifactQueryResponse,
-  GetActionArtifactPathParams,
-  GetActionArtifact400,
-  GetActionArtifact403,
-  GetActionArtifact404,
-} from '../types/GetActionArtifact';
-
-function getGetActionArtifactUrl(
-  owner: GetActionArtifactPathParams['owner'],
-  repo: GetActionArtifactPathParams['repo'],
-  artifact_id: GetActionArtifactPathParams['artifact_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/artifacts/${artifact_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetActionArtifactOptions, GetActionArtifactResponses } from '../types/GetActionArtifact';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get an artifact by ID
  * {@link /repos/:owner/:repo/actions/artifacts/:artifact_id}
  */
-export async function getActionArtifact(
-  owner: GetActionArtifactPathParams['owner'],
-  repo: GetActionArtifactPathParams['repo'],
-  artifact_id: GetActionArtifactPathParams['artifact_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getActionArtifact<ThrowOnError extends boolean = true>(
+  options: Options<GetActionArtifactOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetActionArtifactResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetActionArtifactQueryResponse,
-    ResponseErrorConfig<GetActionArtifact400 | GetActionArtifact403 | GetActionArtifact404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetActionArtifactUrl(owner, repo, artifact_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetActionArtifactResponses, ThrowOnError>>;
 }

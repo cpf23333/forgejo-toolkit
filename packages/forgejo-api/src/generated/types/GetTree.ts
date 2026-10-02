@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { GitTreeResponse } from './GitTreeResponse';
 
-export type GetTreePathParams = {
+export type GetTreePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type GetTreePathParams = {
   sha: string;
 };
 
-export type GetTreeQueryParams = {
+export type GetTreeQuery = {
   /**
    * @description show all directories and files
    * @type boolean | undefined
@@ -44,25 +44,77 @@ export type GetTreeQueryParams = {
 };
 
 /**
- * @description GitTreeResponse
+ * @description GitTreeResponse returns a git tree
+ * @type object
  */
-export type GetTree200 = GitTreeResponse;
+export type GetTreeStatus200Json = GitTreeResponse;
 
 /**
- * @description APIError is error format response
+ * @description GitTreeResponse returns a git tree
+ * @type object
  */
-export type GetTree400 = APIError;
+export type GetTreeStatus200Html = GitTreeResponse;
+
+export type GetTreeStatus200 = GetTreeStatus200Json | GetTreeStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetTree404 = APINotFound;
+export type GetTreeStatus400Json = APIError;
 
-export type GetTreeQueryResponse = GetTree200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetTreeStatus400Html = APIError;
 
-export type GetTreeQuery = {
-  Response: GetTree200;
-  PathParams: GetTreePathParams;
-  QueryParams: GetTreeQueryParams;
-  Errors: GetTree400 | GetTree404;
+export type GetTreeStatus400 = GetTreeStatus400Json | GetTreeStatus400Html;
+
+export type GetTreeStatus404Json = APINotFound;
+
+export type GetTreeStatus404Html = APINotFound;
+
+export type GetTreeStatus404 = GetTreeStatus404Json | GetTreeStatus404Html;
+
+export type GetTreeOptions = {
+  body?: never;
+  path: GetTreePath;
+  query?: GetTreeQuery;
+  headers?: never;
 };
+
+export type GetTreeResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetTreeStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetTreeStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetTreeStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetTreeStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetTreeStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetTreeStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetTreeResponse = GetTreeStatus200 | GetTreeStatus400 | GetTreeStatus404;

@@ -3,47 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueGetCommentReactionsQueryResponse,
-  IssueGetCommentReactionsPathParams,
-  IssueGetCommentReactions403,
-  IssueGetCommentReactions404,
+  IssueGetCommentReactionsOptions,
+  IssueGetCommentReactionsResponses,
 } from '../types/IssueGetCommentReactions';
-
-function getIssueGetCommentReactionsUrl(
-  owner: IssueGetCommentReactionsPathParams['owner'],
-  repo: IssueGetCommentReactionsPathParams['repo'],
-  id: IssueGetCommentReactionsPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a list of reactions from a comment of an issue
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
-export async function issueGetCommentReactions(
-  owner: IssueGetCommentReactionsPathParams['owner'],
-  repo: IssueGetCommentReactionsPathParams['repo'],
-  id: IssueGetCommentReactionsPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetCommentReactions<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetCommentReactionsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetCommentReactionsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetCommentReactionsQueryResponse,
-    ResponseErrorConfig<IssueGetCommentReactions403 | IssueGetCommentReactions404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetCommentReactionsUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/reactions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetCommentReactionsResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Branch } from './Branch';
 import type { CreateBranchRepoOption } from './CreateBranchRepoOption';
 
-export type RepoCreateBranchPathParams = {
+export type RepoCreateBranchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,42 +21,78 @@ export type RepoCreateBranchPathParams = {
 };
 
 /**
- * @description Branch
+ * @description Branch represents a repository branch
+ * @type object
  */
-export type RepoCreateBranch201 = Branch;
+export type RepoCreateBranchStatus201Json = Branch;
 
 /**
- * @description The branch is archived or a mirror.
+ * @description Branch represents a repository branch
+ * @type object
  */
-export type RepoCreateBranch403 = any;
+export type RepoCreateBranchStatus201Html = Branch;
+
+export type RepoCreateBranchStatus201 = RepoCreateBranchStatus201Json | RepoCreateBranchStatus201Html;
+
+export type RepoCreateBranchStatus403 = unknown;
+
+export type RepoCreateBranchStatus404 = unknown;
+
+export type RepoCreateBranchStatus409 = unknown;
+
+export type RepoCreateBranchStatus413 = unknown;
+
+export type RepoCreateBranchStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateBranchStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateBranchStatus423 = RepoCreateBranchStatus423Json | RepoCreateBranchStatus423Html;
 
 /**
- * @description The old branch does not exist.
+ * @description CreateBranchRepoOption options when creating a branch in a repository
+ * @type object | undefined
  */
-export type RepoCreateBranch404 = any;
+export type RepoCreateBranchBody = CreateBranchRepoOption | undefined;
 
-/**
- * @description The branch with the same name already exists.
- */
-export type RepoCreateBranch409 = any;
-
-/**
- * @description QuotaExceeded
- */
-export type RepoCreateBranch413 = any;
-
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreateBranch423 = APIRepoArchivedError;
-
-export type RepoCreateBranchMutationRequest = CreateBranchRepoOption;
-
-export type RepoCreateBranchMutationResponse = RepoCreateBranch201;
-
-export type RepoCreateBranchMutation = {
-  Response: RepoCreateBranch201;
-  Request: RepoCreateBranchMutationRequest;
-  PathParams: RepoCreateBranchPathParams;
-  Errors: RepoCreateBranch403 | RepoCreateBranch404 | RepoCreateBranch409 | RepoCreateBranch413 | RepoCreateBranch423;
+export type RepoCreateBranchOptions = {
+  body: RepoCreateBranchBody;
+  path: RepoCreateBranchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateBranchResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchStatus201Html;
+      };
+  '403': RepoCreateBranchStatus403;
+  '404': RepoCreateBranchStatus404;
+  '409': RepoCreateBranchStatus409;
+  '413': RepoCreateBranchStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateBranchStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateBranchStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateBranchResponse =
+  | RepoCreateBranchStatus201
+  | RepoCreateBranchStatus403
+  | RepoCreateBranchStatus404
+  | RepoCreateBranchStatus409
+  | RepoCreateBranchStatus413
+  | RepoCreateBranchStatus423;

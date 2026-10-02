@@ -3,53 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueGetCommentsAndTimelineQueryResponse,
-  IssueGetCommentsAndTimelinePathParams,
-  IssueGetCommentsAndTimelineQueryParams,
-  IssueGetCommentsAndTimeline404,
-  IssueGetCommentsAndTimeline422,
-  IssueGetCommentsAndTimeline500,
+  IssueGetCommentsAndTimelineOptions,
+  IssueGetCommentsAndTimelineResponses,
 } from '../types/IssueGetCommentsAndTimeline';
-
-function getIssueGetCommentsAndTimelineUrl(
-  owner: IssueGetCommentsAndTimelinePathParams['owner'],
-  repo: IssueGetCommentsAndTimelinePathParams['repo'],
-  index: IssueGetCommentsAndTimelinePathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/timeline` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all comments and events on an issue
  * {@link /repos/:owner/:repo/issues/:index/timeline}
  */
-export async function issueGetCommentsAndTimeline(
-  owner: IssueGetCommentsAndTimelinePathParams['owner'],
-  repo: IssueGetCommentsAndTimelinePathParams['repo'],
-  index: IssueGetCommentsAndTimelinePathParams['index'],
-  params?: IssueGetCommentsAndTimelineQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetCommentsAndTimeline<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetCommentsAndTimelineOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetCommentsAndTimelineResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetCommentsAndTimelineQueryResponse,
-    ResponseErrorConfig<
-      IssueGetCommentsAndTimeline404 | IssueGetCommentsAndTimeline422 | IssueGetCommentsAndTimeline500
-    >,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetCommentsAndTimelineUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/timeline',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetCommentsAndTimelineResponses, ThrowOnError>>;
 }

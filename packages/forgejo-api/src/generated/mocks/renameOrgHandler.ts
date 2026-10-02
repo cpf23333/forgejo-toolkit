@@ -3,16 +3,17 @@
  * Do not edit manually.
  */
 
-import type { RenameOrgMutationResponse, RenameOrg403, RenameOrg422 } from '../types/RenameOrg';
+import type { RenameOrgResponse, RenameOrgStatus403, RenameOrgStatus422, RenameOrgBody } from '../types/RenameOrg';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function renameOrgHandlerResponse204(data?: RenameOrgMutationResponse) {
+export function renameOrgHandlerResponse204(data?: RenameOrgResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function renameOrgHandlerResponse403(data: RenameOrg403) {
+export function renameOrgHandlerResponse403(data: RenameOrgStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +22,7 @@ export function renameOrgHandlerResponse403(data: RenameOrg403) {
   });
 }
 
-export function renameOrgHandlerResponse422(data: RenameOrg422) {
+export function renameOrgHandlerResponse422(data: RenameOrgStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -31,15 +32,9 @@ export function renameOrgHandlerResponse422(data: RenameOrg422) {
 }
 
 export function renameOrgHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, RenameOrgBody>,
 ) {
-  return http.post(`/orgs/:org/rename`, function handler(info) {
+  return http.post<Record<string, string>, RenameOrgBody>(`/orgs/:org/rename`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

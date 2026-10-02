@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteTeamMutationResponse,
-  RepoDeleteTeamPathParams,
-  RepoDeleteTeam404,
-  RepoDeleteTeam405,
-  RepoDeleteTeam422,
-} from '../types/RepoDeleteTeam';
-
-function getRepoDeleteTeamUrl(
-  owner: RepoDeleteTeamPathParams['owner'],
-  repo: RepoDeleteTeamPathParams['repo'],
-  team: RepoDeleteTeamPathParams['team'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/teams/${team}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteTeamOptions, RepoDeleteTeamResponses } from '../types/RepoDeleteTeam';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a team from a repository
  * {@link /repos/:owner/:repo/teams/:team}
  */
-export async function repoDeleteTeam(
-  owner: RepoDeleteTeamPathParams['owner'],
-  repo: RepoDeleteTeamPathParams['repo'],
-  team: RepoDeleteTeamPathParams['team'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteTeam<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteTeamOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteTeamResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteTeamMutationResponse,
-    ResponseErrorConfig<RepoDeleteTeam404 | RepoDeleteTeam405 | RepoDeleteTeam422>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteTeamUrl(owner, repo, team).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/teams/{team}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteTeamResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { TrackedTime } from './TrackedTime';
 
-export type UserCurrentTrackedTimesQueryParams = {
+export type UserCurrentTrackedTimesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,35 +20,85 @@ export type UserCurrentTrackedTimesQueryParams = {
   limit?: number;
   /**
    * @description Only show times updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show times updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
 };
 
-/**
- * @description TrackedTimeList
- */
-export type UserCurrentTrackedTimes200 = TrackedTime[];
+export type UserCurrentTrackedTimesStatus200Json = TrackedTime[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentTrackedTimes401 = APIUnauthorizedError;
+export type UserCurrentTrackedTimesStatus200Html = TrackedTime[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentTrackedTimes403 = APIForbiddenError;
+export type UserCurrentTrackedTimesStatus200 =
+  | UserCurrentTrackedTimesStatus200Json
+  | UserCurrentTrackedTimesStatus200Html;
 
-export type UserCurrentTrackedTimesQueryResponse = UserCurrentTrackedTimes200;
+export type UserCurrentTrackedTimesStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentTrackedTimesQuery = {
-  Response: UserCurrentTrackedTimes200;
-  QueryParams: UserCurrentTrackedTimesQueryParams;
-  Errors: UserCurrentTrackedTimes401 | UserCurrentTrackedTimes403;
+export type UserCurrentTrackedTimesStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentTrackedTimesStatus401 =
+  | UserCurrentTrackedTimesStatus401Json
+  | UserCurrentTrackedTimesStatus401Html;
+
+export type UserCurrentTrackedTimesStatus403Json = APIForbiddenError;
+
+export type UserCurrentTrackedTimesStatus403Html = APIForbiddenError;
+
+export type UserCurrentTrackedTimesStatus403 =
+  | UserCurrentTrackedTimesStatus403Json
+  | UserCurrentTrackedTimesStatus403Html;
+
+export type UserCurrentTrackedTimesOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentTrackedTimesQuery;
+  headers?: never;
 };
+
+export type UserCurrentTrackedTimesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentTrackedTimesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentTrackedTimesStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentTrackedTimesStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentTrackedTimesStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentTrackedTimesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentTrackedTimesStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentTrackedTimesResponse =
+  | UserCurrentTrackedTimesStatus200
+  | UserCurrentTrackedTimesStatus401
+  | UserCurrentTrackedTimesStatus403;

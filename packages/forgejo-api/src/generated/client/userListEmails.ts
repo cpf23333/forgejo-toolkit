@@ -3,30 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { UserListEmailsQueryResponse, UserListEmails401, UserListEmails403 } from '../types/UserListEmails';
-
-function getUserListEmailsUrl() {
-  const res = { method: 'GET', url: `/user/emails` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListEmailsOptions, UserListEmailsResponses } from '../types/UserListEmails';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all email addresses of the current user
  * {@link /user/emails}
  */
-export async function userListEmails(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListEmails<ThrowOnError extends boolean = true>(
+  options: Options<UserListEmailsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserListEmailsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserListEmailsQueryResponse,
-    ResponseErrorConfig<UserListEmails401 | UserListEmails403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserListEmailsUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/emails',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListEmailsResponses, ThrowOnError>>;
 }

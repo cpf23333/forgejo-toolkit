@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubRepositoryOutboxMutationResponse } from '../types/ActivitypubRepositoryOutbox';
+import type { ActivitypubRepositoryOutboxResponse } from '../types/ActivitypubRepositoryOutbox';
 import { http } from 'msw';
 
-export function activitypubRepositoryOutboxHandlerResponse200(data: ActivitypubRepositoryOutboxMutationResponse) {
+export function activitypubRepositoryOutboxHandlerResponse200(data: ActivitypubRepositoryOutboxResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,10 +17,10 @@ export function activitypubRepositoryOutboxHandlerResponse200(data: ActivitypubR
 
 export function activitypubRepositoryOutboxHandler(
   data?:
-    | ActivitypubRepositoryOutboxMutationResponse
+    | ActivitypubRepositoryOutboxResponse
     | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(`/activitypub/repository-id/:repository-id/outbox`, function handler(info) {
+  return http.post(`/activitypub/repository-id/:repositoryId/outbox`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

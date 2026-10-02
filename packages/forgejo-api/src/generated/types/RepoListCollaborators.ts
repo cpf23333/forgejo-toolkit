@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type RepoListCollaboratorsPathParams = {
+export type RepoListCollaboratorsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListCollaboratorsPathParams = {
   repo: string;
 };
 
-export type RepoListCollaboratorsQueryParams = {
+export type RepoListCollaboratorsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListCollaboratorsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type RepoListCollaborators200 = User[];
+export type RepoListCollaboratorsStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListCollaborators404 = APINotFound;
+export type RepoListCollaboratorsStatus200Html = User[];
 
-export type RepoListCollaboratorsQueryResponse = RepoListCollaborators200;
+export type RepoListCollaboratorsStatus200 = RepoListCollaboratorsStatus200Json | RepoListCollaboratorsStatus200Html;
 
-export type RepoListCollaboratorsQuery = {
-  Response: RepoListCollaborators200;
-  PathParams: RepoListCollaboratorsPathParams;
-  QueryParams: RepoListCollaboratorsQueryParams;
-  Errors: RepoListCollaborators404;
+export type RepoListCollaboratorsStatus404Json = APINotFound;
+
+export type RepoListCollaboratorsStatus404Html = APINotFound;
+
+export type RepoListCollaboratorsStatus404 = RepoListCollaboratorsStatus404Json | RepoListCollaboratorsStatus404Html;
+
+export type RepoListCollaboratorsOptions = {
+  body?: never;
+  path: RepoListCollaboratorsPath;
+  query?: RepoListCollaboratorsQuery;
+  headers?: never;
 };
+
+export type RepoListCollaboratorsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListCollaboratorsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListCollaboratorsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListCollaboratorsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListCollaboratorsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListCollaboratorsResponse = RepoListCollaboratorsStatus200 | RepoListCollaboratorsStatus404;

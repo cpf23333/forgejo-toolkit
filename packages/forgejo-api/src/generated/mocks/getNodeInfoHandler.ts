@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetNodeInfoQueryResponse } from '../types/GetNodeInfo';
+import type { GetNodeInfoResponse } from '../types/GetNodeInfo';
 import { http } from 'msw';
 
-export function getNodeInfoHandlerResponse200(data: GetNodeInfoQueryResponse) {
+export function getNodeInfoHandlerResponse200(data: GetNodeInfoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -16,9 +16,7 @@ export function getNodeInfoHandlerResponse200(data: GetNodeInfoQueryResponse) {
 }
 
 export function getNodeInfoHandler(
-  data?:
-    | GetNodeInfoQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: GetNodeInfoResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/nodeinfo`, function handler(info) {
     if (typeof data === 'function') return data(info);

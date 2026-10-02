@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { TopicResponse } from './TopicResponse';
 
-export type TopicSearchQueryParams = {
+export type TopicSearchQuery = {
   /**
    * @description keyword to search for
    * @type string
@@ -25,31 +25,66 @@ export type TopicSearchQueryParams = {
   limit?: number;
 };
 
-/**
- * TopicSearchResults
- * @description SearchResults of a successful search
- */
-export type TopicSearch200 = {
-  /**
-   * @type array | undefined
-   */
+export type TopicSearchStatus200Json = {
   topics?: TopicResponse[];
 };
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type TopicSearch403 = APIForbiddenError;
-
-/**
- * @description APINotFound is a not found error response
- */
-export type TopicSearch404 = APINotFound;
-
-export type TopicSearchQueryResponse = TopicSearch200;
-
-export type TopicSearchQuery = {
-  Response: TopicSearch200;
-  QueryParams: TopicSearchQueryParams;
-  Errors: TopicSearch403 | TopicSearch404;
+export type TopicSearchStatus200Html = {
+  topics?: TopicResponse[];
 };
+
+export type TopicSearchStatus200 = TopicSearchStatus200Json | TopicSearchStatus200Html;
+
+export type TopicSearchStatus403Json = APIForbiddenError;
+
+export type TopicSearchStatus403Html = APIForbiddenError;
+
+export type TopicSearchStatus403 = TopicSearchStatus403Json | TopicSearchStatus403Html;
+
+export type TopicSearchStatus404Json = APINotFound;
+
+export type TopicSearchStatus404Html = APINotFound;
+
+export type TopicSearchStatus404 = TopicSearchStatus404Json | TopicSearchStatus404Html;
+
+export type TopicSearchOptions = {
+  body?: never;
+  path?: never;
+  query: TopicSearchQuery;
+  headers?: never;
+};
+
+export type TopicSearchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: TopicSearchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: TopicSearchStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: TopicSearchStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: TopicSearchStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: TopicSearchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: TopicSearchStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type TopicSearchResponse = TopicSearchStatus200 | TopicSearchStatus403 | TopicSearchStatus404;

@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListFlagsQueryResponse,
-  RepoListFlagsPathParams,
-  RepoListFlags403,
-  RepoListFlags404,
-} from '../types/RepoListFlags';
-
-function getRepoListFlagsUrl(owner: RepoListFlagsPathParams['owner'], repo: RepoListFlagsPathParams['repo']) {
-  const res = { method: 'GET', url: `/repos/${owner}/${repo}/flags` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListFlagsOptions, RepoListFlagsResponses } from '../types/RepoListFlags';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repository's flags
  * {@link /repos/:owner/:repo/flags}
  */
-export async function repoListFlags(
-  owner: RepoListFlagsPathParams['owner'],
-  repo: RepoListFlagsPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListFlags<ThrowOnError extends boolean = true>(
+  options: Options<RepoListFlagsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListFlagsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListFlagsQueryResponse,
-    ResponseErrorConfig<RepoListFlags403 | RepoListFlags404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListFlagsUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/flags',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListFlagsResponses, ThrowOnError>>;
 }

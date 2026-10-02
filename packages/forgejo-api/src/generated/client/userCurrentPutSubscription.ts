@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentPutSubscriptionMutationResponse,
-  UserCurrentPutSubscriptionPathParams,
-  UserCurrentPutSubscription404,
+  UserCurrentPutSubscriptionOptions,
+  UserCurrentPutSubscriptionResponses,
 } from '../types/UserCurrentPutSubscription';
-
-function getUserCurrentPutSubscriptionUrl(
-  owner: UserCurrentPutSubscriptionPathParams['owner'],
-  repo: UserCurrentPutSubscriptionPathParams['repo'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/subscription` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Watch a repo
  * {@link /repos/:owner/:repo/subscription}
  */
-export async function userCurrentPutSubscription(
-  owner: UserCurrentPutSubscriptionPathParams['owner'],
-  repo: UserCurrentPutSubscriptionPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentPutSubscription<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentPutSubscriptionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentPutSubscriptionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentPutSubscriptionMutationResponse,
-    ResponseErrorConfig<UserCurrentPutSubscription404>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getUserCurrentPutSubscriptionUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/subscription',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentPutSubscriptionResponses, ThrowOnError>>;
 }

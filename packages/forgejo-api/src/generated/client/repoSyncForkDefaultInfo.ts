@@ -3,45 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoSyncForkDefaultInfoQueryResponse,
-  RepoSyncForkDefaultInfoPathParams,
-  RepoSyncForkDefaultInfo400,
-  RepoSyncForkDefaultInfo404,
+  RepoSyncForkDefaultInfoOptions,
+  RepoSyncForkDefaultInfoResponses,
 } from '../types/RepoSyncForkDefaultInfo';
-
-function getRepoSyncForkDefaultInfoUrl(
-  owner: RepoSyncForkDefaultInfoPathParams['owner'],
-  repo: RepoSyncForkDefaultInfoPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/sync_fork` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets information about syncing the fork default branch with the base branch
  * {@link /repos/:owner/:repo/sync_fork}
  */
-export async function repoSyncForkDefaultInfo(
-  owner: RepoSyncForkDefaultInfoPathParams['owner'],
-  repo: RepoSyncForkDefaultInfoPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoSyncForkDefaultInfo<ThrowOnError extends boolean = true>(
+  options: Options<RepoSyncForkDefaultInfoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoSyncForkDefaultInfoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoSyncForkDefaultInfoQueryResponse,
-    ResponseErrorConfig<RepoSyncForkDefaultInfo400 | RepoSyncForkDefaultInfo404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoSyncForkDefaultInfoUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/sync_fork',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoSyncForkDefaultInfoResponses, ThrowOnError>>;
 }

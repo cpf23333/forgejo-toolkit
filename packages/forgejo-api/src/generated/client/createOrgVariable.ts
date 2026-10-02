@@ -3,52 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  CreateOrgVariableMutationRequest,
-  CreateOrgVariableMutationResponse,
-  CreateOrgVariablePathParams,
-  CreateOrgVariable400,
-  CreateOrgVariable404,
-} from '../types/CreateOrgVariable';
-
-function getCreateOrgVariableUrl(
-  org: CreateOrgVariablePathParams['org'],
-  variablename: CreateOrgVariablePathParams['variablename'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/orgs/${org}/actions/variables/${variablename}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { CreateOrgVariableOptions, CreateOrgVariableResponses } from '../types/CreateOrgVariable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a new variable in organization
  * {@link /orgs/:org/actions/variables/:variablename}
  */
-export async function createOrgVariable(
-  org: CreateOrgVariablePathParams['org'],
-  variablename: CreateOrgVariablePathParams['variablename'],
-  data: CreateOrgVariableMutationRequest,
-  config: Partial<RequestConfig<CreateOrgVariableMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function createOrgVariable<ThrowOnError extends boolean = true>(
+  options: Options<CreateOrgVariableOptions, ThrowOnError>,
+): Promise<UnwrappedResult<CreateOrgVariableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    CreateOrgVariableMutationResponse,
-    ResponseErrorConfig<CreateOrgVariable400 | CreateOrgVariable404>,
-    CreateOrgVariableMutationRequest
-  >({
-    method: 'POST',
-    url: getCreateOrgVariableUrl(org, variablename).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/actions/variables/{variablename}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<CreateOrgVariableResponses, ThrowOnError>>;
 }

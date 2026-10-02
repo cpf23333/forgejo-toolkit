@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CreateVariableOption } from './CreateVariableOption';
 
-export type CreateOrgVariablePathParams = {
+export type CreateOrgVariablePath = {
   /**
    * @description name of the organization
    * @type string
@@ -20,36 +20,67 @@ export type CreateOrgVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when creating an org-level variable
- */
-export type CreateOrgVariable201 = any;
+export type CreateOrgVariableStatus201 = unknown;
+
+export type CreateOrgVariableStatus204 = unknown;
 
 /**
- * @description response when creating an org-level variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateOrgVariable204 = any;
+export type CreateOrgVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateOrgVariable400 = APIError;
+export type CreateOrgVariableStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type CreateOrgVariable404 = APINotFound;
+export type CreateOrgVariableStatus400 = CreateOrgVariableStatus400Json | CreateOrgVariableStatus400Html;
 
-/**
- * CreateVariableOption defines the properties of the variable to create.
- */
-export type CreateOrgVariableMutationRequest = CreateVariableOption;
+export type CreateOrgVariableStatus404Json = APINotFound;
 
-export type CreateOrgVariableMutationResponse = CreateOrgVariable201 | CreateOrgVariable204;
+export type CreateOrgVariableStatus404Html = APINotFound;
 
-export type CreateOrgVariableMutation = {
-  Response: CreateOrgVariable201 | CreateOrgVariable204;
-  Request: CreateOrgVariableMutationRequest;
-  PathParams: CreateOrgVariablePathParams;
-  Errors: CreateOrgVariable400 | CreateOrgVariable404;
+export type CreateOrgVariableStatus404 = CreateOrgVariableStatus404Json | CreateOrgVariableStatus404Html;
+
+export type CreateOrgVariableBody = CreateVariableOption | undefined;
+
+export type CreateOrgVariableOptions = {
+  body: CreateOrgVariableBody;
+  path: CreateOrgVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateOrgVariableResponses = {
+  '201': CreateOrgVariableStatus201;
+  '204': CreateOrgVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateOrgVariableResponse =
+  | CreateOrgVariableStatus201
+  | CreateOrgVariableStatus204
+  | CreateOrgVariableStatus400
+  | CreateOrgVariableStatus404;

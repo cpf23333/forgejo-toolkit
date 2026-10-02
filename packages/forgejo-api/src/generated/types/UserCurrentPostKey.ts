@@ -10,31 +10,94 @@ import type { CreateKeyOption } from './CreateKeyOption';
 import type { PublicKey } from './PublicKey';
 
 /**
- * @description PublicKey
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type UserCurrentPostKey201 = PublicKey;
+export type UserCurrentPostKeyStatus201Json = PublicKey;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type UserCurrentPostKey401 = APIUnauthorizedError;
+export type UserCurrentPostKeyStatus201Html = PublicKey;
+
+export type UserCurrentPostKeyStatus201 = UserCurrentPostKeyStatus201Json | UserCurrentPostKeyStatus201Html;
+
+export type UserCurrentPostKeyStatus401Json = APIUnauthorizedError;
+
+export type UserCurrentPostKeyStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentPostKeyStatus401 = UserCurrentPostKeyStatus401Json | UserCurrentPostKeyStatus401Html;
+
+export type UserCurrentPostKeyStatus403Json = APIForbiddenError;
+
+export type UserCurrentPostKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentPostKeyStatus403 = UserCurrentPostKeyStatus403Json | UserCurrentPostKeyStatus403Html;
+
+export type UserCurrentPostKeyStatus422Json = APIValidationError;
+
+export type UserCurrentPostKeyStatus422Html = APIValidationError;
+
+export type UserCurrentPostKeyStatus422 = UserCurrentPostKeyStatus422Json | UserCurrentPostKeyStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateKeyOption options when creating a key
+ * @type object | undefined
  */
-export type UserCurrentPostKey403 = APIForbiddenError;
+export type UserCurrentPostKeyBody = CreateKeyOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserCurrentPostKey422 = APIValidationError;
-
-export type UserCurrentPostKeyMutationRequest = CreateKeyOption;
-
-export type UserCurrentPostKeyMutationResponse = UserCurrentPostKey201;
-
-export type UserCurrentPostKeyMutation = {
-  Response: UserCurrentPostKey201;
-  Request: UserCurrentPostKeyMutationRequest;
-  Errors: UserCurrentPostKey401 | UserCurrentPostKey403 | UserCurrentPostKey422;
+export type UserCurrentPostKeyOptions = {
+  body: UserCurrentPostKeyBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentPostKeyResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostKeyStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostKeyStatus201Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostKeyStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPostKeyStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPostKeyStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentPostKeyResponse =
+  | UserCurrentPostKeyStatus201
+  | UserCurrentPostKeyStatus401
+  | UserCurrentPostKeyStatus403
+  | UserCurrentPostKeyStatus422;

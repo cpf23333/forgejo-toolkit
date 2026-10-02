@@ -4,20 +4,22 @@
  */
 
 import type {
-  IssueRemoveLabelMutationResponse,
-  IssueRemoveLabel403,
-  IssueRemoveLabel404,
-  IssueRemoveLabel422,
+  IssueRemoveLabelResponse,
+  IssueRemoveLabelStatus403,
+  IssueRemoveLabelStatus404,
+  IssueRemoveLabelStatus422,
+  IssueRemoveLabelBody,
 } from '../types/IssueRemoveLabel';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueRemoveLabelHandlerResponse204(data?: IssueRemoveLabelMutationResponse) {
+export function issueRemoveLabelHandlerResponse204(data?: IssueRemoveLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueRemoveLabelHandlerResponse403(data: IssueRemoveLabel403) {
+export function issueRemoveLabelHandlerResponse403(data: IssueRemoveLabelStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +28,7 @@ export function issueRemoveLabelHandlerResponse403(data: IssueRemoveLabel403) {
   });
 }
 
-export function issueRemoveLabelHandlerResponse404(data: IssueRemoveLabel404) {
+export function issueRemoveLabelHandlerResponse404(data: IssueRemoveLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +37,7 @@ export function issueRemoveLabelHandlerResponse404(data: IssueRemoveLabel404) {
   });
 }
 
-export function issueRemoveLabelHandlerResponse422(data: IssueRemoveLabel422) {
+export function issueRemoveLabelHandlerResponse422(data: IssueRemoveLabelStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -45,19 +47,16 @@ export function issueRemoveLabelHandlerResponse422(data: IssueRemoveLabel422) {
 }
 
 export function issueRemoveLabelHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, IssueRemoveLabelBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/issues/:index/labels/:identifier`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, IssueRemoveLabelBody>(
+    `/repos/:owner/:repo/issues/:index/labels/:identifier`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

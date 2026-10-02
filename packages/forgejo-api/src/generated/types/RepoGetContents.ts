@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { ContentsResponse } from './ContentsResponse';
 
-export type RepoGetContentsPathParams = {
+export type RepoGetContentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,7 +24,7 @@ export type RepoGetContentsPathParams = {
   filepath: string;
 };
 
-export type RepoGetContentsQueryParams = {
+export type RepoGetContentsQuery = {
   /**
    * @description The name of the commit/branch/tag. Default the repository’s default branch (usually master)
    * @type string | undefined
@@ -33,20 +33,54 @@ export type RepoGetContentsQueryParams = {
 };
 
 /**
- * @description ContentsResponse
+ * @description ContentsResponse contains information about a repo\'s entry\'s (dir, file, symlink, submodule) metadata and content
+ * @type object
  */
-export type RepoGetContents200 = ContentsResponse;
+export type RepoGetContentsStatus200Json = ContentsResponse;
 
 /**
- * @description APINotFound is a not found error response
+ * @description ContentsResponse contains information about a repo\'s entry\'s (dir, file, symlink, submodule) metadata and content
+ * @type object
  */
-export type RepoGetContents404 = APINotFound;
+export type RepoGetContentsStatus200Html = ContentsResponse;
 
-export type RepoGetContentsQueryResponse = RepoGetContents200;
+export type RepoGetContentsStatus200 = RepoGetContentsStatus200Json | RepoGetContentsStatus200Html;
 
-export type RepoGetContentsQuery = {
-  Response: RepoGetContents200;
-  PathParams: RepoGetContentsPathParams;
-  QueryParams: RepoGetContentsQueryParams;
-  Errors: RepoGetContents404;
+export type RepoGetContentsStatus404Json = APINotFound;
+
+export type RepoGetContentsStatus404Html = APINotFound;
+
+export type RepoGetContentsStatus404 = RepoGetContentsStatus404Json | RepoGetContentsStatus404Html;
+
+export type RepoGetContentsOptions = {
+  body?: never;
+  path: RepoGetContentsPath;
+  query?: RepoGetContentsQuery;
+  headers?: never;
 };
+
+export type RepoGetContentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetContentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetContentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetContentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetContentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetContentsResponse = RepoGetContentsStatus200 | RepoGetContentsStatus404;

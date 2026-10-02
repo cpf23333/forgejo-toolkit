@@ -5,6 +5,7 @@
 
 /**
  * @description RenameUserOption options when renaming a user
+ * @type object
  */
 export type RenameUserOption = {
   /**

@@ -5,10 +5,12 @@
 
 import type { NotificationThread } from './NotificationThread';
 
-export type NotifyReadListQueryParams = {
+export type NotifyReadListQuery = {
   /**
    * @description Describes the last point that notifications were checked. Anything updated since this time will not be updated.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   last_read_at?: string;
   /**
@@ -28,15 +30,32 @@ export type NotifyReadListQueryParams = {
   'to-status'?: string;
 };
 
-/**
- * @description NotificationThreadListWithoutPagination - Notification threads without pagination headers
- */
-export type NotifyReadList205 = NotificationThread[];
+export type NotifyReadListStatus205Json = NotificationThread[];
 
-export type NotifyReadListMutationResponse = NotifyReadList205;
+export type NotifyReadListStatus205Html = NotificationThread[];
 
-export type NotifyReadListMutation = {
-  Response: NotifyReadList205;
-  QueryParams: NotifyReadListQueryParams;
-  Errors: any;
+export type NotifyReadListStatus205 = NotifyReadListStatus205Json | NotifyReadListStatus205Html;
+
+export type NotifyReadListOptions = {
+  body?: never;
+  path?: never;
+  query?: NotifyReadListQuery;
+  headers?: never;
 };
+
+export type NotifyReadListResponses = {
+  '205':
+    | {
+        contentType: 'application/json';
+        data: NotifyReadListStatus205Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyReadListStatus205Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyReadListResponse = NotifyReadListStatus205;

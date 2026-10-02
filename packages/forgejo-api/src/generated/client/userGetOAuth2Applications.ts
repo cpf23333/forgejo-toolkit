@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserGetOAuth2ApplicationsQueryResponse,
-  UserGetOAuth2ApplicationsQueryParams,
-  UserGetOAuth2Applications401,
-  UserGetOAuth2Applications403,
+  UserGetOAuth2ApplicationsOptions,
+  UserGetOAuth2ApplicationsResponses,
 } from '../types/UserGetOAuth2Applications';
-
-function getUserGetOAuth2ApplicationsUrl() {
-  const res = { method: 'GET', url: `/user/applications/oauth2` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the authenticated user's oauth2 applications
  * {@link /user/applications/oauth2}
  */
-export async function userGetOAuth2Applications(
-  params?: UserGetOAuth2ApplicationsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userGetOAuth2Applications<ThrowOnError extends boolean = true>(
+  options: Options<UserGetOAuth2ApplicationsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserGetOAuth2ApplicationsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserGetOAuth2ApplicationsQueryResponse,
-    ResponseErrorConfig<UserGetOAuth2Applications401 | UserGetOAuth2Applications403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserGetOAuth2ApplicationsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/applications/oauth2',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserGetOAuth2ApplicationsResponses, ThrowOnError>>;
 }

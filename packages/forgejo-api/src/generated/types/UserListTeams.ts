@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Team } from './Team';
 
-export type UserListTeamsQueryParams = {
+export type UserListTeamsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,62 @@ export type UserListTeamsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description TeamList
- */
-export type UserListTeams200 = Team[];
+export type UserListTeamsStatus200Json = Team[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserListTeams401 = APIUnauthorizedError;
+export type UserListTeamsStatus200Html = Team[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListTeams403 = APIForbiddenError;
+export type UserListTeamsStatus200 = UserListTeamsStatus200Json | UserListTeamsStatus200Html;
 
-export type UserListTeamsQueryResponse = UserListTeams200;
+export type UserListTeamsStatus401Json = APIUnauthorizedError;
 
-export type UserListTeamsQuery = {
-  Response: UserListTeams200;
-  QueryParams: UserListTeamsQueryParams;
-  Errors: UserListTeams401 | UserListTeams403;
+export type UserListTeamsStatus401Html = APIUnauthorizedError;
+
+export type UserListTeamsStatus401 = UserListTeamsStatus401Json | UserListTeamsStatus401Html;
+
+export type UserListTeamsStatus403Json = APIForbiddenError;
+
+export type UserListTeamsStatus403Html = APIForbiddenError;
+
+export type UserListTeamsStatus403 = UserListTeamsStatus403Json | UserListTeamsStatus403Html;
+
+export type UserListTeamsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListTeamsQuery;
+  headers?: never;
 };
+
+export type UserListTeamsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListTeamsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListTeamsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListTeamsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListTeamsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListTeamsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListTeamsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListTeamsResponse = UserListTeamsStatus200 | UserListTeamsStatus401 | UserListTeamsStatus403;

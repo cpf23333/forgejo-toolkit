@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { QuotaInfo } from './QuotaInfo';
 
-export type OrgGetQuotaPathParams = {
+export type OrgGetQuotaPath = {
   /**
    * @description name of the organization
    * @type string
@@ -16,24 +16,69 @@ export type OrgGetQuotaPathParams = {
 };
 
 /**
- * @description QuotaInfo
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type OrgGetQuota200 = QuotaInfo;
+export type OrgGetQuotaStatus200Json = QuotaInfo;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type OrgGetQuota403 = APIForbiddenError;
+export type OrgGetQuotaStatus200Html = QuotaInfo;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgGetQuota404 = APINotFound;
+export type OrgGetQuotaStatus200 = OrgGetQuotaStatus200Json | OrgGetQuotaStatus200Html;
 
-export type OrgGetQuotaQueryResponse = OrgGetQuota200;
+export type OrgGetQuotaStatus403Json = APIForbiddenError;
 
-export type OrgGetQuotaQuery = {
-  Response: OrgGetQuota200;
-  PathParams: OrgGetQuotaPathParams;
-  Errors: OrgGetQuota403 | OrgGetQuota404;
+export type OrgGetQuotaStatus403Html = APIForbiddenError;
+
+export type OrgGetQuotaStatus403 = OrgGetQuotaStatus403Json | OrgGetQuotaStatus403Html;
+
+export type OrgGetQuotaStatus404Json = APINotFound;
+
+export type OrgGetQuotaStatus404Html = APINotFound;
+
+export type OrgGetQuotaStatus404 = OrgGetQuotaStatus404Json | OrgGetQuotaStatus404Html;
+
+export type OrgGetQuotaOptions = {
+  body?: never;
+  path: OrgGetQuotaPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetQuotaResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetQuotaStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetQuotaStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgGetQuotaStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetQuotaStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetQuotaStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetQuotaStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetQuotaResponse = OrgGetQuotaStatus200 | OrgGetQuotaStatus403 | OrgGetQuotaStatus404;

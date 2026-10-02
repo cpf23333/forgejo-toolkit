@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditRepoOption } from './EditRepoOption';
 import type { Repository } from './Repository';
 
-export type RepoEditPathParams = {
+export type RepoEditPath = {
   /**
    * @description owner of the repo to edit
    * @type string
@@ -23,35 +23,98 @@ export type RepoEditPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoEdit200 = Repository;
+export type RepoEditStatus200Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoEdit403 = APIForbiddenError;
+export type RepoEditStatus200Html = Repository;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoEdit404 = APINotFound;
+export type RepoEditStatus200 = RepoEditStatus200Json | RepoEditStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoEdit422 = APIValidationError;
+export type RepoEditStatus403Json = APIForbiddenError;
+
+export type RepoEditStatus403Html = APIForbiddenError;
+
+export type RepoEditStatus403 = RepoEditStatus403Json | RepoEditStatus403Html;
+
+export type RepoEditStatus404Json = APINotFound;
+
+export type RepoEditStatus404Html = APINotFound;
+
+export type RepoEditStatus404 = RepoEditStatus404Json | RepoEditStatus404Html;
+
+export type RepoEditStatus422Json = APIValidationError;
+
+export type RepoEditStatus422Html = APIValidationError;
+
+export type RepoEditStatus422 = RepoEditStatus422Json | RepoEditStatus422Html;
 
 /**
  * @description Properties of a repo that you can edit
+ * @type object | undefined
  */
-export type RepoEditMutationRequest = EditRepoOption;
+export type RepoEditBodyJson = EditRepoOption | undefined;
 
-export type RepoEditMutationResponse = RepoEdit200;
+/**
+ * @description Properties of a repo that you can edit
+ * @type object | undefined
+ */
+export type RepoEditBodyPlain = EditRepoOption | undefined;
 
-export type RepoEditMutation = {
-  Response: RepoEdit200;
-  Request: RepoEditMutationRequest;
-  PathParams: RepoEditPathParams;
-  Errors: RepoEdit403 | RepoEdit404 | RepoEdit422;
+export type RepoEditBody = RepoEditBodyJson | RepoEditBodyPlain;
+
+export type RepoEditOptions = {
+  body: RepoEditBody;
+  path: RepoEditPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoEditStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoEditStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditResponse = RepoEditStatus200 | RepoEditStatus403 | RepoEditStatus404 | RepoEditStatus422;

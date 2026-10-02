@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoTestHookPathParams = {
+export type RepoTestHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,12 +18,14 @@ export type RepoTestHookPathParams = {
   repo: string;
   /**
    * @description id of the hook to test
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type RepoTestHookQueryParams = {
+export type RepoTestHookQuery = {
   /**
    * @description The name of the commit/branch/tag, indicates which commit will be loaded to the webhook payload.
    * @type string | undefined
@@ -31,21 +33,35 @@ export type RepoTestHookQueryParams = {
   ref?: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoTestHook204 = any;
+export type RepoTestHookStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoTestHook404 = APINotFound;
+export type RepoTestHookStatus404Json = APINotFound;
 
-export type RepoTestHookMutationResponse = RepoTestHook204;
+export type RepoTestHookStatus404Html = APINotFound;
 
-export type RepoTestHookMutation = {
-  Response: RepoTestHook204;
-  PathParams: RepoTestHookPathParams;
-  QueryParams: RepoTestHookQueryParams;
-  Errors: RepoTestHook404;
+export type RepoTestHookStatus404 = RepoTestHookStatus404Json | RepoTestHookStatus404Html;
+
+export type RepoTestHookOptions = {
+  body?: never;
+  path: RepoTestHookPath;
+  query?: RepoTestHookQuery;
+  headers?: never;
 };
+
+export type RepoTestHookResponses = {
+  '204': RepoTestHookStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoTestHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTestHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoTestHookResponse = RepoTestHookStatus204 | RepoTestHookStatus404;

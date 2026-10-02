@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UserCheckFollowingQueryResponse, UserCheckFollowing404 } from '../types/UserCheckFollowing';
+import type { UserCheckFollowingResponse, UserCheckFollowingStatus404 } from '../types/UserCheckFollowing';
 import { http } from 'msw';
 
-export function userCheckFollowingHandlerResponse204(data?: UserCheckFollowingQueryResponse) {
+export function userCheckFollowingHandlerResponse204(data?: UserCheckFollowingResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCheckFollowingHandlerResponse404(data: UserCheckFollowing404) {
+export function userCheckFollowingHandlerResponse404(data: UserCheckFollowingStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

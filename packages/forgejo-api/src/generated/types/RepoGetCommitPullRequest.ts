@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullRequest } from './PullRequest';
 
-export type RepoGetCommitPullRequestPathParams = {
+export type RepoGetCommitPullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,58 @@ export type RepoGetCommitPullRequestPathParams = {
 };
 
 /**
- * @description PullRequest
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetCommitPullRequest200 = PullRequest;
+export type RepoGetCommitPullRequestStatus200Json = PullRequest;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetCommitPullRequest404 = APINotFound;
+export type RepoGetCommitPullRequestStatus200Html = PullRequest;
 
-export type RepoGetCommitPullRequestQueryResponse = RepoGetCommitPullRequest200;
+export type RepoGetCommitPullRequestStatus200 =
+  | RepoGetCommitPullRequestStatus200Json
+  | RepoGetCommitPullRequestStatus200Html;
 
-export type RepoGetCommitPullRequestQuery = {
-  Response: RepoGetCommitPullRequest200;
-  PathParams: RepoGetCommitPullRequestPathParams;
-  Errors: RepoGetCommitPullRequest404;
+export type RepoGetCommitPullRequestStatus404Json = APINotFound;
+
+export type RepoGetCommitPullRequestStatus404Html = APINotFound;
+
+export type RepoGetCommitPullRequestStatus404 =
+  | RepoGetCommitPullRequestStatus404Json
+  | RepoGetCommitPullRequestStatus404Html;
+
+export type RepoGetCommitPullRequestOptions = {
+  body?: never;
+  path: RepoGetCommitPullRequestPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetCommitPullRequestResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetCommitPullRequestStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetCommitPullRequestStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetCommitPullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetCommitPullRequestStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetCommitPullRequestResponse = RepoGetCommitPullRequestStatus200 | RepoGetCommitPullRequestStatus404;

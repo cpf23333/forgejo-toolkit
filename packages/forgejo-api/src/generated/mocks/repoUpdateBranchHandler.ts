@@ -4,20 +4,22 @@
  */
 
 import type {
-  RepoUpdateBranchMutationResponse,
-  RepoUpdateBranch403,
-  RepoUpdateBranch404,
-  RepoUpdateBranch422,
+  RepoUpdateBranchResponse,
+  RepoUpdateBranchStatus403,
+  RepoUpdateBranchStatus404,
+  RepoUpdateBranchStatus422,
+  RepoUpdateBranchBody,
 } from '../types/RepoUpdateBranch';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoUpdateBranchHandlerResponse204(data?: RepoUpdateBranchMutationResponse) {
+export function repoUpdateBranchHandlerResponse204(data?: RepoUpdateBranchResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoUpdateBranchHandlerResponse403(data: RepoUpdateBranch403) {
+export function repoUpdateBranchHandlerResponse403(data: RepoUpdateBranchStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +28,7 @@ export function repoUpdateBranchHandlerResponse403(data: RepoUpdateBranch403) {
   });
 }
 
-export function repoUpdateBranchHandlerResponse404(data: RepoUpdateBranch404) {
+export function repoUpdateBranchHandlerResponse404(data: RepoUpdateBranchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +37,7 @@ export function repoUpdateBranchHandlerResponse404(data: RepoUpdateBranch404) {
   });
 }
 
-export function repoUpdateBranchHandlerResponse422(data: RepoUpdateBranch422) {
+export function repoUpdateBranchHandlerResponse422(data: RepoUpdateBranchStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -45,19 +47,16 @@ export function repoUpdateBranchHandlerResponse422(data: RepoUpdateBranch422) {
 }
 
 export function repoUpdateBranchHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, RepoUpdateBranchBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/branches/:branch`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoUpdateBranchBody>(
+    `/repos/:owner/:repo/branches/:branch`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

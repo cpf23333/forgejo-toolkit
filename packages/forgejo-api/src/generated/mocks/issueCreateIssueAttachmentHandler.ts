@@ -4,16 +4,18 @@
  */
 
 import type {
-  IssueCreateIssueAttachmentMutationResponse,
-  IssueCreateIssueAttachment400,
-  IssueCreateIssueAttachment404,
-  IssueCreateIssueAttachment413,
-  IssueCreateIssueAttachment422,
-  IssueCreateIssueAttachment423,
+  IssueCreateIssueAttachmentResponse,
+  IssueCreateIssueAttachmentStatus400,
+  IssueCreateIssueAttachmentStatus404,
+  IssueCreateIssueAttachmentStatus413,
+  IssueCreateIssueAttachmentStatus422,
+  IssueCreateIssueAttachmentStatus423,
+  IssueCreateIssueAttachmentBody,
 } from '../types/IssueCreateIssueAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateIssueAttachmentHandlerResponse201(data: IssueCreateIssueAttachmentMutationResponse) {
+export function issueCreateIssueAttachmentHandlerResponse201(data: IssueCreateIssueAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function issueCreateIssueAttachmentHandlerResponse201(data: IssueCreateIs
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse400(data: IssueCreateIssueAttachment400) {
+export function issueCreateIssueAttachmentHandlerResponse400(data: IssueCreateIssueAttachmentStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function issueCreateIssueAttachmentHandlerResponse400(data: IssueCreateIs
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse404(data: IssueCreateIssueAttachment404) {
+export function issueCreateIssueAttachmentHandlerResponse404(data: IssueCreateIssueAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -40,13 +42,13 @@ export function issueCreateIssueAttachmentHandlerResponse404(data: IssueCreateIs
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse413(data?: IssueCreateIssueAttachment413) {
+export function issueCreateIssueAttachmentHandlerResponse413(data?: IssueCreateIssueAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse422(data: IssueCreateIssueAttachment422) {
+export function issueCreateIssueAttachmentHandlerResponse422(data: IssueCreateIssueAttachmentStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -55,7 +57,7 @@ export function issueCreateIssueAttachmentHandlerResponse422(data: IssueCreateIs
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse423(data: IssueCreateIssueAttachment423) {
+export function issueCreateIssueAttachmentHandlerResponse423(data: IssueCreateIssueAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -66,17 +68,20 @@ export function issueCreateIssueAttachmentHandlerResponse423(data: IssueCreateIs
 
 export function issueCreateIssueAttachmentHandler(
   data?:
-    | IssueCreateIssueAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | IssueCreateIssueAttachmentResponse
+    | HttpResponseResolver<Record<string, string>, IssueCreateIssueAttachmentBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/assets`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueCreateIssueAttachmentBody>(
+    `/repos/:owner/:repo/issues/:index/assets`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

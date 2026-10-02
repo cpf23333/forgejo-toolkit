@@ -11,52 +11,126 @@ import type { CreateRepoOption } from './CreateRepoOption';
 import type { Repository } from './Repository';
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateCurrentUserRepo201 = Repository;
+export type CreateCurrentUserRepoStatus201Json = Repository;
 
 /**
- * @description APIError is error format response
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateCurrentUserRepo400 = APIError;
+export type CreateCurrentUserRepoStatus201Html = Repository;
+
+export type CreateCurrentUserRepoStatus201 = CreateCurrentUserRepoStatus201Json | CreateCurrentUserRepoStatus201Html;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateCurrentUserRepo401 = APIUnauthorizedError;
+export type CreateCurrentUserRepoStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateCurrentUserRepo403 = APIForbiddenError;
+export type CreateCurrentUserRepoStatus400Html = APIError;
+
+export type CreateCurrentUserRepoStatus400 = CreateCurrentUserRepoStatus400Json | CreateCurrentUserRepoStatus400Html;
+
+export type CreateCurrentUserRepoStatus401Json = APIUnauthorizedError;
+
+export type CreateCurrentUserRepoStatus401Html = APIUnauthorizedError;
+
+export type CreateCurrentUserRepoStatus401 = CreateCurrentUserRepoStatus401Json | CreateCurrentUserRepoStatus401Html;
+
+export type CreateCurrentUserRepoStatus403Json = APIForbiddenError;
+
+export type CreateCurrentUserRepoStatus403Html = APIForbiddenError;
+
+export type CreateCurrentUserRepoStatus403 = CreateCurrentUserRepoStatus403Json | CreateCurrentUserRepoStatus403Html;
+
+export type CreateCurrentUserRepoStatus409 = unknown;
+
+export type CreateCurrentUserRepoStatus413 = unknown;
+
+export type CreateCurrentUserRepoStatus422Json = APIValidationError;
+
+export type CreateCurrentUserRepoStatus422Html = APIValidationError;
+
+export type CreateCurrentUserRepoStatus422 = CreateCurrentUserRepoStatus422Json | CreateCurrentUserRepoStatus422Html;
 
 /**
- * @description The repository with the same name already exists.
+ * @description CreateRepoOption options when creating repository
+ * @type object | undefined
  */
-export type CreateCurrentUserRepo409 = any;
+export type CreateCurrentUserRepoBody = CreateRepoOption | undefined;
 
-/**
- * @description QuotaExceeded
- */
-export type CreateCurrentUserRepo413 = any;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type CreateCurrentUserRepo422 = APIValidationError;
-
-export type CreateCurrentUserRepoMutationRequest = CreateRepoOption;
-
-export type CreateCurrentUserRepoMutationResponse = CreateCurrentUserRepo201;
-
-export type CreateCurrentUserRepoMutation = {
-  Response: CreateCurrentUserRepo201;
-  Request: CreateCurrentUserRepoMutationRequest;
-  Errors:
-    | CreateCurrentUserRepo400
-    | CreateCurrentUserRepo401
-    | CreateCurrentUserRepo403
-    | CreateCurrentUserRepo409
-    | CreateCurrentUserRepo413
-    | CreateCurrentUserRepo422;
+export type CreateCurrentUserRepoOptions = {
+  body: CreateCurrentUserRepoBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateCurrentUserRepoResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: CreateCurrentUserRepoStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateCurrentUserRepoStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: CreateCurrentUserRepoStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateCurrentUserRepoStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: CreateCurrentUserRepoStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateCurrentUserRepoStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CreateCurrentUserRepoStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateCurrentUserRepoStatus403Html;
+      };
+  '409': CreateCurrentUserRepoStatus409;
+  '413': CreateCurrentUserRepoStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: CreateCurrentUserRepoStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateCurrentUserRepoStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateCurrentUserRepoResponse =
+  | CreateCurrentUserRepoStatus201
+  | CreateCurrentUserRepoStatus400
+  | CreateCurrentUserRepoStatus401
+  | CreateCurrentUserRepoStatus403
+  | CreateCurrentUserRepoStatus409
+  | CreateCurrentUserRepoStatus413
+  | CreateCurrentUserRepoStatus422;

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ActionArtifact } from './ActionArtifact';
 
-export type ListActionArtifactsPathParams = {
+export type ListActionArtifactsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,7 +20,7 @@ export type ListActionArtifactsPathParams = {
   repo: string;
 };
 
-export type ListActionArtifactsQueryParams = {
+export type ListActionArtifactsQuery = {
   /**
    * @description filter by artifact name
    * @type string | undefined
@@ -38,26 +38,73 @@ export type ListActionArtifactsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionArtifactList
- */
-export type ListActionArtifacts200 = ActionArtifact[];
+export type ListActionArtifactsStatus200Json = ActionArtifact[];
+
+export type ListActionArtifactsStatus200Html = ActionArtifact[];
+
+export type ListActionArtifactsStatus200 = ListActionArtifactsStatus200Json | ListActionArtifactsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionArtifacts400 = APIError;
+export type ListActionArtifactsStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionArtifacts403 = APIForbiddenError;
+export type ListActionArtifactsStatus400Html = APIError;
 
-export type ListActionArtifactsQueryResponse = ListActionArtifacts200;
+export type ListActionArtifactsStatus400 = ListActionArtifactsStatus400Json | ListActionArtifactsStatus400Html;
 
-export type ListActionArtifactsQuery = {
-  Response: ListActionArtifacts200;
-  PathParams: ListActionArtifactsPathParams;
-  QueryParams: ListActionArtifactsQueryParams;
-  Errors: ListActionArtifacts400 | ListActionArtifacts403;
+export type ListActionArtifactsStatus403Json = APIForbiddenError;
+
+export type ListActionArtifactsStatus403Html = APIForbiddenError;
+
+export type ListActionArtifactsStatus403 = ListActionArtifactsStatus403Json | ListActionArtifactsStatus403Html;
+
+export type ListActionArtifactsOptions = {
+  body?: never;
+  path: ListActionArtifactsPath;
+  query?: ListActionArtifactsQuery;
+  headers?: never;
 };
+
+export type ListActionArtifactsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListActionArtifactsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionArtifactsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ListActionArtifactsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionArtifactsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ListActionArtifactsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionArtifactsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListActionArtifactsResponse =
+  | ListActionArtifactsStatus200
+  | ListActionArtifactsStatus400
+  | ListActionArtifactsStatus403;

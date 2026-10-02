@@ -4,19 +4,19 @@
  */
 
 import type {
-  DeleteOrgVariableMutationResponse,
-  DeleteOrgVariable400,
-  DeleteOrgVariable404,
+  DeleteOrgVariableResponse,
+  DeleteOrgVariableStatus400,
+  DeleteOrgVariableStatus404,
 } from '../types/DeleteOrgVariable';
 import { http } from 'msw';
 
-export function deleteOrgVariableHandlerResponse204(data?: DeleteOrgVariableMutationResponse) {
+export function deleteOrgVariableHandlerResponse204(data?: DeleteOrgVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteOrgVariableHandlerResponse400(data: DeleteOrgVariable400) {
+export function deleteOrgVariableHandlerResponse400(data: DeleteOrgVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function deleteOrgVariableHandlerResponse400(data: DeleteOrgVariable400) 
   });
 }
 
-export function deleteOrgVariableHandlerResponse404(data: DeleteOrgVariable404) {
+export function deleteOrgVariableHandlerResponse404(data: DeleteOrgVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

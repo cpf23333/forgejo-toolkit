@@ -3,16 +3,22 @@
  * Do not edit manually.
  */
 
-import type { AdminRenameUserMutationResponse, AdminRenameUser403, AdminRenameUser422 } from '../types/AdminRenameUser';
+import type {
+  AdminRenameUserResponse,
+  AdminRenameUserStatus403,
+  AdminRenameUserStatus422,
+  AdminRenameUserBody,
+} from '../types/AdminRenameUser';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminRenameUserHandlerResponse204(data?: AdminRenameUserMutationResponse) {
+export function adminRenameUserHandlerResponse204(data?: AdminRenameUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminRenameUserHandlerResponse403(data: AdminRenameUser403) {
+export function adminRenameUserHandlerResponse403(data: AdminRenameUserStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +27,7 @@ export function adminRenameUserHandlerResponse403(data: AdminRenameUser403) {
   });
 }
 
-export function adminRenameUserHandlerResponse422(data: AdminRenameUser422) {
+export function adminRenameUserHandlerResponse422(data: AdminRenameUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -31,19 +37,16 @@ export function adminRenameUserHandlerResponse422(data: AdminRenameUser422) {
 }
 
 export function adminRenameUserHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, AdminRenameUserBody>,
 ) {
-  return http.post(`/admin/users/:username/rename`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, AdminRenameUserBody>(
+    `/admin/users/:username/rename`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

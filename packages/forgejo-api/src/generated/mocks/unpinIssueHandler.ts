@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UnpinIssueMutationResponse, UnpinIssue403, UnpinIssue404 } from '../types/UnpinIssue';
+import type { UnpinIssueResponse, UnpinIssueStatus403, UnpinIssueStatus404 } from '../types/UnpinIssue';
 import { http } from 'msw';
 
-export function unpinIssueHandlerResponse204(data?: UnpinIssueMutationResponse) {
+export function unpinIssueHandlerResponse204(data?: UnpinIssueResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function unpinIssueHandlerResponse403(data: UnpinIssue403) {
+export function unpinIssueHandlerResponse403(data: UnpinIssueStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function unpinIssueHandlerResponse403(data: UnpinIssue403) {
   });
 }
 
-export function unpinIssueHandlerResponse404(data: UnpinIssue404) {
+export function unpinIssueHandlerResponse404(data: UnpinIssueStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoGetCombinedStatusByRefQueryResponse,
-  RepoGetCombinedStatusByRef400,
-  RepoGetCombinedStatusByRef404,
+  RepoGetCombinedStatusByRefResponse,
+  RepoGetCombinedStatusByRefStatus400,
+  RepoGetCombinedStatusByRefStatus404,
 } from '../types/RepoGetCombinedStatusByRef';
 import { http } from 'msw';
 
-export function repoGetCombinedStatusByRefHandlerResponse200(data: RepoGetCombinedStatusByRefQueryResponse) {
+export function repoGetCombinedStatusByRefHandlerResponse200(data: RepoGetCombinedStatusByRefResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoGetCombinedStatusByRefHandlerResponse200(data: RepoGetCombin
   });
 }
 
-export function repoGetCombinedStatusByRefHandlerResponse400(data: RepoGetCombinedStatusByRef400) {
+export function repoGetCombinedStatusByRefHandlerResponse400(data: RepoGetCombinedStatusByRefStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function repoGetCombinedStatusByRefHandlerResponse400(data: RepoGetCombin
   });
 }
 
-export function repoGetCombinedStatusByRefHandlerResponse404(data: RepoGetCombinedStatusByRef404) {
+export function repoGetCombinedStatusByRefHandlerResponse404(data: RepoGetCombinedStatusByRefStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoGetCombinedStatusByRefHandlerResponse404(data: RepoGetCombin
 
 export function repoGetCombinedStatusByRefHandler(
   data?:
-    | RepoGetCombinedStatusByRefQueryResponse
+    | RepoGetCombinedStatusByRefResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/commits/:ref/status`, function handler(info) {

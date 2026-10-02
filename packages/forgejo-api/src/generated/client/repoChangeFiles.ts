@@ -3,60 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoChangeFilesMutationRequest,
-  RepoChangeFilesMutationResponse,
-  RepoChangeFilesPathParams,
-  RepoChangeFiles403,
-  RepoChangeFiles404,
-  RepoChangeFiles409,
-  RepoChangeFiles413,
-  RepoChangeFiles422,
-  RepoChangeFiles423,
-} from '../types/RepoChangeFiles';
-
-function getRepoChangeFilesUrl(owner: RepoChangeFilesPathParams['owner'], repo: RepoChangeFilesPathParams['repo']) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/contents` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoChangeFilesOptions, RepoChangeFilesResponses } from '../types/RepoChangeFiles';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Modify multiple files in a repository
  * {@link /repos/:owner/:repo/contents}
  */
-export async function repoChangeFiles(
-  owner: RepoChangeFilesPathParams['owner'],
-  repo: RepoChangeFilesPathParams['repo'],
-  data: RepoChangeFilesMutationRequest,
-  config: Partial<RequestConfig<RepoChangeFilesMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoChangeFiles<ThrowOnError extends boolean = true>(
+  options: Options<RepoChangeFilesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoChangeFilesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoChangeFilesMutationResponse,
-    ResponseErrorConfig<
-      | RepoChangeFiles403
-      | RepoChangeFiles404
-      | RepoChangeFiles409
-      | RepoChangeFiles413
-      | RepoChangeFiles422
-      | RepoChangeFiles423
-    >,
-    RepoChangeFilesMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoChangeFilesUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/contents',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoChangeFilesResponses, ThrowOnError>>;
 }

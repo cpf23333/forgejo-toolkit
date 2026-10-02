@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { RepoCollaboratorPermission } from './RepoCollaboratorPermission';
 
-export type RepoGetRepoPermissionsPathParams = {
+export type RepoGetRepoPermissionsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,24 +26,72 @@ export type RepoGetRepoPermissionsPathParams = {
 };
 
 /**
- * @description RepoCollaboratorPermission
+ * @description RepoCollaboratorPermission to get repository permission for a collaborator
+ * @type object
  */
-export type RepoGetRepoPermissions200 = RepoCollaboratorPermission;
+export type RepoGetRepoPermissionsStatus200Json = RepoCollaboratorPermission;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description RepoCollaboratorPermission to get repository permission for a collaborator
+ * @type object
  */
-export type RepoGetRepoPermissions403 = APIForbiddenError;
+export type RepoGetRepoPermissionsStatus200Html = RepoCollaboratorPermission;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetRepoPermissions404 = APINotFound;
+export type RepoGetRepoPermissionsStatus200 = RepoGetRepoPermissionsStatus200Json | RepoGetRepoPermissionsStatus200Html;
 
-export type RepoGetRepoPermissionsQueryResponse = RepoGetRepoPermissions200;
+export type RepoGetRepoPermissionsStatus403Json = APIForbiddenError;
 
-export type RepoGetRepoPermissionsQuery = {
-  Response: RepoGetRepoPermissions200;
-  PathParams: RepoGetRepoPermissionsPathParams;
-  Errors: RepoGetRepoPermissions403 | RepoGetRepoPermissions404;
+export type RepoGetRepoPermissionsStatus403Html = APIForbiddenError;
+
+export type RepoGetRepoPermissionsStatus403 = RepoGetRepoPermissionsStatus403Json | RepoGetRepoPermissionsStatus403Html;
+
+export type RepoGetRepoPermissionsStatus404Json = APINotFound;
+
+export type RepoGetRepoPermissionsStatus404Html = APINotFound;
+
+export type RepoGetRepoPermissionsStatus404 = RepoGetRepoPermissionsStatus404Json | RepoGetRepoPermissionsStatus404Html;
+
+export type RepoGetRepoPermissionsOptions = {
+  body?: never;
+  path: RepoGetRepoPermissionsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetRepoPermissionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRepoPermissionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRepoPermissionsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRepoPermissionsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRepoPermissionsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRepoPermissionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRepoPermissionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetRepoPermissionsResponse =
+  | RepoGetRepoPermissionsStatus200
+  | RepoGetRepoPermissionsStatus403
+  | RepoGetRepoPermissionsStatus404;

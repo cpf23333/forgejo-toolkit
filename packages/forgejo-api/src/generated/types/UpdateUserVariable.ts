@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { UpdateVariableOption } from './UpdateVariableOption';
 
-export type UpdateUserVariablePathParams = {
+export type UpdateUserVariablePath = {
   /**
    * @description name of the variable
    * @type string
@@ -17,46 +17,99 @@ export type UpdateUserVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when updating a variable
- */
-export type UpdateUserVariable201 = any;
+export type UpdateUserVariableStatus201 = unknown;
+
+export type UpdateUserVariableStatus204 = unknown;
 
 /**
- * @description response when updating a variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateUserVariable204 = any;
+export type UpdateUserVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateUserVariable400 = APIError;
+export type UpdateUserVariableStatus400Html = APIError;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UpdateUserVariable401 = APIUnauthorizedError;
+export type UpdateUserVariableStatus400 = UpdateUserVariableStatus400Json | UpdateUserVariableStatus400Html;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UpdateUserVariable403 = APIForbiddenError;
+export type UpdateUserVariableStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateUserVariable404 = APINotFound;
+export type UpdateUserVariableStatus401Html = APIUnauthorizedError;
 
-/**
- * UpdateVariableOption defines the properties of the variable to update.
- */
-export type UpdateUserVariableMutationRequest = UpdateVariableOption;
+export type UpdateUserVariableStatus401 = UpdateUserVariableStatus401Json | UpdateUserVariableStatus401Html;
 
-export type UpdateUserVariableMutationResponse = UpdateUserVariable201 | UpdateUserVariable204;
+export type UpdateUserVariableStatus403Json = APIForbiddenError;
 
-export type UpdateUserVariableMutation = {
-  Response: UpdateUserVariable201 | UpdateUserVariable204;
-  Request: UpdateUserVariableMutationRequest;
-  PathParams: UpdateUserVariablePathParams;
-  Errors: UpdateUserVariable400 | UpdateUserVariable401 | UpdateUserVariable403 | UpdateUserVariable404;
+export type UpdateUserVariableStatus403Html = APIForbiddenError;
+
+export type UpdateUserVariableStatus403 = UpdateUserVariableStatus403Json | UpdateUserVariableStatus403Html;
+
+export type UpdateUserVariableStatus404Json = APINotFound;
+
+export type UpdateUserVariableStatus404Html = APINotFound;
+
+export type UpdateUserVariableStatus404 = UpdateUserVariableStatus404Json | UpdateUserVariableStatus404Html;
+
+export type UpdateUserVariableBody = UpdateVariableOption | undefined;
+
+export type UpdateUserVariableOptions = {
+  body: UpdateUserVariableBody;
+  path: UpdateUserVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateUserVariableResponses = {
+  '201': UpdateUserVariableStatus201;
+  '204': UpdateUserVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserVariableStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserVariableStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserVariableStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserVariableStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserVariableStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateUserVariableResponse =
+  | UpdateUserVariableStatus201
+  | UpdateUserVariableStatus204
+  | UpdateUserVariableStatus400
+  | UpdateUserVariableStatus401
+  | UpdateUserVariableStatus403
+  | UpdateUserVariableStatus404;

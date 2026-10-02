@@ -4,15 +4,17 @@
  */
 
 import type {
-  RepoAddPushMirrorMutationResponse,
-  RepoAddPushMirror400,
-  RepoAddPushMirror403,
-  RepoAddPushMirror404,
-  RepoAddPushMirror413,
+  RepoAddPushMirrorResponse,
+  RepoAddPushMirrorStatus400,
+  RepoAddPushMirrorStatus403,
+  RepoAddPushMirrorStatus404,
+  RepoAddPushMirrorStatus413,
+  RepoAddPushMirrorBody,
 } from '../types/RepoAddPushMirror';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoAddPushMirrorHandlerResponse200(data: RepoAddPushMirrorMutationResponse) {
+export function repoAddPushMirrorHandlerResponse200(data: RepoAddPushMirrorResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +23,7 @@ export function repoAddPushMirrorHandlerResponse200(data: RepoAddPushMirrorMutat
   });
 }
 
-export function repoAddPushMirrorHandlerResponse400(data: RepoAddPushMirror400) {
+export function repoAddPushMirrorHandlerResponse400(data: RepoAddPushMirrorStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +32,7 @@ export function repoAddPushMirrorHandlerResponse400(data: RepoAddPushMirror400) 
   });
 }
 
-export function repoAddPushMirrorHandlerResponse403(data: RepoAddPushMirror403) {
+export function repoAddPushMirrorHandlerResponse403(data: RepoAddPushMirrorStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function repoAddPushMirrorHandlerResponse403(data: RepoAddPushMirror403) 
   });
 }
 
-export function repoAddPushMirrorHandlerResponse404(data: RepoAddPushMirror404) {
+export function repoAddPushMirrorHandlerResponse404(data: RepoAddPushMirrorStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,25 +50,26 @@ export function repoAddPushMirrorHandlerResponse404(data: RepoAddPushMirror404) 
   });
 }
 
-export function repoAddPushMirrorHandlerResponse413(data?: RepoAddPushMirror413) {
+export function repoAddPushMirrorHandlerResponse413(data?: RepoAddPushMirrorStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
 export function repoAddPushMirrorHandler(
-  data?:
-    | RepoAddPushMirrorMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoAddPushMirrorResponse | HttpResponseResolver<Record<string, string>, RepoAddPushMirrorBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/push_mirrors`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoAddPushMirrorBody>(
+    `/repos/:owner/:repo/push_mirrors`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

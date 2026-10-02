@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateTagOption } from './CreateTagOption';
 import type { Tag } from './Tag';
 
-export type RepoCreateTagPathParams = {
+export type RepoCreateTagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,53 +23,114 @@ export type RepoCreateTagPathParams = {
 };
 
 /**
- * @description Tag
+ * @description Tag represents a repository tag
+ * @type object
  */
-export type RepoCreateTag201 = Tag;
+export type RepoCreateTagStatus201Json = Tag;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Tag represents a repository tag
+ * @type object
  */
-export type RepoCreateTag404 = APINotFound;
+export type RepoCreateTagStatus201Html = Tag;
+
+export type RepoCreateTagStatus201 = RepoCreateTagStatus201Json | RepoCreateTagStatus201Html;
+
+export type RepoCreateTagStatus404Json = APINotFound;
+
+export type RepoCreateTagStatus404Html = APINotFound;
+
+export type RepoCreateTagStatus404 = RepoCreateTagStatus404Json | RepoCreateTagStatus404Html;
+
+export type RepoCreateTagStatus405 = unknown;
+
+export type RepoCreateTagStatus409 = unknown;
+
+export type RepoCreateTagStatus413 = unknown;
+
+export type RepoCreateTagStatus422Json = APIValidationError;
+
+export type RepoCreateTagStatus422Html = APIValidationError;
+
+export type RepoCreateTagStatus422 = RepoCreateTagStatus422Json | RepoCreateTagStatus422Html;
+
+export type RepoCreateTagStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateTagStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateTagStatus423 = RepoCreateTagStatus423Json | RepoCreateTagStatus423Html;
 
 /**
- * @description APIEmpty is an empty response
+ * @description CreateTagOption options when creating a tag
+ * @type object | undefined
  */
-export type RepoCreateTag405 = any;
+export type RepoCreateTagBodyJson = CreateTagOption | undefined;
 
 /**
- * @description APIConflict is a conflict empty response
+ * @description CreateTagOption options when creating a tag
+ * @type object | undefined
  */
-export type RepoCreateTag409 = any;
+export type RepoCreateTagBodyPlain = CreateTagOption | undefined;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoCreateTag413 = any;
+export type RepoCreateTagBody = RepoCreateTagBodyJson | RepoCreateTagBodyPlain;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoCreateTag422 = APIValidationError;
-
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreateTag423 = APIRepoArchivedError;
-
-export type RepoCreateTagMutationRequest = CreateTagOption;
-
-export type RepoCreateTagMutationResponse = RepoCreateTag201;
-
-export type RepoCreateTagMutation = {
-  Response: RepoCreateTag201;
-  Request: RepoCreateTagMutationRequest;
-  PathParams: RepoCreateTagPathParams;
-  Errors:
-    | RepoCreateTag404
-    | RepoCreateTag405
-    | RepoCreateTag409
-    | RepoCreateTag413
-    | RepoCreateTag422
-    | RepoCreateTag423;
+export type RepoCreateTagOptions = {
+  body: RepoCreateTagBody;
+  path: RepoCreateTagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateTagResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagStatus404Html;
+      };
+  '405': RepoCreateTagStatus405;
+  '409': RepoCreateTagStatus409;
+  '413': RepoCreateTagStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateTagStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateTagStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateTagResponse =
+  | RepoCreateTagStatus201
+  | RepoCreateTagStatus404
+  | RepoCreateTagStatus405
+  | RepoCreateTagStatus409
+  | RepoCreateTagStatus413
+  | RepoCreateTagStatus422
+  | RepoCreateTagStatus423;

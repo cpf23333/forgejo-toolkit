@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoGetLanguagesPathParams = {
+export type RepoGetLanguagesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,22 +18,51 @@ export type RepoGetLanguagesPathParams = {
   repo: string;
 };
 
-/**
- * @description LanguageStatistics
- */
-export type RepoGetLanguages200 = {
+export type RepoGetLanguagesStatus200Json = {
   [key: string]: number;
 };
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetLanguages404 = APINotFound;
-
-export type RepoGetLanguagesQueryResponse = RepoGetLanguages200;
-
-export type RepoGetLanguagesQuery = {
-  Response: RepoGetLanguages200;
-  PathParams: RepoGetLanguagesPathParams;
-  Errors: RepoGetLanguages404;
+export type RepoGetLanguagesStatus200Html = {
+  [key: string]: number;
 };
+
+export type RepoGetLanguagesStatus200 = RepoGetLanguagesStatus200Json | RepoGetLanguagesStatus200Html;
+
+export type RepoGetLanguagesStatus404Json = APINotFound;
+
+export type RepoGetLanguagesStatus404Html = APINotFound;
+
+export type RepoGetLanguagesStatus404 = RepoGetLanguagesStatus404Json | RepoGetLanguagesStatus404Html;
+
+export type RepoGetLanguagesOptions = {
+  body?: never;
+  path: RepoGetLanguagesPath;
+  query?: never;
+  headers?: never;
+};
+
+export type RepoGetLanguagesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetLanguagesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetLanguagesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetLanguagesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetLanguagesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetLanguagesResponse = RepoGetLanguagesStatus200 | RepoGetLanguagesStatus404;

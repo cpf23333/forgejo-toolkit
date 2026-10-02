@@ -7,5 +7,6 @@ import type { QuotaGroup } from './QuotaGroup';
 
 /**
  * @description QuotaGroupList represents a list of quota groups
+ * @type array
  */
 export type QuotaGroupList = QuotaGroup[];

@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateLabelOption } from './CreateLabelOption';
 import type { Label } from './Label';
 
-export type IssueCreateLabelPathParams = {
+export type IssueCreateLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,27 +22,78 @@ export type IssueCreateLabelPathParams = {
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueCreateLabel201 = Label;
+export type IssueCreateLabelStatus201Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueCreateLabel404 = APINotFound;
+export type IssueCreateLabelStatus201Html = Label;
+
+export type IssueCreateLabelStatus201 = IssueCreateLabelStatus201Json | IssueCreateLabelStatus201Html;
+
+export type IssueCreateLabelStatus404Json = APINotFound;
+
+export type IssueCreateLabelStatus404Html = APINotFound;
+
+export type IssueCreateLabelStatus404 = IssueCreateLabelStatus404Json | IssueCreateLabelStatus404Html;
+
+export type IssueCreateLabelStatus422Json = APIValidationError;
+
+export type IssueCreateLabelStatus422Html = APIValidationError;
+
+export type IssueCreateLabelStatus422 = IssueCreateLabelStatus422Json | IssueCreateLabelStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateLabelOption options for creating a label
+ * @type object | undefined
  */
-export type IssueCreateLabel422 = APIValidationError;
+export type IssueCreateLabelBody = CreateLabelOption | undefined;
 
-export type IssueCreateLabelMutationRequest = CreateLabelOption;
-
-export type IssueCreateLabelMutationResponse = IssueCreateLabel201;
-
-export type IssueCreateLabelMutation = {
-  Response: IssueCreateLabel201;
-  Request: IssueCreateLabelMutationRequest;
-  PathParams: IssueCreateLabelPathParams;
-  Errors: IssueCreateLabel404 | IssueCreateLabel422;
+export type IssueCreateLabelOptions = {
+  body: IssueCreateLabelBody;
+  path: IssueCreateLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateLabelResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateLabelStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateLabelStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateLabelStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateLabelStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateLabelStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateLabelResponse =
+  | IssueCreateLabelStatus201
+  | IssueCreateLabelStatus404
+  | IssueCreateLabelStatus422;

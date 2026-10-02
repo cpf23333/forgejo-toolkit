@@ -11,36 +11,110 @@ import type { GPGKey } from './GPGKey';
 import type { VerifyGPGKeyOption } from './VerifyGPGKeyOption';
 
 /**
- * @description GPGKey
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserVerifyGPGKey201 = GPGKey;
+export type UserVerifyGPGKeyStatus201Json = GPGKey;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserVerifyGPGKey401 = APIUnauthorizedError;
+export type UserVerifyGPGKeyStatus201Html = GPGKey;
+
+export type UserVerifyGPGKeyStatus201 = UserVerifyGPGKeyStatus201Json | UserVerifyGPGKeyStatus201Html;
+
+export type UserVerifyGPGKeyStatus401Json = APIUnauthorizedError;
+
+export type UserVerifyGPGKeyStatus401Html = APIUnauthorizedError;
+
+export type UserVerifyGPGKeyStatus401 = UserVerifyGPGKeyStatus401Json | UserVerifyGPGKeyStatus401Html;
+
+export type UserVerifyGPGKeyStatus403Json = APIForbiddenError;
+
+export type UserVerifyGPGKeyStatus403Html = APIForbiddenError;
+
+export type UserVerifyGPGKeyStatus403 = UserVerifyGPGKeyStatus403Json | UserVerifyGPGKeyStatus403Html;
+
+export type UserVerifyGPGKeyStatus404Json = APINotFound;
+
+export type UserVerifyGPGKeyStatus404Html = APINotFound;
+
+export type UserVerifyGPGKeyStatus404 = UserVerifyGPGKeyStatus404Json | UserVerifyGPGKeyStatus404Html;
+
+export type UserVerifyGPGKeyStatus422Json = APIValidationError;
+
+export type UserVerifyGPGKeyStatus422Html = APIValidationError;
+
+export type UserVerifyGPGKeyStatus422 = UserVerifyGPGKeyStatus422Json | UserVerifyGPGKeyStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description VerifyGPGKeyOption options verifies user GPG key
+ * @type object | undefined
  */
-export type UserVerifyGPGKey403 = APIForbiddenError;
+export type UserVerifyGPGKeyBody = VerifyGPGKeyOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserVerifyGPGKey404 = APINotFound;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserVerifyGPGKey422 = APIValidationError;
-
-export type UserVerifyGPGKeyMutationRequest = VerifyGPGKeyOption;
-
-export type UserVerifyGPGKeyMutationResponse = UserVerifyGPGKey201;
-
-export type UserVerifyGPGKeyMutation = {
-  Response: UserVerifyGPGKey201;
-  Request: UserVerifyGPGKeyMutationRequest;
-  Errors: UserVerifyGPGKey401 | UserVerifyGPGKey403 | UserVerifyGPGKey404 | UserVerifyGPGKey422;
+export type UserVerifyGPGKeyOptions = {
+  body: UserVerifyGPGKeyBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserVerifyGPGKeyResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserVerifyGPGKeyStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserVerifyGPGKeyStatus201Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserVerifyGPGKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserVerifyGPGKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserVerifyGPGKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserVerifyGPGKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserVerifyGPGKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserVerifyGPGKeyStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserVerifyGPGKeyStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserVerifyGPGKeyStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserVerifyGPGKeyResponse =
+  | UserVerifyGPGKeyStatus201
+  | UserVerifyGPGKeyStatus401
+  | UserVerifyGPGKeyStatus403
+  | UserVerifyGPGKeyStatus404
+  | UserVerifyGPGKeyStatus422;

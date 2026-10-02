@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminDeleteQuotaRuleMutationResponse,
-  AdminDeleteQuotaRule400,
-  AdminDeleteQuotaRule403,
-  AdminDeleteQuotaRule404,
+  AdminDeleteQuotaRuleResponse,
+  AdminDeleteQuotaRuleStatus400,
+  AdminDeleteQuotaRuleStatus403,
+  AdminDeleteQuotaRuleStatus404,
 } from '../types/AdminDeleteQuotaRule';
 import { http } from 'msw';
 
-export function adminDeleteQuotaRuleHandlerResponse204(data?: AdminDeleteQuotaRuleMutationResponse) {
+export function adminDeleteQuotaRuleHandlerResponse204(data?: AdminDeleteQuotaRuleResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse400(data: AdminDeleteQuotaRule400) {
+export function adminDeleteQuotaRuleHandlerResponse400(data: AdminDeleteQuotaRuleStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function adminDeleteQuotaRuleHandlerResponse400(data: AdminDeleteQuotaRul
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse403(data: AdminDeleteQuotaRule403) {
+export function adminDeleteQuotaRuleHandlerResponse403(data: AdminDeleteQuotaRuleStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function adminDeleteQuotaRuleHandlerResponse403(data: AdminDeleteQuotaRul
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse404(data: AdminDeleteQuotaRule404) {
+export function adminDeleteQuotaRuleHandlerResponse404(data: AdminDeleteQuotaRuleStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

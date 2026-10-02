@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListGitRefsQueryResponse, RepoListGitRefs404 } from '../types/RepoListGitRefs';
+import type { RepoListGitRefsResponse, RepoListGitRefsStatus404 } from '../types/RepoListGitRefs';
 import { http } from 'msw';
 
-export function repoListGitRefsHandlerResponse200(data: RepoListGitRefsQueryResponse) {
+export function repoListGitRefsHandlerResponse200(data: RepoListGitRefsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListGitRefsHandlerResponse200(data: RepoListGitRefsQueryResp
   });
 }
 
-export function repoListGitRefsHandlerResponse404(data: RepoListGitRefs404) {
+export function repoListGitRefsHandlerResponse404(data: RepoListGitRefsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListGitRefsHandlerResponse404(data: RepoListGitRefs404) {
 
 export function repoListGitRefsHandler(
   data?:
-    | RepoListGitRefsQueryResponse
+    | RepoListGitRefsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/refs/:ref`, function handler(info) {

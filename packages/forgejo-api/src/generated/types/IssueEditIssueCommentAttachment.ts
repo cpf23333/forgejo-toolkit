@@ -8,7 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Attachment } from './Attachment';
 import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
-export type IssueEditIssueCommentAttachmentPathParams = {
+export type IssueEditIssueCommentAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,43 +21,111 @@ export type IssueEditIssueCommentAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the attachment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueEditIssueCommentAttachment201 = Attachment;
+export type IssueEditIssueCommentAttachmentStatus201Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueEditIssueCommentAttachment404 = APIError;
+export type IssueEditIssueCommentAttachmentStatus201Html = Attachment;
+
+export type IssueEditIssueCommentAttachmentStatus201 =
+  | IssueEditIssueCommentAttachmentStatus201Json
+  | IssueEditIssueCommentAttachmentStatus201Html;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssueCommentAttachment413 = any;
+export type IssueEditIssueCommentAttachmentStatus404Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssueCommentAttachment423 = APIRepoArchivedError;
+export type IssueEditIssueCommentAttachmentStatus404Html = APIError;
 
-export type IssueEditIssueCommentAttachmentMutationRequest = EditAttachmentOptions;
+export type IssueEditIssueCommentAttachmentStatus404 =
+  | IssueEditIssueCommentAttachmentStatus404Json
+  | IssueEditIssueCommentAttachmentStatus404Html;
 
-export type IssueEditIssueCommentAttachmentMutationResponse = IssueEditIssueCommentAttachment201;
+export type IssueEditIssueCommentAttachmentStatus413 = unknown;
 
-export type IssueEditIssueCommentAttachmentMutation = {
-  Response: IssueEditIssueCommentAttachment201;
-  Request: IssueEditIssueCommentAttachmentMutationRequest;
-  PathParams: IssueEditIssueCommentAttachmentPathParams;
-  Errors: IssueEditIssueCommentAttachment404 | IssueEditIssueCommentAttachment413 | IssueEditIssueCommentAttachment423;
+export type IssueEditIssueCommentAttachmentStatus423Json = APIRepoArchivedError;
+
+export type IssueEditIssueCommentAttachmentStatus423Html = APIRepoArchivedError;
+
+export type IssueEditIssueCommentAttachmentStatus423 =
+  | IssueEditIssueCommentAttachmentStatus423Json
+  | IssueEditIssueCommentAttachmentStatus423Html;
+
+/**
+ * @description EditAttachmentOptions options for editing attachments
+ * @type object | undefined
+ */
+export type IssueEditIssueCommentAttachmentBody = EditAttachmentOptions | undefined;
+
+export type IssueEditIssueCommentAttachmentOptions = {
+  body: IssueEditIssueCommentAttachmentBody;
+  path: IssueEditIssueCommentAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditIssueCommentAttachmentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueCommentAttachmentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueCommentAttachmentStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueCommentAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueCommentAttachmentStatus404Html;
+      };
+  '413': IssueEditIssueCommentAttachmentStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueCommentAttachmentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueCommentAttachmentStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditIssueCommentAttachmentResponse =
+  | IssueEditIssueCommentAttachmentStatus201
+  | IssueEditIssueCommentAttachmentStatus404
+  | IssueEditIssueCommentAttachmentStatus413
+  | IssueEditIssueCommentAttachmentStatus423;

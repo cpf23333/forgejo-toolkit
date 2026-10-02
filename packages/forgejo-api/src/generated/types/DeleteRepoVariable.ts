@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteRepoVariablePathParams = {
+export type DeleteRepoVariablePath = {
   /**
    * @description name of the owner
    * @type string
@@ -24,25 +24,61 @@ export type DeleteRepoVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when deleting a variable
- */
-export type DeleteRepoVariable204 = any;
+export type DeleteRepoVariableStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoVariable400 = APIError;
+export type DeleteRepoVariableStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoVariable404 = APINotFound;
+export type DeleteRepoVariableStatus400Html = APIError;
 
-export type DeleteRepoVariableMutationResponse = DeleteRepoVariable204;
+export type DeleteRepoVariableStatus400 = DeleteRepoVariableStatus400Json | DeleteRepoVariableStatus400Html;
 
-export type DeleteRepoVariableMutation = {
-  Response: DeleteRepoVariable204;
-  PathParams: DeleteRepoVariablePathParams;
-  Errors: DeleteRepoVariable400 | DeleteRepoVariable404;
+export type DeleteRepoVariableStatus404Json = APINotFound;
+
+export type DeleteRepoVariableStatus404Html = APINotFound;
+
+export type DeleteRepoVariableStatus404 = DeleteRepoVariableStatus404Json | DeleteRepoVariableStatus404Html;
+
+export type DeleteRepoVariableOptions = {
+  body?: never;
+  path: DeleteRepoVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteRepoVariableResponses = {
+  '204': DeleteRepoVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteRepoVariableResponse =
+  | DeleteRepoVariableStatus204
+  | DeleteRepoVariableStatus400
+  | DeleteRepoVariableStatus404;

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type AdminGetActionRunJobsQueryParams = {
+export type AdminGetActionRunJobsQuery = {
   /**
    * @description a comma separated list of labels to search for
    * @type string | undefined
@@ -14,20 +14,47 @@ export type AdminGetActionRunJobsQueryParams = {
   labels?: string;
 };
 
-/**
- * @description RunJobList is a list of action run jobs
- */
-export type AdminGetActionRunJobs200 = ActionRunJob[];
+export type AdminGetActionRunJobsStatus200Json = ActionRunJob[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminGetActionRunJobs403 = APIForbiddenError;
+export type AdminGetActionRunJobsStatus200Html = ActionRunJob[];
 
-export type AdminGetActionRunJobsQueryResponse = AdminGetActionRunJobs200;
+export type AdminGetActionRunJobsStatus200 = AdminGetActionRunJobsStatus200Json | AdminGetActionRunJobsStatus200Html;
 
-export type AdminGetActionRunJobsQuery = {
-  Response: AdminGetActionRunJobs200;
-  QueryParams: AdminGetActionRunJobsQueryParams;
-  Errors: AdminGetActionRunJobs403;
+export type AdminGetActionRunJobsStatus403Json = APIForbiddenError;
+
+export type AdminGetActionRunJobsStatus403Html = APIForbiddenError;
+
+export type AdminGetActionRunJobsStatus403 = AdminGetActionRunJobsStatus403Json | AdminGetActionRunJobsStatus403Html;
+
+export type AdminGetActionRunJobsOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminGetActionRunJobsQuery;
+  headers?: never;
 };
+
+export type AdminGetActionRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetActionRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetActionRunJobsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetActionRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetActionRunJobsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetActionRunJobsResponse = AdminGetActionRunJobsStatus200 | AdminGetActionRunJobsStatus403;

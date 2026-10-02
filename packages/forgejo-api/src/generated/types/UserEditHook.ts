@@ -8,36 +8,86 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { EditHookOption } from './EditHookOption';
 import type { Hook } from './Hook';
 
-export type UserEditHookPathParams = {
+export type UserEditHookPath = {
   /**
    * @description id of the hook to update
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserEditHook200 = Hook;
+export type UserEditHookStatus200Json = Hook;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserEditHook401 = APIUnauthorizedError;
+export type UserEditHookStatus200Html = Hook;
+
+export type UserEditHookStatus200 = UserEditHookStatus200Json | UserEditHookStatus200Html;
+
+export type UserEditHookStatus401Json = APIUnauthorizedError;
+
+export type UserEditHookStatus401Html = APIUnauthorizedError;
+
+export type UserEditHookStatus401 = UserEditHookStatus401Json | UserEditHookStatus401Html;
+
+export type UserEditHookStatus403Json = APIForbiddenError;
+
+export type UserEditHookStatus403Html = APIForbiddenError;
+
+export type UserEditHookStatus403 = UserEditHookStatus403Json | UserEditHookStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description EditHookOption options when modify one hook
+ * @type object | undefined
  */
-export type UserEditHook403 = APIForbiddenError;
+export type UserEditHookBody = EditHookOption | undefined;
 
-export type UserEditHookMutationRequest = EditHookOption;
-
-export type UserEditHookMutationResponse = UserEditHook200;
-
-export type UserEditHookMutation = {
-  Response: UserEditHook200;
-  Request: UserEditHookMutationRequest;
-  PathParams: UserEditHookPathParams;
-  Errors: UserEditHook401 | UserEditHook403;
+export type UserEditHookOptions = {
+  body: UserEditHookBody;
+  path: UserEditHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserEditHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserEditHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserEditHookStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserEditHookStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserEditHookStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserEditHookStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserEditHookStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserEditHookResponse = UserEditHookStatus200 | UserEditHookStatus401 | UserEditHookStatus403;

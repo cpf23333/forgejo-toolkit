@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { StopWatch } from './StopWatch';
 
-export type UserGetStopWatchesQueryParams = {
+export type UserGetStopWatchesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,65 @@ export type UserGetStopWatchesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description StopWatchList
- */
-export type UserGetStopWatches200 = StopWatch[];
+export type UserGetStopWatchesStatus200Json = StopWatch[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserGetStopWatches401 = APIUnauthorizedError;
+export type UserGetStopWatchesStatus200Html = StopWatch[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetStopWatches403 = APIForbiddenError;
+export type UserGetStopWatchesStatus200 = UserGetStopWatchesStatus200Json | UserGetStopWatchesStatus200Html;
 
-export type UserGetStopWatchesQueryResponse = UserGetStopWatches200;
+export type UserGetStopWatchesStatus401Json = APIUnauthorizedError;
 
-export type UserGetStopWatchesQuery = {
-  Response: UserGetStopWatches200;
-  QueryParams: UserGetStopWatchesQueryParams;
-  Errors: UserGetStopWatches401 | UserGetStopWatches403;
+export type UserGetStopWatchesStatus401Html = APIUnauthorizedError;
+
+export type UserGetStopWatchesStatus401 = UserGetStopWatchesStatus401Json | UserGetStopWatchesStatus401Html;
+
+export type UserGetStopWatchesStatus403Json = APIForbiddenError;
+
+export type UserGetStopWatchesStatus403Html = APIForbiddenError;
+
+export type UserGetStopWatchesStatus403 = UserGetStopWatchesStatus403Json | UserGetStopWatchesStatus403Html;
+
+export type UserGetStopWatchesOptions = {
+  body?: never;
+  path?: never;
+  query?: UserGetStopWatchesQuery;
+  headers?: never;
 };
+
+export type UserGetStopWatchesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetStopWatchesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetStopWatchesStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetStopWatchesStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetStopWatchesStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetStopWatchesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetStopWatchesStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetStopWatchesResponse =
+  | UserGetStopWatchesStatus200
+  | UserGetStopWatchesStatus401
+  | UserGetStopWatchesStatus403;

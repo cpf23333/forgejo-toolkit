@@ -4,16 +4,18 @@
  */
 
 import type {
-  GenerateRepoMutationResponse,
-  GenerateRepo403,
-  GenerateRepo404,
-  GenerateRepo409,
-  GenerateRepo413,
-  GenerateRepo422,
+  GenerateRepoResponse,
+  GenerateRepoStatus403,
+  GenerateRepoStatus404,
+  GenerateRepoStatus409,
+  GenerateRepoStatus413,
+  GenerateRepoStatus422,
+  GenerateRepoBody,
 } from '../types/GenerateRepo';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function generateRepoHandlerResponse201(data: GenerateRepoMutationResponse) {
+export function generateRepoHandlerResponse201(data: GenerateRepoResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function generateRepoHandlerResponse201(data: GenerateRepoMutationRespons
   });
 }
 
-export function generateRepoHandlerResponse403(data: GenerateRepo403) {
+export function generateRepoHandlerResponse403(data: GenerateRepoStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -31,7 +33,7 @@ export function generateRepoHandlerResponse403(data: GenerateRepo403) {
   });
 }
 
-export function generateRepoHandlerResponse404(data: GenerateRepo404) {
+export function generateRepoHandlerResponse404(data: GenerateRepoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -40,19 +42,19 @@ export function generateRepoHandlerResponse404(data: GenerateRepo404) {
   });
 }
 
-export function generateRepoHandlerResponse409(data?: GenerateRepo409) {
+export function generateRepoHandlerResponse409(data?: GenerateRepoStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function generateRepoHandlerResponse413(data?: GenerateRepo413) {
+export function generateRepoHandlerResponse413(data?: GenerateRepoStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function generateRepoHandlerResponse422(data: GenerateRepo422) {
+export function generateRepoHandlerResponse422(data: GenerateRepoStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -62,18 +64,19 @@ export function generateRepoHandlerResponse422(data: GenerateRepo422) {
 }
 
 export function generateRepoHandler(
-  data?:
-    | GenerateRepoMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: GenerateRepoResponse | HttpResponseResolver<Record<string, string>, GenerateRepoBody>,
 ) {
-  return http.post(`/repos/:template_owner/:template_repo/generate`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, GenerateRepoBody>(
+    `/repos/:template_owner/:template_repo/generate`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

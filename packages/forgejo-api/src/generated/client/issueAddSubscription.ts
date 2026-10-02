@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueAddSubscriptionMutationResponse,
-  IssueAddSubscriptionPathParams,
-  IssueAddSubscription404,
-} from '../types/IssueAddSubscription';
-
-function getIssueAddSubscriptionUrl(
-  owner: IssueAddSubscriptionPathParams['owner'],
-  repo: IssueAddSubscriptionPathParams['repo'],
-  index: IssueAddSubscriptionPathParams['index'],
-  user: IssueAddSubscriptionPathParams['user'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/${user}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueAddSubscriptionOptions, IssueAddSubscriptionResponses } from '../types/IssueAddSubscription';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Subscribe user to issue
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/:user}
  */
-export async function issueAddSubscription(
-  owner: IssueAddSubscriptionPathParams['owner'],
-  repo: IssueAddSubscriptionPathParams['repo'],
-  index: IssueAddSubscriptionPathParams['index'],
-  user: IssueAddSubscriptionPathParams['user'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueAddSubscription<ThrowOnError extends boolean = true>(
+  options: Options<IssueAddSubscriptionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueAddSubscriptionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueAddSubscriptionMutationResponse,
-    ResponseErrorConfig<IssueAddSubscription404>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getIssueAddSubscriptionUrl(owner, repo, index, user).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/issues/{index}/subscriptions/{user}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueAddSubscriptionResponses, ThrowOnError>>;
 }

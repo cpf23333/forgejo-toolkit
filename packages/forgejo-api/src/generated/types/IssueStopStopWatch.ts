@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueStopStopWatchPathParams = {
+export type IssueStopStopWatchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,35 +18,52 @@ export type IssueStopStopWatchPathParams = {
   repo: string;
   /**
    * @description index of the issue to stop the stopwatch on
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueStopStopWatch201 = any;
+export type IssueStopStopWatchStatus201 = unknown;
 
-/**
- * @description Not repo writer, user does not have rights to toggle stopwatch
- */
-export type IssueStopStopWatch403 = any;
+export type IssueStopStopWatchStatus403 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueStopStopWatch404 = APINotFound;
+export type IssueStopStopWatchStatus404Json = APINotFound;
 
-/**
- * @description Cannot stop a non existent stopwatch
- */
-export type IssueStopStopWatch409 = any;
+export type IssueStopStopWatchStatus404Html = APINotFound;
 
-export type IssueStopStopWatchMutationResponse = IssueStopStopWatch201;
+export type IssueStopStopWatchStatus404 = IssueStopStopWatchStatus404Json | IssueStopStopWatchStatus404Html;
 
-export type IssueStopStopWatchMutation = {
-  Response: IssueStopStopWatch201;
-  PathParams: IssueStopStopWatchPathParams;
-  Errors: IssueStopStopWatch403 | IssueStopStopWatch404 | IssueStopStopWatch409;
+export type IssueStopStopWatchStatus409 = unknown;
+
+export type IssueStopStopWatchOptions = {
+  body?: never;
+  path: IssueStopStopWatchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueStopStopWatchResponses = {
+  '201': IssueStopStopWatchStatus201;
+  '403': IssueStopStopWatchStatus403;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueStopStopWatchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueStopStopWatchStatus404Html;
+      };
+  '409': IssueStopStopWatchStatus409;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueStopStopWatchResponse =
+  | IssueStopStopWatchStatus201
+  | IssueStopStopWatchStatus403
+  | IssueStopStopWatchStatus404
+  | IssueStopStopWatchStatus409;

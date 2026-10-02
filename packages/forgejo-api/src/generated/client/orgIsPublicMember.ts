@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgIsPublicMemberQueryResponse,
-  OrgIsPublicMemberPathParams,
-  OrgIsPublicMember404,
-} from '../types/OrgIsPublicMember';
-
-function getOrgIsPublicMemberUrl(
-  org: OrgIsPublicMemberPathParams['org'],
-  username: OrgIsPublicMemberPathParams['username'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/orgs/${org}/public_members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgIsPublicMemberOptions, OrgIsPublicMemberResponses } from '../types/OrgIsPublicMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if a user is a public member of an organization
  * {@link /orgs/:org/public_members/:username}
  */
-export async function orgIsPublicMember(
-  org: OrgIsPublicMemberPathParams['org'],
-  username: OrgIsPublicMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgIsPublicMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgIsPublicMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgIsPublicMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgIsPublicMemberQueryResponse, ResponseErrorConfig<OrgIsPublicMember404>, unknown>({
-    method: 'GET',
-    url: getOrgIsPublicMemberUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/public_members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgIsPublicMemberResponses, ThrowOnError>>;
 }

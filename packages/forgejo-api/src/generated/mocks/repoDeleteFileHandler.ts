@@ -4,16 +4,18 @@
  */
 
 import type {
-  RepoDeleteFileMutationResponse,
-  RepoDeleteFile400,
-  RepoDeleteFile403,
-  RepoDeleteFile404,
-  RepoDeleteFile413,
-  RepoDeleteFile423,
+  RepoDeleteFileResponse,
+  RepoDeleteFileStatus400,
+  RepoDeleteFileStatus403,
+  RepoDeleteFileStatus404,
+  RepoDeleteFileStatus413,
+  RepoDeleteFileStatus423,
+  RepoDeleteFileBody,
 } from '../types/RepoDeleteFile';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoDeleteFileHandlerResponse200(data: RepoDeleteFileMutationResponse) {
+export function repoDeleteFileHandlerResponse200(data: RepoDeleteFileResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -22,7 +24,7 @@ export function repoDeleteFileHandlerResponse200(data: RepoDeleteFileMutationRes
   });
 }
 
-export function repoDeleteFileHandlerResponse400(data: RepoDeleteFile400) {
+export function repoDeleteFileHandlerResponse400(data: RepoDeleteFileStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function repoDeleteFileHandlerResponse400(data: RepoDeleteFile400) {
   });
 }
 
-export function repoDeleteFileHandlerResponse403(data: RepoDeleteFile403) {
+export function repoDeleteFileHandlerResponse403(data: RepoDeleteFileStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -40,7 +42,7 @@ export function repoDeleteFileHandlerResponse403(data: RepoDeleteFile403) {
   });
 }
 
-export function repoDeleteFileHandlerResponse404(data: RepoDeleteFile404) {
+export function repoDeleteFileHandlerResponse404(data: RepoDeleteFileStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,13 +51,13 @@ export function repoDeleteFileHandlerResponse404(data: RepoDeleteFile404) {
   });
 }
 
-export function repoDeleteFileHandlerResponse413(data?: RepoDeleteFile413) {
+export function repoDeleteFileHandlerResponse413(data?: RepoDeleteFileStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoDeleteFileHandlerResponse423(data: RepoDeleteFile423) {
+export function repoDeleteFileHandlerResponse423(data: RepoDeleteFileStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -65,18 +67,19 @@ export function repoDeleteFileHandlerResponse423(data: RepoDeleteFile423) {
 }
 
 export function repoDeleteFileHandler(
-  data?:
-    | RepoDeleteFileMutationResponse
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoDeleteFileResponse | HttpResponseResolver<Record<string, string>, RepoDeleteFileBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/contents/:filepath`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, RepoDeleteFileBody>(
+    `/repos/:owner/:repo/contents/:filepath`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

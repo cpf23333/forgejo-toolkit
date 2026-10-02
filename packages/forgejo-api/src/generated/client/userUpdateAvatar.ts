@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserUpdateAvatarMutationRequest,
-  UserUpdateAvatarMutationResponse,
-  UserUpdateAvatar401,
-  UserUpdateAvatar403,
-} from '../types/UserUpdateAvatar';
-
-function getUserUpdateAvatarUrl() {
-  const res = { method: 'POST', url: `/user/avatar` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserUpdateAvatarOptions, UserUpdateAvatarResponses } from '../types/UserUpdateAvatar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update avatar of the current user
  * {@link /user/avatar}
  */
-export async function userUpdateAvatar(
-  data?: UserUpdateAvatarMutationRequest,
-  config: Partial<RequestConfig<UserUpdateAvatarMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userUpdateAvatar<ThrowOnError extends boolean = true>(
+  options: Options<UserUpdateAvatarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserUpdateAvatarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserUpdateAvatarMutationResponse,
-    ResponseErrorConfig<UserUpdateAvatar401 | UserUpdateAvatar403>,
-    UserUpdateAvatarMutationRequest
-  >({
-    method: 'POST',
-    url: getUserUpdateAvatarUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/avatar',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserUpdateAvatarResponses, ThrowOnError>>;
 }

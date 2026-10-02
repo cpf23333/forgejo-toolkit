@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { Attachment } from './Attachment';
 
-export type RepoCreateReleaseAttachmentPathParams = {
+export type RepoCreateReleaseAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,12 +20,14 @@ export type RepoCreateReleaseAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the release
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type RepoCreateReleaseAttachmentQueryParams = {
+export type RepoCreateReleaseAttachmentQuery = {
   /**
    * @description name of the attachment
    * @type string | undefined
@@ -34,44 +36,105 @@ export type RepoCreateReleaseAttachmentQueryParams = {
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type RepoCreateReleaseAttachment201 = Attachment;
+export type RepoCreateReleaseAttachmentStatus201Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type RepoCreateReleaseAttachment400 = APIError;
+export type RepoCreateReleaseAttachmentStatus201Html = Attachment;
+
+export type RepoCreateReleaseAttachmentStatus201 =
+  | RepoCreateReleaseAttachmentStatus201Json
+  | RepoCreateReleaseAttachmentStatus201Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateReleaseAttachment404 = APINotFound;
+export type RepoCreateReleaseAttachmentStatus400Json = APIError;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateReleaseAttachment413 = any;
+export type RepoCreateReleaseAttachmentStatus400Html = APIError;
 
-export type RepoCreateReleaseAttachmentMutationRequest = {
-  /**
-   * @description attachment to upload (this parameter is incompatible with `external_url`)
-   * @type string | undefined, binary
-   */
-  attachment?: Blob;
-  /**
-   * @description url to external asset (this parameter is incompatible with `attachment`)
-   * @type string | undefined
-   */
-  external_url?: string;
+export type RepoCreateReleaseAttachmentStatus400 =
+  | RepoCreateReleaseAttachmentStatus400Json
+  | RepoCreateReleaseAttachmentStatus400Html;
+
+export type RepoCreateReleaseAttachmentStatus404Json = APINotFound;
+
+export type RepoCreateReleaseAttachmentStatus404Html = APINotFound;
+
+export type RepoCreateReleaseAttachmentStatus404 =
+  | RepoCreateReleaseAttachmentStatus404Json
+  | RepoCreateReleaseAttachmentStatus404Html;
+
+export type RepoCreateReleaseAttachmentStatus413 = unknown;
+
+export type RepoCreateReleaseAttachmentBody =
+  | {
+      /**
+       * @description attachment to upload (this parameter is incompatible with `external_url`)
+       * @type string | undefined
+       */
+      attachment?: Blob;
+      /**
+       * @description url to external asset (this parameter is incompatible with `attachment`)
+       * @type string | undefined
+       */
+      external_url?: string;
+    }
+  | undefined;
+
+export type RepoCreateReleaseAttachmentOptions = {
+  body: RepoCreateReleaseAttachmentBody;
+  path: RepoCreateReleaseAttachmentPath;
+  query?: RepoCreateReleaseAttachmentQuery;
+  headers?: never;
 };
 
-export type RepoCreateReleaseAttachmentMutationResponse = RepoCreateReleaseAttachment201;
-
-export type RepoCreateReleaseAttachmentMutation = {
-  Response: RepoCreateReleaseAttachment201;
-  Request: RepoCreateReleaseAttachmentMutationRequest;
-  PathParams: RepoCreateReleaseAttachmentPathParams;
-  QueryParams: RepoCreateReleaseAttachmentQueryParams;
-  Errors: RepoCreateReleaseAttachment400 | RepoCreateReleaseAttachment404 | RepoCreateReleaseAttachment413;
+export type RepoCreateReleaseAttachmentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseAttachmentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseAttachmentStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseAttachmentStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseAttachmentStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseAttachmentStatus404Html;
+      };
+  '413': RepoCreateReleaseAttachmentStatus413;
 };
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateReleaseAttachmentResponse =
+  | RepoCreateReleaseAttachmentStatus201
+  | RepoCreateReleaseAttachmentStatus400
+  | RepoCreateReleaseAttachmentStatus404
+  | RepoCreateReleaseAttachmentStatus413;

@@ -4,19 +4,21 @@
  */
 
 import type {
-  UserUpdateAvatarMutationResponse,
-  UserUpdateAvatar401,
-  UserUpdateAvatar403,
+  UserUpdateAvatarResponse,
+  UserUpdateAvatarStatus401,
+  UserUpdateAvatarStatus403,
+  UserUpdateAvatarBody,
 } from '../types/UserUpdateAvatar';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userUpdateAvatarHandlerResponse204(data?: UserUpdateAvatarMutationResponse) {
+export function userUpdateAvatarHandlerResponse204(data?: UserUpdateAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userUpdateAvatarHandlerResponse401(data: UserUpdateAvatar401) {
+export function userUpdateAvatarHandlerResponse401(data: UserUpdateAvatarStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -25,7 +27,7 @@ export function userUpdateAvatarHandlerResponse401(data: UserUpdateAvatar401) {
   });
 }
 
-export function userUpdateAvatarHandlerResponse403(data: UserUpdateAvatar403) {
+export function userUpdateAvatarHandlerResponse403(data: UserUpdateAvatarStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,15 +37,9 @@ export function userUpdateAvatarHandlerResponse403(data: UserUpdateAvatar403) {
 }
 
 export function userUpdateAvatarHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, UserUpdateAvatarBody>,
 ) {
-  return http.post(`/user/avatar`, function handler(info) {
+  return http.post<Record<string, string>, UserUpdateAvatarBody>(`/user/avatar`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

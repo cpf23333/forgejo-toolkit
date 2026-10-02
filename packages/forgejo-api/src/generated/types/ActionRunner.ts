@@ -13,6 +13,7 @@ export type ActionRunnerStatusEnumKey = (typeof actionRunnerStatusEnum)[keyof ty
 
 /**
  * @description ActionRunner represents a runner
+ * @type object
  */
 export type ActionRunner = {
   /**
@@ -27,7 +28,9 @@ export type ActionRunner = {
   ephemeral?: boolean;
   /**
    * @description ID uniquely identifies this runner.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -42,12 +45,16 @@ export type ActionRunner = {
   name?: string;
   /**
    * @description OwnerID is the identifier of the user or organization this runner belongs to. O if the runner is owned by a\nrepository.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   owner_id?: number;
   /**
    * @description RepoID is the identifier of the repository this runner belongs to. 0 if the runner belongs to a user or\norganization.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_id?: number;
   /**

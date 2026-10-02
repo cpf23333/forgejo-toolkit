@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteActionArtifactPathParams = {
+export type DeleteActionArtifactPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,84 @@ export type DeleteActionArtifactPathParams = {
   repo: string;
   /**
    * @description ID of the artifact
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   artifact_id: number;
 };
 
-/**
- * @description artifact marked for deletion
- */
-export type DeleteActionArtifact204 = any;
+export type DeleteActionArtifactStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteActionArtifact400 = APIError;
+export type DeleteActionArtifactStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteActionArtifact403 = APIForbiddenError;
+export type DeleteActionArtifactStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeleteActionArtifact404 = APINotFound;
+export type DeleteActionArtifactStatus400 = DeleteActionArtifactStatus400Json | DeleteActionArtifactStatus400Html;
 
-export type DeleteActionArtifactMutationResponse = DeleteActionArtifact204;
+export type DeleteActionArtifactStatus403Json = APIForbiddenError;
 
-export type DeleteActionArtifactMutation = {
-  Response: DeleteActionArtifact204;
-  PathParams: DeleteActionArtifactPathParams;
-  Errors: DeleteActionArtifact400 | DeleteActionArtifact403 | DeleteActionArtifact404;
+export type DeleteActionArtifactStatus403Html = APIForbiddenError;
+
+export type DeleteActionArtifactStatus403 = DeleteActionArtifactStatus403Json | DeleteActionArtifactStatus403Html;
+
+export type DeleteActionArtifactStatus404Json = APINotFound;
+
+export type DeleteActionArtifactStatus404Html = APINotFound;
+
+export type DeleteActionArtifactStatus404 = DeleteActionArtifactStatus404Json | DeleteActionArtifactStatus404Html;
+
+export type DeleteActionArtifactOptions = {
+  body?: never;
+  path: DeleteActionArtifactPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteActionArtifactResponses = {
+  '204': DeleteActionArtifactStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionArtifactStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionArtifactStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionArtifactStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionArtifactStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionArtifactStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionArtifactStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteActionArtifactResponse =
+  | DeleteActionArtifactStatus204
+  | DeleteActionArtifactStatus400
+  | DeleteActionArtifactStatus403
+  | DeleteActionArtifactStatus404;

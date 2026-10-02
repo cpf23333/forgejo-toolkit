@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { CreateHookOption } from './CreateHookOption';
 import type { Hook } from './Hook';
 
-export type RepoCreateHookPathParams = {
+export type RepoCreateHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,22 +21,60 @@ export type RepoCreateHookPathParams = {
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type RepoCreateHook201 = Hook;
+export type RepoCreateHookStatus201Json = Hook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type RepoCreateHook404 = APINotFound;
+export type RepoCreateHookStatus201Html = Hook;
 
-export type RepoCreateHookMutationRequest = CreateHookOption;
+export type RepoCreateHookStatus201 = RepoCreateHookStatus201Json | RepoCreateHookStatus201Html;
 
-export type RepoCreateHookMutationResponse = RepoCreateHook201;
+export type RepoCreateHookStatus404Json = APINotFound;
 
-export type RepoCreateHookMutation = {
-  Response: RepoCreateHook201;
-  Request: RepoCreateHookMutationRequest;
-  PathParams: RepoCreateHookPathParams;
-  Errors: RepoCreateHook404;
+export type RepoCreateHookStatus404Html = APINotFound;
+
+export type RepoCreateHookStatus404 = RepoCreateHookStatus404Json | RepoCreateHookStatus404Html;
+
+/**
+ * @description CreateHookOption options when create a hook
+ * @type object | undefined
+ */
+export type RepoCreateHookBody = CreateHookOption | undefined;
+
+export type RepoCreateHookOptions = {
+  body: RepoCreateHookBody;
+  path: RepoCreateHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateHookResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateHookStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateHookStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateHookResponse = RepoCreateHookStatus201 | RepoCreateHookStatus404;

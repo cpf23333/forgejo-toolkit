@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditTagProtectionOption } from './EditTagProtectionOption';
 import type { TagProtection } from './TagProtection';
 
-export type RepoEditTagProtectionPathParams = {
+export type RepoEditTagProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,38 +22,102 @@ export type RepoEditTagProtectionPathParams = {
   repo: string;
   /**
    * @description id of protected tag
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description TagProtection
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoEditTagProtection200 = TagProtection;
+export type RepoEditTagProtectionStatus200Json = TagProtection;
 
 /**
- * @description APINotFound is a not found error response
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoEditTagProtection404 = APINotFound;
+export type RepoEditTagProtectionStatus200Html = TagProtection;
+
+export type RepoEditTagProtectionStatus200 = RepoEditTagProtectionStatus200Json | RepoEditTagProtectionStatus200Html;
+
+export type RepoEditTagProtectionStatus404Json = APINotFound;
+
+export type RepoEditTagProtectionStatus404Html = APINotFound;
+
+export type RepoEditTagProtectionStatus404 = RepoEditTagProtectionStatus404Json | RepoEditTagProtectionStatus404Html;
+
+export type RepoEditTagProtectionStatus422Json = APIValidationError;
+
+export type RepoEditTagProtectionStatus422Html = APIValidationError;
+
+export type RepoEditTagProtectionStatus422 = RepoEditTagProtectionStatus422Json | RepoEditTagProtectionStatus422Html;
+
+export type RepoEditTagProtectionStatus423Json = APIRepoArchivedError;
+
+export type RepoEditTagProtectionStatus423Html = APIRepoArchivedError;
+
+export type RepoEditTagProtectionStatus423 = RepoEditTagProtectionStatus423Json | RepoEditTagProtectionStatus423Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description EditTagProtectionOption options for editing a tag protection
+ * @type object | undefined
  */
-export type RepoEditTagProtection422 = APIValidationError;
+export type RepoEditTagProtectionBody = EditTagProtectionOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoEditTagProtection423 = APIRepoArchivedError;
-
-export type RepoEditTagProtectionMutationRequest = EditTagProtectionOption;
-
-export type RepoEditTagProtectionMutationResponse = RepoEditTagProtection200;
-
-export type RepoEditTagProtectionMutation = {
-  Response: RepoEditTagProtection200;
-  Request: RepoEditTagProtectionMutationRequest;
-  PathParams: RepoEditTagProtectionPathParams;
-  Errors: RepoEditTagProtection404 | RepoEditTagProtection422 | RepoEditTagProtection423;
+export type RepoEditTagProtectionOptions = {
+  body: RepoEditTagProtectionBody;
+  path: RepoEditTagProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditTagProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditTagProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditTagProtectionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditTagProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditTagProtectionStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoEditTagProtectionStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditTagProtectionStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoEditTagProtectionStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditTagProtectionStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditTagProtectionResponse =
+  | RepoEditTagProtectionStatus200
+  | RepoEditTagProtectionStatus404
+  | RepoEditTagProtectionStatus422
+  | RepoEditTagProtectionStatus423;

@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { PushMirror } from './PushMirror';
 
-export type RepoGetPushMirrorByRemoteNamePathParams = {
+export type RepoGetPushMirrorByRemoteNamePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,29 +27,104 @@ export type RepoGetPushMirrorByRemoteNamePathParams = {
 };
 
 /**
- * @description PushMirror
+ * @description PushMirror represents information of a push mirror
+ * @type object
  */
-export type RepoGetPushMirrorByRemoteName200 = PushMirror;
+export type RepoGetPushMirrorByRemoteNameStatus200Json = PushMirror;
 
 /**
- * @description APIError is error format response
+ * @description PushMirror represents information of a push mirror
+ * @type object
  */
-export type RepoGetPushMirrorByRemoteName400 = APIError;
+export type RepoGetPushMirrorByRemoteNameStatus200Html = PushMirror;
+
+export type RepoGetPushMirrorByRemoteNameStatus200 =
+  | RepoGetPushMirrorByRemoteNameStatus200Json
+  | RepoGetPushMirrorByRemoteNameStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoGetPushMirrorByRemoteName403 = APIForbiddenError;
+export type RepoGetPushMirrorByRemoteNameStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoGetPushMirrorByRemoteName404 = APINotFound;
+export type RepoGetPushMirrorByRemoteNameStatus400Html = APIError;
 
-export type RepoGetPushMirrorByRemoteNameQueryResponse = RepoGetPushMirrorByRemoteName200;
+export type RepoGetPushMirrorByRemoteNameStatus400 =
+  | RepoGetPushMirrorByRemoteNameStatus400Json
+  | RepoGetPushMirrorByRemoteNameStatus400Html;
 
-export type RepoGetPushMirrorByRemoteNameQuery = {
-  Response: RepoGetPushMirrorByRemoteName200;
-  PathParams: RepoGetPushMirrorByRemoteNamePathParams;
-  Errors: RepoGetPushMirrorByRemoteName400 | RepoGetPushMirrorByRemoteName403 | RepoGetPushMirrorByRemoteName404;
+export type RepoGetPushMirrorByRemoteNameStatus403Json = APIForbiddenError;
+
+export type RepoGetPushMirrorByRemoteNameStatus403Html = APIForbiddenError;
+
+export type RepoGetPushMirrorByRemoteNameStatus403 =
+  | RepoGetPushMirrorByRemoteNameStatus403Json
+  | RepoGetPushMirrorByRemoteNameStatus403Html;
+
+export type RepoGetPushMirrorByRemoteNameStatus404Json = APINotFound;
+
+export type RepoGetPushMirrorByRemoteNameStatus404Html = APINotFound;
+
+export type RepoGetPushMirrorByRemoteNameStatus404 =
+  | RepoGetPushMirrorByRemoteNameStatus404Json
+  | RepoGetPushMirrorByRemoteNameStatus404Html;
+
+export type RepoGetPushMirrorByRemoteNameOptions = {
+  body?: never;
+  path: RepoGetPushMirrorByRemoteNamePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetPushMirrorByRemoteNameResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPushMirrorByRemoteNameStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPushMirrorByRemoteNameStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPushMirrorByRemoteNameStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPushMirrorByRemoteNameStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPushMirrorByRemoteNameStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPushMirrorByRemoteNameStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPushMirrorByRemoteNameStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPushMirrorByRemoteNameStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPushMirrorByRemoteNameResponse =
+  | RepoGetPushMirrorByRemoteNameStatus200
+  | RepoGetPushMirrorByRemoteNameStatus400
+  | RepoGetPushMirrorByRemoteNameStatus403
+  | RepoGetPushMirrorByRemoteNameStatus404;

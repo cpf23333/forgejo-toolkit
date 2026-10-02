@@ -11,7 +11,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateIssueOption } from './CreateIssueOption';
 import type { Issue } from './Issue';
 
-export type IssueCreateIssuePathParams = {
+export type IssueCreateIssuePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,42 +25,134 @@ export type IssueCreateIssuePathParams = {
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssue201 = Issue;
+export type IssueCreateIssueStatus201Json = Issue;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssue403 = APIForbiddenError;
+export type IssueCreateIssueStatus201Html = Issue;
+
+export type IssueCreateIssueStatus201 = IssueCreateIssueStatus201Json | IssueCreateIssueStatus201Html;
+
+export type IssueCreateIssueStatus403Json = APIForbiddenError;
+
+export type IssueCreateIssueStatus403Html = APIForbiddenError;
+
+export type IssueCreateIssueStatus403 = IssueCreateIssueStatus403Json | IssueCreateIssueStatus403Html;
+
+export type IssueCreateIssueStatus404Json = APINotFound;
+
+export type IssueCreateIssueStatus404Html = APINotFound;
+
+export type IssueCreateIssueStatus404 = IssueCreateIssueStatus404Json | IssueCreateIssueStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssue404 = APINotFound;
+export type IssueCreateIssueStatus412Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssue412 = APIError;
+export type IssueCreateIssueStatus412Html = APIError;
+
+export type IssueCreateIssueStatus412 = IssueCreateIssueStatus412Json | IssueCreateIssueStatus412Html;
+
+export type IssueCreateIssueStatus422Json = APIValidationError;
+
+export type IssueCreateIssueStatus422Html = APIValidationError;
+
+export type IssueCreateIssueStatus422 = IssueCreateIssueStatus422Json | IssueCreateIssueStatus422Html;
+
+export type IssueCreateIssueStatus423Json = APIRepoArchivedError;
+
+export type IssueCreateIssueStatus423Html = APIRepoArchivedError;
+
+export type IssueCreateIssueStatus423 = IssueCreateIssueStatus423Json | IssueCreateIssueStatus423Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateIssueOption options to create one issue
+ * @type object | undefined
  */
-export type IssueCreateIssue422 = APIValidationError;
+export type IssueCreateIssueBody = CreateIssueOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type IssueCreateIssue423 = APIRepoArchivedError;
-
-export type IssueCreateIssueMutationRequest = CreateIssueOption;
-
-export type IssueCreateIssueMutationResponse = IssueCreateIssue201;
-
-export type IssueCreateIssueMutation = {
-  Response: IssueCreateIssue201;
-  Request: IssueCreateIssueMutationRequest;
-  PathParams: IssueCreateIssuePathParams;
-  Errors: IssueCreateIssue403 | IssueCreateIssue404 | IssueCreateIssue412 | IssueCreateIssue422 | IssueCreateIssue423;
+export type IssueCreateIssueOptions = {
+  body: IssueCreateIssueBody;
+  path: IssueCreateIssuePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateIssueResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus404Html;
+      };
+  '412':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus412Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus412Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateIssueResponse =
+  | IssueCreateIssueStatus201
+  | IssueCreateIssueStatus403
+  | IssueCreateIssueStatus404
+  | IssueCreateIssueStatus412
+  | IssueCreateIssueStatus422
+  | IssueCreateIssueStatus423;

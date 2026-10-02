@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListActivityFeedsQueryResponse, OrgListActivityFeeds404 } from '../types/OrgListActivityFeeds';
+import type { OrgListActivityFeedsResponse, OrgListActivityFeedsStatus404 } from '../types/OrgListActivityFeeds';
 import { http } from 'msw';
 
-export function orgListActivityFeedsHandlerResponse200(data: OrgListActivityFeedsQueryResponse) {
+export function orgListActivityFeedsHandlerResponse200(data: OrgListActivityFeedsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListActivityFeedsHandlerResponse200(data: OrgListActivityFeed
   });
 }
 
-export function orgListActivityFeedsHandlerResponse404(data: OrgListActivityFeeds404) {
+export function orgListActivityFeedsHandlerResponse404(data: OrgListActivityFeedsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListActivityFeedsHandlerResponse404(data: OrgListActivityFeed
 
 export function orgListActivityFeedsHandler(
   data?:
-    | OrgListActivityFeedsQueryResponse
+    | OrgListActivityFeedsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/activities/feeds`, function handler(info) {

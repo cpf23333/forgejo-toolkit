@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralUISettingsQueryResponse } from '../types/GetGeneralUISettings';
+import type { GetGeneralUISettingsResponse } from '../types/GetGeneralUISettings';
 import { http } from 'msw';
 
-export function getGeneralUISettingsHandlerResponse200(data: GetGeneralUISettingsQueryResponse) {
+export function getGeneralUISettingsHandlerResponse200(data: GetGeneralUISettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function getGeneralUISettingsHandlerResponse200(data: GetGeneralUISetting
 
 export function getGeneralUISettingsHandler(
   data?:
-    | GetGeneralUISettingsQueryResponse
+    | GetGeneralUISettingsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/ui`, function handler(info) {

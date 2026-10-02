@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { ChangedFile } from './ChangedFile';
 
-export type RepoGetPullRequestFilesPathParams = {
+export type RepoGetPullRequestFilesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,22 +19,24 @@ export type RepoGetPullRequestFilesPathParams = {
   repo: string;
   /**
    * @description index of the pull request to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export const repoGetPullRequestFilesQueryParamsWhitespaceEnum = {
+export const repoGetPullRequestFilesWhitespace = {
   'ignore-all': 'ignore-all',
   'ignore-change': 'ignore-change',
   'ignore-eol': 'ignore-eol',
   'show-all': 'show-all',
 } as const;
 
-export type RepoGetPullRequestFilesQueryParamsWhitespaceEnumKey =
-  (typeof repoGetPullRequestFilesQueryParamsWhitespaceEnum)[keyof typeof repoGetPullRequestFilesQueryParamsWhitespaceEnum];
+export type RepoGetPullRequestFilesWhitespaceKey =
+  (typeof repoGetPullRequestFilesWhitespace)[keyof typeof repoGetPullRequestFilesWhitespace];
 
-export type RepoGetPullRequestFilesQueryParams = {
+export type RepoGetPullRequestFilesQuery = {
   /**
    * @description skip to given file
    * @type string | undefined
@@ -44,7 +46,7 @@ export type RepoGetPullRequestFilesQueryParams = {
    * @description whitespace behavior
    * @type string | undefined
    */
-  whitespace?: RepoGetPullRequestFilesQueryParamsWhitespaceEnumKey;
+  whitespace?: RepoGetPullRequestFilesWhitespaceKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -57,21 +59,51 @@ export type RepoGetPullRequestFilesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ChangedFileListWithPagination
- */
-export type RepoGetPullRequestFiles200 = ChangedFile[];
+export type RepoGetPullRequestFilesStatus200Json = ChangedFile[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetPullRequestFiles404 = APINotFound;
+export type RepoGetPullRequestFilesStatus200Html = ChangedFile[];
 
-export type RepoGetPullRequestFilesQueryResponse = RepoGetPullRequestFiles200;
+export type RepoGetPullRequestFilesStatus200 =
+  | RepoGetPullRequestFilesStatus200Json
+  | RepoGetPullRequestFilesStatus200Html;
 
-export type RepoGetPullRequestFilesQuery = {
-  Response: RepoGetPullRequestFiles200;
-  PathParams: RepoGetPullRequestFilesPathParams;
-  QueryParams: RepoGetPullRequestFilesQueryParams;
-  Errors: RepoGetPullRequestFiles404;
+export type RepoGetPullRequestFilesStatus404Json = APINotFound;
+
+export type RepoGetPullRequestFilesStatus404Html = APINotFound;
+
+export type RepoGetPullRequestFilesStatus404 =
+  | RepoGetPullRequestFilesStatus404Json
+  | RepoGetPullRequestFilesStatus404Html;
+
+export type RepoGetPullRequestFilesOptions = {
+  body?: never;
+  path: RepoGetPullRequestFilesPath;
+  query?: RepoGetPullRequestFilesQuery;
+  headers?: never;
 };
+
+export type RepoGetPullRequestFilesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestFilesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestFilesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestFilesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestFilesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullRequestFilesResponse = RepoGetPullRequestFilesStatus200 | RepoGetPullRequestFilesStatus404;

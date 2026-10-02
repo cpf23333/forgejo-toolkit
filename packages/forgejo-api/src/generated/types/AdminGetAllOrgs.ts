@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { Organization } from './Organization';
 
-export type AdminGetAllOrgsQueryParams = {
+export type AdminGetAllOrgsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -19,20 +19,47 @@ export type AdminGetAllOrgsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description OrganizationList
- */
-export type AdminGetAllOrgs200 = Organization[];
+export type AdminGetAllOrgsStatus200Json = Organization[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminGetAllOrgs403 = APIForbiddenError;
+export type AdminGetAllOrgsStatus200Html = Organization[];
 
-export type AdminGetAllOrgsQueryResponse = AdminGetAllOrgs200;
+export type AdminGetAllOrgsStatus200 = AdminGetAllOrgsStatus200Json | AdminGetAllOrgsStatus200Html;
 
-export type AdminGetAllOrgsQuery = {
-  Response: AdminGetAllOrgs200;
-  QueryParams: AdminGetAllOrgsQueryParams;
-  Errors: AdminGetAllOrgs403;
+export type AdminGetAllOrgsStatus403Json = APIForbiddenError;
+
+export type AdminGetAllOrgsStatus403Html = APIForbiddenError;
+
+export type AdminGetAllOrgsStatus403 = AdminGetAllOrgsStatus403Json | AdminGetAllOrgsStatus403Html;
+
+export type AdminGetAllOrgsOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminGetAllOrgsQuery;
+  headers?: never;
 };
+
+export type AdminGetAllOrgsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetAllOrgsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetAllOrgsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetAllOrgsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetAllOrgsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetAllOrgsResponse = AdminGetAllOrgsStatus200 | AdminGetAllOrgsStatus403;

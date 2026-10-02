@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListTopicsQueryResponse, RepoListTopics404 } from '../types/RepoListTopics';
+import type { RepoListTopicsResponse, RepoListTopicsStatus404 } from '../types/RepoListTopics';
 import { http } from 'msw';
 
-export function repoListTopicsHandlerResponse200(data: RepoListTopicsQueryResponse) {
+export function repoListTopicsHandlerResponse200(data: RepoListTopicsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListTopicsHandlerResponse200(data: RepoListTopicsQueryRespon
   });
 }
 
-export function repoListTopicsHandlerResponse404(data: RepoListTopics404) {
+export function repoListTopicsHandlerResponse404(data: RepoListTopicsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListTopicsHandlerResponse404(data: RepoListTopics404) {
 
 export function repoListTopicsHandler(
   data?:
-    | RepoListTopicsQueryResponse
+    | RepoListTopicsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/topics`, function handler(info) {

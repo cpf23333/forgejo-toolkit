@@ -13,6 +13,7 @@ import type { User } from './User';
 
 /**
  * @description TimelineComment represents a timeline comment (comment of any type) on a commit or issue
+ * @type object
  */
 export type TimelineComment = {
   /**
@@ -25,12 +26,11 @@ export type TimelineComment = {
    * @type object | undefined
    */
   assignee_team?: Team;
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
@@ -38,17 +38,13 @@ export type TimelineComment = {
    * @type object | undefined
    */
   dependent_issue?: Issue;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   issue_url?: string;
   /**
    * @description Label a label to an issue or a pr
@@ -60,13 +56,7 @@ export type TimelineComment = {
    * @type object | undefined
    */
   milestone?: Milestone;
-  /**
-   * @type string | undefined
-   */
   new_ref?: string;
-  /**
-   * @type string | undefined
-   */
   new_title?: string;
   /**
    * @description Milestone milestone is a collection of issues on one repository
@@ -74,28 +64,20 @@ export type TimelineComment = {
    */
   old_milestone?: Milestone;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   old_project_id?: number;
-  /**
-   * @type string | undefined
-   */
   old_ref?: string;
-  /**
-   * @type string | undefined
-   */
   old_title?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   project_id?: number;
-  /**
-   * @type string | undefined
-   */
   pull_request_url?: string;
-  /**
-   * @type string | undefined
-   */
   ref_action?: string;
   /**
    * @description Comment represents a comment on a commit or issue
@@ -123,7 +105,9 @@ export type TimelineComment = {
    */
   resolve_doer?: User;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   review_id?: number;
   /**
@@ -131,12 +115,11 @@ export type TimelineComment = {
    * @type object | undefined
    */
   tracked_time?: TrackedTime;
-  /**
-   * @type string | undefined
-   */
   type?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
   /**

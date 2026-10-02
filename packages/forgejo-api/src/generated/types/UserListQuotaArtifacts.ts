@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { QuotaUsedArtifactList } from './QuotaUsedArtifactList';
 
-export type UserListQuotaArtifactsQueryParams = {
+export type UserListQuotaArtifactsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -21,24 +21,72 @@ export type UserListQuotaArtifactsQueryParams = {
 };
 
 /**
- * @description QuotaUsedArtifactList
+ * @description QuotaUsedArtifactList represents a list of artifacts counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaArtifacts200 = QuotaUsedArtifactList;
+export type UserListQuotaArtifactsStatus200Json = QuotaUsedArtifactList;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description QuotaUsedArtifactList represents a list of artifacts counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaArtifacts401 = APIUnauthorizedError;
+export type UserListQuotaArtifactsStatus200Html = QuotaUsedArtifactList;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListQuotaArtifacts403 = APIForbiddenError;
+export type UserListQuotaArtifactsStatus200 = UserListQuotaArtifactsStatus200Json | UserListQuotaArtifactsStatus200Html;
 
-export type UserListQuotaArtifactsQueryResponse = UserListQuotaArtifacts200;
+export type UserListQuotaArtifactsStatus401Json = APIUnauthorizedError;
 
-export type UserListQuotaArtifactsQuery = {
-  Response: UserListQuotaArtifacts200;
-  QueryParams: UserListQuotaArtifactsQueryParams;
-  Errors: UserListQuotaArtifacts401 | UserListQuotaArtifacts403;
+export type UserListQuotaArtifactsStatus401Html = APIUnauthorizedError;
+
+export type UserListQuotaArtifactsStatus401 = UserListQuotaArtifactsStatus401Json | UserListQuotaArtifactsStatus401Html;
+
+export type UserListQuotaArtifactsStatus403Json = APIForbiddenError;
+
+export type UserListQuotaArtifactsStatus403Html = APIForbiddenError;
+
+export type UserListQuotaArtifactsStatus403 = UserListQuotaArtifactsStatus403Json | UserListQuotaArtifactsStatus403Html;
+
+export type UserListQuotaArtifactsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListQuotaArtifactsQuery;
+  headers?: never;
 };
+
+export type UserListQuotaArtifactsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaArtifactsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaArtifactsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaArtifactsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaArtifactsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaArtifactsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaArtifactsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListQuotaArtifactsResponse =
+  | UserListQuotaArtifactsStatus200
+  | UserListQuotaArtifactsStatus401
+  | UserListQuotaArtifactsStatus403;

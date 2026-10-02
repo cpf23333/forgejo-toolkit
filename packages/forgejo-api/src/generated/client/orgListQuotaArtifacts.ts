@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListQuotaArtifactsQueryResponse,
-  OrgListQuotaArtifactsPathParams,
-  OrgListQuotaArtifactsQueryParams,
-  OrgListQuotaArtifacts403,
-  OrgListQuotaArtifacts404,
-} from '../types/OrgListQuotaArtifacts';
-
-function getOrgListQuotaArtifactsUrl(org: OrgListQuotaArtifactsPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/quota/artifacts` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListQuotaArtifactsOptions, OrgListQuotaArtifactsResponses } from '../types/OrgListQuotaArtifacts';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the artifacts affecting the organization's quota
  * {@link /orgs/:org/quota/artifacts}
  */
-export async function orgListQuotaArtifacts(
-  org: OrgListQuotaArtifactsPathParams['org'],
-  params?: OrgListQuotaArtifactsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListQuotaArtifacts<ThrowOnError extends boolean = true>(
+  options: Options<OrgListQuotaArtifactsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListQuotaArtifactsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    OrgListQuotaArtifactsQueryResponse,
-    ResponseErrorConfig<OrgListQuotaArtifacts403 | OrgListQuotaArtifacts404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getOrgListQuotaArtifactsUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/quota/artifacts',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListQuotaArtifactsResponses, ThrowOnError>>;
 }

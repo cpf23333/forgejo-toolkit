@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { User } from './User';
 
-export type UserCurrentListFollowingQueryParams = {
+export type UserCurrentListFollowingQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,71 @@ export type UserCurrentListFollowingQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type UserCurrentListFollowing200 = User[];
+export type UserCurrentListFollowingStatus200Json = User[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListFollowing401 = APIUnauthorizedError;
+export type UserCurrentListFollowingStatus200Html = User[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListFollowing403 = APIForbiddenError;
+export type UserCurrentListFollowingStatus200 =
+  | UserCurrentListFollowingStatus200Json
+  | UserCurrentListFollowingStatus200Html;
 
-export type UserCurrentListFollowingQueryResponse = UserCurrentListFollowing200;
+export type UserCurrentListFollowingStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListFollowingQuery = {
-  Response: UserCurrentListFollowing200;
-  QueryParams: UserCurrentListFollowingQueryParams;
-  Errors: UserCurrentListFollowing401 | UserCurrentListFollowing403;
+export type UserCurrentListFollowingStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListFollowingStatus401 =
+  | UserCurrentListFollowingStatus401Json
+  | UserCurrentListFollowingStatus401Html;
+
+export type UserCurrentListFollowingStatus403Json = APIForbiddenError;
+
+export type UserCurrentListFollowingStatus403Html = APIForbiddenError;
+
+export type UserCurrentListFollowingStatus403 =
+  | UserCurrentListFollowingStatus403Json
+  | UserCurrentListFollowingStatus403Html;
+
+export type UserCurrentListFollowingOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListFollowingQuery;
+  headers?: never;
 };
+
+export type UserCurrentListFollowingResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowingStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowingStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowingStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowingStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowingStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowingStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListFollowingResponse =
+  | UserCurrentListFollowingStatus200
+  | UserCurrentListFollowingStatus401
+  | UserCurrentListFollowingStatus403;

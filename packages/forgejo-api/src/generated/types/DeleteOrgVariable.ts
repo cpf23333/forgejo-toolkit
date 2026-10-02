@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteOrgVariablePathParams = {
+export type DeleteOrgVariablePath = {
   /**
    * @description name of the organization
    * @type string
@@ -19,25 +19,61 @@ export type DeleteOrgVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when deleting a variable
- */
-export type DeleteOrgVariable204 = any;
+export type DeleteOrgVariableStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgVariable400 = APIError;
+export type DeleteOrgVariableStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgVariable404 = APINotFound;
+export type DeleteOrgVariableStatus400Html = APIError;
 
-export type DeleteOrgVariableMutationResponse = DeleteOrgVariable204;
+export type DeleteOrgVariableStatus400 = DeleteOrgVariableStatus400Json | DeleteOrgVariableStatus400Html;
 
-export type DeleteOrgVariableMutation = {
-  Response: DeleteOrgVariable204;
-  PathParams: DeleteOrgVariablePathParams;
-  Errors: DeleteOrgVariable400 | DeleteOrgVariable404;
+export type DeleteOrgVariableStatus404Json = APINotFound;
+
+export type DeleteOrgVariableStatus404Html = APINotFound;
+
+export type DeleteOrgVariableStatus404 = DeleteOrgVariableStatus404Json | DeleteOrgVariableStatus404Html;
+
+export type DeleteOrgVariableOptions = {
+  body?: never;
+  path: DeleteOrgVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteOrgVariableResponses = {
+  '204': DeleteOrgVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteOrgVariableResponse =
+  | DeleteOrgVariableStatus204
+  | DeleteOrgVariableStatus400
+  | DeleteOrgVariableStatus404;

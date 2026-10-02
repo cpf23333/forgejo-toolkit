@@ -4,14 +4,14 @@
  */
 
 import type {
-  ListActionRunArtifactsQueryResponse,
-  ListActionRunArtifacts400,
-  ListActionRunArtifacts403,
-  ListActionRunArtifacts404,
+  ListActionRunArtifactsResponse,
+  ListActionRunArtifactsStatus400,
+  ListActionRunArtifactsStatus403,
+  ListActionRunArtifactsStatus404,
 } from '../types/ListActionRunArtifacts';
 import { http } from 'msw';
 
-export function listActionRunArtifactsHandlerResponse200(data: ListActionRunArtifactsQueryResponse) {
+export function listActionRunArtifactsHandlerResponse200(data: ListActionRunArtifactsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function listActionRunArtifactsHandlerResponse200(data: ListActionRunArti
   });
 }
 
-export function listActionRunArtifactsHandlerResponse400(data: ListActionRunArtifacts400) {
+export function listActionRunArtifactsHandlerResponse400(data: ListActionRunArtifactsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function listActionRunArtifactsHandlerResponse400(data: ListActionRunArti
   });
 }
 
-export function listActionRunArtifactsHandlerResponse403(data: ListActionRunArtifacts403) {
+export function listActionRunArtifactsHandlerResponse403(data: ListActionRunArtifactsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function listActionRunArtifactsHandlerResponse403(data: ListActionRunArti
   });
 }
 
-export function listActionRunArtifactsHandlerResponse404(data: ListActionRunArtifacts404) {
+export function listActionRunArtifactsHandlerResponse404(data: ListActionRunArtifactsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function listActionRunArtifactsHandlerResponse404(data: ListActionRunArti
 
 export function listActionRunArtifactsHandler(
   data?:
-    | ListActionRunArtifactsQueryResponse
+    | ListActionRunArtifactsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runs/:run_id/artifacts`, function handler(info) {

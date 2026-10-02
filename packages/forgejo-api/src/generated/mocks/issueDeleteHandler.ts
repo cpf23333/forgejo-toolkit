@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { IssueDeleteMutationResponse, IssueDelete403, IssueDelete404 } from '../types/IssueDelete';
+import type { IssueDeleteResponse, IssueDeleteStatus403, IssueDeleteStatus404 } from '../types/IssueDelete';
 import { http } from 'msw';
 
-export function issueDeleteHandlerResponse204(data?: IssueDeleteMutationResponse) {
+export function issueDeleteHandlerResponse204(data?: IssueDeleteResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteHandlerResponse403(data: IssueDelete403) {
+export function issueDeleteHandlerResponse403(data: IssueDeleteStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function issueDeleteHandlerResponse403(data: IssueDelete403) {
   });
 }
 
-export function issueDeleteHandlerResponse404(data: IssueDelete404) {
+export function issueDeleteHandlerResponse404(data: IssueDeleteStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

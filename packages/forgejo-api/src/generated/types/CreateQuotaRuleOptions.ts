@@ -5,11 +5,14 @@
 
 /**
  * @description CreateQuotaRuleOptions represents the options for creating a quota rule
+ * @type object
  */
 export type CreateQuotaRuleOptions = {
   /**
    * @description The limit set by the rule
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   limit?: number;
   /**

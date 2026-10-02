@@ -4,13 +4,15 @@
  */
 
 import type {
-  RepoCreatePullReviewCommentMutationResponse,
-  RepoCreatePullReviewComment404,
-  RepoCreatePullReviewComment422,
+  RepoCreatePullReviewCommentResponse,
+  RepoCreatePullReviewCommentStatus404,
+  RepoCreatePullReviewCommentStatus422,
+  RepoCreatePullReviewCommentBody,
 } from '../types/RepoCreatePullReviewComment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreatePullReviewCommentHandlerResponse200(data: RepoCreatePullReviewCommentMutationResponse) {
+export function repoCreatePullReviewCommentHandlerResponse200(data: RepoCreatePullReviewCommentResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function repoCreatePullReviewCommentHandlerResponse200(data: RepoCreatePu
   });
 }
 
-export function repoCreatePullReviewCommentHandlerResponse404(data: RepoCreatePullReviewComment404) {
+export function repoCreatePullReviewCommentHandlerResponse404(data: RepoCreatePullReviewCommentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,7 +30,7 @@ export function repoCreatePullReviewCommentHandlerResponse404(data: RepoCreatePu
   });
 }
 
-export function repoCreatePullReviewCommentHandlerResponse422(data: RepoCreatePullReviewComment422) {
+export function repoCreatePullReviewCommentHandlerResponse422(data: RepoCreatePullReviewCommentStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -39,17 +41,20 @@ export function repoCreatePullReviewCommentHandlerResponse422(data: RepoCreatePu
 
 export function repoCreatePullReviewCommentHandler(
   data?:
-    | RepoCreatePullReviewCommentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | RepoCreatePullReviewCommentResponse
+    | HttpResponseResolver<Record<string, string>, RepoCreatePullReviewCommentBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id/comments`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreatePullReviewCommentBody>(
+    `/repos/:owner/:repo/pulls/:index/reviews/:id/comments`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

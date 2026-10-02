@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentPostKeyMutationRequest,
-  UserCurrentPostKeyMutationResponse,
-  UserCurrentPostKey401,
-  UserCurrentPostKey403,
-  UserCurrentPostKey422,
-} from '../types/UserCurrentPostKey';
-
-function getUserCurrentPostKeyUrl() {
-  const res = { method: 'POST', url: `/user/keys` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentPostKeyOptions, UserCurrentPostKeyResponses } from '../types/UserCurrentPostKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a public key
  * {@link /user/keys}
  */
-export async function userCurrentPostKey(
-  data: UserCurrentPostKeyMutationRequest,
-  config: Partial<RequestConfig<UserCurrentPostKeyMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentPostKey<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentPostKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentPostKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserCurrentPostKeyMutationResponse,
-    ResponseErrorConfig<UserCurrentPostKey401 | UserCurrentPostKey403 | UserCurrentPostKey422>,
-    UserCurrentPostKeyMutationRequest
-  >({
-    method: 'POST',
-    url: getUserCurrentPostKeyUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/keys',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentPostKeyResponses, ThrowOnError>>;
 }

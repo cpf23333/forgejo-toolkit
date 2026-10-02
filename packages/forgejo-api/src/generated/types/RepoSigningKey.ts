@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-export type RepoSigningKeyPathParams = {
+export type RepoSigningKeyPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -16,15 +16,32 @@ export type RepoSigningKeyPathParams = {
   repo: string;
 };
 
-/**
- * @description GPG armored public key
- */
-export type RepoSigningKey200 = string;
+export type RepoSigningKeyStatus200Json = string;
 
-export type RepoSigningKeyQueryResponse = RepoSigningKey200;
+export type RepoSigningKeyStatus200Html = string;
 
-export type RepoSigningKeyQuery = {
-  Response: RepoSigningKey200;
-  PathParams: RepoSigningKeyPathParams;
-  Errors: any;
+export type RepoSigningKeyStatus200 = RepoSigningKeyStatus200Json | RepoSigningKeyStatus200Html;
+
+export type RepoSigningKeyOptions = {
+  body?: never;
+  path: RepoSigningKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSigningKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSigningKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSigningKeyStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSigningKeyResponse = RepoSigningKeyStatus200;

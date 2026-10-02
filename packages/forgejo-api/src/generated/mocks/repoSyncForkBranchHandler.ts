@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoSyncForkBranchMutationResponse,
-  RepoSyncForkBranch400,
-  RepoSyncForkBranch404,
+  RepoSyncForkBranchResponse,
+  RepoSyncForkBranchStatus400,
+  RepoSyncForkBranchStatus404,
 } from '../types/RepoSyncForkBranch';
 import { http } from 'msw';
 
-export function repoSyncForkBranchHandlerResponse204(data?: RepoSyncForkBranchMutationResponse) {
+export function repoSyncForkBranchHandlerResponse204(data?: RepoSyncForkBranchResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoSyncForkBranchHandlerResponse400(data: RepoSyncForkBranch400) {
+export function repoSyncForkBranchHandlerResponse400(data: RepoSyncForkBranchStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function repoSyncForkBranchHandlerResponse400(data: RepoSyncForkBranch400
   });
 }
 
-export function repoSyncForkBranchHandlerResponse404(data: RepoSyncForkBranch404) {
+export function repoSyncForkBranchHandlerResponse404(data: RepoSyncForkBranchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

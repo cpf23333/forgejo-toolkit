@@ -8,10 +8,13 @@ import type { User } from './User';
 
 /**
  * @description Package represents a package
+ * @type object
  */
 export type Package = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
@@ -19,17 +22,13 @@ export type Package = {
    * @type object | undefined
    */
   creator?: User;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
   /**
    * @description User represents a user
@@ -41,12 +40,6 @@ export type Package = {
    * @type object | undefined
    */
   repository?: Repository;
-  /**
-   * @type string | undefined
-   */
   type?: string;
-  /**
-   * @type string | undefined
-   */
   version?: string;
 };

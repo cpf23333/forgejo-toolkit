@@ -5,10 +5,8 @@
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
 export type RegistrationToken = {
-  /**
-   * @type string | undefined
-   */
   token?: string;
 };

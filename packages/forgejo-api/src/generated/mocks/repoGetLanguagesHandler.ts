@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetLanguagesQueryResponse, RepoGetLanguages404 } from '../types/RepoGetLanguages';
+import type { RepoGetLanguagesResponse, RepoGetLanguagesStatus404 } from '../types/RepoGetLanguages';
 import { http } from 'msw';
 
-export function repoGetLanguagesHandlerResponse200(data: RepoGetLanguagesQueryResponse) {
+export function repoGetLanguagesHandlerResponse200(data: RepoGetLanguagesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetLanguagesHandlerResponse200(data: RepoGetLanguagesQueryRe
   });
 }
 
-export function repoGetLanguagesHandlerResponse404(data: RepoGetLanguages404) {
+export function repoGetLanguagesHandlerResponse404(data: RepoGetLanguagesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetLanguagesHandlerResponse404(data: RepoGetLanguages404) {
 
 export function repoGetLanguagesHandler(
   data?:
-    | RepoGetLanguagesQueryResponse
+    | RepoGetLanguagesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/languages`, function handler(info) {

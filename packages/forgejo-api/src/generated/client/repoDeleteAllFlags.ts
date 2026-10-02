@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteAllFlagsMutationResponse,
-  RepoDeleteAllFlagsPathParams,
-  RepoDeleteAllFlags403,
-  RepoDeleteAllFlags404,
-} from '../types/RepoDeleteAllFlags';
-
-function getRepoDeleteAllFlagsUrl(
-  owner: RepoDeleteAllFlagsPathParams['owner'],
-  repo: RepoDeleteAllFlagsPathParams['repo'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/flags` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteAllFlagsOptions, RepoDeleteAllFlagsResponses } from '../types/RepoDeleteAllFlags';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove all flags from a repository
  * {@link /repos/:owner/:repo/flags}
  */
-export async function repoDeleteAllFlags(
-  owner: RepoDeleteAllFlagsPathParams['owner'],
-  repo: RepoDeleteAllFlagsPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteAllFlags<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteAllFlagsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteAllFlagsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteAllFlagsMutationResponse,
-    ResponseErrorConfig<RepoDeleteAllFlags403 | RepoDeleteAllFlags404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteAllFlagsUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/flags',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteAllFlagsResponses, ThrowOnError>>;
 }

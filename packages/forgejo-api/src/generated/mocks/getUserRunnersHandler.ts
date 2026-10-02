@@ -4,14 +4,14 @@
  */
 
 import type {
-  GetUserRunnersQueryResponse,
-  GetUserRunners400,
-  GetUserRunners401,
-  GetUserRunners404,
+  GetUserRunnersResponse,
+  GetUserRunnersStatus400,
+  GetUserRunnersStatus401,
+  GetUserRunnersStatus404,
 } from '../types/GetUserRunners';
 import { http } from 'msw';
 
-export function getUserRunnersHandlerResponse200(data: GetUserRunnersQueryResponse) {
+export function getUserRunnersHandlerResponse200(data: GetUserRunnersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function getUserRunnersHandlerResponse200(data: GetUserRunnersQueryRespon
   });
 }
 
-export function getUserRunnersHandlerResponse400(data: GetUserRunners400) {
+export function getUserRunnersHandlerResponse400(data: GetUserRunnersStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function getUserRunnersHandlerResponse400(data: GetUserRunners400) {
   });
 }
 
-export function getUserRunnersHandlerResponse401(data: GetUserRunners401) {
+export function getUserRunnersHandlerResponse401(data: GetUserRunnersStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +38,7 @@ export function getUserRunnersHandlerResponse401(data: GetUserRunners401) {
   });
 }
 
-export function getUserRunnersHandlerResponse404(data: GetUserRunners404) {
+export function getUserRunnersHandlerResponse404(data: GetUserRunnersStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function getUserRunnersHandlerResponse404(data: GetUserRunners404) {
 
 export function getUserRunnersHandler(
   data?:
-    | GetUserRunnersQueryResponse
+    | GetUserRunnersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/runners`, function handler(info) {

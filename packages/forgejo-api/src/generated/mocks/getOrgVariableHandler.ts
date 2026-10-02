@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetOrgVariableQueryResponse, GetOrgVariable400, GetOrgVariable404 } from '../types/GetOrgVariable';
+import type { GetOrgVariableResponse, GetOrgVariableStatus400, GetOrgVariableStatus404 } from '../types/GetOrgVariable';
 import { http } from 'msw';
 
-export function getOrgVariableHandlerResponse200(data: GetOrgVariableQueryResponse) {
+export function getOrgVariableHandlerResponse200(data: GetOrgVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getOrgVariableHandlerResponse200(data: GetOrgVariableQueryRespon
   });
 }
 
-export function getOrgVariableHandlerResponse400(data: GetOrgVariable400) {
+export function getOrgVariableHandlerResponse400(data: GetOrgVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function getOrgVariableHandlerResponse400(data: GetOrgVariable400) {
   });
 }
 
-export function getOrgVariableHandlerResponse404(data: GetOrgVariable404) {
+export function getOrgVariableHandlerResponse404(data: GetOrgVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function getOrgVariableHandlerResponse404(data: GetOrgVariable404) {
 
 export function getOrgVariableHandler(
   data?:
-    | GetOrgVariableQueryResponse
+    | GetOrgVariableResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/variables/:variablename`, function handler(info) {

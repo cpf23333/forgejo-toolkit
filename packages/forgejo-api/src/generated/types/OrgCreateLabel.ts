@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateLabelOption } from './CreateLabelOption';
 import type { Label } from './Label';
 
-export type OrgCreateLabelPathParams = {
+export type OrgCreateLabelPath = {
   /**
    * @description name of the organization
    * @type string
@@ -17,27 +17,75 @@ export type OrgCreateLabelPathParams = {
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgCreateLabel201 = Label;
+export type OrgCreateLabelStatus201Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgCreateLabel404 = APINotFound;
+export type OrgCreateLabelStatus201Html = Label;
+
+export type OrgCreateLabelStatus201 = OrgCreateLabelStatus201Json | OrgCreateLabelStatus201Html;
+
+export type OrgCreateLabelStatus404Json = APINotFound;
+
+export type OrgCreateLabelStatus404Html = APINotFound;
+
+export type OrgCreateLabelStatus404 = OrgCreateLabelStatus404Json | OrgCreateLabelStatus404Html;
+
+export type OrgCreateLabelStatus422Json = APIValidationError;
+
+export type OrgCreateLabelStatus422Html = APIValidationError;
+
+export type OrgCreateLabelStatus422 = OrgCreateLabelStatus422Json | OrgCreateLabelStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateLabelOption options for creating a label
+ * @type object | undefined
  */
-export type OrgCreateLabel422 = APIValidationError;
+export type OrgCreateLabelBody = CreateLabelOption | undefined;
 
-export type OrgCreateLabelMutationRequest = CreateLabelOption;
-
-export type OrgCreateLabelMutationResponse = OrgCreateLabel201;
-
-export type OrgCreateLabelMutation = {
-  Response: OrgCreateLabel201;
-  Request: OrgCreateLabelMutationRequest;
-  PathParams: OrgCreateLabelPathParams;
-  Errors: OrgCreateLabel404 | OrgCreateLabel422;
+export type OrgCreateLabelOptions = {
+  body: OrgCreateLabelBody;
+  path: OrgCreateLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgCreateLabelResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateLabelStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateLabelStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateLabelStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateLabelStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateLabelStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgCreateLabelResponse = OrgCreateLabelStatus201 | OrgCreateLabelStatus404 | OrgCreateLabelStatus422;

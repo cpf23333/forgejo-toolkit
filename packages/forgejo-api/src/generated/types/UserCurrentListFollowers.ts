@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { User } from './User';
 
-export type UserCurrentListFollowersQueryParams = {
+export type UserCurrentListFollowersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,71 @@ export type UserCurrentListFollowersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type UserCurrentListFollowers200 = User[];
+export type UserCurrentListFollowersStatus200Json = User[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListFollowers401 = APIUnauthorizedError;
+export type UserCurrentListFollowersStatus200Html = User[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListFollowers403 = APIForbiddenError;
+export type UserCurrentListFollowersStatus200 =
+  | UserCurrentListFollowersStatus200Json
+  | UserCurrentListFollowersStatus200Html;
 
-export type UserCurrentListFollowersQueryResponse = UserCurrentListFollowers200;
+export type UserCurrentListFollowersStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListFollowersQuery = {
-  Response: UserCurrentListFollowers200;
-  QueryParams: UserCurrentListFollowersQueryParams;
-  Errors: UserCurrentListFollowers401 | UserCurrentListFollowers403;
+export type UserCurrentListFollowersStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListFollowersStatus401 =
+  | UserCurrentListFollowersStatus401Json
+  | UserCurrentListFollowersStatus401Html;
+
+export type UserCurrentListFollowersStatus403Json = APIForbiddenError;
+
+export type UserCurrentListFollowersStatus403Html = APIForbiddenError;
+
+export type UserCurrentListFollowersStatus403 =
+  | UserCurrentListFollowersStatus403Json
+  | UserCurrentListFollowersStatus403Html;
+
+export type UserCurrentListFollowersOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListFollowersQuery;
+  headers?: never;
 };
+
+export type UserCurrentListFollowersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowersStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowersStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowersStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListFollowersStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListFollowersStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListFollowersResponse =
+  | UserCurrentListFollowersStatus200
+  | UserCurrentListFollowersStatus401
+  | UserCurrentListFollowersStatus403;

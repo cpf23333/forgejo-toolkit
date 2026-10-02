@@ -3,33 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RepoSigningKeyQueryResponse, RepoSigningKeyPathParams } from '../types/RepoSigningKey';
-
-function getRepoSigningKeyUrl(owner: RepoSigningKeyPathParams['owner'], repo: RepoSigningKeyPathParams['repo']) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/signing-key.gpg` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoSigningKeyOptions, RepoSigningKeyResponses } from '../types/RepoSigningKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get signing-key.gpg for given repository
  * {@link /repos/:owner/:repo/signing-key.gpg}
  */
-export async function repoSigningKey(
-  owner: RepoSigningKeyPathParams['owner'],
-  repo: RepoSigningKeyPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoSigningKey<ThrowOnError extends boolean = true>(
+  options: Options<RepoSigningKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoSigningKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoSigningKeyQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getRepoSigningKeyUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/signing-key.gpg',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoSigningKeyResponses, ThrowOnError>>;
 }

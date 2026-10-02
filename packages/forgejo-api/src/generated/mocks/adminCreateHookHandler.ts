@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { AdminCreateHookMutationResponse } from '../types/AdminCreateHook';
+import type { AdminCreateHookResponse, AdminCreateHookBody } from '../types/AdminCreateHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateHookHandlerResponse201(data: AdminCreateHookMutationResponse) {
+export function adminCreateHookHandlerResponse201(data: AdminCreateHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -16,11 +17,9 @@ export function adminCreateHookHandlerResponse201(data: AdminCreateHookMutationR
 }
 
 export function adminCreateHookHandler(
-  data?:
-    | AdminCreateHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateHookResponse | HttpResponseResolver<Record<string, string>, AdminCreateHookBody>,
 ) {
-  return http.post(`/admin/hooks`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateHookBody>(`/admin/hooks`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

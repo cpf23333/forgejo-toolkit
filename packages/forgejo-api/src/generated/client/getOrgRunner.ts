@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetOrgRunnerQueryResponse,
-  GetOrgRunnerPathParams,
-  GetOrgRunner400,
-  GetOrgRunner404,
-} from '../types/GetOrgRunner';
-
-function getGetOrgRunnerUrl(org: GetOrgRunnerPathParams['org'], runner_id: GetOrgRunnerPathParams['runner_id']) {
-  const res = {
-    method: 'GET',
-    url: `/orgs/${org}/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetOrgRunnerOptions, GetOrgRunnerResponses } from '../types/GetOrgRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a particular runner that belongs to the organization
  * {@link /orgs/:org/actions/runners/:runner_id}
  */
-export async function getOrgRunner(
-  org: GetOrgRunnerPathParams['org'],
-  runner_id: GetOrgRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getOrgRunner<ThrowOnError extends boolean = true>(
+  options: Options<GetOrgRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetOrgRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetOrgRunnerQueryResponse, ResponseErrorConfig<GetOrgRunner400 | GetOrgRunner404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getGetOrgRunnerUrl(org, runner_id).url.toString(),
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/orgs/{org}/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetOrgRunnerResponses, ThrowOnError>>;
 }

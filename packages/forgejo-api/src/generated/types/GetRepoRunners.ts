@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetRepoRunnersPathParams = {
+export type GetRepoRunnersPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,7 +20,7 @@ export type GetRepoRunnersPathParams = {
   repo: string;
 };
 
-export type GetRepoRunnersQueryParams = {
+export type GetRepoRunnersQuery = {
   /**
    * @description whether to include all visible runners (true) or only those that are directly owned by the repository (false)
    * @type boolean | undefined
@@ -38,26 +38,70 @@ export type GetRepoRunnersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionRunnerList is a list of Forgejo Action runners
- */
-export type GetRepoRunners200 = ActionRunner[];
+export type GetRepoRunnersStatus200Json = ActionRunner[];
+
+export type GetRepoRunnersStatus200Html = ActionRunner[];
+
+export type GetRepoRunnersStatus200 = GetRepoRunnersStatus200Json | GetRepoRunnersStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoRunners400 = APIError;
+export type GetRepoRunnersStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoRunners404 = APINotFound;
+export type GetRepoRunnersStatus400Html = APIError;
 
-export type GetRepoRunnersQueryResponse = GetRepoRunners200;
+export type GetRepoRunnersStatus400 = GetRepoRunnersStatus400Json | GetRepoRunnersStatus400Html;
 
-export type GetRepoRunnersQuery = {
-  Response: GetRepoRunners200;
-  PathParams: GetRepoRunnersPathParams;
-  QueryParams: GetRepoRunnersQueryParams;
-  Errors: GetRepoRunners400 | GetRepoRunners404;
+export type GetRepoRunnersStatus404Json = APINotFound;
+
+export type GetRepoRunnersStatus404Html = APINotFound;
+
+export type GetRepoRunnersStatus404 = GetRepoRunnersStatus404Json | GetRepoRunnersStatus404Html;
+
+export type GetRepoRunnersOptions = {
+  body?: never;
+  path: GetRepoRunnersPath;
+  query?: GetRepoRunnersQuery;
+  headers?: never;
 };
+
+export type GetRepoRunnersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnersStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnersStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnersStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetRepoRunnersResponse = GetRepoRunnersStatus200 | GetRepoRunnersStatus400 | GetRepoRunnersStatus404;

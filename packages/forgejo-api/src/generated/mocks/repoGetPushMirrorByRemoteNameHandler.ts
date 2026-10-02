@@ -4,14 +4,14 @@
  */
 
 import type {
-  RepoGetPushMirrorByRemoteNameQueryResponse,
-  RepoGetPushMirrorByRemoteName400,
-  RepoGetPushMirrorByRemoteName403,
-  RepoGetPushMirrorByRemoteName404,
+  RepoGetPushMirrorByRemoteNameResponse,
+  RepoGetPushMirrorByRemoteNameStatus400,
+  RepoGetPushMirrorByRemoteNameStatus403,
+  RepoGetPushMirrorByRemoteNameStatus404,
 } from '../types/RepoGetPushMirrorByRemoteName';
 import { http } from 'msw';
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse200(data: RepoGetPushMirrorByRemoteNameQueryResponse) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse200(data: RepoGetPushMirrorByRemoteNameResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function repoGetPushMirrorByRemoteNameHandlerResponse200(data: RepoGetPus
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse400(data: RepoGetPushMirrorByRemoteName400) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse400(data: RepoGetPushMirrorByRemoteNameStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetPushMirrorByRemoteNameHandlerResponse400(data: RepoGetPus
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse403(data: RepoGetPushMirrorByRemoteName403) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse403(data: RepoGetPushMirrorByRemoteNameStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function repoGetPushMirrorByRemoteNameHandlerResponse403(data: RepoGetPus
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse404(data: RepoGetPushMirrorByRemoteName404) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse404(data: RepoGetPushMirrorByRemoteNameStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function repoGetPushMirrorByRemoteNameHandlerResponse404(data: RepoGetPus
 
 export function repoGetPushMirrorByRemoteNameHandler(
   data?:
-    | RepoGetPushMirrorByRemoteNameQueryResponse
+    | RepoGetPushMirrorByRemoteNameResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/push_mirrors/:name`, function handler(info) {

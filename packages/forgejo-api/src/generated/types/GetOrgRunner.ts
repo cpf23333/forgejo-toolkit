@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetOrgRunnerPathParams = {
+export type GetOrgRunnerPath = {
   /**
    * @description name of the organization
    * @type string
@@ -22,23 +22,76 @@ export type GetOrgRunnerPathParams = {
 
 /**
  * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetOrgRunner200 = ActionRunner;
+export type GetOrgRunnerStatus200Json = ActionRunner;
 
 /**
- * @description APIError is error format response
+ * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetOrgRunner400 = APIError;
+export type GetOrgRunnerStatus200Html = ActionRunner;
+
+export type GetOrgRunnerStatus200 = GetOrgRunnerStatus200Json | GetOrgRunnerStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgRunner404 = APINotFound;
+export type GetOrgRunnerStatus400Json = APIError;
 
-export type GetOrgRunnerQueryResponse = GetOrgRunner200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetOrgRunnerStatus400Html = APIError;
 
-export type GetOrgRunnerQuery = {
-  Response: GetOrgRunner200;
-  PathParams: GetOrgRunnerPathParams;
-  Errors: GetOrgRunner400 | GetOrgRunner404;
+export type GetOrgRunnerStatus400 = GetOrgRunnerStatus400Json | GetOrgRunnerStatus400Html;
+
+export type GetOrgRunnerStatus404Json = APINotFound;
+
+export type GetOrgRunnerStatus404Html = APINotFound;
+
+export type GetOrgRunnerStatus404 = GetOrgRunnerStatus404Json | GetOrgRunnerStatus404Html;
+
+export type GetOrgRunnerOptions = {
+  body?: never;
+  path: GetOrgRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetOrgRunnerResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnerStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnerStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetOrgRunnerResponse = GetOrgRunnerStatus200 | GetOrgRunnerStatus400 | GetOrgRunnerStatus404;

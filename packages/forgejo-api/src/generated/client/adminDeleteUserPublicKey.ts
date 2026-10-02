@@ -3,45 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminDeleteUserPublicKeyMutationResponse,
-  AdminDeleteUserPublicKeyPathParams,
-  AdminDeleteUserPublicKey403,
-  AdminDeleteUserPublicKey404,
+  AdminDeleteUserPublicKeyOptions,
+  AdminDeleteUserPublicKeyResponses,
 } from '../types/AdminDeleteUserPublicKey';
-
-function getAdminDeleteUserPublicKeyUrl(
-  username: AdminDeleteUserPublicKeyPathParams['username'],
-  id: AdminDeleteUserPublicKeyPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/admin/users/${username}/keys/${id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a public key from user's account
  * {@link /admin/users/:username/keys/:id}
  */
-export async function adminDeleteUserPublicKey(
-  username: AdminDeleteUserPublicKeyPathParams['username'],
-  id: AdminDeleteUserPublicKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminDeleteUserPublicKey<ThrowOnError extends boolean = true>(
+  options: Options<AdminDeleteUserPublicKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminDeleteUserPublicKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminDeleteUserPublicKeyMutationResponse,
-    ResponseErrorConfig<AdminDeleteUserPublicKey403 | AdminDeleteUserPublicKey404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getAdminDeleteUserPublicKeyUrl(username, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/users/{username}/keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminDeleteUserPublicKeyResponses, ThrowOnError>>;
 }

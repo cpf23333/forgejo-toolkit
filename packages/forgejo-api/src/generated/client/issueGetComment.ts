@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueGetCommentQueryResponse,
-  IssueGetCommentPathParams,
-  IssueGetComment403,
-  IssueGetComment404,
-  IssueGetComment500,
-} from '../types/IssueGetComment';
-
-function getIssueGetCommentUrl(
-  owner: IssueGetCommentPathParams['owner'],
-  repo: IssueGetCommentPathParams['repo'],
-  id: IssueGetCommentPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueGetCommentOptions, IssueGetCommentResponses } from '../types/IssueGetComment';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a comment
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
-export async function issueGetComment(
-  owner: IssueGetCommentPathParams['owner'],
-  repo: IssueGetCommentPathParams['repo'],
-  id: IssueGetCommentPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetComment<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetCommentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetCommentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetCommentQueryResponse,
-    ResponseErrorConfig<IssueGetComment403 | IssueGetComment404 | IssueGetComment500>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetCommentUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetCommentResponses, ThrowOnError>>;
 }

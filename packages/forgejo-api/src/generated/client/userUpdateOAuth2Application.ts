@@ -3,51 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserUpdateOAuth2ApplicationMutationRequest,
-  UserUpdateOAuth2ApplicationMutationResponse,
-  UserUpdateOAuth2ApplicationPathParams,
-  UserUpdateOAuth2Application401,
-  UserUpdateOAuth2Application403,
-  UserUpdateOAuth2Application404,
+  UserUpdateOAuth2ApplicationOptions,
+  UserUpdateOAuth2ApplicationResponses,
 } from '../types/UserUpdateOAuth2Application';
-
-function getUserUpdateOAuth2ApplicationUrl(id: UserUpdateOAuth2ApplicationPathParams['id']) {
-  const res = {
-    method: 'PATCH',
-    url: `/user/applications/oauth2/${id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update an OAuth2 application, this includes regenerating the client secret
  * {@link /user/applications/oauth2/:id}
  */
-export async function userUpdateOAuth2Application(
-  id: UserUpdateOAuth2ApplicationPathParams['id'],
-  data: UserUpdateOAuth2ApplicationMutationRequest,
-  config: Partial<RequestConfig<UserUpdateOAuth2ApplicationMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userUpdateOAuth2Application<ThrowOnError extends boolean = true>(
+  options: Options<UserUpdateOAuth2ApplicationOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserUpdateOAuth2ApplicationResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserUpdateOAuth2ApplicationMutationResponse,
-    ResponseErrorConfig<
-      UserUpdateOAuth2Application401 | UserUpdateOAuth2Application403 | UserUpdateOAuth2Application404
-    >,
-    UserUpdateOAuth2ApplicationMutationRequest
-  >({
-    method: 'PATCH',
-    url: getUserUpdateOAuth2ApplicationUrl(id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/user/applications/oauth2/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserUpdateOAuth2ApplicationResponses, ThrowOnError>>;
 }

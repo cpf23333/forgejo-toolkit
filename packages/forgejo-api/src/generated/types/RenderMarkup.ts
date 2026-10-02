@@ -6,22 +6,53 @@
 import type { APIValidationError } from './APIValidationError';
 import type { MarkupOption } from './MarkupOption';
 
-/**
- * @description MarkupRender is a rendered markup document
- */
-export type RenderMarkup200 = string;
+export type RenderMarkupStatus200Json = string;
+
+export type RenderMarkupStatus200Html = string;
+
+export type RenderMarkupStatus200 = RenderMarkupStatus200Json | RenderMarkupStatus200Html;
+
+export type RenderMarkupStatus422Json = APIValidationError;
+
+export type RenderMarkupStatus422Html = APIValidationError;
+
+export type RenderMarkupStatus422 = RenderMarkupStatus422Json | RenderMarkupStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description MarkupOption markup options
+ * @type object | undefined
  */
-export type RenderMarkup422 = APIValidationError;
+export type RenderMarkupBody = MarkupOption | undefined;
 
-export type RenderMarkupMutationRequest = MarkupOption;
-
-export type RenderMarkupMutationResponse = RenderMarkup200;
-
-export type RenderMarkupMutation = {
-  Response: RenderMarkup200;
-  Request: RenderMarkupMutationRequest;
-  Errors: RenderMarkup422;
+export type RenderMarkupOptions = {
+  body: RenderMarkupBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type RenderMarkupResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RenderMarkupStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenderMarkupStatus200Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RenderMarkupStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenderMarkupStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RenderMarkupResponse = RenderMarkupStatus200 | RenderMarkupStatus422;

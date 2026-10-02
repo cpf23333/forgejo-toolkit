@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RegisterUserRunnerMutationRequest,
-  RegisterUserRunnerMutationResponse,
-  RegisterUserRunner400,
-  RegisterUserRunner401,
-  RegisterUserRunner404,
-} from '../types/RegisterUserRunner';
-
-function getRegisterUserRunnerUrl() {
-  const res = { method: 'POST', url: `/user/actions/runners` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RegisterUserRunnerOptions, RegisterUserRunnerResponses } from '../types/RegisterUserRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Register a new user-level runner
  * {@link /user/actions/runners}
  */
-export async function registerUserRunner(
-  data: RegisterUserRunnerMutationRequest,
-  config: Partial<RequestConfig<RegisterUserRunnerMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function registerUserRunner<ThrowOnError extends boolean = true>(
+  options: Options<RegisterUserRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RegisterUserRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RegisterUserRunnerMutationResponse,
-    ResponseErrorConfig<RegisterUserRunner400 | RegisterUserRunner401 | RegisterUserRunner404>,
-    RegisterUserRunnerMutationRequest
-  >({
-    method: 'POST',
-    url: getRegisterUserRunnerUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RegisterUserRunnerResponses, ThrowOnError>>;
 }

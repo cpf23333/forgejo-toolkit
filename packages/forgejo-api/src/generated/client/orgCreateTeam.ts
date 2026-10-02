@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgCreateTeamMutationRequest,
-  OrgCreateTeamMutationResponse,
-  OrgCreateTeamPathParams,
-  OrgCreateTeam404,
-  OrgCreateTeam422,
-} from '../types/OrgCreateTeam';
-
-function getOrgCreateTeamUrl(org: OrgCreateTeamPathParams['org']) {
-  const res = { method: 'POST', url: `/orgs/${org}/teams` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgCreateTeamOptions, OrgCreateTeamResponses } from '../types/OrgCreateTeam';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a team
  * {@link /orgs/:org/teams}
  */
-export async function orgCreateTeam(
-  org: OrgCreateTeamPathParams['org'],
-  data: OrgCreateTeamMutationRequest,
-  config: Partial<RequestConfig<OrgCreateTeamMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgCreateTeam<ThrowOnError extends boolean = true>(
+  options: Options<OrgCreateTeamOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgCreateTeamResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    OrgCreateTeamMutationResponse,
-    ResponseErrorConfig<OrgCreateTeam404 | OrgCreateTeam422>,
-    OrgCreateTeamMutationRequest
-  >({
-    method: 'POST',
-    url: getOrgCreateTeamUrl(org).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/teams',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgCreateTeamResponses, ThrowOnError>>;
 }

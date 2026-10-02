@@ -5,19 +5,47 @@
 
 import type { APINotFound } from './APINotFound';
 
-/**
- * @description SSH public key in OpenSSH authorized key format
- */
-export type GetSSHSigningKey200 = string;
+export type GetSSHSigningKeyStatus200Json = string;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type GetSSHSigningKey404 = APINotFound;
+export type GetSSHSigningKeyStatus200Html = string;
 
-export type GetSSHSigningKeyQueryResponse = GetSSHSigningKey200;
+export type GetSSHSigningKeyStatus200 = GetSSHSigningKeyStatus200Json | GetSSHSigningKeyStatus200Html;
 
-export type GetSSHSigningKeyQuery = {
-  Response: GetSSHSigningKey200;
-  Errors: GetSSHSigningKey404;
+export type GetSSHSigningKeyStatus404Json = APINotFound;
+
+export type GetSSHSigningKeyStatus404Html = APINotFound;
+
+export type GetSSHSigningKeyStatus404 = GetSSHSigningKeyStatus404Json | GetSSHSigningKeyStatus404Html;
+
+export type GetSSHSigningKeyOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetSSHSigningKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetSSHSigningKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetSSHSigningKeyStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetSSHSigningKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetSSHSigningKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetSSHSigningKeyResponse = GetSSHSigningKeyStatus200 | GetSSHSigningKeyStatus404;

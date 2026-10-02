@@ -3,55 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueAddTimeMutationRequest,
-  IssueAddTimeMutationResponse,
-  IssueAddTimePathParams,
-  IssueAddTime400,
-  IssueAddTime403,
-  IssueAddTime404,
-} from '../types/IssueAddTime';
-
-function getIssueAddTimeUrl(
-  owner: IssueAddTimePathParams['owner'],
-  repo: IssueAddTimePathParams['repo'],
-  index: IssueAddTimePathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueAddTimeOptions, IssueAddTimeResponses } from '../types/IssueAddTime';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add tracked time to a issue
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
-export async function issueAddTime(
-  owner: IssueAddTimePathParams['owner'],
-  repo: IssueAddTimePathParams['repo'],
-  index: IssueAddTimePathParams['index'],
-  data: IssueAddTimeMutationRequest,
-  config: Partial<RequestConfig<IssueAddTimeMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueAddTime<ThrowOnError extends boolean = true>(
+  options: Options<IssueAddTimeOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueAddTimeResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueAddTimeMutationResponse,
-    ResponseErrorConfig<IssueAddTime400 | IssueAddTime403 | IssueAddTime404>,
-    IssueAddTimeMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueAddTimeUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/times',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueAddTimeResponses, ThrowOnError>>;
 }

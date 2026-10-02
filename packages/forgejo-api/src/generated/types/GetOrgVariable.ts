@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionVariable } from './ActionVariable';
 
-export type GetOrgVariablePathParams = {
+export type GetOrgVariablePath = {
   /**
    * @description name of the organization
    * @type string
@@ -21,24 +21,77 @@ export type GetOrgVariablePathParams = {
 };
 
 /**
- * @description ActionVariable
+ * @description ActionVariable return value of the query API
+ * @type object
  */
-export type GetOrgVariable200 = ActionVariable;
+export type GetOrgVariableStatus200Json = ActionVariable;
 
 /**
- * @description APIError is error format response
+ * @description ActionVariable return value of the query API
+ * @type object
  */
-export type GetOrgVariable400 = APIError;
+export type GetOrgVariableStatus200Html = ActionVariable;
+
+export type GetOrgVariableStatus200 = GetOrgVariableStatus200Json | GetOrgVariableStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgVariable404 = APINotFound;
+export type GetOrgVariableStatus400Json = APIError;
 
-export type GetOrgVariableQueryResponse = GetOrgVariable200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetOrgVariableStatus400Html = APIError;
 
-export type GetOrgVariableQuery = {
-  Response: GetOrgVariable200;
-  PathParams: GetOrgVariablePathParams;
-  Errors: GetOrgVariable400 | GetOrgVariable404;
+export type GetOrgVariableStatus400 = GetOrgVariableStatus400Json | GetOrgVariableStatus400Html;
+
+export type GetOrgVariableStatus404Json = APINotFound;
+
+export type GetOrgVariableStatus404Html = APINotFound;
+
+export type GetOrgVariableStatus404 = GetOrgVariableStatus404Json | GetOrgVariableStatus404Html;
+
+export type GetOrgVariableOptions = {
+  body?: never;
+  path: GetOrgVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetOrgVariableResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariableStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariableStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetOrgVariableResponse = GetOrgVariableStatus200 | GetOrgVariableStatus400 | GetOrgVariableStatus404;

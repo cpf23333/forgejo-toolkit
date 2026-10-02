@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { QuotaGroup } from './QuotaGroup';
 
-export type AdminGetQuotaGroupPathParams = {
+export type AdminGetQuotaGroupPath = {
   /**
    * @description quota group to query
    * @type string
@@ -17,29 +17,96 @@ export type AdminGetQuotaGroupPathParams = {
 };
 
 /**
- * @description QuotaGroup
+ * @description QuotaGroup represents a quota group
+ * @type object
  */
-export type AdminGetQuotaGroup200 = QuotaGroup;
+export type AdminGetQuotaGroupStatus200Json = QuotaGroup;
 
 /**
- * @description APIError is error format response
+ * @description QuotaGroup represents a quota group
+ * @type object
  */
-export type AdminGetQuotaGroup400 = APIError;
+export type AdminGetQuotaGroupStatus200Html = QuotaGroup;
+
+export type AdminGetQuotaGroupStatus200 = AdminGetQuotaGroupStatus200Json | AdminGetQuotaGroupStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetQuotaGroup403 = APIForbiddenError;
+export type AdminGetQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetQuotaGroup404 = APINotFound;
+export type AdminGetQuotaGroupStatus400Html = APIError;
 
-export type AdminGetQuotaGroupQueryResponse = AdminGetQuotaGroup200;
+export type AdminGetQuotaGroupStatus400 = AdminGetQuotaGroupStatus400Json | AdminGetQuotaGroupStatus400Html;
 
-export type AdminGetQuotaGroupQuery = {
-  Response: AdminGetQuotaGroup200;
-  PathParams: AdminGetQuotaGroupPathParams;
-  Errors: AdminGetQuotaGroup400 | AdminGetQuotaGroup403 | AdminGetQuotaGroup404;
+export type AdminGetQuotaGroupStatus403Json = APIForbiddenError;
+
+export type AdminGetQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminGetQuotaGroupStatus403 = AdminGetQuotaGroupStatus403Json | AdminGetQuotaGroupStatus403Html;
+
+export type AdminGetQuotaGroupStatus404Json = APINotFound;
+
+export type AdminGetQuotaGroupStatus404Html = APINotFound;
+
+export type AdminGetQuotaGroupStatus404 = AdminGetQuotaGroupStatus404Json | AdminGetQuotaGroupStatus404Html;
+
+export type AdminGetQuotaGroupOptions = {
+  body?: never;
+  path: AdminGetQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminGetQuotaGroupResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaGroupStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaGroupStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaGroupStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetQuotaGroupResponse =
+  | AdminGetQuotaGroupStatus200
+  | AdminGetQuotaGroupStatus400
+  | AdminGetQuotaGroupStatus403
+  | AdminGetQuotaGroupStatus404;

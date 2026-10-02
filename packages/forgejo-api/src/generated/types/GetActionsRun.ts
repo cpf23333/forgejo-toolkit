@@ -6,13 +6,39 @@
 import type { ActionRun } from './ActionRun';
 
 /**
- * @description ActionRun
+ * @description ActionRun represents an action run
+ * @type object
  */
-export type GetActionsRun200 = ActionRun;
+export type GetActionsRunStatus200Json = ActionRun;
 
-export type GetActionsRunQueryResponse = GetActionsRun200;
+/**
+ * @description ActionRun represents an action run
+ * @type object
+ */
+export type GetActionsRunStatus200Html = ActionRun;
 
-export type GetActionsRunQuery = {
-  Response: GetActionsRun200;
-  Errors: any;
+export type GetActionsRunStatus200 = GetActionsRunStatus200Json | GetActionsRunStatus200Html;
+
+export type GetActionsRunOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetActionsRunResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetActionsRunStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetActionsRunStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetActionsRunResponse = GetActionsRunStatus200;

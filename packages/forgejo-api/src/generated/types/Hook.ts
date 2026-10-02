@@ -5,19 +5,11 @@
 
 /**
  * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
 export type Hook = {
-  /**
-   * @type boolean | undefined
-   */
   active?: boolean;
-  /**
-   * @type string | undefined
-   */
   authorization_header?: string;
-  /**
-   * @type string | undefined
-   */
   branch_filter?: string;
   /**
    * @description Deprecated: use Metadata instead
@@ -26,33 +18,27 @@ export type Hook = {
   config?: {
     [key: string]: string;
   };
-  /**
-   * @type string | undefined
-   */
   content_type?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type array | undefined
-   */
   events?: string[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  metadata?: any;
-  /**
-   * @type string | undefined
-   */
+  metadata?: unknown;
   type?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
 };

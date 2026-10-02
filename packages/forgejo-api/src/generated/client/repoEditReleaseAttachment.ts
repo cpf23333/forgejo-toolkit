@@ -3,56 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoEditReleaseAttachmentMutationRequest,
-  RepoEditReleaseAttachmentMutationResponse,
-  RepoEditReleaseAttachmentPathParams,
-  RepoEditReleaseAttachment404,
-  RepoEditReleaseAttachment413,
+  RepoEditReleaseAttachmentOptions,
+  RepoEditReleaseAttachmentResponses,
 } from '../types/RepoEditReleaseAttachment';
-
-function getRepoEditReleaseAttachmentUrl(
-  owner: RepoEditReleaseAttachmentPathParams['owner'],
-  repo: RepoEditReleaseAttachmentPathParams['repo'],
-  id: RepoEditReleaseAttachmentPathParams['id'],
-  attachment_id: RepoEditReleaseAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/releases/${id}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a release attachment
  * {@link /repos/:owner/:repo/releases/:id/assets/:attachment_id}
  */
-export async function repoEditReleaseAttachment(
-  owner: RepoEditReleaseAttachmentPathParams['owner'],
-  repo: RepoEditReleaseAttachmentPathParams['repo'],
-  id: RepoEditReleaseAttachmentPathParams['id'],
-  attachment_id: RepoEditReleaseAttachmentPathParams['attachment_id'],
-  data?: RepoEditReleaseAttachmentMutationRequest,
-  config: Partial<RequestConfig<RepoEditReleaseAttachmentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditReleaseAttachment<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditReleaseAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditReleaseAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditReleaseAttachmentMutationResponse,
-    ResponseErrorConfig<RepoEditReleaseAttachment404 | RepoEditReleaseAttachment413>,
-    RepoEditReleaseAttachmentMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditReleaseAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/releases/{id}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditReleaseAttachmentResponses, ThrowOnError>>;
 }

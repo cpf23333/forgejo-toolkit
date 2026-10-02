@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { NotifyGetRepoListQueryResponse } from '../types/NotifyGetRepoList';
+import type { NotifyGetRepoListResponse } from '../types/NotifyGetRepoList';
 import { http } from 'msw';
 
-export function notifyGetRepoListHandlerResponse200(data: NotifyGetRepoListQueryResponse) {
+export function notifyGetRepoListHandlerResponse200(data: NotifyGetRepoListResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function notifyGetRepoListHandlerResponse200(data: NotifyGetRepoListQuery
 
 export function notifyGetRepoListHandler(
   data?:
-    | NotifyGetRepoListQueryResponse
+    | NotifyGetRepoListResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/notifications`, function handler(info) {

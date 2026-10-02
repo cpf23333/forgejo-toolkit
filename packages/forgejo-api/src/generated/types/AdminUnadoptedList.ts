@@ -5,7 +5,7 @@
 
 import type { APIForbiddenError } from './APIForbiddenError';
 
-export type AdminUnadoptedListQueryParams = {
+export type AdminUnadoptedListQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -23,20 +23,47 @@ export type AdminUnadoptedListQueryParams = {
   pattern?: string;
 };
 
-/**
- * @description StringSlice
- */
-export type AdminUnadoptedList200 = string[];
+export type AdminUnadoptedListStatus200Json = string[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminUnadoptedList403 = APIForbiddenError;
+export type AdminUnadoptedListStatus200Html = string[];
 
-export type AdminUnadoptedListQueryResponse = AdminUnadoptedList200;
+export type AdminUnadoptedListStatus200 = AdminUnadoptedListStatus200Json | AdminUnadoptedListStatus200Html;
 
-export type AdminUnadoptedListQuery = {
-  Response: AdminUnadoptedList200;
-  QueryParams: AdminUnadoptedListQueryParams;
-  Errors: AdminUnadoptedList403;
+export type AdminUnadoptedListStatus403Json = APIForbiddenError;
+
+export type AdminUnadoptedListStatus403Html = APIForbiddenError;
+
+export type AdminUnadoptedListStatus403 = AdminUnadoptedListStatus403Json | AdminUnadoptedListStatus403Html;
+
+export type AdminUnadoptedListOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminUnadoptedListQuery;
+  headers?: never;
 };
+
+export type AdminUnadoptedListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminUnadoptedListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminUnadoptedListStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminUnadoptedListStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminUnadoptedListStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminUnadoptedListResponse = AdminUnadoptedListStatus200 | AdminUnadoptedListStatus403;

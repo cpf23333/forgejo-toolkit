@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserListQuotaAttachmentsQueryResponse,
-  UserListQuotaAttachments401,
-  UserListQuotaAttachments403,
+  UserListQuotaAttachmentsResponse,
+  UserListQuotaAttachmentsStatus401,
+  UserListQuotaAttachmentsStatus403,
 } from '../types/UserListQuotaAttachments';
 import { http } from 'msw';
 
-export function userListQuotaAttachmentsHandlerResponse200(data: UserListQuotaAttachmentsQueryResponse) {
+export function userListQuotaAttachmentsHandlerResponse200(data: UserListQuotaAttachmentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userListQuotaAttachmentsHandlerResponse200(data: UserListQuotaAt
   });
 }
 
-export function userListQuotaAttachmentsHandlerResponse401(data: UserListQuotaAttachments401) {
+export function userListQuotaAttachmentsHandlerResponse401(data: UserListQuotaAttachmentsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userListQuotaAttachmentsHandlerResponse401(data: UserListQuotaAt
   });
 }
 
-export function userListQuotaAttachmentsHandlerResponse403(data: UserListQuotaAttachments403) {
+export function userListQuotaAttachmentsHandlerResponse403(data: UserListQuotaAttachmentsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userListQuotaAttachmentsHandlerResponse403(data: UserListQuotaAt
 
 export function userListQuotaAttachmentsHandler(
   data?:
-    | UserListQuotaAttachmentsQueryResponse
+    | UserListQuotaAttachmentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota/attachments`, function handler(info) {

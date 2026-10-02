@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Repository } from './Repository';
 
-export type UserCurrentListStarredQueryParams = {
+export type UserCurrentListStarredQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,65 @@ export type UserCurrentListStarredQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type UserCurrentListStarred200 = Repository[];
+export type UserCurrentListStarredStatus200Json = Repository[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListStarred401 = APIUnauthorizedError;
+export type UserCurrentListStarredStatus200Html = Repository[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListStarred403 = APIForbiddenError;
+export type UserCurrentListStarredStatus200 = UserCurrentListStarredStatus200Json | UserCurrentListStarredStatus200Html;
 
-export type UserCurrentListStarredQueryResponse = UserCurrentListStarred200;
+export type UserCurrentListStarredStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListStarredQuery = {
-  Response: UserCurrentListStarred200;
-  QueryParams: UserCurrentListStarredQueryParams;
-  Errors: UserCurrentListStarred401 | UserCurrentListStarred403;
+export type UserCurrentListStarredStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListStarredStatus401 = UserCurrentListStarredStatus401Json | UserCurrentListStarredStatus401Html;
+
+export type UserCurrentListStarredStatus403Json = APIForbiddenError;
+
+export type UserCurrentListStarredStatus403Html = APIForbiddenError;
+
+export type UserCurrentListStarredStatus403 = UserCurrentListStarredStatus403Json | UserCurrentListStarredStatus403Html;
+
+export type UserCurrentListStarredOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListStarredQuery;
+  headers?: never;
 };
+
+export type UserCurrentListStarredResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListStarredStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListStarredStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListStarredStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListStarredStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListStarredStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListStarredStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListStarredResponse =
+  | UserCurrentListStarredStatus200
+  | UserCurrentListStarredStatus401
+  | UserCurrentListStarredStatus403;

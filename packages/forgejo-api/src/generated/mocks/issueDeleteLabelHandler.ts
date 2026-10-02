@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { IssueDeleteLabelMutationResponse, IssueDeleteLabel404 } from '../types/IssueDeleteLabel';
+import type { IssueDeleteLabelResponse, IssueDeleteLabelStatus404 } from '../types/IssueDeleteLabel';
 import { http } from 'msw';
 
-export function issueDeleteLabelHandlerResponse204(data?: IssueDeleteLabelMutationResponse) {
+export function issueDeleteLabelHandlerResponse204(data?: IssueDeleteLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteLabelHandlerResponse404(data: IssueDeleteLabel404) {
+export function issueDeleteLabelHandlerResponse404(data: IssueDeleteLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

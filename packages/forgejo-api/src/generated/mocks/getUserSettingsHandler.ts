@@ -3,10 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetUserSettingsQueryResponse, GetUserSettings401, GetUserSettings403 } from '../types/GetUserSettings';
+import type {
+  GetUserSettingsResponse,
+  GetUserSettingsStatus401,
+  GetUserSettingsStatus403,
+} from '../types/GetUserSettings';
 import { http } from 'msw';
 
-export function getUserSettingsHandlerResponse200(data: GetUserSettingsQueryResponse) {
+export function getUserSettingsHandlerResponse200(data: GetUserSettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +19,7 @@ export function getUserSettingsHandlerResponse200(data: GetUserSettingsQueryResp
   });
 }
 
-export function getUserSettingsHandlerResponse401(data: GetUserSettings401) {
+export function getUserSettingsHandlerResponse401(data: GetUserSettingsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +28,7 @@ export function getUserSettingsHandlerResponse401(data: GetUserSettings401) {
   });
 }
 
-export function getUserSettingsHandlerResponse403(data: GetUserSettings403) {
+export function getUserSettingsHandlerResponse403(data: GetUserSettingsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +39,7 @@ export function getUserSettingsHandlerResponse403(data: GetUserSettings403) {
 
 export function getUserSettingsHandler(
   data?:
-    | GetUserSettingsQueryResponse
+    | GetUserSettingsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/settings`, function handler(info) {

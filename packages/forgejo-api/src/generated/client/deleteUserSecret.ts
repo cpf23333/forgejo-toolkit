@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteUserSecretMutationResponse,
-  DeleteUserSecretPathParams,
-  DeleteUserSecret400,
-  DeleteUserSecret401,
-  DeleteUserSecret403,
-  DeleteUserSecret404,
-} from '../types/DeleteUserSecret';
-
-function getDeleteUserSecretUrl(secretname: DeleteUserSecretPathParams['secretname']) {
-  const res = {
-    method: 'DELETE',
-    url: `/user/actions/secrets/${secretname}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteUserSecretOptions, DeleteUserSecretResponses } from '../types/DeleteUserSecret';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a secret in a user scope
  * {@link /user/actions/secrets/:secretname}
  */
-export async function deleteUserSecret(
-  secretname: DeleteUserSecretPathParams['secretname'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteUserSecret<ThrowOnError extends boolean = true>(
+  options: Options<DeleteUserSecretOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteUserSecretResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteUserSecretMutationResponse,
-    ResponseErrorConfig<DeleteUserSecret400 | DeleteUserSecret401 | DeleteUserSecret403 | DeleteUserSecret404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteUserSecretUrl(secretname).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/actions/secrets/{secretname}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteUserSecretResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListForksQueryResponse, ListForks404 } from '../types/ListForks';
+import type { ListForksResponse, ListForksStatus404 } from '../types/ListForks';
 import { http } from 'msw';
 
-export function listForksHandlerResponse200(data: ListForksQueryResponse) {
+export function listForksHandlerResponse200(data: ListForksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function listForksHandlerResponse200(data: ListForksQueryResponse) {
   });
 }
 
-export function listForksHandlerResponse404(data: ListForks404) {
+export function listForksHandlerResponse404(data: ListForksStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function listForksHandlerResponse404(data: ListForks404) {
 }
 
 export function listForksHandler(
-  data?:
-    | ListForksQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: ListForksResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/forks`, function handler(info) {
     if (typeof data === 'function') return data(info);

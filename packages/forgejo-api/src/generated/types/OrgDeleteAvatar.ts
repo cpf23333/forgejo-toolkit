@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeleteAvatarPathParams = {
+export type OrgDeleteAvatarPath = {
   /**
    * @description name of the organization
    * @type string
@@ -13,20 +13,35 @@ export type OrgDeleteAvatarPathParams = {
   org: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgDeleteAvatar204 = any;
+export type OrgDeleteAvatarStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDeleteAvatar404 = APINotFound;
+export type OrgDeleteAvatarStatus404Json = APINotFound;
 
-export type OrgDeleteAvatarMutationResponse = OrgDeleteAvatar204;
+export type OrgDeleteAvatarStatus404Html = APINotFound;
 
-export type OrgDeleteAvatarMutation = {
-  Response: OrgDeleteAvatar204;
-  PathParams: OrgDeleteAvatarPathParams;
-  Errors: OrgDeleteAvatar404;
+export type OrgDeleteAvatarStatus404 = OrgDeleteAvatarStatus404Json | OrgDeleteAvatarStatus404Html;
+
+export type OrgDeleteAvatarOptions = {
+  body?: never;
+  path: OrgDeleteAvatarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteAvatarResponses = {
+  '204': OrgDeleteAvatarStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteAvatarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteAvatarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteAvatarResponse = OrgDeleteAvatarStatus204 | OrgDeleteAvatarStatus404;

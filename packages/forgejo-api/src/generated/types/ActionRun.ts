@@ -12,16 +12,21 @@ import type { User } from './User';
 
 /**
  * @description ActionRun represents an action run
+ * @type object
  */
 export type ActionRun = {
   /**
    * @description the cron id for the schedule trigger
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   ScheduleID?: number;
   /**
    * @description who approved this action run
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   approved_by?: number;
   /**
@@ -31,12 +36,16 @@ export type ActionRun = {
   commit_sha?: string;
   /**
    * @description when the action run was created
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
    * @description A Duration represents the elapsed time between two instants\nas an int64 nanosecond count. The representation limits the\nlargest representable duration to approximately 290 years.
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   duration?: Duration;
   /**
@@ -56,12 +65,16 @@ export type ActionRun = {
   html_url?: string;
   /**
    * @description the action run id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
    * @description a unique number for each run of a repository
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   index_in_repo?: number;
   /**
@@ -91,7 +104,9 @@ export type ActionRun = {
   repository?: Repository;
   /**
    * @description when the action run was started
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   started?: string;
   /**
@@ -101,7 +116,9 @@ export type ActionRun = {
   status?: string;
   /**
    * @description when the action run was stopped
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   stopped?: string;
   /**
@@ -121,7 +138,9 @@ export type ActionRun = {
   trigger_user?: User;
   /**
    * @description when the action run was last updated
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated?: string;
   /**
@@ -131,7 +150,7 @@ export type ActionRun = {
   workflow_id?: string;
 };
 
-export type ActionRunPathParams = {
+export type ActionRunPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -144,35 +163,100 @@ export type ActionRunPathParams = {
   repo: string;
   /**
    * @description id of the action run
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
 /**
- * @description ActionRun
+ * @description ActionRun represents an action run
+ * @type object
  */
-export type ActionRun200 = ActionRun;
+export type ActionRunStatus200Json = ActionRun;
 
 /**
- * @description APIError is error format response
+ * @description ActionRun represents an action run
+ * @type object
  */
-export type ActionRun400 = APIError;
+export type ActionRunStatus200Html = ActionRun;
+
+export type ActionRunStatus200 = ActionRunStatus200Json | ActionRunStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ActionRun403 = APIForbiddenError;
+export type ActionRunStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ActionRun404 = APINotFound;
+export type ActionRunStatus400Html = APIError;
 
-export type ActionRunQueryResponse = ActionRun200;
+export type ActionRunStatus400 = ActionRunStatus400Json | ActionRunStatus400Html;
 
-export type ActionRunQuery = {
-  Response: ActionRun200;
-  PathParams: ActionRunPathParams;
-  Errors: ActionRun400 | ActionRun403 | ActionRun404;
+export type ActionRunStatus403Json = APIForbiddenError;
+
+export type ActionRunStatus403Html = APIForbiddenError;
+
+export type ActionRunStatus403 = ActionRunStatus403Json | ActionRunStatus403Html;
+
+export type ActionRunStatus404Json = APINotFound;
+
+export type ActionRunStatus404Html = APINotFound;
+
+export type ActionRunStatus404 = ActionRunStatus404Json | ActionRunStatus404Html;
+
+export type ActionRunOptions = {
+  body?: never;
+  path: ActionRunPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActionRunResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActionRunStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActionRunStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ActionRunStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActionRunStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ActionRunStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActionRunStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ActionRunStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActionRunStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActionRunResponse = ActionRunStatus200 | ActionRunStatus400 | ActionRunStatus403 | ActionRunStatus404;

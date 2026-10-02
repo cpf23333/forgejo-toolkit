@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  TeamSearchQueryResponse,
-  TeamSearchPathParams,
-  TeamSearchQueryParams,
-  TeamSearch404,
-} from '../types/TeamSearch';
-
-function getTeamSearchUrl(org: TeamSearchPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/teams/search` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { TeamSearchOptions, TeamSearchResponses } from '../types/TeamSearch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for teams within an organization
  * {@link /orgs/:org/teams/search}
  */
-export async function teamSearch(
-  org: TeamSearchPathParams['org'],
-  params?: TeamSearchQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function teamSearch<ThrowOnError extends boolean = true>(
+  options: Options<TeamSearchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<TeamSearchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<TeamSearchQueryResponse, ResponseErrorConfig<TeamSearch404>, unknown>({
-    method: 'GET',
-    url: getTeamSearchUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/teams/search',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<TeamSearchResponses, ThrowOnError>>;
 }

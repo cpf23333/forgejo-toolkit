@@ -5,22 +5,19 @@
 
 /**
  * @description LabelTemplate info of a Label template
+ * @type object
  */
 export type LabelTemplate = {
   /**
+   * @example 00aabb
    * @type string | undefined
    */
   color?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
+   * @example false
    * @type boolean | undefined
    */
   exclusive?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
 };

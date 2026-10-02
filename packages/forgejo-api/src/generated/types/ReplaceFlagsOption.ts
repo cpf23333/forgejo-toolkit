@@ -5,10 +5,8 @@
 
 /**
  * @description ReplaceFlagsOption options when replacing the flags of a repository
+ * @type object
  */
 export type ReplaceFlagsOption = {
-  /**
-   * @type array | undefined
-   */
   flags?: string[];
 };

@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetUserRunnerQueryResponse,
-  GetUserRunnerPathParams,
-  GetUserRunner400,
-  GetUserRunner401,
-  GetUserRunner404,
-} from '../types/GetUserRunner';
-
-function getGetUserRunnerUrl(runner_id: GetUserRunnerPathParams['runner_id']) {
-  const res = {
-    method: 'GET',
-    url: `/user/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetUserRunnerOptions, GetUserRunnerResponses } from '../types/GetUserRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a particular runner that belongs to the user
  * {@link /user/actions/runners/:runner_id}
  */
-export async function getUserRunner(
-  runner_id: GetUserRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getUserRunner<ThrowOnError extends boolean = true>(
+  options: Options<GetUserRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetUserRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetUserRunnerQueryResponse,
-    ResponseErrorConfig<GetUserRunner400 | GetUserRunner401 | GetUserRunner404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetUserRunnerUrl(runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetUserRunnerResponses, ThrowOnError>>;
 }

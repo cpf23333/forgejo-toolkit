@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Secret } from './Secret';
 
-export type OrgListActionsSecretsPathParams = {
+export type OrgListActionsSecretsPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListActionsSecretsPathParams = {
   org: string;
 };
 
-export type OrgListActionsSecretsQueryParams = {
+export type OrgListActionsSecretsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListActionsSecretsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description SecretList
- */
-export type OrgListActionsSecrets200 = Secret[];
+export type OrgListActionsSecretsStatus200Json = Secret[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListActionsSecrets404 = APINotFound;
+export type OrgListActionsSecretsStatus200Html = Secret[];
 
-export type OrgListActionsSecretsQueryResponse = OrgListActionsSecrets200;
+export type OrgListActionsSecretsStatus200 = OrgListActionsSecretsStatus200Json | OrgListActionsSecretsStatus200Html;
 
-export type OrgListActionsSecretsQuery = {
-  Response: OrgListActionsSecrets200;
-  PathParams: OrgListActionsSecretsPathParams;
-  QueryParams: OrgListActionsSecretsQueryParams;
-  Errors: OrgListActionsSecrets404;
+export type OrgListActionsSecretsStatus404Json = APINotFound;
+
+export type OrgListActionsSecretsStatus404Html = APINotFound;
+
+export type OrgListActionsSecretsStatus404 = OrgListActionsSecretsStatus404Json | OrgListActionsSecretsStatus404Html;
+
+export type OrgListActionsSecretsOptions = {
+  body?: never;
+  path: OrgListActionsSecretsPath;
+  query?: OrgListActionsSecretsQuery;
+  headers?: never;
 };
+
+export type OrgListActionsSecretsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListActionsSecretsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListActionsSecretsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListActionsSecretsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListActionsSecretsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListActionsSecretsResponse = OrgListActionsSecretsStatus200 | OrgListActionsSecretsStatus404;

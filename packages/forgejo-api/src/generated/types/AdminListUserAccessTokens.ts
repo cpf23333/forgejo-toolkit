@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { AccessToken } from './AccessToken';
 
-export type AdminListUserAccessTokensPathParams = {
+export type AdminListUserAccessTokensPath = {
   /**
    * @description username of user
    * @type string
@@ -15,7 +15,7 @@ export type AdminListUserAccessTokensPathParams = {
   username: string;
 };
 
-export type AdminListUserAccessTokensQueryParams = {
+export type AdminListUserAccessTokensQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -28,26 +28,71 @@ export type AdminListUserAccessTokensQueryParams = {
   limit?: number;
 };
 
-/**
- * @description AccessTokenList
- */
-export type AdminListUserAccessTokens200 = AccessToken[];
+export type AdminListUserAccessTokensStatus200Json = AccessToken[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminListUserAccessTokens403 = APIForbiddenError;
+export type AdminListUserAccessTokensStatus200Html = AccessToken[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminListUserAccessTokens404 = APINotFound;
+export type AdminListUserAccessTokensStatus200 =
+  | AdminListUserAccessTokensStatus200Json
+  | AdminListUserAccessTokensStatus200Html;
 
-export type AdminListUserAccessTokensQueryResponse = AdminListUserAccessTokens200;
+export type AdminListUserAccessTokensStatus403Json = APIForbiddenError;
 
-export type AdminListUserAccessTokensQuery = {
-  Response: AdminListUserAccessTokens200;
-  PathParams: AdminListUserAccessTokensPathParams;
-  QueryParams: AdminListUserAccessTokensQueryParams;
-  Errors: AdminListUserAccessTokens403 | AdminListUserAccessTokens404;
+export type AdminListUserAccessTokensStatus403Html = APIForbiddenError;
+
+export type AdminListUserAccessTokensStatus403 =
+  | AdminListUserAccessTokensStatus403Json
+  | AdminListUserAccessTokensStatus403Html;
+
+export type AdminListUserAccessTokensStatus404Json = APINotFound;
+
+export type AdminListUserAccessTokensStatus404Html = APINotFound;
+
+export type AdminListUserAccessTokensStatus404 =
+  | AdminListUserAccessTokensStatus404Json
+  | AdminListUserAccessTokensStatus404Html;
+
+export type AdminListUserAccessTokensOptions = {
+  body?: never;
+  path: AdminListUserAccessTokensPath;
+  query?: AdminListUserAccessTokensQuery;
+  headers?: never;
 };
+
+export type AdminListUserAccessTokensResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserAccessTokensStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserAccessTokensStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserAccessTokensStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserAccessTokensStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminListUserAccessTokensStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUserAccessTokensStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListUserAccessTokensResponse =
+  | AdminListUserAccessTokensStatus200
+  | AdminListUserAccessTokensStatus403
+  | AdminListUserAccessTokensStatus404;

@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteBranchMutationResponse,
-  RepoDeleteBranchPathParams,
-  RepoDeleteBranch403,
-  RepoDeleteBranch404,
-  RepoDeleteBranch423,
-} from '../types/RepoDeleteBranch';
-
-function getRepoDeleteBranchUrl(
-  owner: RepoDeleteBranchPathParams['owner'],
-  repo: RepoDeleteBranchPathParams['repo'],
-  branch: RepoDeleteBranchPathParams['branch'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/branches/${branch}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteBranchOptions, RepoDeleteBranchResponses } from '../types/RepoDeleteBranch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a specific branch from a repository
  * {@link /repos/:owner/:repo/branches/:branch}
  */
-export async function repoDeleteBranch(
-  owner: RepoDeleteBranchPathParams['owner'],
-  repo: RepoDeleteBranchPathParams['repo'],
-  branch: RepoDeleteBranchPathParams['branch'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteBranch<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteBranchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteBranchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteBranchMutationResponse,
-    ResponseErrorConfig<RepoDeleteBranch403 | RepoDeleteBranch404 | RepoDeleteBranch423>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteBranchUrl(owner, repo, branch).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/branches/{branch}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteBranchResponses, ThrowOnError>>;
 }

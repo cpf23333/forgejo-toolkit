@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserListQuotaPackagesQueryResponse,
-  UserListQuotaPackages401,
-  UserListQuotaPackages403,
+  UserListQuotaPackagesResponse,
+  UserListQuotaPackagesStatus401,
+  UserListQuotaPackagesStatus403,
 } from '../types/UserListQuotaPackages';
 import { http } from 'msw';
 
-export function userListQuotaPackagesHandlerResponse200(data: UserListQuotaPackagesQueryResponse) {
+export function userListQuotaPackagesHandlerResponse200(data: UserListQuotaPackagesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userListQuotaPackagesHandlerResponse200(data: UserListQuotaPacka
   });
 }
 
-export function userListQuotaPackagesHandlerResponse401(data: UserListQuotaPackages401) {
+export function userListQuotaPackagesHandlerResponse401(data: UserListQuotaPackagesStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userListQuotaPackagesHandlerResponse401(data: UserListQuotaPacka
   });
 }
 
-export function userListQuotaPackagesHandlerResponse403(data: UserListQuotaPackages403) {
+export function userListQuotaPackagesHandlerResponse403(data: UserListQuotaPackagesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userListQuotaPackagesHandlerResponse403(data: UserListQuotaPacka
 
 export function userListQuotaPackagesHandler(
   data?:
-    | UserListQuotaPackagesQueryResponse
+    | UserListQuotaPackagesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota/packages`, function handler(info) {

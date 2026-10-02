@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { AccessToken } from './AccessToken';
 import type { CreateAccessTokenOption } from './CreateAccessTokenOption';
 
-export type AdminCreateUserAccessTokenPathParams = {
+export type AdminCreateUserAccessTokenPath = {
   /**
    * @description username of user
    * @type string
@@ -17,34 +17,103 @@ export type AdminCreateUserAccessTokenPathParams = {
   username: string;
 };
 
-/**
- * AccessToken represents an API access token.
- * @description AccessToken represents an API access token.
- */
-export type AdminCreateUserAccessToken201 = AccessToken;
+export type AdminCreateUserAccessTokenStatus201Json = AccessToken;
+
+export type AdminCreateUserAccessTokenStatus201Html = AccessToken;
+
+export type AdminCreateUserAccessTokenStatus201 =
+  | AdminCreateUserAccessTokenStatus201Json
+  | AdminCreateUserAccessTokenStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateUserAccessToken400 = APIError;
+export type AdminCreateUserAccessTokenStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateUserAccessToken403 = APIForbiddenError;
+export type AdminCreateUserAccessTokenStatus400Html = APIError;
+
+export type AdminCreateUserAccessTokenStatus400 =
+  | AdminCreateUserAccessTokenStatus400Json
+  | AdminCreateUserAccessTokenStatus400Html;
+
+export type AdminCreateUserAccessTokenStatus403Json = APIForbiddenError;
+
+export type AdminCreateUserAccessTokenStatus403Html = APIForbiddenError;
+
+export type AdminCreateUserAccessTokenStatus403 =
+  | AdminCreateUserAccessTokenStatus403Json
+  | AdminCreateUserAccessTokenStatus403Html;
+
+export type AdminCreateUserAccessTokenStatus404Json = APINotFound;
+
+export type AdminCreateUserAccessTokenStatus404Html = APINotFound;
+
+export type AdminCreateUserAccessTokenStatus404 =
+  | AdminCreateUserAccessTokenStatus404Json
+  | AdminCreateUserAccessTokenStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateAccessTokenOption options when create access token
+ * @type object | undefined
  */
-export type AdminCreateUserAccessToken404 = APINotFound;
+export type AdminCreateUserAccessTokenBody = CreateAccessTokenOption | undefined;
 
-export type AdminCreateUserAccessTokenMutationRequest = CreateAccessTokenOption;
-
-export type AdminCreateUserAccessTokenMutationResponse = AdminCreateUserAccessToken201;
-
-export type AdminCreateUserAccessTokenMutation = {
-  Response: AdminCreateUserAccessToken201;
-  Request: AdminCreateUserAccessTokenMutationRequest;
-  PathParams: AdminCreateUserAccessTokenPathParams;
-  Errors: AdminCreateUserAccessToken400 | AdminCreateUserAccessToken403 | AdminCreateUserAccessToken404;
+export type AdminCreateUserAccessTokenOptions = {
+  body: AdminCreateUserAccessTokenBody;
+  path: AdminCreateUserAccessTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateUserAccessTokenResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserAccessTokenStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserAccessTokenStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserAccessTokenStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserAccessTokenStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserAccessTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserAccessTokenStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserAccessTokenStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserAccessTokenStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateUserAccessTokenResponse =
+  | AdminCreateUserAccessTokenStatus201
+  | AdminCreateUserAccessTokenStatus400
+  | AdminCreateUserAccessTokenStatus403
+  | AdminCreateUserAccessTokenStatus404;

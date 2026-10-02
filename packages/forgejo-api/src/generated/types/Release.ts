@@ -9,6 +9,7 @@ import type { User } from './User';
 
 /**
  * @description Release represents a repository release
+ * @type object
  */
 export type Release = {
   /**
@@ -16,73 +17,40 @@ export type Release = {
    * @type object | undefined
    */
   archive_download_count?: TagArchiveDownloadCount;
-  /**
-   * @type array | undefined
-   */
   assets?: Attachment[];
   /**
    * @description User represents a user
    * @type object | undefined
    */
   author?: User;
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type boolean | undefined
-   */
   draft?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   hide_archive_links?: boolean;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type boolean | undefined
-   */
   prerelease?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   published_at?: string;
-  /**
-   * @type string | undefined
-   */
   tag_name?: string;
-  /**
-   * @type string | undefined
-   */
   tarball_url?: string;
-  /**
-   * @type string | undefined
-   */
   target_commitish?: string;
-  /**
-   * @type string | undefined
-   */
   upload_url?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
-  /**
-   * @type string | undefined
-   */
   zipball_url?: string;
 };

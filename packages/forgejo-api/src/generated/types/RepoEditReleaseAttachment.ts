@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { Attachment } from './Attachment';
 import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
-export type RepoEditReleaseAttachmentPathParams = {
+export type RepoEditReleaseAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,38 +20,85 @@ export type RepoEditReleaseAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the release
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the attachment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type RepoEditReleaseAttachment201 = Attachment;
+export type RepoEditReleaseAttachmentStatus201Json = Attachment;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type RepoEditReleaseAttachment404 = APINotFound;
+export type RepoEditReleaseAttachmentStatus201Html = Attachment;
+
+export type RepoEditReleaseAttachmentStatus201 =
+  | RepoEditReleaseAttachmentStatus201Json
+  | RepoEditReleaseAttachmentStatus201Html;
+
+export type RepoEditReleaseAttachmentStatus404Json = APINotFound;
+
+export type RepoEditReleaseAttachmentStatus404Html = APINotFound;
+
+export type RepoEditReleaseAttachmentStatus404 =
+  | RepoEditReleaseAttachmentStatus404Json
+  | RepoEditReleaseAttachmentStatus404Html;
+
+export type RepoEditReleaseAttachmentStatus413 = unknown;
 
 /**
- * @description QuotaExceeded
+ * @description EditAttachmentOptions options for editing attachments
+ * @type object | undefined
  */
-export type RepoEditReleaseAttachment413 = any;
+export type RepoEditReleaseAttachmentBody = EditAttachmentOptions | undefined;
 
-export type RepoEditReleaseAttachmentMutationRequest = EditAttachmentOptions;
-
-export type RepoEditReleaseAttachmentMutationResponse = RepoEditReleaseAttachment201;
-
-export type RepoEditReleaseAttachmentMutation = {
-  Response: RepoEditReleaseAttachment201;
-  Request: RepoEditReleaseAttachmentMutationRequest;
-  PathParams: RepoEditReleaseAttachmentPathParams;
-  Errors: RepoEditReleaseAttachment404 | RepoEditReleaseAttachment413;
+export type RepoEditReleaseAttachmentOptions = {
+  body: RepoEditReleaseAttachmentBody;
+  path: RepoEditReleaseAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditReleaseAttachmentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoEditReleaseAttachmentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditReleaseAttachmentStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditReleaseAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditReleaseAttachmentStatus404Html;
+      };
+  '413': RepoEditReleaseAttachmentStatus413;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditReleaseAttachmentResponse =
+  | RepoEditReleaseAttachmentStatus201
+  | RepoEditReleaseAttachmentStatus404
+  | RepoEditReleaseAttachmentStatus413;

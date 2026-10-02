@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetReleaseByTagQueryResponse,
-  RepoGetReleaseByTagPathParams,
-  RepoGetReleaseByTag404,
-} from '../types/RepoGetReleaseByTag';
-
-function getRepoGetReleaseByTagUrl(
-  owner: RepoGetReleaseByTagPathParams['owner'],
-  repo: RepoGetReleaseByTagPathParams['repo'],
-  tag: RepoGetReleaseByTagPathParams['tag'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/releases/tags/${tag}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetReleaseByTagOptions, RepoGetReleaseByTagResponses } from '../types/RepoGetReleaseByTag';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a release by tag name
  * {@link /repos/:owner/:repo/releases/tags/:tag}
  */
-export async function repoGetReleaseByTag(
-  owner: RepoGetReleaseByTagPathParams['owner'],
-  repo: RepoGetReleaseByTagPathParams['repo'],
-  tag: RepoGetReleaseByTagPathParams['tag'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetReleaseByTag<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetReleaseByTagOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetReleaseByTagResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetReleaseByTagQueryResponse, ResponseErrorConfig<RepoGetReleaseByTag404>, unknown>({
-    method: 'GET',
-    url: getRepoGetReleaseByTagUrl(owner, repo, tag).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/releases/tags/{tag}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetReleaseByTagResponses, ThrowOnError>>;
 }

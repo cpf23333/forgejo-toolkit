@@ -3,23 +3,30 @@
  * Do not edit manually.
  */
 
-export type AdminDeleteHookPathParams = {
+export type AdminDeleteHookPath = {
   /**
    * @description id of the hook to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteHook204 = any;
+export type AdminDeleteHookStatus204 = unknown;
 
-export type AdminDeleteHookMutationResponse = AdminDeleteHook204;
-
-export type AdminDeleteHookMutation = {
-  Response: AdminDeleteHook204;
-  PathParams: AdminDeleteHookPathParams;
-  Errors: any;
+export type AdminDeleteHookOptions = {
+  body?: never;
+  path: AdminDeleteHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteHookResponses = {
+  '204': AdminDeleteHookStatus204;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteHookResponse = AdminDeleteHookStatus204;

@@ -5,7 +5,7 @@
 
 import type { NotificationThread } from './NotificationThread';
 
-export type NotifyGetRepoListPathParams = {
+export type NotifyGetRepoListPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,16 +18,16 @@ export type NotifyGetRepoListPathParams = {
   repo: string;
 };
 
-export const notifyGetRepoListQueryParamsSubjectTypeEnum = {
+export const notifyGetRepoListSubjectTypeEnum = {
   issue: 'issue',
   pull: 'pull',
   repository: 'repository',
 } as const;
 
-export type NotifyGetRepoListQueryParamsSubjectTypeEnumKey =
-  (typeof notifyGetRepoListQueryParamsSubjectTypeEnum)[keyof typeof notifyGetRepoListQueryParamsSubjectTypeEnum];
+export type NotifyGetRepoListSubjectTypeEnumKey =
+  (typeof notifyGetRepoListSubjectTypeEnum)[keyof typeof notifyGetRepoListSubjectTypeEnum];
 
-export type NotifyGetRepoListQueryParams = {
+export type NotifyGetRepoListQuery = {
   /**
    * @description If true, show notifications marked as read. Default value is false
    * @type boolean | undefined
@@ -42,15 +42,19 @@ export type NotifyGetRepoListQueryParams = {
    * @description filter notifications by subject type
    * @type array | undefined
    */
-  'subject-type'?: NotifyGetRepoListQueryParamsSubjectTypeEnumKey[];
+  'subject-type'?: NotifyGetRepoListSubjectTypeEnumKey[];
   /**
    * @description Only show notifications updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show notifications updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -65,16 +69,32 @@ export type NotifyGetRepoListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description NotificationThreadList
- */
-export type NotifyGetRepoList200 = NotificationThread[];
+export type NotifyGetRepoListStatus200Json = NotificationThread[];
 
-export type NotifyGetRepoListQueryResponse = NotifyGetRepoList200;
+export type NotifyGetRepoListStatus200Html = NotificationThread[];
 
-export type NotifyGetRepoListQuery = {
-  Response: NotifyGetRepoList200;
-  PathParams: NotifyGetRepoListPathParams;
-  QueryParams: NotifyGetRepoListQueryParams;
-  Errors: any;
+export type NotifyGetRepoListStatus200 = NotifyGetRepoListStatus200Json | NotifyGetRepoListStatus200Html;
+
+export type NotifyGetRepoListOptions = {
+  body?: never;
+  path: NotifyGetRepoListPath;
+  query?: NotifyGetRepoListQuery;
+  headers?: never;
 };
+
+export type NotifyGetRepoListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: NotifyGetRepoListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyGetRepoListStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyGetRepoListResponse = NotifyGetRepoListStatus200;

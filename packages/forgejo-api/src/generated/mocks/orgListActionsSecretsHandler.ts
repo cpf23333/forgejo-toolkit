@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListActionsSecretsQueryResponse, OrgListActionsSecrets404 } from '../types/OrgListActionsSecrets';
+import type { OrgListActionsSecretsResponse, OrgListActionsSecretsStatus404 } from '../types/OrgListActionsSecrets';
 import { http } from 'msw';
 
-export function orgListActionsSecretsHandlerResponse200(data: OrgListActionsSecretsQueryResponse) {
+export function orgListActionsSecretsHandlerResponse200(data: OrgListActionsSecretsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListActionsSecretsHandlerResponse200(data: OrgListActionsSecr
   });
 }
 
-export function orgListActionsSecretsHandlerResponse404(data: OrgListActionsSecrets404) {
+export function orgListActionsSecretsHandlerResponse404(data: OrgListActionsSecretsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListActionsSecretsHandlerResponse404(data: OrgListActionsSecr
 
 export function orgListActionsSecretsHandler(
   data?:
-    | OrgListActionsSecretsQueryResponse
+    | OrgListActionsSecretsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/secrets`, function handler(info) {

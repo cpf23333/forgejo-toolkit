@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Hook } from './Hook';
 
-export type OrgListHooksPathParams = {
+export type OrgListHooksPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListHooksPathParams = {
   org: string;
 };
 
-export type OrgListHooksQueryParams = {
+export type OrgListHooksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListHooksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description HookListWithoutPagination - Hooks without pagination headers
- */
-export type OrgListHooks200 = Hook[];
+export type OrgListHooksStatus200Json = Hook[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListHooks404 = APINotFound;
+export type OrgListHooksStatus200Html = Hook[];
 
-export type OrgListHooksQueryResponse = OrgListHooks200;
+export type OrgListHooksStatus200 = OrgListHooksStatus200Json | OrgListHooksStatus200Html;
 
-export type OrgListHooksQuery = {
-  Response: OrgListHooks200;
-  PathParams: OrgListHooksPathParams;
-  QueryParams: OrgListHooksQueryParams;
-  Errors: OrgListHooks404;
+export type OrgListHooksStatus404Json = APINotFound;
+
+export type OrgListHooksStatus404Html = APINotFound;
+
+export type OrgListHooksStatus404 = OrgListHooksStatus404Json | OrgListHooksStatus404Html;
+
+export type OrgListHooksOptions = {
+  body?: never;
+  path: OrgListHooksPath;
+  query?: OrgListHooksQuery;
+  headers?: never;
 };
+
+export type OrgListHooksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListHooksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListHooksStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListHooksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListHooksStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListHooksResponse = OrgListHooksStatus200 | OrgListHooksStatus404;

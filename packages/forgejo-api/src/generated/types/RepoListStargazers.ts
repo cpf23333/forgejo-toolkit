@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type RepoListStargazersPathParams = {
+export type RepoListStargazersPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListStargazersPathParams = {
   repo: string;
 };
 
-export type RepoListStargazersQueryParams = {
+export type RepoListStargazersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListStargazersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type RepoListStargazers200 = User[];
+export type RepoListStargazersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListStargazers404 = APINotFound;
+export type RepoListStargazersStatus200Html = User[];
 
-export type RepoListStargazersQueryResponse = RepoListStargazers200;
+export type RepoListStargazersStatus200 = RepoListStargazersStatus200Json | RepoListStargazersStatus200Html;
 
-export type RepoListStargazersQuery = {
-  Response: RepoListStargazers200;
-  PathParams: RepoListStargazersPathParams;
-  QueryParams: RepoListStargazersQueryParams;
-  Errors: RepoListStargazers404;
+export type RepoListStargazersStatus404Json = APINotFound;
+
+export type RepoListStargazersStatus404Html = APINotFound;
+
+export type RepoListStargazersStatus404 = RepoListStargazersStatus404Json | RepoListStargazersStatus404Html;
+
+export type RepoListStargazersOptions = {
+  body?: never;
+  path: RepoListStargazersPath;
+  query?: RepoListStargazersQuery;
+  headers?: never;
 };
+
+export type RepoListStargazersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListStargazersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStargazersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListStargazersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStargazersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListStargazersResponse = RepoListStargazersStatus200 | RepoListStargazersStatus404;

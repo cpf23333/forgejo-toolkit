@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralAttachmentSettingsQueryResponse } from '../types/GetGeneralAttachmentSettings';
+import type { GetGeneralAttachmentSettingsResponse } from '../types/GetGeneralAttachmentSettings';
 import { http } from 'msw';
 
-export function getGeneralAttachmentSettingsHandlerResponse200(data: GetGeneralAttachmentSettingsQueryResponse) {
+export function getGeneralAttachmentSettingsHandlerResponse200(data: GetGeneralAttachmentSettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function getGeneralAttachmentSettingsHandlerResponse200(data: GetGeneralA
 
 export function getGeneralAttachmentSettingsHandler(
   data?:
-    | GetGeneralAttachmentSettingsQueryResponse
+    | GetGeneralAttachmentSettingsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/attachment`, function handler(info) {

@@ -23,6 +23,7 @@ export type CreateHookOptionTypeEnumKey = (typeof createHookOptionTypeEnum)[keyo
 
 /**
  * @description CreateHookOption options when create a hook
+ * @type object
  */
 export type CreateHookOption = {
   /**
@@ -30,25 +31,13 @@ export type CreateHookOption = {
    * @type boolean | undefined
    */
   active?: boolean;
-  /**
-   * @type string | undefined
-   */
   authorization_header?: string;
-  /**
-   * @type string | undefined
-   */
   branch_filter?: string;
   /**
    * @description CreateHookOptionConfig has all config options in it\nrequired are \"content_type\" and \"url\" Required
    * @type object
    */
   config: CreateHookOptionConfig;
-  /**
-   * @type array | undefined
-   */
   events?: string[];
-  /**
-   * @type string
-   */
   type: CreateHookOptionTypeEnumKey;
 };

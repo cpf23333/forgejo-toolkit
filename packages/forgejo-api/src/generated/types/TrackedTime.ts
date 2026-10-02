@@ -7,14 +7,19 @@ import type { Issue } from './Issue';
 
 /**
  * @description TrackedTime worked time for an issue / pr
+ * @type object
  */
 export type TrackedTime = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -24,21 +29,24 @@ export type TrackedTime = {
   issue?: Issue;
   /**
    * @description deprecated (only for backwards compatibility)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   issue_id?: number;
   /**
    * @description Time in seconds
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   time?: number;
   /**
    * @description deprecated (only for backwards compatibility)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   user_id?: number;
-  /**
-   * @type string | undefined
-   */
   user_name?: string;
 };

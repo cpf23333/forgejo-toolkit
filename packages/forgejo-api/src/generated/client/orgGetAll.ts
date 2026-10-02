@@ -3,30 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { OrgGetAllQueryResponse, OrgGetAllQueryParams } from '../types/OrgGetAll';
-
-function getOrgGetAllUrl() {
-  const res = { method: 'GET', url: `/orgs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgGetAllOptions, OrgGetAllResponses } from '../types/OrgGetAll';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all organizations
  * {@link /orgs}
  */
-export async function orgGetAll(
-  params?: OrgGetAllQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgGetAll<ThrowOnError extends boolean = true>(
+  options: Options<OrgGetAllOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<OrgGetAllResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgGetAllQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getOrgGetAllUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgGetAllResponses, ThrowOnError>>;
 }

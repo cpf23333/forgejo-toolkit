@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type RepoGetActionRunLogsPathParams = {
+export type RepoGetActionRunLogsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,88 @@ export type RepoGetActionRunLogsPathParams = {
   repo: string;
   /**
    * @description ID of the workflow run. The ZIP contains the latest attempt of each job in the run, with each entry named `{job-name}-{job-id}-attempt-{N}.log` (the job ID prevents collisions when two jobs share a name; the attempt number records which run the log came from). The run itself has no attempt number — jobs are re-run independently, so use the per-job logs endpoint with `?attempt` to fetch a specific historical attempt of one job.\n
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
-/**
- * @description ZIP archive of per-job log files
- */
-export type RepoGetActionRunLogs200 = Blob;
+export type RepoGetActionRunLogsStatus200Json = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type RepoGetActionRunLogs401 = APIUnauthorizedError;
+export type RepoGetActionRunLogsStatus200Html = Blob;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoGetActionRunLogs403 = APIForbiddenError;
+export type RepoGetActionRunLogsStatus200 = RepoGetActionRunLogsStatus200Json | RepoGetActionRunLogsStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetActionRunLogs404 = APINotFound;
+export type RepoGetActionRunLogsStatus401Json = APIUnauthorizedError;
 
-export type RepoGetActionRunLogsQueryResponse = RepoGetActionRunLogs200;
+export type RepoGetActionRunLogsStatus401Html = APIUnauthorizedError;
 
-export type RepoGetActionRunLogsQuery = {
-  Response: RepoGetActionRunLogs200;
-  PathParams: RepoGetActionRunLogsPathParams;
-  Errors: RepoGetActionRunLogs401 | RepoGetActionRunLogs403 | RepoGetActionRunLogs404;
+export type RepoGetActionRunLogsStatus401 = RepoGetActionRunLogsStatus401Json | RepoGetActionRunLogsStatus401Html;
+
+export type RepoGetActionRunLogsStatus403Json = APIForbiddenError;
+
+export type RepoGetActionRunLogsStatus403Html = APIForbiddenError;
+
+export type RepoGetActionRunLogsStatus403 = RepoGetActionRunLogsStatus403Json | RepoGetActionRunLogsStatus403Html;
+
+export type RepoGetActionRunLogsStatus404Json = APINotFound;
+
+export type RepoGetActionRunLogsStatus404Html = APINotFound;
+
+export type RepoGetActionRunLogsStatus404 = RepoGetActionRunLogsStatus404Json | RepoGetActionRunLogsStatus404Html;
+
+export type RepoGetActionRunLogsOptions = {
+  body?: never;
+  path: RepoGetActionRunLogsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetActionRunLogsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionRunLogsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionRunLogsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionRunLogsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionRunLogsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionRunLogsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionRunLogsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionRunLogsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionRunLogsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetActionRunLogsResponse =
+  | RepoGetActionRunLogsStatus200
+  | RepoGetActionRunLogsStatus401
+  | RepoGetActionRunLogsStatus403
+  | RepoGetActionRunLogsStatus404;

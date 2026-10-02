@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoAddTopicMutationResponse,
-  RepoAddTopicPathParams,
-  RepoAddTopic404,
-  RepoAddTopic422,
-} from '../types/RepoAddTopic';
-
-function getRepoAddTopicUrl(
-  owner: RepoAddTopicPathParams['owner'],
-  repo: RepoAddTopicPathParams['repo'],
-  topic: RepoAddTopicPathParams['topic'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/topics/${topic}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoAddTopicOptions, RepoAddTopicResponses } from '../types/RepoAddTopic';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a topic to a repository
  * {@link /repos/:owner/:repo/topics/:topic}
  */
-export async function repoAddTopic(
-  owner: RepoAddTopicPathParams['owner'],
-  repo: RepoAddTopicPathParams['repo'],
-  topic: RepoAddTopicPathParams['topic'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoAddTopic<ThrowOnError extends boolean = true>(
+  options: Options<RepoAddTopicOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoAddTopicResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoAddTopicMutationResponse,
-    ResponseErrorConfig<RepoAddTopic404 | RepoAddTopic422>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getRepoAddTopicUrl(owner, repo, topic).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/topics/{topic}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoAddTopicResponses, ThrowOnError>>;
 }

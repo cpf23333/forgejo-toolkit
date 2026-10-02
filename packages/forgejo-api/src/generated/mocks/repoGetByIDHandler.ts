@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetByIDQueryResponse, RepoGetByID404 } from '../types/RepoGetByID';
+import type { RepoGetByIDResponse, RepoGetByIDStatus404 } from '../types/RepoGetByID';
 import { http } from 'msw';
 
-export function repoGetByIDHandlerResponse200(data: RepoGetByIDQueryResponse) {
+export function repoGetByIDHandlerResponse200(data: RepoGetByIDResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetByIDHandlerResponse200(data: RepoGetByIDQueryResponse) {
   });
 }
 
-export function repoGetByIDHandlerResponse404(data: RepoGetByID404) {
+export function repoGetByIDHandlerResponse404(data: RepoGetByIDStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function repoGetByIDHandlerResponse404(data: RepoGetByID404) {
 }
 
 export function repoGetByIDHandler(
-  data?:
-    | RepoGetByIDQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoGetByIDResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repositories/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);

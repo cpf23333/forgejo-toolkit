@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteAdminRunnerPathParams = {
+export type DeleteAdminRunnerPath = {
   /**
    * @description ID of the runner
    * @type string
@@ -14,25 +14,61 @@ export type DeleteAdminRunnerPathParams = {
   runner_id: string;
 };
 
-/**
- * @description runner has been deleted
- */
-export type DeleteAdminRunner204 = any;
+export type DeleteAdminRunnerStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteAdminRunner400 = APIError;
+export type DeleteAdminRunnerStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteAdminRunner404 = APINotFound;
+export type DeleteAdminRunnerStatus400Html = APIError;
 
-export type DeleteAdminRunnerMutationResponse = DeleteAdminRunner204;
+export type DeleteAdminRunnerStatus400 = DeleteAdminRunnerStatus400Json | DeleteAdminRunnerStatus400Html;
 
-export type DeleteAdminRunnerMutation = {
-  Response: DeleteAdminRunner204;
-  PathParams: DeleteAdminRunnerPathParams;
-  Errors: DeleteAdminRunner400 | DeleteAdminRunner404;
+export type DeleteAdminRunnerStatus404Json = APINotFound;
+
+export type DeleteAdminRunnerStatus404Html = APINotFound;
+
+export type DeleteAdminRunnerStatus404 = DeleteAdminRunnerStatus404Json | DeleteAdminRunnerStatus404Html;
+
+export type DeleteAdminRunnerOptions = {
+  body?: never;
+  path: DeleteAdminRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteAdminRunnerResponses = {
+  '204': DeleteAdminRunnerStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteAdminRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteAdminRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteAdminRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteAdminRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteAdminRunnerResponse =
+  | DeleteAdminRunnerStatus204
+  | DeleteAdminRunnerStatus400
+  | DeleteAdminRunnerStatus404;

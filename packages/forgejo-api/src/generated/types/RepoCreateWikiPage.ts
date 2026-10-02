@@ -10,7 +10,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { CreateWikiPageOptions } from './CreateWikiPageOptions';
 import type { WikiPage } from './WikiPage';
 
-export type RepoCreateWikiPagePathParams = {
+export type RepoCreateWikiPagePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,47 +24,122 @@ export type RepoCreateWikiPagePathParams = {
 };
 
 /**
- * @description WikiPage
+ * @description WikiPage a wiki page
+ * @type object
  */
-export type RepoCreateWikiPage201 = WikiPage;
+export type RepoCreateWikiPageStatus201Json = WikiPage;
 
 /**
- * @description APIError is error format response
+ * @description WikiPage a wiki page
+ * @type object
  */
-export type RepoCreateWikiPage400 = APIError;
+export type RepoCreateWikiPageStatus201Html = WikiPage;
+
+export type RepoCreateWikiPageStatus201 = RepoCreateWikiPageStatus201Json | RepoCreateWikiPageStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateWikiPage403 = APIForbiddenError;
+export type RepoCreateWikiPageStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateWikiPage404 = APINotFound;
+export type RepoCreateWikiPageStatus400Html = APIError;
+
+export type RepoCreateWikiPageStatus400 = RepoCreateWikiPageStatus400Json | RepoCreateWikiPageStatus400Html;
+
+export type RepoCreateWikiPageStatus403Json = APIForbiddenError;
+
+export type RepoCreateWikiPageStatus403Html = APIForbiddenError;
+
+export type RepoCreateWikiPageStatus403 = RepoCreateWikiPageStatus403Json | RepoCreateWikiPageStatus403Html;
+
+export type RepoCreateWikiPageStatus404Json = APINotFound;
+
+export type RepoCreateWikiPageStatus404Html = APINotFound;
+
+export type RepoCreateWikiPageStatus404 = RepoCreateWikiPageStatus404Json | RepoCreateWikiPageStatus404Html;
+
+export type RepoCreateWikiPageStatus413 = unknown;
+
+export type RepoCreateWikiPageStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateWikiPageStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateWikiPageStatus423 = RepoCreateWikiPageStatus423Json | RepoCreateWikiPageStatus423Html;
 
 /**
- * @description QuotaExceeded
+ * @description CreateWikiPageOptions form for creating wiki
+ * @type object | undefined
  */
-export type RepoCreateWikiPage413 = any;
+export type RepoCreateWikiPageBody = CreateWikiPageOptions | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreateWikiPage423 = APIRepoArchivedError;
-
-export type RepoCreateWikiPageMutationRequest = CreateWikiPageOptions;
-
-export type RepoCreateWikiPageMutationResponse = RepoCreateWikiPage201;
-
-export type RepoCreateWikiPageMutation = {
-  Response: RepoCreateWikiPage201;
-  Request: RepoCreateWikiPageMutationRequest;
-  PathParams: RepoCreateWikiPagePathParams;
-  Errors:
-    | RepoCreateWikiPage400
-    | RepoCreateWikiPage403
-    | RepoCreateWikiPage404
-    | RepoCreateWikiPage413
-    | RepoCreateWikiPage423;
+export type RepoCreateWikiPageOptions = {
+  body: RepoCreateWikiPageBody;
+  path: RepoCreateWikiPagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateWikiPageResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateWikiPageStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateWikiPageStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateWikiPageStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateWikiPageStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateWikiPageStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateWikiPageStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateWikiPageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateWikiPageStatus404Html;
+      };
+  '413': RepoCreateWikiPageStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateWikiPageStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateWikiPageStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateWikiPageResponse =
+  | RepoCreateWikiPageStatus201
+  | RepoCreateWikiPageStatus400
+  | RepoCreateWikiPageStatus403
+  | RepoCreateWikiPageStatus404
+  | RepoCreateWikiPageStatus413
+  | RepoCreateWikiPageStatus423;

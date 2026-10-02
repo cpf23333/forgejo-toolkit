@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditQuotaRuleOptions } from './EditQuotaRuleOptions';
 import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
-export type AdminEditQuotaRulePathParams = {
+export type AdminEditQuotaRulePath = {
   /**
    * @description Quota rule to change
    * @type string
@@ -19,37 +19,126 @@ export type AdminEditQuotaRulePathParams = {
 };
 
 /**
- * @description QuotaRuleInfo
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminEditQuotaRule200 = QuotaRuleInfo;
+export type AdminEditQuotaRuleStatus200Json = QuotaRuleInfo;
 
 /**
- * @description APIError is error format response
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminEditQuotaRule400 = APIError;
+export type AdminEditQuotaRuleStatus200Html = QuotaRuleInfo;
+
+export type AdminEditQuotaRuleStatus200 = AdminEditQuotaRuleStatus200Json | AdminEditQuotaRuleStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminEditQuotaRule403 = APIForbiddenError;
+export type AdminEditQuotaRuleStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminEditQuotaRule404 = APINotFound;
+export type AdminEditQuotaRuleStatus400Html = APIError;
+
+export type AdminEditQuotaRuleStatus400 = AdminEditQuotaRuleStatus400Json | AdminEditQuotaRuleStatus400Html;
+
+export type AdminEditQuotaRuleStatus403Json = APIForbiddenError;
+
+export type AdminEditQuotaRuleStatus403Html = APIForbiddenError;
+
+export type AdminEditQuotaRuleStatus403 = AdminEditQuotaRuleStatus403Json | AdminEditQuotaRuleStatus403Html;
+
+export type AdminEditQuotaRuleStatus404Json = APINotFound;
+
+export type AdminEditQuotaRuleStatus404Html = APINotFound;
+
+export type AdminEditQuotaRuleStatus404 = AdminEditQuotaRuleStatus404Json | AdminEditQuotaRuleStatus404Html;
+
+export type AdminEditQuotaRuleStatus422Json = APIValidationError;
+
+export type AdminEditQuotaRuleStatus422Html = APIValidationError;
+
+export type AdminEditQuotaRuleStatus422 = AdminEditQuotaRuleStatus422Json | AdminEditQuotaRuleStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description EditQuotaRuleOptions represents the options for editing a quota rule
+ * @type object
  */
-export type AdminEditQuotaRule422 = APIValidationError;
+export type AdminEditQuotaRuleBodyJson = EditQuotaRuleOptions;
 
-export type AdminEditQuotaRuleMutationRequest = EditQuotaRuleOptions;
+/**
+ * @description EditQuotaRuleOptions represents the options for editing a quota rule
+ * @type object
+ */
+export type AdminEditQuotaRuleBodyPlain = EditQuotaRuleOptions;
 
-export type AdminEditQuotaRuleMutationResponse = AdminEditQuotaRule200;
+export type AdminEditQuotaRuleBody = AdminEditQuotaRuleBodyJson | AdminEditQuotaRuleBodyPlain;
 
-export type AdminEditQuotaRuleMutation = {
-  Response: AdminEditQuotaRule200;
-  Request: AdminEditQuotaRuleMutationRequest;
-  PathParams: AdminEditQuotaRulePathParams;
-  Errors: AdminEditQuotaRule400 | AdminEditQuotaRule403 | AdminEditQuotaRule404 | AdminEditQuotaRule422;
+export type AdminEditQuotaRuleOptions = {
+  body: AdminEditQuotaRuleBody;
+  path: AdminEditQuotaRulePath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminEditQuotaRuleResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminEditQuotaRuleStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditQuotaRuleStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminEditQuotaRuleStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditQuotaRuleStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminEditQuotaRuleStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditQuotaRuleStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminEditQuotaRuleStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditQuotaRuleStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminEditQuotaRuleStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditQuotaRuleStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminEditQuotaRuleResponse =
+  | AdminEditQuotaRuleStatus200
+  | AdminEditQuotaRuleStatus400
+  | AdminEditQuotaRuleStatus403
+  | AdminEditQuotaRuleStatus404
+  | AdminEditQuotaRuleStatus422;

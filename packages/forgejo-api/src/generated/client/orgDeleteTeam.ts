@@ -3,29 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { OrgDeleteTeamMutationResponse, OrgDeleteTeamPathParams, OrgDeleteTeam404 } from '../types/OrgDeleteTeam';
-
-function getOrgDeleteTeamUrl(id: OrgDeleteTeamPathParams['id']) {
-  const res = { method: 'DELETE', url: `/teams/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgDeleteTeamOptions, OrgDeleteTeamResponses } from '../types/OrgDeleteTeam';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a team
  * {@link /teams/:id}
  */
-export async function orgDeleteTeam(
-  id: OrgDeleteTeamPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgDeleteTeam<ThrowOnError extends boolean = true>(
+  options: Options<OrgDeleteTeamOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgDeleteTeamResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgDeleteTeamMutationResponse, ResponseErrorConfig<OrgDeleteTeam404>, unknown>({
-    method: 'DELETE',
-    url: getOrgDeleteTeamUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/teams/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgDeleteTeamResponses, ThrowOnError>>;
 }

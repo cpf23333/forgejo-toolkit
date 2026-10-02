@@ -5,14 +5,9 @@
 
 /**
  * @description GitignoreTemplateInfo name and text of a gitignore template
+ * @type object
  */
 export type GitignoreTemplateInfo = {
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   source?: string;
 };

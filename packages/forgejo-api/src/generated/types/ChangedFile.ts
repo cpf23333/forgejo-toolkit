@@ -5,42 +5,31 @@
 
 /**
  * @description ChangedFile store information about files affected by the pull request
+ * @type object
  */
 export type ChangedFile = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   additions?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   changes?: number;
-  /**
-   * @type string | undefined
-   */
   contents_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   deletions?: number;
-  /**
-   * @type string | undefined
-   */
   filename?: string;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type string | undefined
-   */
   previous_filename?: string;
-  /**
-   * @type string | undefined
-   */
   raw_url?: string;
-  /**
-   * @type string | undefined
-   */
   status?: string;
 };

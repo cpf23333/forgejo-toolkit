@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateReleaseOption } from './CreateReleaseOption';
 import type { Release } from './Release';
 
-export type RepoCreateReleasePathParams = {
+export type RepoCreateReleasePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,32 +23,102 @@ export type RepoCreateReleasePathParams = {
 };
 
 /**
- * @description Release
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoCreateRelease201 = Release;
+export type RepoCreateReleaseStatus201Json = Release;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoCreateRelease404 = APINotFound;
+export type RepoCreateReleaseStatus201Html = Release;
+
+export type RepoCreateReleaseStatus201 = RepoCreateReleaseStatus201Json | RepoCreateReleaseStatus201Html;
+
+export type RepoCreateReleaseStatus404Json = APINotFound;
+
+export type RepoCreateReleaseStatus404Html = APINotFound;
+
+export type RepoCreateReleaseStatus404 = RepoCreateReleaseStatus404Json | RepoCreateReleaseStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateRelease409 = APIError;
+export type RepoCreateReleaseStatus409Json = APIError;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateRelease422 = APIValidationError;
+export type RepoCreateReleaseStatus409Html = APIError;
 
-export type RepoCreateReleaseMutationRequest = CreateReleaseOption;
+export type RepoCreateReleaseStatus409 = RepoCreateReleaseStatus409Json | RepoCreateReleaseStatus409Html;
 
-export type RepoCreateReleaseMutationResponse = RepoCreateRelease201;
+export type RepoCreateReleaseStatus422Json = APIValidationError;
 
-export type RepoCreateReleaseMutation = {
-  Response: RepoCreateRelease201;
-  Request: RepoCreateReleaseMutationRequest;
-  PathParams: RepoCreateReleasePathParams;
-  Errors: RepoCreateRelease404 | RepoCreateRelease409 | RepoCreateRelease422;
+export type RepoCreateReleaseStatus422Html = APIValidationError;
+
+export type RepoCreateReleaseStatus422 = RepoCreateReleaseStatus422Json | RepoCreateReleaseStatus422Html;
+
+/**
+ * @description CreateReleaseOption options when creating a release
+ * @type object | undefined
+ */
+export type RepoCreateReleaseBody = CreateReleaseOption | undefined;
+
+export type RepoCreateReleaseOptions = {
+  body: RepoCreateReleaseBody;
+  path: RepoCreateReleasePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateReleaseResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseStatus409Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateReleaseStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateReleaseStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateReleaseResponse =
+  | RepoCreateReleaseStatus201
+  | RepoCreateReleaseStatus404
+  | RepoCreateReleaseStatus409
+  | RepoCreateReleaseStatus422;

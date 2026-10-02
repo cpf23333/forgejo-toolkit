@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentDeleteStarMutationResponse,
-  UserCurrentDeleteStarPathParams,
-  UserCurrentDeleteStar401,
-  UserCurrentDeleteStar403,
-  UserCurrentDeleteStar404,
-} from '../types/UserCurrentDeleteStar';
-
-function getUserCurrentDeleteStarUrl(
-  owner: UserCurrentDeleteStarPathParams['owner'],
-  repo: UserCurrentDeleteStarPathParams['repo'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/user/starred/${owner}/${repo}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentDeleteStarOptions, UserCurrentDeleteStarResponses } from '../types/UserCurrentDeleteStar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unstar the given repo
  * {@link /user/starred/:owner/:repo}
  */
-export async function userCurrentDeleteStar(
-  owner: UserCurrentDeleteStarPathParams['owner'],
-  repo: UserCurrentDeleteStarPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentDeleteStar<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentDeleteStarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentDeleteStarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentDeleteStarMutationResponse,
-    ResponseErrorConfig<UserCurrentDeleteStar401 | UserCurrentDeleteStar403 | UserCurrentDeleteStar404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserCurrentDeleteStarUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/starred/{owner}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentDeleteStarResponses, ThrowOnError>>;
 }

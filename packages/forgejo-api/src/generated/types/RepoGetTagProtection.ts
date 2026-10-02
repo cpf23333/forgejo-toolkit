@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { TagProtection } from './TagProtection';
 
-export type RepoGetTagProtectionPathParams = {
+export type RepoGetTagProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoGetTagProtectionPathParams = {
   repo: string;
   /**
    * @description id of the tag protect to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description TagProtection
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoGetTagProtection200 = TagProtection;
+export type RepoGetTagProtectionStatus200Json = TagProtection;
 
 /**
- * @description APINotFound is a not found error response
+ * @description TagProtection represents a tag protection
+ * @type object
  */
-export type RepoGetTagProtection404 = APINotFound;
+export type RepoGetTagProtectionStatus200Html = TagProtection;
 
-export type RepoGetTagProtectionQueryResponse = RepoGetTagProtection200;
+export type RepoGetTagProtectionStatus200 = RepoGetTagProtectionStatus200Json | RepoGetTagProtectionStatus200Html;
 
-export type RepoGetTagProtectionQuery = {
-  Response: RepoGetTagProtection200;
-  PathParams: RepoGetTagProtectionPathParams;
-  Errors: RepoGetTagProtection404;
+export type RepoGetTagProtectionStatus404Json = APINotFound;
+
+export type RepoGetTagProtectionStatus404Html = APINotFound;
+
+export type RepoGetTagProtectionStatus404 = RepoGetTagProtectionStatus404Json | RepoGetTagProtectionStatus404Html;
+
+export type RepoGetTagProtectionOptions = {
+  body?: never;
+  path: RepoGetTagProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetTagProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetTagProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetTagProtectionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetTagProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetTagProtectionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetTagProtectionResponse = RepoGetTagProtectionStatus200 | RepoGetTagProtectionStatus404;

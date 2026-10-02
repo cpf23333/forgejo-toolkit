@@ -3,19 +3,19 @@
  * Do not edit manually.
  */
 
-import type { GetSSHSigningKeyQueryResponse, GetSSHSigningKey404 } from '../types/GetSSHSigningKey';
+import type { GetSSHSigningKeyResponse, GetSSHSigningKeyStatus404 } from '../types/GetSSHSigningKey';
 import { http } from 'msw';
 
-export function getSSHSigningKeyHandlerResponse200(data: GetSSHSigningKeyQueryResponse) {
+export function getSSHSigningKeyHandlerResponse200(data: GetSSHSigningKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getSSHSigningKeyHandlerResponse404(data: GetSSHSigningKey404) {
+export function getSSHSigningKeyHandlerResponse404(data: GetSSHSigningKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function getSSHSigningKeyHandlerResponse404(data: GetSSHSigningKey404) {
 
 export function getSSHSigningKeyHandler(
   data?:
-    | GetSSHSigningKeyQueryResponse
+    | GetSSHSigningKeyResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/signing-key.ssh`, function handler(info) {
@@ -35,7 +35,7 @@ export function getSSHSigningKeyHandler(
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
     });
   });

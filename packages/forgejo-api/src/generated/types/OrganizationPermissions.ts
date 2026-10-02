@@ -5,26 +5,12 @@
 
 /**
  * @description OrganizationPermissions list different users permissions on an organization
+ * @type object
  */
 export type OrganizationPermissions = {
-  /**
-   * @type boolean | undefined
-   */
   can_create_repository?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   can_read?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   can_write?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   is_admin?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   is_owner?: boolean;
 };

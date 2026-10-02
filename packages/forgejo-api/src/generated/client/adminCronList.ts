@@ -3,30 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { AdminCronListQueryResponse, AdminCronListQueryParams, AdminCronList403 } from '../types/AdminCronList';
-
-function getAdminCronListUrl() {
-  const res = { method: 'GET', url: `/admin/cron` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminCronListOptions, AdminCronListResponses } from '../types/AdminCronList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List cron tasks
  * {@link /admin/cron}
  */
-export async function adminCronList(
-  params?: AdminCronListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminCronList<ThrowOnError extends boolean = true>(
+  options: Options<AdminCronListOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminCronListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminCronListQueryResponse, ResponseErrorConfig<AdminCronList403>, unknown>({
-    method: 'GET',
-    url: getAdminCronListUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/cron',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminCronListResponses, ThrowOnError>>;
 }

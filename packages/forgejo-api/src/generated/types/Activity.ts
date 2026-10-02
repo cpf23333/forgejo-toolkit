@@ -46,7 +46,9 @@ export type Activity = {
    */
   act_user?: User;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   act_user_id?: number;
   /**
@@ -55,33 +57,30 @@ export type Activity = {
    */
   comment?: Comment;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   comment_id?: number;
-  /**
-   * @type string | undefined
-   */
   content?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   is_private?: boolean;
   /**
    * @description the type of action
    * @type string | undefined
    */
   op_type?: ActivityOpTypeEnumKey;
-  /**
-   * @type string | undefined
-   */
   ref_name?: string;
   /**
    * @description Repository represents a repository
@@ -89,11 +88,15 @@ export type Activity = {
    */
   repo?: Repository;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_id?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   user_id?: number;
 };

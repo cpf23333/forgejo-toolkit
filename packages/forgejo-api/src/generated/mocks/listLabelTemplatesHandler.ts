@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListLabelTemplatesQueryResponse } from '../types/ListLabelTemplates';
+import type { ListLabelTemplatesResponse } from '../types/ListLabelTemplates';
 import { http } from 'msw';
 
-export function listLabelTemplatesHandlerResponse200(data: ListLabelTemplatesQueryResponse) {
+export function listLabelTemplatesHandlerResponse200(data: ListLabelTemplatesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function listLabelTemplatesHandlerResponse200(data: ListLabelTemplatesQue
 
 export function listLabelTemplatesHandler(
   data?:
-    | ListLabelTemplatesQueryResponse
+    | ListLabelTemplatesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/label/templates`, function handler(info) {

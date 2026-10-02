@@ -5,26 +5,22 @@
 
 /**
  * @description Email an email address belonging to a user
+ * @type object
  */
 export type Email = {
   /**
-   * @type string | undefined, email
-   */
-  email?: string;
-  /**
-   * @type boolean | undefined
-   */
-  primary?: boolean;
-  /**
-   * @type integer | undefined, int64
-   */
-  user_id?: number;
-  /**
+   * @description
+   * Format: `email`
    * @type string | undefined
    */
-  username?: string;
+  email?: string;
+  primary?: boolean;
   /**
-   * @type boolean | undefined
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
+  user_id?: number;
+  username?: string;
   verified?: boolean;
 };

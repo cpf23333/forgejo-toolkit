@@ -5,18 +5,10 @@
 
 /**
  * @description EditTagProtectionOption options for editing a tag protection
+ * @type object
  */
 export type EditTagProtectionOption = {
-  /**
-   * @type string | undefined
-   */
   name_pattern?: string;
-  /**
-   * @type array | undefined
-   */
   whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   whitelist_usernames?: string[];
 };

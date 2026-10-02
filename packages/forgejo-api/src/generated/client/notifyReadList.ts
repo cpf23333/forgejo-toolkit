@@ -3,30 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { NotifyReadListMutationResponse, NotifyReadListQueryParams } from '../types/NotifyReadList';
-
-function getNotifyReadListUrl() {
-  const res = { method: 'PUT', url: `/notifications` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { NotifyReadListOptions, NotifyReadListResponses } from '../types/NotifyReadList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Mark notification threads as read, pinned or unread
  * {@link /notifications}
  */
-export async function notifyReadList(
-  params?: NotifyReadListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function notifyReadList<ThrowOnError extends boolean = true>(
+  options: Options<NotifyReadListOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<NotifyReadListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<NotifyReadListMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'PUT',
-    url: getNotifyReadListUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/notifications',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      styles: { query: { 'status-types': { style: 'form', explode: true } } },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<NotifyReadListResponses, ThrowOnError>>;
 }

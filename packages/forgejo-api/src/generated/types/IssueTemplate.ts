@@ -8,38 +8,15 @@ import type { IssueTemplateLabels } from './IssueTemplateLabels';
 
 /**
  * @description IssueTemplate represents an issue template for a repository
+ * @type object
  */
 export type IssueTemplate = {
-  /**
-   * @type string | undefined
-   */
   about?: string;
-  /**
-   * @type array | undefined
-   */
   body?: IssueFormField[];
-  /**
-   * @type string | undefined
-   */
   content?: string;
-  /**
-   * @type string | undefined
-   */
   file_name?: string;
-  /**
-   * @type array | undefined
-   */
   labels?: IssueTemplateLabels;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

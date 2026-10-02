@@ -3,19 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoGetRawFileQueryResponse, RepoGetRawFile404 } from '../types/RepoGetRawFile';
+import type { RepoGetRawFileResponse, RepoGetRawFileStatus404 } from '../types/RepoGetRawFile';
 import { http } from 'msw';
 
-export function repoGetRawFileHandlerResponse200(data: RepoGetRawFileQueryResponse) {
+export function repoGetRawFileHandlerResponse200(data?: RepoGetRawFileResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-    },
   });
 }
 
-export function repoGetRawFileHandlerResponse404(data: RepoGetRawFile404) {
+export function repoGetRawFileHandlerResponse404(data: RepoGetRawFileStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +23,11 @@ export function repoGetRawFileHandlerResponse404(data: RepoGetRawFile404) {
 
 export function repoGetRawFileHandler(
   data?:
-    | RepoGetRawFileQueryResponse
+    | string
+    | number
+    | boolean
+    | null
+    | object
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/raw/:filepath`, function handler(info) {
@@ -34,9 +35,6 @@ export function repoGetRawFileHandler(
 
     return new Response(JSON.stringify(data), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
     });
   });
 }

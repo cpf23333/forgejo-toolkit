@@ -3,26 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetGeneralAPISettingsQueryResponse } from '../types/GetGeneralAPISettings';
-
-function getGetGeneralAPISettingsUrl() {
-  const res = { method: 'GET', url: `/settings/api` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetGeneralAPISettingsOptions, GetGeneralAPISettingsResponses } from '../types/GetGeneralAPISettings';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get instance's global settings for api
  * {@link /settings/api}
  */
-export async function getGeneralAPISettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getGeneralAPISettings<ThrowOnError extends boolean = true>(
+  options: Options<GetGeneralAPISettingsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetGeneralAPISettingsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetGeneralAPISettingsQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getGetGeneralAPISettingsUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/settings/api',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetGeneralAPISettingsResponses, ThrowOnError>>;
 }

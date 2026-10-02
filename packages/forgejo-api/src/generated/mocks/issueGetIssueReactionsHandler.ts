@@ -4,13 +4,13 @@
  */
 
 import type {
-  IssueGetIssueReactionsQueryResponse,
-  IssueGetIssueReactions403,
-  IssueGetIssueReactions404,
+  IssueGetIssueReactionsResponse,
+  IssueGetIssueReactionsStatus403,
+  IssueGetIssueReactionsStatus404,
 } from '../types/IssueGetIssueReactions';
 import { http } from 'msw';
 
-export function issueGetIssueReactionsHandlerResponse200(data: IssueGetIssueReactionsQueryResponse) {
+export function issueGetIssueReactionsHandlerResponse200(data: IssueGetIssueReactionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function issueGetIssueReactionsHandlerResponse200(data: IssueGetIssueReac
   });
 }
 
-export function issueGetIssueReactionsHandlerResponse403(data: IssueGetIssueReactions403) {
+export function issueGetIssueReactionsHandlerResponse403(data: IssueGetIssueReactionsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function issueGetIssueReactionsHandlerResponse403(data: IssueGetIssueReac
   });
 }
 
-export function issueGetIssueReactionsHandlerResponse404(data: IssueGetIssueReactions404) {
+export function issueGetIssueReactionsHandlerResponse404(data: IssueGetIssueReactionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function issueGetIssueReactionsHandlerResponse404(data: IssueGetIssueReac
 
 export function issueGetIssueReactionsHandler(
   data?:
-    | IssueGetIssueReactionsQueryResponse
+    | IssueGetIssueReactionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/reactions`, function handler(info) {

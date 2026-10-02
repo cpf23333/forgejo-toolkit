@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetContentsQueryResponse, RepoGetContents404 } from '../types/RepoGetContents';
+import type { RepoGetContentsResponse, RepoGetContentsStatus404 } from '../types/RepoGetContents';
 import { http } from 'msw';
 
-export function repoGetContentsHandlerResponse200(data: RepoGetContentsQueryResponse) {
+export function repoGetContentsHandlerResponse200(data: RepoGetContentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetContentsHandlerResponse200(data: RepoGetContentsQueryResp
   });
 }
 
-export function repoGetContentsHandlerResponse404(data: RepoGetContents404) {
+export function repoGetContentsHandlerResponse404(data: RepoGetContentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetContentsHandlerResponse404(data: RepoGetContents404) {
 
 export function repoGetContentsHandler(
   data?:
-    | RepoGetContentsQueryResponse
+    | RepoGetContentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/contents/:filepath`, function handler(info) {

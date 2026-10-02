@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueEditIssueDeadlineMutationRequest,
-  IssueEditIssueDeadlineMutationResponse,
-  IssueEditIssueDeadlinePathParams,
-  IssueEditIssueDeadline403,
-  IssueEditIssueDeadline404,
-} from '../types/IssueEditIssueDeadline';
-
-function getIssueEditIssueDeadlineUrl(
-  owner: IssueEditIssueDeadlinePathParams['owner'],
-  repo: IssueEditIssueDeadlinePathParams['repo'],
-  index: IssueEditIssueDeadlinePathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/deadline` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueEditIssueDeadlineOptions, IssueEditIssueDeadlineResponses } from '../types/IssueEditIssueDeadline';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Set an issue deadline. If set to null, the deadline is deleted. If using deadline only the date will be taken into account, and time of day ignored.
  * {@link /repos/:owner/:repo/issues/:index/deadline}
  */
-export async function issueEditIssueDeadline(
-  owner: IssueEditIssueDeadlinePathParams['owner'],
-  repo: IssueEditIssueDeadlinePathParams['repo'],
-  index: IssueEditIssueDeadlinePathParams['index'],
-  data: IssueEditIssueDeadlineMutationRequest,
-  config: Partial<RequestConfig<IssueEditIssueDeadlineMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditIssueDeadline<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditIssueDeadlineOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditIssueDeadlineResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditIssueDeadlineMutationResponse,
-    ResponseErrorConfig<IssueEditIssueDeadline403 | IssueEditIssueDeadline404>,
-    IssueEditIssueDeadlineMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueEditIssueDeadlineUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/deadline',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditIssueDeadlineResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { PublicKey } from './PublicKey';
 
-export type UserCurrentListKeysQueryParams = {
+export type UserCurrentListKeysQuery = {
   /**
    * @description fingerprint of the key
    * @type string | undefined
@@ -25,25 +25,65 @@ export type UserCurrentListKeysQueryParams = {
   limit?: number;
 };
 
-/**
- * @description PublicKeyList
- */
-export type UserCurrentListKeys200 = PublicKey[];
+export type UserCurrentListKeysStatus200Json = PublicKey[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListKeys401 = APIUnauthorizedError;
+export type UserCurrentListKeysStatus200Html = PublicKey[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListKeys403 = APIForbiddenError;
+export type UserCurrentListKeysStatus200 = UserCurrentListKeysStatus200Json | UserCurrentListKeysStatus200Html;
 
-export type UserCurrentListKeysQueryResponse = UserCurrentListKeys200;
+export type UserCurrentListKeysStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListKeysQuery = {
-  Response: UserCurrentListKeys200;
-  QueryParams: UserCurrentListKeysQueryParams;
-  Errors: UserCurrentListKeys401 | UserCurrentListKeys403;
+export type UserCurrentListKeysStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListKeysStatus401 = UserCurrentListKeysStatus401Json | UserCurrentListKeysStatus401Html;
+
+export type UserCurrentListKeysStatus403Json = APIForbiddenError;
+
+export type UserCurrentListKeysStatus403Html = APIForbiddenError;
+
+export type UserCurrentListKeysStatus403 = UserCurrentListKeysStatus403Json | UserCurrentListKeysStatus403Html;
+
+export type UserCurrentListKeysOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListKeysQuery;
+  headers?: never;
 };
+
+export type UserCurrentListKeysResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListKeysStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListKeysStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListKeysStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListKeysStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListKeysStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListKeysStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListKeysResponse =
+  | UserCurrentListKeysStatus200
+  | UserCurrentListKeysStatus401
+  | UserCurrentListKeysStatus403;

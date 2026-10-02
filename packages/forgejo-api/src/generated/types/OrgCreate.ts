@@ -9,26 +9,75 @@ import type { CreateOrgOption } from './CreateOrgOption';
 import type { Organization } from './Organization';
 
 /**
- * @description Organization
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgCreate201 = Organization;
+export type OrgCreateStatus201Json = Organization;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgCreate403 = APIForbiddenError;
+export type OrgCreateStatus201Html = Organization;
+
+export type OrgCreateStatus201 = OrgCreateStatus201Json | OrgCreateStatus201Html;
+
+export type OrgCreateStatus403Json = APIForbiddenError;
+
+export type OrgCreateStatus403Html = APIForbiddenError;
+
+export type OrgCreateStatus403 = OrgCreateStatus403Json | OrgCreateStatus403Html;
+
+export type OrgCreateStatus422Json = APIValidationError;
+
+export type OrgCreateStatus422Html = APIValidationError;
+
+export type OrgCreateStatus422 = OrgCreateStatus422Json | OrgCreateStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateOrgOption options for creating an organization
+ * @type object
  */
-export type OrgCreate422 = APIValidationError;
+export type OrgCreateBody = CreateOrgOption;
 
-export type OrgCreateMutationRequest = CreateOrgOption;
-
-export type OrgCreateMutationResponse = OrgCreate201;
-
-export type OrgCreateMutation = {
-  Response: OrgCreate201;
-  Request: OrgCreateMutationRequest;
-  Errors: OrgCreate403 | OrgCreate422;
+export type OrgCreateOptions = {
+  body: OrgCreateBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgCreateResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgCreateResponse = OrgCreateStatus201 | OrgCreateStatus403 | OrgCreateStatus422;

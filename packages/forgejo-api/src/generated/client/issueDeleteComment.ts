@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueDeleteCommentMutationResponse,
-  IssueDeleteCommentPathParams,
-  IssueDeleteComment403,
-  IssueDeleteComment500,
-} from '../types/IssueDeleteComment';
-
-function getIssueDeleteCommentUrl(
-  owner: IssueDeleteCommentPathParams['owner'],
-  repo: IssueDeleteCommentPathParams['repo'],
-  id: IssueDeleteCommentPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueDeleteCommentOptions, IssueDeleteCommentResponses } from '../types/IssueDeleteComment';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a comment
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
-export async function issueDeleteComment(
-  owner: IssueDeleteCommentPathParams['owner'],
-  repo: IssueDeleteCommentPathParams['repo'],
-  id: IssueDeleteCommentPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteComment<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteCommentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteCommentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueDeleteCommentMutationResponse,
-    ResponseErrorConfig<IssueDeleteComment403 | IssueDeleteComment500>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteCommentUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteCommentResponses, ThrowOnError>>;
 }

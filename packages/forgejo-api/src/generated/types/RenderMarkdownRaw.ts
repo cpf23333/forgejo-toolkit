@@ -5,25 +5,53 @@
 
 import type { APIValidationError } from './APIValidationError';
 
-/**
- * @description MarkdownRender is a rendered markdown document
- */
-export type RenderMarkdownRaw200 = string;
+export type RenderMarkdownRawStatus200Json = string;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RenderMarkdownRaw422 = APIValidationError;
+export type RenderMarkdownRawStatus200Html = string;
+
+export type RenderMarkdownRawStatus200 = RenderMarkdownRawStatus200Json | RenderMarkdownRawStatus200Html;
+
+export type RenderMarkdownRawStatus422Json = APIValidationError;
+
+export type RenderMarkdownRawStatus422Html = APIValidationError;
+
+export type RenderMarkdownRawStatus422 = RenderMarkdownRawStatus422Json | RenderMarkdownRawStatus422Html;
 
 /**
  * @description Request body to render
+ * @type string
  */
-export type RenderMarkdownRawMutationRequest = string;
+export type RenderMarkdownRawBody = string;
 
-export type RenderMarkdownRawMutationResponse = RenderMarkdownRaw200;
-
-export type RenderMarkdownRawMutation = {
-  Response: RenderMarkdownRaw200;
-  Request: RenderMarkdownRawMutationRequest;
-  Errors: RenderMarkdownRaw422;
+export type RenderMarkdownRawOptions = {
+  body: RenderMarkdownRawBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type RenderMarkdownRawResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RenderMarkdownRawStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenderMarkdownRawStatus200Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RenderMarkdownRawStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RenderMarkdownRawStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RenderMarkdownRawResponse = RenderMarkdownRawStatus200 | RenderMarkdownRawStatus422;

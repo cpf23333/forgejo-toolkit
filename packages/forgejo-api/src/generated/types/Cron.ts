@@ -5,26 +5,27 @@
 
 /**
  * @description Cron represents a Cron task
+ * @type object
  */
 export type Cron = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   exec_times?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   next?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  prev?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  prev?: string;
   schedule?: string;
 };

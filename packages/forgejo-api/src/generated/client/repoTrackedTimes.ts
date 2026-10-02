@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoTrackedTimesQueryResponse,
-  RepoTrackedTimesPathParams,
-  RepoTrackedTimesQueryParams,
-  RepoTrackedTimes400,
-  RepoTrackedTimes403,
-  RepoTrackedTimes404,
-  RepoTrackedTimes422,
-} from '../types/RepoTrackedTimes';
-
-function getRepoTrackedTimesUrl(owner: RepoTrackedTimesPathParams['owner'], repo: RepoTrackedTimesPathParams['repo']) {
-  const res = { method: 'GET', url: `/repos/${owner}/${repo}/times` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoTrackedTimesOptions, RepoTrackedTimesResponses } from '../types/RepoTrackedTimes';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repo's tracked times
  * {@link /repos/:owner/:repo/times}
  */
-export async function repoTrackedTimes(
-  owner: RepoTrackedTimesPathParams['owner'],
-  repo: RepoTrackedTimesPathParams['repo'],
-  params?: RepoTrackedTimesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoTrackedTimes<ThrowOnError extends boolean = true>(
+  options: Options<RepoTrackedTimesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoTrackedTimesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoTrackedTimesQueryResponse,
-    ResponseErrorConfig<RepoTrackedTimes400 | RepoTrackedTimes403 | RepoTrackedTimes404 | RepoTrackedTimes422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoTrackedTimesUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/times',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoTrackedTimesResponses, ThrowOnError>>;
 }

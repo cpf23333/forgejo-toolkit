@@ -3,48 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  CancelActionRunMutationResponse,
-  CancelActionRunPathParams,
-  CancelActionRun403,
-  CancelActionRun404,
-} from '../types/CancelActionRun';
-
-function getCancelActionRunUrl(
-  owner: CancelActionRunPathParams['owner'],
-  repo: CancelActionRunPathParams['repo'],
-  run_id: CancelActionRunPathParams['run_id'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}/cancel` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { CancelActionRunOptions, CancelActionRunResponses } from '../types/CancelActionRun';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description Cancel a particular workflow run. Pending or running jobs of the run are cancelled. A run that has already finished, whether cancelled, failed, skipped or succeeded, is left unchanged. In both cases the endpoint responds with HTTP 204.
  * @summary Cancel a pending or running workflow run.
  * {@link /repos/:owner/:repo/actions/runs/:run_id/cancel}
  */
-export async function cancelActionRun(
-  owner: CancelActionRunPathParams['owner'],
-  repo: CancelActionRunPathParams['repo'],
-  run_id: CancelActionRunPathParams['run_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function cancelActionRun<ThrowOnError extends boolean = true>(
+  options: Options<CancelActionRunOptions, ThrowOnError>,
+): Promise<UnwrappedResult<CancelActionRunResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    CancelActionRunMutationResponse,
-    ResponseErrorConfig<CancelActionRun403 | CancelActionRun404>,
-    unknown
-  >({
-    method: 'POST',
-    url: getCancelActionRunUrl(owner, repo, run_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}/cancel',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<CancelActionRunResponses, ThrowOnError>>;
 }

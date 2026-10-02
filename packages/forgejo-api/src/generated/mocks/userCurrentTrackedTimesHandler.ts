@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserCurrentTrackedTimesQueryResponse,
-  UserCurrentTrackedTimes401,
-  UserCurrentTrackedTimes403,
+  UserCurrentTrackedTimesResponse,
+  UserCurrentTrackedTimesStatus401,
+  UserCurrentTrackedTimesStatus403,
 } from '../types/UserCurrentTrackedTimes';
 import { http } from 'msw';
 
-export function userCurrentTrackedTimesHandlerResponse200(data: UserCurrentTrackedTimesQueryResponse) {
+export function userCurrentTrackedTimesHandlerResponse200(data: UserCurrentTrackedTimesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userCurrentTrackedTimesHandlerResponse200(data: UserCurrentTrack
   });
 }
 
-export function userCurrentTrackedTimesHandlerResponse401(data: UserCurrentTrackedTimes401) {
+export function userCurrentTrackedTimesHandlerResponse401(data: UserCurrentTrackedTimesStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userCurrentTrackedTimesHandlerResponse401(data: UserCurrentTrack
   });
 }
 
-export function userCurrentTrackedTimesHandlerResponse403(data: UserCurrentTrackedTimes403) {
+export function userCurrentTrackedTimesHandlerResponse403(data: UserCurrentTrackedTimesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userCurrentTrackedTimesHandlerResponse403(data: UserCurrentTrack
 
 export function userCurrentTrackedTimesHandler(
   data?:
-    | UserCurrentTrackedTimesQueryResponse
+    | UserCurrentTrackedTimesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/times`, function handler(info) {

@@ -4,12 +4,12 @@
  */
 
 import type {
-  UserCurrentPutSubscriptionMutationResponse,
-  UserCurrentPutSubscription404,
+  UserCurrentPutSubscriptionResponse,
+  UserCurrentPutSubscriptionStatus404,
 } from '../types/UserCurrentPutSubscription';
 import { http } from 'msw';
 
-export function userCurrentPutSubscriptionHandlerResponse200(data: UserCurrentPutSubscriptionMutationResponse) {
+export function userCurrentPutSubscriptionHandlerResponse200(data: UserCurrentPutSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function userCurrentPutSubscriptionHandlerResponse200(data: UserCurrentPu
   });
 }
 
-export function userCurrentPutSubscriptionHandlerResponse404(data: UserCurrentPutSubscription404) {
+export function userCurrentPutSubscriptionHandlerResponse404(data: UserCurrentPutSubscriptionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function userCurrentPutSubscriptionHandlerResponse404(data: UserCurrentPu
 
 export function userCurrentPutSubscriptionHandler(
   data?:
-    | UserCurrentPutSubscriptionMutationResponse
+    | UserCurrentPutSubscriptionResponse
     | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/subscription`, function handler(info) {

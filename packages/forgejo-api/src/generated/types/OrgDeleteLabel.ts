@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeleteLabelPathParams = {
+export type OrgDeleteLabelPath = {
   /**
    * @description name of the organization
    * @type string
@@ -13,25 +13,42 @@ export type OrgDeleteLabelPathParams = {
   org: string;
   /**
    * @description id of the label to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgDeleteLabel204 = any;
+export type OrgDeleteLabelStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDeleteLabel404 = APINotFound;
+export type OrgDeleteLabelStatus404Json = APINotFound;
 
-export type OrgDeleteLabelMutationResponse = OrgDeleteLabel204;
+export type OrgDeleteLabelStatus404Html = APINotFound;
 
-export type OrgDeleteLabelMutation = {
-  Response: OrgDeleteLabel204;
-  PathParams: OrgDeleteLabelPathParams;
-  Errors: OrgDeleteLabel404;
+export type OrgDeleteLabelStatus404 = OrgDeleteLabelStatus404Json | OrgDeleteLabelStatus404Html;
+
+export type OrgDeleteLabelOptions = {
+  body?: never;
+  path: OrgDeleteLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteLabelResponses = {
+  '204': OrgDeleteLabelStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteLabelStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteLabelResponse = OrgDeleteLabelStatus204 | OrgDeleteLabelStatus404;

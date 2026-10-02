@@ -4,13 +4,15 @@
  */
 
 import type {
-  RepoSubmitPullReviewMutationResponse,
-  RepoSubmitPullReview404,
-  RepoSubmitPullReview422,
+  RepoSubmitPullReviewResponse,
+  RepoSubmitPullReviewStatus404,
+  RepoSubmitPullReviewStatus422,
+  RepoSubmitPullReviewBody,
 } from '../types/RepoSubmitPullReview';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoSubmitPullReviewHandlerResponse200(data: RepoSubmitPullReviewMutationResponse) {
+export function repoSubmitPullReviewHandlerResponse200(data: RepoSubmitPullReviewResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function repoSubmitPullReviewHandlerResponse200(data: RepoSubmitPullRevie
   });
 }
 
-export function repoSubmitPullReviewHandlerResponse404(data: RepoSubmitPullReview404) {
+export function repoSubmitPullReviewHandlerResponse404(data: RepoSubmitPullReviewStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,7 +30,7 @@ export function repoSubmitPullReviewHandlerResponse404(data: RepoSubmitPullRevie
   });
 }
 
-export function repoSubmitPullReviewHandlerResponse422(data: RepoSubmitPullReview422) {
+export function repoSubmitPullReviewHandlerResponse422(data: RepoSubmitPullReviewStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,18 +40,19 @@ export function repoSubmitPullReviewHandlerResponse422(data: RepoSubmitPullRevie
 }
 
 export function repoSubmitPullReviewHandler(
-  data?:
-    | RepoSubmitPullReviewMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoSubmitPullReviewResponse | HttpResponseResolver<Record<string, string>, RepoSubmitPullReviewBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoSubmitPullReviewBody>(
+    `/repos/:owner/:repo/pulls/:index/reviews/:id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

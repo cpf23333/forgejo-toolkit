@@ -3,21 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserGetRunnerRegistrationTokenQueryResponse,
-  UserGetRunnerRegistrationToken401,
-  UserGetRunnerRegistrationToken403,
+  UserGetRunnerRegistrationTokenOptions,
+  UserGetRunnerRegistrationTokenResponses,
 } from '../types/UserGetRunnerRegistrationToken';
-
-function getUserGetRunnerRegistrationTokenUrl() {
-  const res = {
-    method: 'GET',
-    url: `/user/actions/runners/registration-token` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description This operation has been deprecated in Forgejo 15. Use the web UI or [`/user/actions/runners`](#/user/registerUserRunner) instead.
@@ -25,17 +16,25 @@ function getUserGetRunnerRegistrationTokenUrl() {
  * {@link /user/actions/runners/registration-token}
  * @deprecated
  */
-export async function userGetRunnerRegistrationToken(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userGetRunnerRegistrationToken<ThrowOnError extends boolean = true>(
+  options: Options<UserGetRunnerRegistrationTokenOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserGetRunnerRegistrationTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserGetRunnerRegistrationTokenQueryResponse,
-    ResponseErrorConfig<UserGetRunnerRegistrationToken401 | UserGetRunnerRegistrationToken403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserGetRunnerRegistrationTokenUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/actions/runners/registration-token',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserGetRunnerRegistrationTokenResponses, ThrowOnError>>;
 }

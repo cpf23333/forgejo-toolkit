@@ -4,20 +4,22 @@
  */
 
 import type {
-  RepoDeletePullReviewRequestsMutationResponse,
-  RepoDeletePullReviewRequests403,
-  RepoDeletePullReviewRequests404,
-  RepoDeletePullReviewRequests422,
+  RepoDeletePullReviewRequestsResponse,
+  RepoDeletePullReviewRequestsStatus403,
+  RepoDeletePullReviewRequestsStatus404,
+  RepoDeletePullReviewRequestsStatus422,
+  RepoDeletePullReviewRequestsBody,
 } from '../types/RepoDeletePullReviewRequests';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoDeletePullReviewRequestsHandlerResponse204(data?: RepoDeletePullReviewRequestsMutationResponse) {
+export function repoDeletePullReviewRequestsHandlerResponse204(data?: RepoDeletePullReviewRequestsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeletePullReviewRequestsHandlerResponse403(data: RepoDeletePullReviewRequests403) {
+export function repoDeletePullReviewRequestsHandlerResponse403(data: RepoDeletePullReviewRequestsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +28,7 @@ export function repoDeletePullReviewRequestsHandlerResponse403(data: RepoDeleteP
   });
 }
 
-export function repoDeletePullReviewRequestsHandlerResponse404(data: RepoDeletePullReviewRequests404) {
+export function repoDeletePullReviewRequestsHandlerResponse404(data: RepoDeletePullReviewRequestsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +37,7 @@ export function repoDeletePullReviewRequestsHandlerResponse404(data: RepoDeleteP
   });
 }
 
-export function repoDeletePullReviewRequestsHandlerResponse422(data: RepoDeletePullReviewRequests422) {
+export function repoDeletePullReviewRequestsHandlerResponse422(data: RepoDeletePullReviewRequestsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -51,13 +53,16 @@ export function repoDeletePullReviewRequestsHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, RepoDeletePullReviewRequestsBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/pulls/:index/requested_reviewers`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, RepoDeletePullReviewRequestsBody>(
+    `/repos/:owner/:repo/pulls/:index/requested_reviewers`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

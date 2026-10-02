@@ -3,9 +3,6 @@
  * Do not edit manually.
  */
 
-/**
- * CreateOrUpdateSecretOption defines the properties of the secret to create or update.
- */
 export type CreateOrUpdateSecretOption = {
   /**
    * @description Data of the secret. Special characters will be retained. Line endings will be normalized to LF to match the\nbehaviour of browsers. Encode the data with Base64 if line endings should be retained.

@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentDeleteSubscriptionMutationResponse,
-  UserCurrentDeleteSubscriptionPathParams,
-  UserCurrentDeleteSubscription404,
+  UserCurrentDeleteSubscriptionOptions,
+  UserCurrentDeleteSubscriptionResponses,
 } from '../types/UserCurrentDeleteSubscription';
-
-function getUserCurrentDeleteSubscriptionUrl(
-  owner: UserCurrentDeleteSubscriptionPathParams['owner'],
-  repo: UserCurrentDeleteSubscriptionPathParams['repo'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/subscription` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unwatch a repo
  * {@link /repos/:owner/:repo/subscription}
  */
-export async function userCurrentDeleteSubscription(
-  owner: UserCurrentDeleteSubscriptionPathParams['owner'],
-  repo: UserCurrentDeleteSubscriptionPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentDeleteSubscription<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentDeleteSubscriptionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentDeleteSubscriptionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentDeleteSubscriptionMutationResponse,
-    ResponseErrorConfig<UserCurrentDeleteSubscription404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserCurrentDeleteSubscriptionUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/subscription',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentDeleteSubscriptionResponses, ThrowOnError>>;
 }

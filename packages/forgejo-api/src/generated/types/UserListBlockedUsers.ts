@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { BlockedUser } from './BlockedUser';
 
-export type UserListBlockedUsersQueryParams = {
+export type UserListBlockedUsersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,65 @@ export type UserListBlockedUsersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description BlockedUserList
- */
-export type UserListBlockedUsers200 = BlockedUser[];
+export type UserListBlockedUsersStatus200Json = BlockedUser[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserListBlockedUsers401 = APIUnauthorizedError;
+export type UserListBlockedUsersStatus200Html = BlockedUser[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListBlockedUsers403 = APIForbiddenError;
+export type UserListBlockedUsersStatus200 = UserListBlockedUsersStatus200Json | UserListBlockedUsersStatus200Html;
 
-export type UserListBlockedUsersQueryResponse = UserListBlockedUsers200;
+export type UserListBlockedUsersStatus401Json = APIUnauthorizedError;
 
-export type UserListBlockedUsersQuery = {
-  Response: UserListBlockedUsers200;
-  QueryParams: UserListBlockedUsersQueryParams;
-  Errors: UserListBlockedUsers401 | UserListBlockedUsers403;
+export type UserListBlockedUsersStatus401Html = APIUnauthorizedError;
+
+export type UserListBlockedUsersStatus401 = UserListBlockedUsersStatus401Json | UserListBlockedUsersStatus401Html;
+
+export type UserListBlockedUsersStatus403Json = APIForbiddenError;
+
+export type UserListBlockedUsersStatus403Html = APIForbiddenError;
+
+export type UserListBlockedUsersStatus403 = UserListBlockedUsersStatus403Json | UserListBlockedUsersStatus403Html;
+
+export type UserListBlockedUsersOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListBlockedUsersQuery;
+  headers?: never;
 };
+
+export type UserListBlockedUsersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListBlockedUsersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListBlockedUsersStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListBlockedUsersStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListBlockedUsersStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListBlockedUsersStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListBlockedUsersStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListBlockedUsersResponse =
+  | UserListBlockedUsersStatus200
+  | UserListBlockedUsersStatus401
+  | UserListBlockedUsersStatus403;

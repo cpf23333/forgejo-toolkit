@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgBlockUserMutationResponse,
-  OrgBlockUserPathParams,
-  OrgBlockUser404,
-  OrgBlockUser422,
-} from '../types/OrgBlockUser';
-
-function getOrgBlockUserUrl(org: OrgBlockUserPathParams['org'], username: OrgBlockUserPathParams['username']) {
-  const res = { method: 'PUT', url: `/orgs/${org}/block/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgBlockUserOptions, OrgBlockUserResponses } from '../types/OrgBlockUser';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Blocks a user from the organization
  * {@link /orgs/:org/block/:username}
  */
-export async function orgBlockUser(
-  org: OrgBlockUserPathParams['org'],
-  username: OrgBlockUserPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgBlockUser<ThrowOnError extends boolean = true>(
+  options: Options<OrgBlockUserOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgBlockUserResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    OrgBlockUserMutationResponse,
-    ResponseErrorConfig<OrgBlockUser404 | OrgBlockUser422>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getOrgBlockUserUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/orgs/{org}/block/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgBlockUserResponses, ThrowOnError>>;
 }

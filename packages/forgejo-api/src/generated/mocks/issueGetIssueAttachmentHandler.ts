@@ -4,12 +4,12 @@
  */
 
 import type {
-  IssueGetIssueAttachmentQueryResponse,
-  IssueGetIssueAttachment404,
+  IssueGetIssueAttachmentResponse,
+  IssueGetIssueAttachmentStatus404,
 } from '../types/IssueGetIssueAttachment';
 import { http } from 'msw';
 
-export function issueGetIssueAttachmentHandlerResponse200(data: IssueGetIssueAttachmentQueryResponse) {
+export function issueGetIssueAttachmentHandlerResponse200(data: IssueGetIssueAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function issueGetIssueAttachmentHandlerResponse200(data: IssueGetIssueAtt
   });
 }
 
-export function issueGetIssueAttachmentHandlerResponse404(data: IssueGetIssueAttachment404) {
+export function issueGetIssueAttachmentHandlerResponse404(data: IssueGetIssueAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueGetIssueAttachmentHandlerResponse404(data: IssueGetIssueAtt
 
 export function issueGetIssueAttachmentHandler(
   data?:
-    | IssueGetIssueAttachmentQueryResponse
+    | IssueGetIssueAttachmentResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/assets/:attachment_id`, function handler(info) {

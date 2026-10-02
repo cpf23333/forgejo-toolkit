@@ -4,20 +4,20 @@
  */
 
 import type {
-  DeleteUserRunnerMutationResponse,
-  DeleteUserRunner400,
-  DeleteUserRunner401,
-  DeleteUserRunner404,
+  DeleteUserRunnerResponse,
+  DeleteUserRunnerStatus400,
+  DeleteUserRunnerStatus401,
+  DeleteUserRunnerStatus404,
 } from '../types/DeleteUserRunner';
 import { http } from 'msw';
 
-export function deleteUserRunnerHandlerResponse204(data?: DeleteUserRunnerMutationResponse) {
+export function deleteUserRunnerHandlerResponse204(data?: DeleteUserRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteUserRunnerHandlerResponse400(data: DeleteUserRunner400) {
+export function deleteUserRunnerHandlerResponse400(data: DeleteUserRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function deleteUserRunnerHandlerResponse400(data: DeleteUserRunner400) {
   });
 }
 
-export function deleteUserRunnerHandlerResponse401(data: DeleteUserRunner401) {
+export function deleteUserRunnerHandlerResponse401(data: DeleteUserRunnerStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -35,7 +35,7 @@ export function deleteUserRunnerHandlerResponse401(data: DeleteUserRunner401) {
   });
 }
 
-export function deleteUserRunnerHandlerResponse404(data: DeleteUserRunner404) {
+export function deleteUserRunnerHandlerResponse404(data: DeleteUserRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

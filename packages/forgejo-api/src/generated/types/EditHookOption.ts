@@ -5,28 +5,14 @@
 
 /**
  * @description EditHookOption options when modify one hook
+ * @type object
  */
 export type EditHookOption = {
-  /**
-   * @type boolean | undefined
-   */
   active?: boolean;
-  /**
-   * @type string | undefined
-   */
   authorization_header?: string;
-  /**
-   * @type string | undefined
-   */
   branch_filter?: string;
-  /**
-   * @type object | undefined
-   */
   config?: {
     [key: string]: string;
   };
-  /**
-   * @type array | undefined
-   */
   events?: string[];
 };

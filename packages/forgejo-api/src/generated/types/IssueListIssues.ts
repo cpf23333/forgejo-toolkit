@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Issue } from './Issue';
 
-export type IssueListIssuesPathParams = {
+export type IssueListIssuesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,24 +20,22 @@ export type IssueListIssuesPathParams = {
   repo: string;
 };
 
-export const issueListIssuesQueryParamsStateEnum = {
+export const issueListIssuesState = {
   closed: 'closed',
   open: 'open',
   all: 'all',
 } as const;
 
-export type IssueListIssuesQueryParamsStateEnumKey =
-  (typeof issueListIssuesQueryParamsStateEnum)[keyof typeof issueListIssuesQueryParamsStateEnum];
+export type IssueListIssuesStateKey = (typeof issueListIssuesState)[keyof typeof issueListIssuesState];
 
-export const issueListIssuesQueryParamsTypeEnum = {
+export const issueListIssuesType = {
   issues: 'issues',
   pulls: 'pulls',
 } as const;
 
-export type IssueListIssuesQueryParamsTypeEnumKey =
-  (typeof issueListIssuesQueryParamsTypeEnum)[keyof typeof issueListIssuesQueryParamsTypeEnum];
+export type IssueListIssuesTypeKey = (typeof issueListIssuesType)[keyof typeof issueListIssuesType];
 
-export const issueListIssuesQueryParamsSortEnum = {
+export const issueListIssuesSort = {
   relevance: 'relevance',
   latest: 'latest',
   oldest: 'oldest',
@@ -49,15 +47,14 @@ export const issueListIssuesQueryParamsSortEnum = {
   farduedate: 'farduedate',
 } as const;
 
-export type IssueListIssuesQueryParamsSortEnumKey =
-  (typeof issueListIssuesQueryParamsSortEnum)[keyof typeof issueListIssuesQueryParamsSortEnum];
+export type IssueListIssuesSortKey = (typeof issueListIssuesSort)[keyof typeof issueListIssuesSort];
 
-export type IssueListIssuesQueryParams = {
+export type IssueListIssuesQuery = {
   /**
    * @description whether issue is open or closed
    * @type string | undefined
    */
-  state?: IssueListIssuesQueryParamsStateEnumKey;
+  state?: IssueListIssuesStateKey;
   /**
    * @description comma separated list of labels. Fetch only issues that have any of this labels. Non existent labels are discarded
    * @type string | undefined
@@ -72,7 +69,7 @@ export type IssueListIssuesQueryParams = {
    * @description filter by type (issues / pulls) if set
    * @type string | undefined
    */
-  type?: IssueListIssuesQueryParamsTypeEnumKey;
+  type?: IssueListIssuesTypeKey;
   /**
    * @description comma separated list of milestone names or ids. It uses names and fall back to ids. Fetch only issues that have any of this milestones. Non existent milestones are discarded
    * @type string | undefined
@@ -80,12 +77,16 @@ export type IssueListIssuesQueryParams = {
   milestones?: string;
   /**
    * @description Only show items updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show items updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -115,32 +116,68 @@ export type IssueListIssuesQueryParams = {
   limit?: number;
   /**
    * @description Type of sort
-   * @default "latest"
+   * @default 'latest'
    * @type string | undefined
    */
-  sort?: IssueListIssuesQueryParamsSortEnumKey;
+  sort?: IssueListIssuesSortKey;
+};
+
+export type IssueListIssuesStatus200Json = Issue[];
+
+export type IssueListIssuesStatus200Html = Issue[];
+
+export type IssueListIssuesStatus200 = IssueListIssuesStatus200Json | IssueListIssuesStatus200Html;
+
+export type IssueListIssuesStatus404Json = APINotFound;
+
+export type IssueListIssuesStatus404Html = APINotFound;
+
+export type IssueListIssuesStatus404 = IssueListIssuesStatus404Json | IssueListIssuesStatus404Html;
+
+export type IssueListIssuesStatus422Json = APIValidationError;
+
+export type IssueListIssuesStatus422Html = APIValidationError;
+
+export type IssueListIssuesStatus422 = IssueListIssuesStatus422Json | IssueListIssuesStatus422Html;
+
+export type IssueListIssuesOptions = {
+  body?: never;
+  path: IssueListIssuesPath;
+  query?: IssueListIssuesQuery;
+  headers?: never;
+};
+
+export type IssueListIssuesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssuesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssuesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssuesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssuesStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssuesStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssuesStatus422Html;
+      };
 };
 
 /**
- * @description IssueList
+ * @description Union of all possible responses
  */
-export type IssueListIssues200 = Issue[];
-
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueListIssues404 = APINotFound;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueListIssues422 = APIValidationError;
-
-export type IssueListIssuesQueryResponse = IssueListIssues200;
-
-export type IssueListIssuesQuery = {
-  Response: IssueListIssues200;
-  PathParams: IssueListIssuesPathParams;
-  QueryParams: IssueListIssuesQueryParams;
-  Errors: IssueListIssues404 | IssueListIssues422;
-};
+export type IssueListIssuesResponse = IssueListIssuesStatus200 | IssueListIssuesStatus404 | IssueListIssuesStatus422;

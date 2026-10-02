@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type OrgPublicizeMemberPathParams = {
+export type OrgPublicizeMemberPath = {
   /**
    * @description name of the organization
    * @type string
@@ -19,25 +19,53 @@ export type OrgPublicizeMemberPathParams = {
   username: string;
 };
 
-/**
- * @description membership publicized
- */
-export type OrgPublicizeMember204 = any;
+export type OrgPublicizeMemberStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgPublicizeMember403 = APIForbiddenError;
+export type OrgPublicizeMemberStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgPublicizeMember404 = APINotFound;
+export type OrgPublicizeMemberStatus403Html = APIForbiddenError;
 
-export type OrgPublicizeMemberMutationResponse = OrgPublicizeMember204;
+export type OrgPublicizeMemberStatus403 = OrgPublicizeMemberStatus403Json | OrgPublicizeMemberStatus403Html;
 
-export type OrgPublicizeMemberMutation = {
-  Response: OrgPublicizeMember204;
-  PathParams: OrgPublicizeMemberPathParams;
-  Errors: OrgPublicizeMember403 | OrgPublicizeMember404;
+export type OrgPublicizeMemberStatus404Json = APINotFound;
+
+export type OrgPublicizeMemberStatus404Html = APINotFound;
+
+export type OrgPublicizeMemberStatus404 = OrgPublicizeMemberStatus404Json | OrgPublicizeMemberStatus404Html;
+
+export type OrgPublicizeMemberOptions = {
+  body?: never;
+  path: OrgPublicizeMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgPublicizeMemberResponses = {
+  '204': OrgPublicizeMemberStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgPublicizeMemberStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgPublicizeMemberStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgPublicizeMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgPublicizeMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgPublicizeMemberResponse =
+  | OrgPublicizeMemberStatus204
+  | OrgPublicizeMemberStatus403
+  | OrgPublicizeMemberStatus404;

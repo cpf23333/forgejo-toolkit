@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetRepoRunnerQueryResponse, GetRepoRunner400, GetRepoRunner404 } from '../types/GetRepoRunner';
+import type { GetRepoRunnerResponse, GetRepoRunnerStatus400, GetRepoRunnerStatus404 } from '../types/GetRepoRunner';
 import { http } from 'msw';
 
-export function getRepoRunnerHandlerResponse200(data: GetRepoRunnerQueryResponse) {
+export function getRepoRunnerHandlerResponse200(data: GetRepoRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getRepoRunnerHandlerResponse200(data: GetRepoRunnerQueryResponse
   });
 }
 
-export function getRepoRunnerHandlerResponse400(data: GetRepoRunner400) {
+export function getRepoRunnerHandlerResponse400(data: GetRepoRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function getRepoRunnerHandlerResponse400(data: GetRepoRunner400) {
   });
 }
 
-export function getRepoRunnerHandlerResponse404(data: GetRepoRunner404) {
+export function getRepoRunnerHandlerResponse404(data: GetRepoRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function getRepoRunnerHandlerResponse404(data: GetRepoRunner404) {
 
 export function getRepoRunnerHandler(
   data?:
-    | GetRepoRunnerQueryResponse
+    | GetRepoRunnerResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runners/:runner_id`, function handler(info) {

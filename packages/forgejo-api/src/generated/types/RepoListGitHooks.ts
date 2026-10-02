@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { GitHook } from './GitHook';
 
-export type RepoListGitHooksPathParams = {
+export type RepoListGitHooksPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoListGitHooksPathParams = {
   repo: string;
 };
 
-/**
- * @description GitHookList
- */
-export type RepoListGitHooks200 = GitHook[];
+export type RepoListGitHooksStatus200Json = GitHook[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListGitHooks404 = APINotFound;
+export type RepoListGitHooksStatus200Html = GitHook[];
 
-export type RepoListGitHooksQueryResponse = RepoListGitHooks200;
+export type RepoListGitHooksStatus200 = RepoListGitHooksStatus200Json | RepoListGitHooksStatus200Html;
 
-export type RepoListGitHooksQuery = {
-  Response: RepoListGitHooks200;
-  PathParams: RepoListGitHooksPathParams;
-  Errors: RepoListGitHooks404;
+export type RepoListGitHooksStatus404Json = APINotFound;
+
+export type RepoListGitHooksStatus404Html = APINotFound;
+
+export type RepoListGitHooksStatus404 = RepoListGitHooksStatus404Json | RepoListGitHooksStatus404Html;
+
+export type RepoListGitHooksOptions = {
+  body?: never;
+  path: RepoListGitHooksPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListGitHooksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListGitHooksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListGitHooksStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListGitHooksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListGitHooksStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListGitHooksResponse = RepoListGitHooksStatus200 | RepoListGitHooksStatus404;

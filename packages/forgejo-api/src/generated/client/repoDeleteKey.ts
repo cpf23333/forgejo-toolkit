@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteKeyMutationResponse,
-  RepoDeleteKeyPathParams,
-  RepoDeleteKey403,
-  RepoDeleteKey404,
-} from '../types/RepoDeleteKey';
-
-function getRepoDeleteKeyUrl(
-  owner: RepoDeleteKeyPathParams['owner'],
-  repo: RepoDeleteKeyPathParams['repo'],
-  id: RepoDeleteKeyPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/keys/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteKeyOptions, RepoDeleteKeyResponses } from '../types/RepoDeleteKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a key from a repository
  * {@link /repos/:owner/:repo/keys/:id}
  */
-export async function repoDeleteKey(
-  owner: RepoDeleteKeyPathParams['owner'],
-  repo: RepoDeleteKeyPathParams['repo'],
-  id: RepoDeleteKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteKey<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteKeyMutationResponse,
-    ResponseErrorConfig<RepoDeleteKey403 | RepoDeleteKey404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteKeyUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteKeyResponses, ThrowOnError>>;
 }

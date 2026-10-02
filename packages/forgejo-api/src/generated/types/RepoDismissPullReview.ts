@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { DismissPullReviewOptions } from './DismissPullReviewOptions';
 import type { PullReview } from './PullReview';
 
-export type RepoDismissPullReviewPathParams = {
+export type RepoDismissPullReviewPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,43 +22,117 @@ export type RepoDismissPullReviewPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description PullReview
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoDismissPullReview200 = PullReview;
+export type RepoDismissPullReviewStatus200Json = PullReview;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoDismissPullReview403 = APIForbiddenError;
+export type RepoDismissPullReviewStatus200Html = PullReview;
+
+export type RepoDismissPullReviewStatus200 = RepoDismissPullReviewStatus200Json | RepoDismissPullReviewStatus200Html;
+
+export type RepoDismissPullReviewStatus403Json = APIForbiddenError;
+
+export type RepoDismissPullReviewStatus403Html = APIForbiddenError;
+
+export type RepoDismissPullReviewStatus403 = RepoDismissPullReviewStatus403Json | RepoDismissPullReviewStatus403Html;
+
+export type RepoDismissPullReviewStatus404Json = APINotFound;
+
+export type RepoDismissPullReviewStatus404Html = APINotFound;
+
+export type RepoDismissPullReviewStatus404 = RepoDismissPullReviewStatus404Json | RepoDismissPullReviewStatus404Html;
+
+export type RepoDismissPullReviewStatus422Json = APIValidationError;
+
+export type RepoDismissPullReviewStatus422Html = APIValidationError;
+
+export type RepoDismissPullReviewStatus422 = RepoDismissPullReviewStatus422Json | RepoDismissPullReviewStatus422Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DismissPullReviewOptions are options to dismiss a pull review
+ * @type object
  */
-export type RepoDismissPullReview404 = APINotFound;
+export type RepoDismissPullReviewBodyJson = DismissPullReviewOptions;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description DismissPullReviewOptions are options to dismiss a pull review
+ * @type object
  */
-export type RepoDismissPullReview422 = APIValidationError;
+export type RepoDismissPullReviewBodyPlain = DismissPullReviewOptions;
 
-export type RepoDismissPullReviewMutationRequest = DismissPullReviewOptions;
+export type RepoDismissPullReviewBody = RepoDismissPullReviewBodyJson | RepoDismissPullReviewBodyPlain;
 
-export type RepoDismissPullReviewMutationResponse = RepoDismissPullReview200;
-
-export type RepoDismissPullReviewMutation = {
-  Response: RepoDismissPullReview200;
-  Request: RepoDismissPullReviewMutationRequest;
-  PathParams: RepoDismissPullReviewPathParams;
-  Errors: RepoDismissPullReview403 | RepoDismissPullReview404 | RepoDismissPullReview422;
+export type RepoDismissPullReviewOptions = {
+  body: RepoDismissPullReviewBody;
+  path: RepoDismissPullReviewPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDismissPullReviewResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoDismissPullReviewStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDismissPullReviewStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDismissPullReviewStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDismissPullReviewStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDismissPullReviewStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDismissPullReviewStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDismissPullReviewStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDismissPullReviewStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDismissPullReviewResponse =
+  | RepoDismissPullReviewStatus200
+  | RepoDismissPullReviewStatus403
+  | RepoDismissPullReviewStatus404
+  | RepoDismissPullReviewStatus422;

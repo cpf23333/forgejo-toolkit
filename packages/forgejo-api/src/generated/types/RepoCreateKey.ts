@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateKeyOption } from './CreateKeyOption';
 import type { DeployKey } from './DeployKey';
 
-export type RepoCreateKeyPathParams = {
+export type RepoCreateKeyPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,27 +22,75 @@ export type RepoCreateKeyPathParams = {
 };
 
 /**
- * @description DeployKey
+ * @description DeployKey a deploy key
+ * @type object
  */
-export type RepoCreateKey201 = DeployKey;
+export type RepoCreateKeyStatus201Json = DeployKey;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DeployKey a deploy key
+ * @type object
  */
-export type RepoCreateKey404 = APINotFound;
+export type RepoCreateKeyStatus201Html = DeployKey;
+
+export type RepoCreateKeyStatus201 = RepoCreateKeyStatus201Json | RepoCreateKeyStatus201Html;
+
+export type RepoCreateKeyStatus404Json = APINotFound;
+
+export type RepoCreateKeyStatus404Html = APINotFound;
+
+export type RepoCreateKeyStatus404 = RepoCreateKeyStatus404Json | RepoCreateKeyStatus404Html;
+
+export type RepoCreateKeyStatus422Json = APIValidationError;
+
+export type RepoCreateKeyStatus422Html = APIValidationError;
+
+export type RepoCreateKeyStatus422 = RepoCreateKeyStatus422Json | RepoCreateKeyStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateKeyOption options when creating a key
+ * @type object | undefined
  */
-export type RepoCreateKey422 = APIValidationError;
+export type RepoCreateKeyBody = CreateKeyOption | undefined;
 
-export type RepoCreateKeyMutationRequest = CreateKeyOption;
-
-export type RepoCreateKeyMutationResponse = RepoCreateKey201;
-
-export type RepoCreateKeyMutation = {
-  Response: RepoCreateKey201;
-  Request: RepoCreateKeyMutationRequest;
-  PathParams: RepoCreateKeyPathParams;
-  Errors: RepoCreateKey404 | RepoCreateKey422;
+export type RepoCreateKeyOptions = {
+  body: RepoCreateKeyBody;
+  path: RepoCreateKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateKeyResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateKeyStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateKeyStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateKeyStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateKeyStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateKeyStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateKeyResponse = RepoCreateKeyStatus201 | RepoCreateKeyStatus404 | RepoCreateKeyStatus422;

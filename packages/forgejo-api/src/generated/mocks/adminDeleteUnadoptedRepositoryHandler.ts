@@ -4,20 +4,18 @@
  */
 
 import type {
-  AdminDeleteUnadoptedRepositoryMutationResponse,
-  AdminDeleteUnadoptedRepository403,
+  AdminDeleteUnadoptedRepositoryResponse,
+  AdminDeleteUnadoptedRepositoryStatus403,
 } from '../types/AdminDeleteUnadoptedRepository';
 import { http } from 'msw';
 
-export function adminDeleteUnadoptedRepositoryHandlerResponse204(
-  data?: AdminDeleteUnadoptedRepositoryMutationResponse,
-) {
+export function adminDeleteUnadoptedRepositoryHandlerResponse204(data?: AdminDeleteUnadoptedRepositoryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUnadoptedRepositoryHandlerResponse403(data: AdminDeleteUnadoptedRepository403) {
+export function adminDeleteUnadoptedRepositoryHandlerResponse403(data: AdminDeleteUnadoptedRepositoryStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {

@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
-export type IssueDeleteIssueAttachmentPathParams = {
+export type IssueDeleteIssueAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,35 +19,79 @@ export type IssueDeleteIssueAttachmentPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the attachment to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteIssueAttachment204 = any;
+export type IssueDeleteIssueAttachmentStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteIssueAttachment404 = APIError;
+export type IssueDeleteIssueAttachmentStatus404Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteIssueAttachment423 = APIRepoArchivedError;
+export type IssueDeleteIssueAttachmentStatus404Html = APIError;
 
-export type IssueDeleteIssueAttachmentMutationResponse = IssueDeleteIssueAttachment204;
+export type IssueDeleteIssueAttachmentStatus404 =
+  | IssueDeleteIssueAttachmentStatus404Json
+  | IssueDeleteIssueAttachmentStatus404Html;
 
-export type IssueDeleteIssueAttachmentMutation = {
-  Response: IssueDeleteIssueAttachment204;
-  PathParams: IssueDeleteIssueAttachmentPathParams;
-  Errors: IssueDeleteIssueAttachment404 | IssueDeleteIssueAttachment423;
+export type IssueDeleteIssueAttachmentStatus423Json = APIRepoArchivedError;
+
+export type IssueDeleteIssueAttachmentStatus423Html = APIRepoArchivedError;
+
+export type IssueDeleteIssueAttachmentStatus423 =
+  | IssueDeleteIssueAttachmentStatus423Json
+  | IssueDeleteIssueAttachmentStatus423Html;
+
+export type IssueDeleteIssueAttachmentOptions = {
+  body?: never;
+  path: IssueDeleteIssueAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteIssueAttachmentResponses = {
+  '204': IssueDeleteIssueAttachmentStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueAttachmentStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueAttachmentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueAttachmentStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteIssueAttachmentResponse =
+  | IssueDeleteIssueAttachmentStatus204
+  | IssueDeleteIssueAttachmentStatus404
+  | IssueDeleteIssueAttachmentStatus423;

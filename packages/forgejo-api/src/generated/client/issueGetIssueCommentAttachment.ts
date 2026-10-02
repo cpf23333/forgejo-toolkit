@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueGetIssueCommentAttachmentQueryResponse,
-  IssueGetIssueCommentAttachmentPathParams,
-  IssueGetIssueCommentAttachment404,
+  IssueGetIssueCommentAttachmentOptions,
+  IssueGetIssueCommentAttachmentResponses,
 } from '../types/IssueGetIssueCommentAttachment';
-
-function getIssueGetIssueCommentAttachmentUrl(
-  owner: IssueGetIssueCommentAttachmentPathParams['owner'],
-  repo: IssueGetIssueCommentAttachmentPathParams['repo'],
-  id: IssueGetIssueCommentAttachmentPathParams['id'],
-  attachment_id: IssueGetIssueCommentAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a comment attachment
  * {@link /repos/:owner/:repo/issues/comments/:id/assets/:attachment_id}
  */
-export async function issueGetIssueCommentAttachment(
-  owner: IssueGetIssueCommentAttachmentPathParams['owner'],
-  repo: IssueGetIssueCommentAttachmentPathParams['repo'],
-  id: IssueGetIssueCommentAttachmentPathParams['id'],
-  attachment_id: IssueGetIssueCommentAttachmentPathParams['attachment_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetIssueCommentAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetIssueCommentAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetIssueCommentAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetIssueCommentAttachmentQueryResponse,
-    ResponseErrorConfig<IssueGetIssueCommentAttachment404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetIssueCommentAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetIssueCommentAttachmentResponses, ThrowOnError>>;
 }

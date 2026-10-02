@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteOrgRunnerMutationResponse,
-  DeleteOrgRunnerPathParams,
-  DeleteOrgRunner400,
-  DeleteOrgRunner404,
-} from '../types/DeleteOrgRunner';
-
-function getDeleteOrgRunnerUrl(
-  org: DeleteOrgRunnerPathParams['org'],
-  runner_id: DeleteOrgRunnerPathParams['runner_id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/orgs/${org}/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteOrgRunnerOptions, DeleteOrgRunnerResponses } from '../types/DeleteOrgRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a particular runner that belongs to the organization
  * {@link /orgs/:org/actions/runners/:runner_id}
  */
-export async function deleteOrgRunner(
-  org: DeleteOrgRunnerPathParams['org'],
-  runner_id: DeleteOrgRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteOrgRunner<ThrowOnError extends boolean = true>(
+  options: Options<DeleteOrgRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteOrgRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteOrgRunnerMutationResponse,
-    ResponseErrorConfig<DeleteOrgRunner400 | DeleteOrgRunner404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteOrgRunnerUrl(org, runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteOrgRunnerResponses, ThrowOnError>>;
 }

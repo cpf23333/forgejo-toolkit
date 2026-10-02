@@ -3,61 +3,40 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoCreateReleaseAttachmentMutationRequest,
-  RepoCreateReleaseAttachmentMutationResponse,
-  RepoCreateReleaseAttachmentPathParams,
-  RepoCreateReleaseAttachmentQueryParams,
-  RepoCreateReleaseAttachment400,
-  RepoCreateReleaseAttachment404,
-  RepoCreateReleaseAttachment413,
+  RepoCreateReleaseAttachmentOptions,
+  RepoCreateReleaseAttachmentResponses,
 } from '../types/RepoCreateReleaseAttachment';
-import { buildFormData } from '../.kubb/config';
-
-function getRepoCreateReleaseAttachmentUrl(
-  owner: RepoCreateReleaseAttachmentPathParams['owner'],
-  repo: RepoCreateReleaseAttachmentPathParams['repo'],
-  id: RepoCreateReleaseAttachmentPathParams['id'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/releases/${id}/assets` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a release attachment
  * {@link /repos/:owner/:repo/releases/:id/assets}
  */
-export async function repoCreateReleaseAttachment(
-  owner: RepoCreateReleaseAttachmentPathParams['owner'],
-  repo: RepoCreateReleaseAttachmentPathParams['repo'],
-  id: RepoCreateReleaseAttachmentPathParams['id'],
-  data?: RepoCreateReleaseAttachmentMutationRequest,
-  params?: RepoCreateReleaseAttachmentQueryParams,
-  config: Partial<RequestConfig<RepoCreateReleaseAttachmentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateReleaseAttachment<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateReleaseAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateReleaseAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, contentType, ...config } = options;
 
-  const requestData = data;
-  const formData = buildFormData(requestData);
-  const res = await request<
-    RepoCreateReleaseAttachmentMutationResponse,
-    ResponseErrorConfig<
-      RepoCreateReleaseAttachment400 | RepoCreateReleaseAttachment404 | RepoCreateReleaseAttachment413
-    >,
-    RepoCreateReleaseAttachmentMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateReleaseAttachmentUrl(owner, repo, id).url.toString(),
-    params,
-    data: formData as FormData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/releases/{id}/assets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      contentType: {
+        request: 'multipart/form-data',
+        ...(typeof contentType === 'string' ? { request: contentType } : contentType),
+      },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateReleaseAttachmentResponses, ThrowOnError>>;
 }

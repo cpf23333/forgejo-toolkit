@@ -4,16 +4,7 @@
  */
 
 export type IssueConfigContactLink = {
-  /**
-   * @type string | undefined
-   */
   about?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

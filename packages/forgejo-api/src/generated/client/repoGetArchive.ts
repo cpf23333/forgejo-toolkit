@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RepoGetArchiveQueryResponse, RepoGetArchivePathParams, RepoGetArchive404 } from '../types/RepoGetArchive';
-
-function getRepoGetArchiveUrl(
-  owner: RepoGetArchivePathParams['owner'],
-  repo: RepoGetArchivePathParams['repo'],
-  archive: RepoGetArchivePathParams['archive'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/archive/${archive}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetArchiveOptions, RepoGetArchiveResponses } from '../types/RepoGetArchive';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get an archive of a repository
  * {@link /repos/:owner/:repo/archive/:archive}
  */
-export async function repoGetArchive(
-  owner: RepoGetArchivePathParams['owner'],
-  repo: RepoGetArchivePathParams['repo'],
-  archive: RepoGetArchivePathParams['archive'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetArchive<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetArchiveOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetArchiveResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetArchiveQueryResponse, ResponseErrorConfig<RepoGetArchive404>, unknown>({
-    method: 'GET',
-    url: getRepoGetArchiveUrl(owner, repo, archive).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/archive/{archive}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetArchiveResponses, ThrowOnError>>;
 }

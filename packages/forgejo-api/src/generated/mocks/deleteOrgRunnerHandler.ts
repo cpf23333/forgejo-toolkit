@@ -3,16 +3,20 @@
  * Do not edit manually.
  */
 
-import type { DeleteOrgRunnerMutationResponse, DeleteOrgRunner400, DeleteOrgRunner404 } from '../types/DeleteOrgRunner';
+import type {
+  DeleteOrgRunnerResponse,
+  DeleteOrgRunnerStatus400,
+  DeleteOrgRunnerStatus404,
+} from '../types/DeleteOrgRunner';
 import { http } from 'msw';
 
-export function deleteOrgRunnerHandlerResponse204(data?: DeleteOrgRunnerMutationResponse) {
+export function deleteOrgRunnerHandlerResponse204(data?: DeleteOrgRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteOrgRunnerHandlerResponse400(data: DeleteOrgRunner400) {
+export function deleteOrgRunnerHandlerResponse400(data: DeleteOrgRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -21,7 +25,7 @@ export function deleteOrgRunnerHandlerResponse400(data: DeleteOrgRunner400) {
   });
 }
 
-export function deleteOrgRunnerHandlerResponse404(data: DeleteOrgRunner404) {
+export function deleteOrgRunnerHandlerResponse404(data: DeleteOrgRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

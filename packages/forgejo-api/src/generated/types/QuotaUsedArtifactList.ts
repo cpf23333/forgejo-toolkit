@@ -7,5 +7,6 @@ import type { QuotaUsedArtifact } from './QuotaUsedArtifact';
 
 /**
  * @description QuotaUsedArtifactList represents a list of artifacts counting towards a user\'s quota
+ * @type array
  */
 export type QuotaUsedArtifactList = QuotaUsedArtifact[];

@@ -6,7 +6,7 @@
 import type { APIInvalidTopicsError } from './APIInvalidTopicsError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoAddTopicPathParams = {
+export type RepoAddTopicPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoAddTopicPathParams = {
   topic: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoAddTopic204 = any;
+export type RepoAddTopicStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoAddTopic404 = APINotFound;
+export type RepoAddTopicStatus404Json = APINotFound;
 
-/**
- * @description APIInvalidTopicsError is error format response to invalid topics
- */
-export type RepoAddTopic422 = APIInvalidTopicsError;
+export type RepoAddTopicStatus404Html = APINotFound;
 
-export type RepoAddTopicMutationResponse = RepoAddTopic204;
+export type RepoAddTopicStatus404 = RepoAddTopicStatus404Json | RepoAddTopicStatus404Html;
 
-export type RepoAddTopicMutation = {
-  Response: RepoAddTopic204;
-  PathParams: RepoAddTopicPathParams;
-  Errors: RepoAddTopic404 | RepoAddTopic422;
+export type RepoAddTopicStatus422Json = APIInvalidTopicsError;
+
+export type RepoAddTopicStatus422Html = APIInvalidTopicsError;
+
+export type RepoAddTopicStatus422 = RepoAddTopicStatus422Json | RepoAddTopicStatus422Html;
+
+export type RepoAddTopicOptions = {
+  body?: never;
+  path: RepoAddTopicPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoAddTopicResponses = {
+  '204': RepoAddTopicStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoAddTopicStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddTopicStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoAddTopicStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddTopicStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoAddTopicResponse = RepoAddTopicStatus204 | RepoAddTopicStatus404 | RepoAddTopicStatus422;

@@ -10,7 +10,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Comment } from './Comment';
 import type { CreateIssueCommentOption } from './CreateIssueCommentOption';
 
-export type IssueCreateCommentPathParams = {
+export type IssueCreateCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,43 +23,118 @@ export type IssueCreateCommentPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Comment
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueCreateComment201 = Comment;
+export type IssueCreateCommentStatus201Json = Comment;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueCreateComment403 = APIForbiddenError;
+export type IssueCreateCommentStatus201Html = Comment;
+
+export type IssueCreateCommentStatus201 = IssueCreateCommentStatus201Json | IssueCreateCommentStatus201Html;
+
+export type IssueCreateCommentStatus403Json = APIForbiddenError;
+
+export type IssueCreateCommentStatus403Html = APIForbiddenError;
+
+export type IssueCreateCommentStatus403 = IssueCreateCommentStatus403Json | IssueCreateCommentStatus403Html;
+
+export type IssueCreateCommentStatus404Json = APINotFound;
+
+export type IssueCreateCommentStatus404Html = APINotFound;
+
+export type IssueCreateCommentStatus404 = IssueCreateCommentStatus404Json | IssueCreateCommentStatus404Html;
+
+export type IssueCreateCommentStatus423Json = APIRepoArchivedError;
+
+export type IssueCreateCommentStatus423Html = APIRepoArchivedError;
+
+export type IssueCreateCommentStatus423 = IssueCreateCommentStatus423Json | IssueCreateCommentStatus423Html;
+
+export type IssueCreateCommentStatus500Json = APIInternalServerError;
+
+export type IssueCreateCommentStatus500Html = APIInternalServerError;
+
+export type IssueCreateCommentStatus500 = IssueCreateCommentStatus500Json | IssueCreateCommentStatus500Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateIssueCommentOption options for creating a comment on an issue
+ * @type object | undefined
  */
-export type IssueCreateComment404 = APINotFound;
+export type IssueCreateCommentBody = CreateIssueCommentOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type IssueCreateComment423 = APIRepoArchivedError;
-
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueCreateComment500 = APIInternalServerError;
-
-export type IssueCreateCommentMutationRequest = CreateIssueCommentOption;
-
-export type IssueCreateCommentMutationResponse = IssueCreateComment201;
-
-export type IssueCreateCommentMutation = {
-  Response: IssueCreateComment201;
-  Request: IssueCreateCommentMutationRequest;
-  PathParams: IssueCreateCommentPathParams;
-  Errors: IssueCreateComment403 | IssueCreateComment404 | IssueCreateComment423 | IssueCreateComment500;
+export type IssueCreateCommentOptions = {
+  body: IssueCreateCommentBody;
+  path: IssueCreateCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateCommentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateCommentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateCommentStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateCommentStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateCommentStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateCommentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateCommentStatus423Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateCommentStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateCommentStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateCommentResponse =
+  | IssueCreateCommentStatus201
+  | IssueCreateCommentStatus403
+  | IssueCreateCommentStatus404
+  | IssueCreateCommentStatus423
+  | IssueCreateCommentStatus500;

@@ -3,61 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreateWikiPageMutationRequest,
-  RepoCreateWikiPageMutationResponse,
-  RepoCreateWikiPagePathParams,
-  RepoCreateWikiPage400,
-  RepoCreateWikiPage403,
-  RepoCreateWikiPage404,
-  RepoCreateWikiPage413,
-  RepoCreateWikiPage423,
-} from '../types/RepoCreateWikiPage';
-
-function getRepoCreateWikiPageUrl(
-  owner: RepoCreateWikiPagePathParams['owner'],
-  repo: RepoCreateWikiPagePathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/wiki/new` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreateWikiPageOptions, RepoCreateWikiPageResponses } from '../types/RepoCreateWikiPage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a wiki page
  * {@link /repos/:owner/:repo/wiki/new}
  */
-export async function repoCreateWikiPage(
-  owner: RepoCreateWikiPagePathParams['owner'],
-  repo: RepoCreateWikiPagePathParams['repo'],
-  data?: RepoCreateWikiPageMutationRequest,
-  config: Partial<RequestConfig<RepoCreateWikiPageMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateWikiPage<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateWikiPageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateWikiPageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateWikiPageMutationResponse,
-    ResponseErrorConfig<
-      | RepoCreateWikiPage400
-      | RepoCreateWikiPage403
-      | RepoCreateWikiPage404
-      | RepoCreateWikiPage413
-      | RepoCreateWikiPage423
-    >,
-    RepoCreateWikiPageMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateWikiPageUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/wiki/new',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateWikiPageResponses, ThrowOnError>>;
 }

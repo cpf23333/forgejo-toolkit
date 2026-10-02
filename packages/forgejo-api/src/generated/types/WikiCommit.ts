@@ -7,22 +7,11 @@ import type { CommitUser } from './CommitUser';
 
 /**
  * @description WikiCommit page commit/revision
+ * @type object
  */
 export type WikiCommit = {
-  /**
-   * @type object | undefined
-   */
   author?: CommitUser;
-  /**
-   * @type object | undefined
-   */
   commiter?: CommitUser;
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
 };

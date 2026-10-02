@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { TrackedTime } from './TrackedTime';
 
-export type RepoTrackedTimesPathParams = {
+export type RepoTrackedTimesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,7 +22,7 @@ export type RepoTrackedTimesPathParams = {
   repo: string;
 };
 
-export type RepoTrackedTimesQueryParams = {
+export type RepoTrackedTimesQuery = {
   /**
    * @description optional filter by user (available for issue managers)
    * @type string | undefined
@@ -30,12 +30,16 @@ export type RepoTrackedTimesQueryParams = {
   user?: string;
   /**
    * @description Only show times updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show times updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -50,36 +54,105 @@ export type RepoTrackedTimesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description TrackedTimeList
- */
-export type RepoTrackedTimes200 = TrackedTime[];
+export type RepoTrackedTimesStatus200Json = TrackedTime[];
+
+export type RepoTrackedTimesStatus200Html = TrackedTime[];
+
+export type RepoTrackedTimesStatus200 = RepoTrackedTimesStatus200Json | RepoTrackedTimesStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoTrackedTimes400 = APIError;
+export type RepoTrackedTimesStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoTrackedTimes403 = APIForbiddenError;
+export type RepoTrackedTimesStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoTrackedTimes404 = APINotFound;
+export type RepoTrackedTimesStatus400 = RepoTrackedTimesStatus400Json | RepoTrackedTimesStatus400Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoTrackedTimes422 = APIValidationError;
+export type RepoTrackedTimesStatus403Json = APIForbiddenError;
 
-export type RepoTrackedTimesQueryResponse = RepoTrackedTimes200;
+export type RepoTrackedTimesStatus403Html = APIForbiddenError;
 
-export type RepoTrackedTimesQuery = {
-  Response: RepoTrackedTimes200;
-  PathParams: RepoTrackedTimesPathParams;
-  QueryParams: RepoTrackedTimesQueryParams;
-  Errors: RepoTrackedTimes400 | RepoTrackedTimes403 | RepoTrackedTimes404 | RepoTrackedTimes422;
+export type RepoTrackedTimesStatus403 = RepoTrackedTimesStatus403Json | RepoTrackedTimesStatus403Html;
+
+export type RepoTrackedTimesStatus404Json = APINotFound;
+
+export type RepoTrackedTimesStatus404Html = APINotFound;
+
+export type RepoTrackedTimesStatus404 = RepoTrackedTimesStatus404Json | RepoTrackedTimesStatus404Html;
+
+export type RepoTrackedTimesStatus422Json = APIValidationError;
+
+export type RepoTrackedTimesStatus422Html = APIValidationError;
+
+export type RepoTrackedTimesStatus422 = RepoTrackedTimesStatus422Json | RepoTrackedTimesStatus422Html;
+
+export type RepoTrackedTimesOptions = {
+  body?: never;
+  path: RepoTrackedTimesPath;
+  query?: RepoTrackedTimesQuery;
+  headers?: never;
 };
+
+export type RepoTrackedTimesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoTrackedTimesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTrackedTimesStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoTrackedTimesStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTrackedTimesStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoTrackedTimesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTrackedTimesStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoTrackedTimesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTrackedTimesStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoTrackedTimesStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTrackedTimesStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoTrackedTimesResponse =
+  | RepoTrackedTimesStatus200
+  | RepoTrackedTimesStatus400
+  | RepoTrackedTimesStatus403
+  | RepoTrackedTimesStatus404
+  | RepoTrackedTimesStatus422;

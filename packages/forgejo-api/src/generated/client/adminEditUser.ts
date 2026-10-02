@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminEditUserMutationRequest,
-  AdminEditUserMutationResponse,
-  AdminEditUserPathParams,
-  AdminEditUser400,
-  AdminEditUser403,
-  AdminEditUser422,
-} from '../types/AdminEditUser';
-
-function getAdminEditUserUrl(username: AdminEditUserPathParams['username']) {
-  const res = { method: 'PATCH', url: `/admin/users/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminEditUserOptions, AdminEditUserResponses } from '../types/AdminEditUser';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit an existing user
  * {@link /admin/users/:username}
  */
-export async function adminEditUser(
-  username: AdminEditUserPathParams['username'],
-  data?: AdminEditUserMutationRequest,
-  config: Partial<RequestConfig<AdminEditUserMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminEditUser<ThrowOnError extends boolean = true>(
+  options: Options<AdminEditUserOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminEditUserResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    AdminEditUserMutationResponse,
-    ResponseErrorConfig<AdminEditUser400 | AdminEditUser403 | AdminEditUser422>,
-    AdminEditUserMutationRequest
-  >({
-    method: 'PATCH',
-    url: getAdminEditUserUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/admin/users/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminEditUserResponses, ThrowOnError>>;
 }

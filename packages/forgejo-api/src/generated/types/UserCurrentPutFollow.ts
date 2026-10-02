@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentPutFollowPathParams = {
+export type UserCurrentPutFollowPath = {
   /**
    * @description username of user to follow
    * @type string
@@ -15,30 +15,69 @@ export type UserCurrentPutFollowPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentPutFollow204 = any;
+export type UserCurrentPutFollowStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentPutFollow401 = APIUnauthorizedError;
+export type UserCurrentPutFollowStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentPutFollow403 = APIForbiddenError;
+export type UserCurrentPutFollowStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentPutFollow404 = APINotFound;
+export type UserCurrentPutFollowStatus401 = UserCurrentPutFollowStatus401Json | UserCurrentPutFollowStatus401Html;
 
-export type UserCurrentPutFollowMutationResponse = UserCurrentPutFollow204;
+export type UserCurrentPutFollowStatus403Json = APIForbiddenError;
 
-export type UserCurrentPutFollowMutation = {
-  Response: UserCurrentPutFollow204;
-  PathParams: UserCurrentPutFollowPathParams;
-  Errors: UserCurrentPutFollow401 | UserCurrentPutFollow403 | UserCurrentPutFollow404;
+export type UserCurrentPutFollowStatus403Html = APIForbiddenError;
+
+export type UserCurrentPutFollowStatus403 = UserCurrentPutFollowStatus403Json | UserCurrentPutFollowStatus403Html;
+
+export type UserCurrentPutFollowStatus404Json = APINotFound;
+
+export type UserCurrentPutFollowStatus404Html = APINotFound;
+
+export type UserCurrentPutFollowStatus404 = UserCurrentPutFollowStatus404Json | UserCurrentPutFollowStatus404Html;
+
+export type UserCurrentPutFollowOptions = {
+  body?: never;
+  path: UserCurrentPutFollowPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentPutFollowResponses = {
+  '204': UserCurrentPutFollowStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutFollowStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutFollowStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutFollowStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutFollowStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutFollowStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutFollowStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentPutFollowResponse =
+  | UserCurrentPutFollowStatus204
+  | UserCurrentPutFollowStatus401
+  | UserCurrentPutFollowStatus403
+  | UserCurrentPutFollowStatus404;

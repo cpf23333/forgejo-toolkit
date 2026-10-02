@@ -9,6 +9,7 @@ import type { InternalTracker } from './InternalTracker';
 
 /**
  * @description EditRepoOption options when editing a repository\'s properties
+ * @type object
  */
 export type EditRepoOption = {
   /**

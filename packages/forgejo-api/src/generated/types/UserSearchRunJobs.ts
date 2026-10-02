@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type UserSearchRunJobsQueryParams = {
+export type UserSearchRunJobsQuery = {
   /**
    * @description a comma separated list of run job labels to search for
    * @type string | undefined
@@ -15,25 +15,65 @@ export type UserSearchRunJobsQueryParams = {
   labels?: string;
 };
 
-/**
- * @description RunJobList is a list of action run jobs
- */
-export type UserSearchRunJobs200 = ActionRunJob[];
+export type UserSearchRunJobsStatus200Json = ActionRunJob[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserSearchRunJobs401 = APIUnauthorizedError;
+export type UserSearchRunJobsStatus200Html = ActionRunJob[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserSearchRunJobs403 = APIForbiddenError;
+export type UserSearchRunJobsStatus200 = UserSearchRunJobsStatus200Json | UserSearchRunJobsStatus200Html;
 
-export type UserSearchRunJobsQueryResponse = UserSearchRunJobs200;
+export type UserSearchRunJobsStatus401Json = APIUnauthorizedError;
 
-export type UserSearchRunJobsQuery = {
-  Response: UserSearchRunJobs200;
-  QueryParams: UserSearchRunJobsQueryParams;
-  Errors: UserSearchRunJobs401 | UserSearchRunJobs403;
+export type UserSearchRunJobsStatus401Html = APIUnauthorizedError;
+
+export type UserSearchRunJobsStatus401 = UserSearchRunJobsStatus401Json | UserSearchRunJobsStatus401Html;
+
+export type UserSearchRunJobsStatus403Json = APIForbiddenError;
+
+export type UserSearchRunJobsStatus403Html = APIForbiddenError;
+
+export type UserSearchRunJobsStatus403 = UserSearchRunJobsStatus403Json | UserSearchRunJobsStatus403Html;
+
+export type UserSearchRunJobsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserSearchRunJobsQuery;
+  headers?: never;
 };
+
+export type UserSearchRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserSearchRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserSearchRunJobsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserSearchRunJobsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserSearchRunJobsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserSearchRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserSearchRunJobsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserSearchRunJobsResponse =
+  | UserSearchRunJobsStatus200
+  | UserSearchRunJobsStatus401
+  | UserSearchRunJobsStatus403;

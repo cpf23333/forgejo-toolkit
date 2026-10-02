@@ -9,22 +9,81 @@ import type { RegistrationToken } from './RegistrationToken';
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
-export type UserGetRunnerRegistrationToken200 = RegistrationToken;
+export type UserGetRunnerRegistrationTokenStatus200Json = RegistrationToken;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
-export type UserGetRunnerRegistrationToken401 = APIUnauthorizedError;
+export type UserGetRunnerRegistrationTokenStatus200Html = RegistrationToken;
+
+export type UserGetRunnerRegistrationTokenStatus200 =
+  | UserGetRunnerRegistrationTokenStatus200Json
+  | UserGetRunnerRegistrationTokenStatus200Html;
+
+export type UserGetRunnerRegistrationTokenStatus401Json = APIUnauthorizedError;
+
+export type UserGetRunnerRegistrationTokenStatus401Html = APIUnauthorizedError;
+
+export type UserGetRunnerRegistrationTokenStatus401 =
+  | UserGetRunnerRegistrationTokenStatus401Json
+  | UserGetRunnerRegistrationTokenStatus401Html;
+
+export type UserGetRunnerRegistrationTokenStatus403Json = APIForbiddenError;
+
+export type UserGetRunnerRegistrationTokenStatus403Html = APIForbiddenError;
+
+export type UserGetRunnerRegistrationTokenStatus403 =
+  | UserGetRunnerRegistrationTokenStatus403Json
+  | UserGetRunnerRegistrationTokenStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @deprecated
+ * @type object
  */
-export type UserGetRunnerRegistrationToken403 = APIForbiddenError;
-
-export type UserGetRunnerRegistrationTokenQueryResponse = UserGetRunnerRegistrationToken200;
-
-export type UserGetRunnerRegistrationTokenQuery = {
-  Response: UserGetRunnerRegistrationToken200;
-  Errors: UserGetRunnerRegistrationToken401 | UserGetRunnerRegistrationToken403;
+export type UserGetRunnerRegistrationTokenOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetRunnerRegistrationTokenResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetRunnerRegistrationTokenStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetRunnerRegistrationTokenStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetRunnerRegistrationTokenStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetRunnerRegistrationTokenStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetRunnerRegistrationTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetRunnerRegistrationTokenStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetRunnerRegistrationTokenResponse =
+  | UserGetRunnerRegistrationTokenStatus200
+  | UserGetRunnerRegistrationTokenStatus401
+  | UserGetRunnerRegistrationTokenStatus403;

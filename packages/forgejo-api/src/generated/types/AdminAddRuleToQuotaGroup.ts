@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type AdminAddRuleToQuotaGroupPathParams = {
+export type AdminAddRuleToQuotaGroupPath = {
   /**
    * @description quota group to add a rule to
    * @type string
@@ -21,45 +21,127 @@ export type AdminAddRuleToQuotaGroupPathParams = {
   quotarule: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminAddRuleToQuotaGroup204 = any;
+export type AdminAddRuleToQuotaGroupStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminAddRuleToQuotaGroup400 = APIError;
+export type AdminAddRuleToQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminAddRuleToQuotaGroup403 = APIForbiddenError;
+export type AdminAddRuleToQuotaGroupStatus400Html = APIError;
+
+export type AdminAddRuleToQuotaGroupStatus400 =
+  | AdminAddRuleToQuotaGroupStatus400Json
+  | AdminAddRuleToQuotaGroupStatus400Html;
+
+export type AdminAddRuleToQuotaGroupStatus403Json = APIForbiddenError;
+
+export type AdminAddRuleToQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminAddRuleToQuotaGroupStatus403 =
+  | AdminAddRuleToQuotaGroupStatus403Json
+  | AdminAddRuleToQuotaGroupStatus403Html;
+
+export type AdminAddRuleToQuotaGroupStatus404Json = APINotFound;
+
+export type AdminAddRuleToQuotaGroupStatus404Html = APINotFound;
+
+export type AdminAddRuleToQuotaGroupStatus404 =
+  | AdminAddRuleToQuotaGroupStatus404Json
+  | AdminAddRuleToQuotaGroupStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminAddRuleToQuotaGroup404 = APINotFound;
+export type AdminAddRuleToQuotaGroupStatus409Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminAddRuleToQuotaGroup409 = APIError;
+export type AdminAddRuleToQuotaGroupStatus409Html = APIError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type AdminAddRuleToQuotaGroup422 = APIValidationError;
+export type AdminAddRuleToQuotaGroupStatus409 =
+  | AdminAddRuleToQuotaGroupStatus409Json
+  | AdminAddRuleToQuotaGroupStatus409Html;
 
-export type AdminAddRuleToQuotaGroupMutationResponse = AdminAddRuleToQuotaGroup204;
+export type AdminAddRuleToQuotaGroupStatus422Json = APIValidationError;
 
-export type AdminAddRuleToQuotaGroupMutation = {
-  Response: AdminAddRuleToQuotaGroup204;
-  PathParams: AdminAddRuleToQuotaGroupPathParams;
-  Errors:
-    | AdminAddRuleToQuotaGroup400
-    | AdminAddRuleToQuotaGroup403
-    | AdminAddRuleToQuotaGroup404
-    | AdminAddRuleToQuotaGroup409
-    | AdminAddRuleToQuotaGroup422;
+export type AdminAddRuleToQuotaGroupStatus422Html = APIValidationError;
+
+export type AdminAddRuleToQuotaGroupStatus422 =
+  | AdminAddRuleToQuotaGroupStatus422Json
+  | AdminAddRuleToQuotaGroupStatus422Html;
+
+export type AdminAddRuleToQuotaGroupOptions = {
+  body?: never;
+  path: AdminAddRuleToQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminAddRuleToQuotaGroupResponses = {
+  '204': AdminAddRuleToQuotaGroupStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminAddRuleToQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAddRuleToQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminAddRuleToQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAddRuleToQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminAddRuleToQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAddRuleToQuotaGroupStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: AdminAddRuleToQuotaGroupStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAddRuleToQuotaGroupStatus409Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminAddRuleToQuotaGroupStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAddRuleToQuotaGroupStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminAddRuleToQuotaGroupResponse =
+  | AdminAddRuleToQuotaGroupStatus204
+  | AdminAddRuleToQuotaGroupStatus400
+  | AdminAddRuleToQuotaGroupStatus403
+  | AdminAddRuleToQuotaGroupStatus404
+  | AdminAddRuleToQuotaGroupStatus409
+  | AdminAddRuleToQuotaGroupStatus422;

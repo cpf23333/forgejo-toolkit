@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgCreateLabelMutationResponse, OrgCreateLabel404, OrgCreateLabel422 } from '../types/OrgCreateLabel';
+import type {
+  OrgCreateLabelResponse,
+  OrgCreateLabelStatus404,
+  OrgCreateLabelStatus422,
+  OrgCreateLabelBody,
+} from '../types/OrgCreateLabel';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgCreateLabelHandlerResponse201(data: OrgCreateLabelMutationResponse) {
+export function orgCreateLabelHandlerResponse201(data: OrgCreateLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +21,7 @@ export function orgCreateLabelHandlerResponse201(data: OrgCreateLabelMutationRes
   });
 }
 
-export function orgCreateLabelHandlerResponse404(data: OrgCreateLabel404) {
+export function orgCreateLabelHandlerResponse404(data: OrgCreateLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +30,7 @@ export function orgCreateLabelHandlerResponse404(data: OrgCreateLabel404) {
   });
 }
 
-export function orgCreateLabelHandlerResponse422(data: OrgCreateLabel422) {
+export function orgCreateLabelHandlerResponse422(data: OrgCreateLabelStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +40,9 @@ export function orgCreateLabelHandlerResponse422(data: OrgCreateLabel422) {
 }
 
 export function orgCreateLabelHandler(
-  data?:
-    | OrgCreateLabelMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgCreateLabelResponse | HttpResponseResolver<Record<string, string>, OrgCreateLabelBody>,
 ) {
-  return http.post(`/orgs/:org/labels`, function handler(info) {
+  return http.post<Record<string, string>, OrgCreateLabelBody>(`/orgs/:org/labels`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

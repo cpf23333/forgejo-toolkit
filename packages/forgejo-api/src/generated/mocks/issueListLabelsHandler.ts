@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { IssueListLabelsQueryResponse, IssueListLabels404 } from '../types/IssueListLabels';
+import type { IssueListLabelsResponse, IssueListLabelsStatus404 } from '../types/IssueListLabels';
 import { http } from 'msw';
 
-export function issueListLabelsHandlerResponse200(data: IssueListLabelsQueryResponse) {
+export function issueListLabelsHandlerResponse200(data: IssueListLabelsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function issueListLabelsHandlerResponse200(data: IssueListLabelsQueryResp
   });
 }
 
-export function issueListLabelsHandlerResponse404(data: IssueListLabels404) {
+export function issueListLabelsHandlerResponse404(data: IssueListLabelsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function issueListLabelsHandlerResponse404(data: IssueListLabels404) {
 
 export function issueListLabelsHandler(
   data?:
-    | IssueListLabelsQueryResponse
+    | IssueListLabelsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/labels`, function handler(info) {

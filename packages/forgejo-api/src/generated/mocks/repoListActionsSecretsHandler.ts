@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListActionsSecretsQueryResponse, RepoListActionsSecrets404 } from '../types/RepoListActionsSecrets';
+import type { RepoListActionsSecretsResponse, RepoListActionsSecretsStatus404 } from '../types/RepoListActionsSecrets';
 import { http } from 'msw';
 
-export function repoListActionsSecretsHandlerResponse200(data: RepoListActionsSecretsQueryResponse) {
+export function repoListActionsSecretsHandlerResponse200(data: RepoListActionsSecretsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListActionsSecretsHandlerResponse200(data: RepoListActionsSe
   });
 }
 
-export function repoListActionsSecretsHandlerResponse404(data: RepoListActionsSecrets404) {
+export function repoListActionsSecretsHandlerResponse404(data: RepoListActionsSecretsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListActionsSecretsHandlerResponse404(data: RepoListActionsSe
 
 export function repoListActionsSecretsHandler(
   data?:
-    | RepoListActionsSecretsQueryResponse
+    | RepoListActionsSecretsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/secrets`, function handler(info) {

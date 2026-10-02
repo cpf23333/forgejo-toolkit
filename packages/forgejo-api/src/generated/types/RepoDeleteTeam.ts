@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoDeleteTeamPathParams = {
+export type RepoDeleteTeamPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,30 +25,77 @@ export type RepoDeleteTeamPathParams = {
   team: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteTeam204 = any;
+export type RepoDeleteTeamStatus204 = unknown;
+
+export type RepoDeleteTeamStatus404Json = APINotFound;
+
+export type RepoDeleteTeamStatus404Html = APINotFound;
+
+export type RepoDeleteTeamStatus404 = RepoDeleteTeamStatus404Json | RepoDeleteTeamStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteTeam404 = APINotFound;
+export type RepoDeleteTeamStatus405Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteTeam405 = APIError;
+export type RepoDeleteTeamStatus405Html = APIError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoDeleteTeam422 = APIValidationError;
+export type RepoDeleteTeamStatus405 = RepoDeleteTeamStatus405Json | RepoDeleteTeamStatus405Html;
 
-export type RepoDeleteTeamMutationResponse = RepoDeleteTeam204;
+export type RepoDeleteTeamStatus422Json = APIValidationError;
 
-export type RepoDeleteTeamMutation = {
-  Response: RepoDeleteTeam204;
-  PathParams: RepoDeleteTeamPathParams;
-  Errors: RepoDeleteTeam404 | RepoDeleteTeam405 | RepoDeleteTeam422;
+export type RepoDeleteTeamStatus422Html = APIValidationError;
+
+export type RepoDeleteTeamStatus422 = RepoDeleteTeamStatus422Json | RepoDeleteTeamStatus422Html;
+
+export type RepoDeleteTeamOptions = {
+  body?: never;
+  path: RepoDeleteTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteTeamResponses = {
+  '204': RepoDeleteTeamStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTeamStatus404Html;
+      };
+  '405':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTeamStatus405Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTeamStatus405Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTeamStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTeamStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteTeamResponse =
+  | RepoDeleteTeamStatus204
+  | RepoDeleteTeamStatus404
+  | RepoDeleteTeamStatus405
+  | RepoDeleteTeamStatus422;

@@ -3,35 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetBlobsQueryResponse, GetBlobsPathParams, GetBlobsQueryParams, GetBlobs400 } from '../types/GetBlobs';
-
-function getGetBlobsUrl(owner: GetBlobsPathParams['owner'], repo: GetBlobsPathParams['repo']) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/blobs` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetBlobsOptions, GetBlobsResponses } from '../types/GetBlobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets multiple blobs of a repository.
  * {@link /repos/:owner/:repo/git/blobs}
  */
-export async function getBlobs(
-  owner: GetBlobsPathParams['owner'],
-  repo: GetBlobsPathParams['repo'],
-  params: GetBlobsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getBlobs<ThrowOnError extends boolean = true>(
+  options: Options<GetBlobsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetBlobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetBlobsQueryResponse, ResponseErrorConfig<GetBlobs400>, unknown>({
-    method: 'GET',
-    url: getGetBlobsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/blobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetBlobsResponses, ThrowOnError>>;
 }

@@ -5,6 +5,7 @@
 
 /**
  * @description QuotaUsedPackage represents a package counting towards a user\'s quota
+ * @type object
  */
 export type QuotaUsedPackage = {
   /**
@@ -19,7 +20,9 @@ export type QuotaUsedPackage = {
   name?: string;
   /**
    * @description Size of the package version
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
   /**

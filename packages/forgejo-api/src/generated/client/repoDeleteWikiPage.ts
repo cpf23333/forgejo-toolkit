@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteWikiPageMutationResponse,
-  RepoDeleteWikiPagePathParams,
-  RepoDeleteWikiPage403,
-  RepoDeleteWikiPage404,
-  RepoDeleteWikiPage423,
-} from '../types/RepoDeleteWikiPage';
-
-function getRepoDeleteWikiPageUrl(
-  owner: RepoDeleteWikiPagePathParams['owner'],
-  repo: RepoDeleteWikiPagePathParams['repo'],
-  pageName: RepoDeleteWikiPagePathParams['pageName'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/wiki/page/${pageName}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteWikiPageOptions, RepoDeleteWikiPageResponses } from '../types/RepoDeleteWikiPage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a wiki page
  * {@link /repos/:owner/:repo/wiki/page/:pageName}
  */
-export async function repoDeleteWikiPage(
-  owner: RepoDeleteWikiPagePathParams['owner'],
-  repo: RepoDeleteWikiPagePathParams['repo'],
-  pageName: RepoDeleteWikiPagePathParams['pageName'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteWikiPage<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteWikiPageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteWikiPageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteWikiPageMutationResponse,
-    ResponseErrorConfig<RepoDeleteWikiPage403 | RepoDeleteWikiPage404 | RepoDeleteWikiPage423>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteWikiPageUrl(owner, repo, pageName).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/wiki/page/{pageName}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteWikiPageResponses, ThrowOnError>>;
 }

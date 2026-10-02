@@ -4,9 +4,9 @@
  */
 
 import type { APINotFound } from './APINotFound';
-import type { UserHeatmapData } from './UserHeatmapData';
+import type { UserHeatmapDataSchema } from './UserHeatmapDataSchema';
 
-export type UserGetHeatmapDataPathParams = {
+export type UserGetHeatmapDataPath = {
   /**
    * @description username of user to get
    * @type string
@@ -14,20 +14,47 @@ export type UserGetHeatmapDataPathParams = {
   username: string;
 };
 
-/**
- * @description UserHeatmapData
- */
-export type UserGetHeatmapData200 = UserHeatmapData[];
+export type UserGetHeatmapDataStatus200Json = UserHeatmapDataSchema[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserGetHeatmapData404 = APINotFound;
+export type UserGetHeatmapDataStatus200Html = UserHeatmapDataSchema[];
 
-export type UserGetHeatmapDataQueryResponse = UserGetHeatmapData200;
+export type UserGetHeatmapDataStatus200 = UserGetHeatmapDataStatus200Json | UserGetHeatmapDataStatus200Html;
 
-export type UserGetHeatmapDataQuery = {
-  Response: UserGetHeatmapData200;
-  PathParams: UserGetHeatmapDataPathParams;
-  Errors: UserGetHeatmapData404;
+export type UserGetHeatmapDataStatus404Json = APINotFound;
+
+export type UserGetHeatmapDataStatus404Html = APINotFound;
+
+export type UserGetHeatmapDataStatus404 = UserGetHeatmapDataStatus404Json | UserGetHeatmapDataStatus404Html;
+
+export type UserGetHeatmapDataOptions = {
+  body?: never;
+  path: UserGetHeatmapDataPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetHeatmapDataResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetHeatmapDataStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetHeatmapDataStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserGetHeatmapDataStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetHeatmapDataStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetHeatmapDataResponse = UserGetHeatmapDataStatus200 | UserGetHeatmapDataStatus404;

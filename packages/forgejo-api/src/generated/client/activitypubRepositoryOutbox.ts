@@ -3,35 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  ActivitypubRepositoryOutboxMutationResponse,
-  ActivitypubRepositoryOutboxPathParams,
+  ActivitypubRepositoryOutboxOptions,
+  ActivitypubRepositoryOutboxResponses,
 } from '../types/ActivitypubRepositoryOutbox';
-
-function getActivitypubRepositoryOutboxUrl(repositoryId: ActivitypubRepositoryOutboxPathParams['repository-id']) {
-  const res = {
-    method: 'POST',
-    url: `/activitypub/repository-id/${repositoryId}/outbox` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Display the outbox
- * {@link /activitypub/repository-id/:repository-id/outbox}
+ * {@link /activitypub/repository-id/:repositoryId/outbox}
  */
-export async function activitypubRepositoryOutbox(
-  repositoryId: ActivitypubRepositoryOutboxPathParams['repository-id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubRepositoryOutbox<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubRepositoryOutboxOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActivitypubRepositoryOutboxResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubRepositoryOutboxMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'POST',
-    url: getActivitypubRepositoryOutboxUrl(repositoryId).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/activitypub/repository-id/{repository-id}/outbox',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubRepositoryOutboxResponses, ThrowOnError>>;
 }

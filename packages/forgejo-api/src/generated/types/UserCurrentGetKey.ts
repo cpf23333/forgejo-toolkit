@@ -8,38 +8,99 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { PublicKey } from './PublicKey';
 
-export type UserCurrentGetKeyPathParams = {
+export type UserCurrentGetKeyPath = {
   /**
    * @description id of key to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description PublicKey
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type UserCurrentGetKey200 = PublicKey;
+export type UserCurrentGetKeyStatus200Json = PublicKey;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
-export type UserCurrentGetKey401 = APIUnauthorizedError;
+export type UserCurrentGetKeyStatus200Html = PublicKey;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentGetKey403 = APIForbiddenError;
+export type UserCurrentGetKeyStatus200 = UserCurrentGetKeyStatus200Json | UserCurrentGetKeyStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentGetKey404 = APINotFound;
+export type UserCurrentGetKeyStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentGetKeyQueryResponse = UserCurrentGetKey200;
+export type UserCurrentGetKeyStatus401Html = APIUnauthorizedError;
 
-export type UserCurrentGetKeyQuery = {
-  Response: UserCurrentGetKey200;
-  PathParams: UserCurrentGetKeyPathParams;
-  Errors: UserCurrentGetKey401 | UserCurrentGetKey403 | UserCurrentGetKey404;
+export type UserCurrentGetKeyStatus401 = UserCurrentGetKeyStatus401Json | UserCurrentGetKeyStatus401Html;
+
+export type UserCurrentGetKeyStatus403Json = APIForbiddenError;
+
+export type UserCurrentGetKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentGetKeyStatus403 = UserCurrentGetKeyStatus403Json | UserCurrentGetKeyStatus403Html;
+
+export type UserCurrentGetKeyStatus404Json = APINotFound;
+
+export type UserCurrentGetKeyStatus404Html = APINotFound;
+
+export type UserCurrentGetKeyStatus404 = UserCurrentGetKeyStatus404Json | UserCurrentGetKeyStatus404Html;
+
+export type UserCurrentGetKeyOptions = {
+  body?: never;
+  path: UserCurrentGetKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentGetKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetKeyStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentGetKeyResponse =
+  | UserCurrentGetKeyStatus200
+  | UserCurrentGetKeyStatus401
+  | UserCurrentGetKeyStatus403
+  | UserCurrentGetKeyStatus404;

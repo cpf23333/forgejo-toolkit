@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetLatestReleaseQueryResponse, RepoGetLatestRelease404 } from '../types/RepoGetLatestRelease';
+import type { RepoGetLatestReleaseResponse, RepoGetLatestReleaseStatus404 } from '../types/RepoGetLatestRelease';
 import { http } from 'msw';
 
-export function repoGetLatestReleaseHandlerResponse200(data: RepoGetLatestReleaseQueryResponse) {
+export function repoGetLatestReleaseHandlerResponse200(data: RepoGetLatestReleaseResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetLatestReleaseHandlerResponse200(data: RepoGetLatestReleas
   });
 }
 
-export function repoGetLatestReleaseHandlerResponse404(data: RepoGetLatestRelease404) {
+export function repoGetLatestReleaseHandlerResponse404(data: RepoGetLatestReleaseStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetLatestReleaseHandlerResponse404(data: RepoGetLatestReleas
 
 export function repoGetLatestReleaseHandler(
   data?:
-    | RepoGetLatestReleaseQueryResponse
+    | RepoGetLatestReleaseResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/releases/latest`, function handler(info) {

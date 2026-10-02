@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CommitStatus } from './CommitStatus';
 
-export type RepoListStatusesByRefPathParams = {
+export type RepoListStatusesByRefPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type RepoListStatusesByRefPathParams = {
   ref: string;
 };
 
-export const repoListStatusesByRefQueryParamsSortEnum = {
+export const repoListStatusesByRefSort = {
   oldest: 'oldest',
   recentupdate: 'recentupdate',
   leastupdate: 'leastupdate',
@@ -33,10 +33,9 @@ export const repoListStatusesByRefQueryParamsSortEnum = {
   highestindex: 'highestindex',
 } as const;
 
-export type RepoListStatusesByRefQueryParamsSortEnumKey =
-  (typeof repoListStatusesByRefQueryParamsSortEnum)[keyof typeof repoListStatusesByRefQueryParamsSortEnum];
+export type RepoListStatusesByRefSortKey = (typeof repoListStatusesByRefSort)[keyof typeof repoListStatusesByRefSort];
 
-export const repoListStatusesByRefQueryParamsStateEnum = {
+export const repoListStatusesByRefState = {
   pending: 'pending',
   success: 'success',
   error: 'error',
@@ -44,20 +43,20 @@ export const repoListStatusesByRefQueryParamsStateEnum = {
   warning: 'warning',
 } as const;
 
-export type RepoListStatusesByRefQueryParamsStateEnumKey =
-  (typeof repoListStatusesByRefQueryParamsStateEnum)[keyof typeof repoListStatusesByRefQueryParamsStateEnum];
+export type RepoListStatusesByRefStateKey =
+  (typeof repoListStatusesByRefState)[keyof typeof repoListStatusesByRefState];
 
-export type RepoListStatusesByRefQueryParams = {
+export type RepoListStatusesByRefQuery = {
   /**
    * @description type of sort
    * @type string | undefined
    */
-  sort?: RepoListStatusesByRefQueryParamsSortEnumKey;
+  sort?: RepoListStatusesByRefSortKey;
   /**
    * @description type of state
    * @type string | undefined
    */
-  state?: RepoListStatusesByRefQueryParamsStateEnumKey;
+  state?: RepoListStatusesByRefStateKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -70,26 +69,73 @@ export type RepoListStatusesByRefQueryParams = {
   limit?: number;
 };
 
-/**
- * @description CommitStatusList
- */
-export type RepoListStatusesByRef200 = CommitStatus[];
+export type RepoListStatusesByRefStatus200Json = CommitStatus[];
+
+export type RepoListStatusesByRefStatus200Html = CommitStatus[];
+
+export type RepoListStatusesByRefStatus200 = RepoListStatusesByRefStatus200Json | RepoListStatusesByRefStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListStatusesByRef400 = APIError;
+export type RepoListStatusesByRefStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListStatusesByRef404 = APINotFound;
+export type RepoListStatusesByRefStatus400Html = APIError;
 
-export type RepoListStatusesByRefQueryResponse = RepoListStatusesByRef200;
+export type RepoListStatusesByRefStatus400 = RepoListStatusesByRefStatus400Json | RepoListStatusesByRefStatus400Html;
 
-export type RepoListStatusesByRefQuery = {
-  Response: RepoListStatusesByRef200;
-  PathParams: RepoListStatusesByRefPathParams;
-  QueryParams: RepoListStatusesByRefQueryParams;
-  Errors: RepoListStatusesByRef400 | RepoListStatusesByRef404;
+export type RepoListStatusesByRefStatus404Json = APINotFound;
+
+export type RepoListStatusesByRefStatus404Html = APINotFound;
+
+export type RepoListStatusesByRefStatus404 = RepoListStatusesByRefStatus404Json | RepoListStatusesByRefStatus404Html;
+
+export type RepoListStatusesByRefOptions = {
+  body?: never;
+  path: RepoListStatusesByRefPath;
+  query?: RepoListStatusesByRefQuery;
+  headers?: never;
 };
+
+export type RepoListStatusesByRefResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesByRefStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesByRefStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesByRefStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesByRefStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesByRefStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesByRefStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListStatusesByRefResponse =
+  | RepoListStatusesByRefStatus200
+  | RepoListStatusesByRefStatus400
+  | RepoListStatusesByRefStatus404;

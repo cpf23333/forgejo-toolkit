@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoGetArchivePathParams = {
+export type RepoGetArchivePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,20 +23,35 @@ export type RepoGetArchivePathParams = {
   archive: string;
 };
 
-/**
- * @description success
- */
-export type RepoGetArchive200 = any;
+export type RepoGetArchiveStatus200 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetArchive404 = APINotFound;
+export type RepoGetArchiveStatus404Json = APINotFound;
 
-export type RepoGetArchiveQueryResponse = RepoGetArchive200;
+export type RepoGetArchiveStatus404Html = APINotFound;
 
-export type RepoGetArchiveQuery = {
-  Response: RepoGetArchive200;
-  PathParams: RepoGetArchivePathParams;
-  Errors: RepoGetArchive404;
+export type RepoGetArchiveStatus404 = RepoGetArchiveStatus404Json | RepoGetArchiveStatus404Html;
+
+export type RepoGetArchiveOptions = {
+  body?: never;
+  path: RepoGetArchivePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetArchiveResponses = {
+  '200': RepoGetArchiveStatus200;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetArchiveStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetArchiveStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetArchiveResponse = RepoGetArchiveStatus200 | RepoGetArchiveStatus404;

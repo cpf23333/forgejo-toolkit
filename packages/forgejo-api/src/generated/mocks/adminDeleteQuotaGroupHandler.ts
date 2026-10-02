@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminDeleteQuotaGroupMutationResponse,
-  AdminDeleteQuotaGroup400,
-  AdminDeleteQuotaGroup403,
-  AdminDeleteQuotaGroup404,
+  AdminDeleteQuotaGroupResponse,
+  AdminDeleteQuotaGroupStatus400,
+  AdminDeleteQuotaGroupStatus403,
+  AdminDeleteQuotaGroupStatus404,
 } from '../types/AdminDeleteQuotaGroup';
 import { http } from 'msw';
 
-export function adminDeleteQuotaGroupHandlerResponse204(data?: AdminDeleteQuotaGroupMutationResponse) {
+export function adminDeleteQuotaGroupHandlerResponse204(data?: AdminDeleteQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse400(data: AdminDeleteQuotaGroup400) {
+export function adminDeleteQuotaGroupHandlerResponse400(data: AdminDeleteQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function adminDeleteQuotaGroupHandlerResponse400(data: AdminDeleteQuotaGr
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse403(data: AdminDeleteQuotaGroup403) {
+export function adminDeleteQuotaGroupHandlerResponse403(data: AdminDeleteQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function adminDeleteQuotaGroupHandlerResponse403(data: AdminDeleteQuotaGr
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse404(data: AdminDeleteQuotaGroup404) {
+export function adminDeleteQuotaGroupHandlerResponse404(data: AdminDeleteQuotaGroupStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

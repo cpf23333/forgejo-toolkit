@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListReposQueryResponse, OrgListRepos404 } from '../types/OrgListRepos';
+import type { OrgListReposResponse, OrgListReposStatus404 } from '../types/OrgListRepos';
 import { http } from 'msw';
 
-export function orgListReposHandlerResponse200(data: OrgListReposQueryResponse) {
+export function orgListReposHandlerResponse200(data: OrgListReposResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListReposHandlerResponse200(data: OrgListReposQueryResponse) 
   });
 }
 
-export function orgListReposHandlerResponse404(data: OrgListRepos404) {
+export function orgListReposHandlerResponse404(data: OrgListReposStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function orgListReposHandlerResponse404(data: OrgListRepos404) {
 }
 
 export function orgListReposHandler(
-  data?:
-    | OrgListReposQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgListReposResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/repos`, function handler(info) {
     if (typeof data === 'function') return data(info);

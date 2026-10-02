@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { LinkPackageMutationResponse, LinkPackagePathParams, LinkPackage404 } from '../types/LinkPackage';
-
-function getLinkPackageUrl(
-  owner: LinkPackagePathParams['owner'],
-  type: LinkPackagePathParams['type'],
-  name: LinkPackagePathParams['name'],
-  repo_name: LinkPackagePathParams['repo_name'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/packages/${owner}/${type}/${name}/-/link/${repo_name}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { LinkPackageOptions, LinkPackageResponses } from '../types/LinkPackage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Link a package to a repository
  * {@link /packages/:owner/:type/:name/-/link/:repo_name}
  */
-export async function linkPackage(
-  owner: LinkPackagePathParams['owner'],
-  type: LinkPackagePathParams['type'],
-  name: LinkPackagePathParams['name'],
-  repo_name: LinkPackagePathParams['repo_name'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function linkPackage<ThrowOnError extends boolean = true>(
+  options: Options<LinkPackageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<LinkPackageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<LinkPackageMutationResponse, ResponseErrorConfig<LinkPackage404>, unknown>({
-    method: 'POST',
-    url: getLinkPackageUrl(owner, type, name, repo_name).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/packages/{owner}/{type}/{name}/-/link/{repo_name}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<LinkPackageResponses, ThrowOnError>>;
 }

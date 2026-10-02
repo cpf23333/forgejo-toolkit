@@ -6,10 +6,12 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type OrgAddTeamRepositoryPathParams = {
+export type OrgAddTeamRepositoryPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -24,25 +26,53 @@ export type OrgAddTeamRepositoryPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgAddTeamRepository204 = any;
+export type OrgAddTeamRepositoryStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgAddTeamRepository403 = APIForbiddenError;
+export type OrgAddTeamRepositoryStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgAddTeamRepository404 = APINotFound;
+export type OrgAddTeamRepositoryStatus403Html = APIForbiddenError;
 
-export type OrgAddTeamRepositoryMutationResponse = OrgAddTeamRepository204;
+export type OrgAddTeamRepositoryStatus403 = OrgAddTeamRepositoryStatus403Json | OrgAddTeamRepositoryStatus403Html;
 
-export type OrgAddTeamRepositoryMutation = {
-  Response: OrgAddTeamRepository204;
-  PathParams: OrgAddTeamRepositoryPathParams;
-  Errors: OrgAddTeamRepository403 | OrgAddTeamRepository404;
+export type OrgAddTeamRepositoryStatus404Json = APINotFound;
+
+export type OrgAddTeamRepositoryStatus404Html = APINotFound;
+
+export type OrgAddTeamRepositoryStatus404 = OrgAddTeamRepositoryStatus404Json | OrgAddTeamRepositoryStatus404Html;
+
+export type OrgAddTeamRepositoryOptions = {
+  body?: never;
+  path: OrgAddTeamRepositoryPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgAddTeamRepositoryResponses = {
+  '204': OrgAddTeamRepositoryStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgAddTeamRepositoryStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgAddTeamRepositoryStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgAddTeamRepositoryStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgAddTeamRepositoryStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgAddTeamRepositoryResponse =
+  | OrgAddTeamRepositoryStatus204
+  | OrgAddTeamRepositoryStatus403
+  | OrgAddTeamRepositoryStatus404;

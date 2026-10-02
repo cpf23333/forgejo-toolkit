@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListCollaboratorsQueryResponse,
-  RepoListCollaboratorsPathParams,
-  RepoListCollaboratorsQueryParams,
-  RepoListCollaborators404,
-} from '../types/RepoListCollaborators';
-
-function getRepoListCollaboratorsUrl(
-  owner: RepoListCollaboratorsPathParams['owner'],
-  repo: RepoListCollaboratorsPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/collaborators` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListCollaboratorsOptions, RepoListCollaboratorsResponses } from '../types/RepoListCollaborators';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repository's collaborators
  * {@link /repos/:owner/:repo/collaborators}
  */
-export async function repoListCollaborators(
-  owner: RepoListCollaboratorsPathParams['owner'],
-  repo: RepoListCollaboratorsPathParams['repo'],
-  params?: RepoListCollaboratorsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListCollaborators<ThrowOnError extends boolean = true>(
+  options: Options<RepoListCollaboratorsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListCollaboratorsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListCollaboratorsQueryResponse, ResponseErrorConfig<RepoListCollaborators404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getRepoListCollaboratorsUrl(owner, repo).url.toString(),
-      params,
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/repos/{owner}/{repo}/collaborators',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListCollaboratorsResponses, ThrowOnError>>;
 }

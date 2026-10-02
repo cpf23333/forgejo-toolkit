@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
-export type IssueDeleteIssueCommentAttachmentPathParams = {
+export type IssueDeleteIssueCommentAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,35 +19,79 @@ export type IssueDeleteIssueCommentAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the attachment to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteIssueCommentAttachment204 = any;
+export type IssueDeleteIssueCommentAttachmentStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteIssueCommentAttachment404 = APIError;
+export type IssueDeleteIssueCommentAttachmentStatus404Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteIssueCommentAttachment423 = APIRepoArchivedError;
+export type IssueDeleteIssueCommentAttachmentStatus404Html = APIError;
 
-export type IssueDeleteIssueCommentAttachmentMutationResponse = IssueDeleteIssueCommentAttachment204;
+export type IssueDeleteIssueCommentAttachmentStatus404 =
+  | IssueDeleteIssueCommentAttachmentStatus404Json
+  | IssueDeleteIssueCommentAttachmentStatus404Html;
 
-export type IssueDeleteIssueCommentAttachmentMutation = {
-  Response: IssueDeleteIssueCommentAttachment204;
-  PathParams: IssueDeleteIssueCommentAttachmentPathParams;
-  Errors: IssueDeleteIssueCommentAttachment404 | IssueDeleteIssueCommentAttachment423;
+export type IssueDeleteIssueCommentAttachmentStatus423Json = APIRepoArchivedError;
+
+export type IssueDeleteIssueCommentAttachmentStatus423Html = APIRepoArchivedError;
+
+export type IssueDeleteIssueCommentAttachmentStatus423 =
+  | IssueDeleteIssueCommentAttachmentStatus423Json
+  | IssueDeleteIssueCommentAttachmentStatus423Html;
+
+export type IssueDeleteIssueCommentAttachmentOptions = {
+  body?: never;
+  path: IssueDeleteIssueCommentAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteIssueCommentAttachmentResponses = {
+  '204': IssueDeleteIssueCommentAttachmentStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueCommentAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueCommentAttachmentStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteIssueCommentAttachmentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteIssueCommentAttachmentStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteIssueCommentAttachmentResponse =
+  | IssueDeleteIssueCommentAttachmentStatus204
+  | IssueDeleteIssueCommentAttachmentStatus404
+  | IssueDeleteIssueCommentAttachmentStatus423;

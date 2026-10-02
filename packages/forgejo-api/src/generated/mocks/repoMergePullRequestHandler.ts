@@ -4,22 +4,24 @@
  */
 
 import type {
-  RepoMergePullRequestMutationResponse,
-  RepoMergePullRequest404,
-  RepoMergePullRequest405,
-  RepoMergePullRequest409,
-  RepoMergePullRequest413,
-  RepoMergePullRequest423,
+  RepoMergePullRequestResponse,
+  RepoMergePullRequestStatus404,
+  RepoMergePullRequestStatus405,
+  RepoMergePullRequestStatus409,
+  RepoMergePullRequestStatus413,
+  RepoMergePullRequestStatus423,
+  RepoMergePullRequestBody,
 } from '../types/RepoMergePullRequest';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoMergePullRequestHandlerResponse200(data?: RepoMergePullRequestMutationResponse) {
+export function repoMergePullRequestHandlerResponse200(data?: RepoMergePullRequestResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoMergePullRequestHandlerResponse404(data: RepoMergePullRequest404) {
+export function repoMergePullRequestHandlerResponse404(data: RepoMergePullRequestStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,13 +30,13 @@ export function repoMergePullRequestHandlerResponse404(data: RepoMergePullReques
   });
 }
 
-export function repoMergePullRequestHandlerResponse405(data?: RepoMergePullRequest405) {
+export function repoMergePullRequestHandlerResponse405(data?: RepoMergePullRequestStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
   });
 }
 
-export function repoMergePullRequestHandlerResponse409(data: RepoMergePullRequest409) {
+export function repoMergePullRequestHandlerResponse409(data: RepoMergePullRequestStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -43,13 +45,13 @@ export function repoMergePullRequestHandlerResponse409(data: RepoMergePullReques
   });
 }
 
-export function repoMergePullRequestHandlerResponse413(data?: RepoMergePullRequest413) {
+export function repoMergePullRequestHandlerResponse413(data?: RepoMergePullRequestStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoMergePullRequestHandlerResponse423(data: RepoMergePullRequest423) {
+export function repoMergePullRequestHandlerResponse423(data: RepoMergePullRequestStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -65,13 +67,16 @@ export function repoMergePullRequestHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, RepoMergePullRequestBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/pulls/:index/merge`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoMergePullRequestBody>(
+    `/repos/:owner/:repo/pulls/:index/merge`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+      });
+    },
+  );
 }

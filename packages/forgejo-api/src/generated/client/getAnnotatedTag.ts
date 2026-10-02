@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetAnnotatedTagQueryResponse,
-  GetAnnotatedTagPathParams,
-  GetAnnotatedTag400,
-  GetAnnotatedTag404,
-} from '../types/GetAnnotatedTag';
-
-function getGetAnnotatedTagUrl(
-  owner: GetAnnotatedTagPathParams['owner'],
-  repo: GetAnnotatedTagPathParams['repo'],
-  sha: GetAnnotatedTagPathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/tags/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetAnnotatedTagOptions, GetAnnotatedTagResponses } from '../types/GetAnnotatedTag';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets the tag object of an annotated tag (not lightweight tags)
  * {@link /repos/:owner/:repo/git/tags/:sha}
  */
-export async function getAnnotatedTag(
-  owner: GetAnnotatedTagPathParams['owner'],
-  repo: GetAnnotatedTagPathParams['repo'],
-  sha: GetAnnotatedTagPathParams['sha'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getAnnotatedTag<ThrowOnError extends boolean = true>(
+  options: Options<GetAnnotatedTagOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetAnnotatedTagResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetAnnotatedTagQueryResponse,
-    ResponseErrorConfig<GetAnnotatedTag400 | GetAnnotatedTag404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetAnnotatedTagUrl(owner, repo, sha).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/tags/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetAnnotatedTagResponses, ThrowOnError>>;
 }

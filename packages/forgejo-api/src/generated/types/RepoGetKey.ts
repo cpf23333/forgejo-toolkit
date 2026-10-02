@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { DeployKey } from './DeployKey';
 
-export type RepoGetKeyPathParams = {
+export type RepoGetKeyPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoGetKeyPathParams = {
   repo: string;
   /**
    * @description id of the key to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description DeployKey
+ * @description DeployKey a deploy key
+ * @type object
  */
-export type RepoGetKey200 = DeployKey;
+export type RepoGetKeyStatus200Json = DeployKey;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DeployKey a deploy key
+ * @type object
  */
-export type RepoGetKey404 = APINotFound;
+export type RepoGetKeyStatus200Html = DeployKey;
 
-export type RepoGetKeyQueryResponse = RepoGetKey200;
+export type RepoGetKeyStatus200 = RepoGetKeyStatus200Json | RepoGetKeyStatus200Html;
 
-export type RepoGetKeyQuery = {
-  Response: RepoGetKey200;
-  PathParams: RepoGetKeyPathParams;
-  Errors: RepoGetKey404;
+export type RepoGetKeyStatus404Json = APINotFound;
+
+export type RepoGetKeyStatus404Html = APINotFound;
+
+export type RepoGetKeyStatus404 = RepoGetKeyStatus404Json | RepoGetKeyStatus404Html;
+
+export type RepoGetKeyOptions = {
+  body?: never;
+  path: RepoGetKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetKeyStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetKeyResponse = RepoGetKeyStatus200 | RepoGetKeyStatus404;

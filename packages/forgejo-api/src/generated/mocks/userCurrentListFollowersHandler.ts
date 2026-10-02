@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserCurrentListFollowersQueryResponse,
-  UserCurrentListFollowers401,
-  UserCurrentListFollowers403,
+  UserCurrentListFollowersResponse,
+  UserCurrentListFollowersStatus401,
+  UserCurrentListFollowersStatus403,
 } from '../types/UserCurrentListFollowers';
 import { http } from 'msw';
 
-export function userCurrentListFollowersHandlerResponse200(data: UserCurrentListFollowersQueryResponse) {
+export function userCurrentListFollowersHandlerResponse200(data: UserCurrentListFollowersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userCurrentListFollowersHandlerResponse200(data: UserCurrentList
   });
 }
 
-export function userCurrentListFollowersHandlerResponse401(data: UserCurrentListFollowers401) {
+export function userCurrentListFollowersHandlerResponse401(data: UserCurrentListFollowersStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userCurrentListFollowersHandlerResponse401(data: UserCurrentList
   });
 }
 
-export function userCurrentListFollowersHandlerResponse403(data: UserCurrentListFollowers403) {
+export function userCurrentListFollowersHandlerResponse403(data: UserCurrentListFollowersStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userCurrentListFollowersHandlerResponse403(data: UserCurrentList
 
 export function userCurrentListFollowersHandler(
   data?:
-    | UserCurrentListFollowersQueryResponse
+    | UserCurrentListFollowersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/followers`, function handler(info) {

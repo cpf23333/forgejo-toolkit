@@ -5,11 +5,14 @@
 
 /**
  * @description DispatchWorkflowRun represents a workflow run
+ * @type object
  */
 export type DispatchWorkflowRun = {
   /**
    * @description the workflow run id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -19,7 +22,9 @@ export type DispatchWorkflowRun = {
   jobs?: string[];
   /**
    * @description a unique number for each run of a repository
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   run_number?: number;
 };

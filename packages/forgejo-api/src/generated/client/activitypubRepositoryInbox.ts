@@ -3,46 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  ActivitypubRepositoryInboxMutationRequest,
-  ActivitypubRepositoryInboxMutationResponse,
-  ActivitypubRepositoryInboxPathParams,
+  ActivitypubRepositoryInboxOptions,
+  ActivitypubRepositoryInboxResponses,
 } from '../types/ActivitypubRepositoryInbox';
-
-function getActivitypubRepositoryInboxUrl(repositoryId: ActivitypubRepositoryInboxPathParams['repository-id']) {
-  const res = {
-    method: 'POST',
-    url: `/activitypub/repository-id/${repositoryId}/inbox` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Send to the inbox
- * {@link /activitypub/repository-id/:repository-id/inbox}
+ * {@link /activitypub/repository-id/:repositoryId/inbox}
  */
-export async function activitypubRepositoryInbox(
-  repositoryId: ActivitypubRepositoryInboxPathParams['repository-id'],
-  data?: ActivitypubRepositoryInboxMutationRequest,
-  config: Partial<RequestConfig<ActivitypubRepositoryInboxMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubRepositoryInbox<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubRepositoryInboxOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActivitypubRepositoryInboxResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    ActivitypubRepositoryInboxMutationResponse,
-    ResponseErrorConfig<Error>,
-    ActivitypubRepositoryInboxMutationRequest
-  >({
-    method: 'POST',
-    url: getActivitypubRepositoryInboxUrl(repositoryId).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/activitypub/repository-id/{repository-id}/inbox',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubRepositoryInboxResponses, ThrowOnError>>;
 }

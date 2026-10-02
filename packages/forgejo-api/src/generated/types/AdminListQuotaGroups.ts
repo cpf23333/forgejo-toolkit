@@ -7,18 +7,54 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { QuotaGroupList } from './QuotaGroupList';
 
 /**
- * @description QuotaGroupList
+ * @description QuotaGroupList represents a list of quota groups
+ * @type array
  */
-export type AdminListQuotaGroups200 = QuotaGroupList;
+export type AdminListQuotaGroupsStatus200Json = QuotaGroupList;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description QuotaGroupList represents a list of quota groups
+ * @type array
  */
-export type AdminListQuotaGroups403 = APIForbiddenError;
+export type AdminListQuotaGroupsStatus200Html = QuotaGroupList;
 
-export type AdminListQuotaGroupsQueryResponse = AdminListQuotaGroups200;
+export type AdminListQuotaGroupsStatus200 = AdminListQuotaGroupsStatus200Json | AdminListQuotaGroupsStatus200Html;
 
-export type AdminListQuotaGroupsQuery = {
-  Response: AdminListQuotaGroups200;
-  Errors: AdminListQuotaGroups403;
+export type AdminListQuotaGroupsStatus403Json = APIForbiddenError;
+
+export type AdminListQuotaGroupsStatus403Html = APIForbiddenError;
+
+export type AdminListQuotaGroupsStatus403 = AdminListQuotaGroupsStatus403Json | AdminListQuotaGroupsStatus403Html;
+
+export type AdminListQuotaGroupsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminListQuotaGroupsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListQuotaGroupsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListQuotaGroupsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminListQuotaGroupsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListQuotaGroupsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListQuotaGroupsResponse = AdminListQuotaGroupsStatus200 | AdminListQuotaGroupsStatus403;

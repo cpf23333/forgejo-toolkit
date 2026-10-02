@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { RenderMarkupMutationResponse, RenderMarkup422 } from '../types/RenderMarkup';
+import type { RenderMarkupResponse, RenderMarkupStatus422, RenderMarkupBody } from '../types/RenderMarkup';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function renderMarkupHandlerResponse200(data: RenderMarkupMutationResponse) {
+export function renderMarkupHandlerResponse200(data: RenderMarkupResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +16,7 @@ export function renderMarkupHandlerResponse200(data: RenderMarkupMutationRespons
   });
 }
 
-export function renderMarkupHandlerResponse422(data: RenderMarkup422) {
+export function renderMarkupHandlerResponse422(data: RenderMarkupStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -25,11 +26,9 @@ export function renderMarkupHandlerResponse422(data: RenderMarkup422) {
 }
 
 export function renderMarkupHandler(
-  data?:
-    | RenderMarkupMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RenderMarkupResponse | HttpResponseResolver<Record<string, string>, RenderMarkupBody>,
 ) {
-  return http.post(`/markup`, function handler(info) {
+  return http.post<Record<string, string>, RenderMarkupBody>(`/markup`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

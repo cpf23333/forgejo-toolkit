@@ -7,6 +7,7 @@ import type { PayloadCommit } from './PayloadCommit';
 
 /**
  * @description Branch represents a repository branch
+ * @type object
  */
 export type Branch = {
   /**
@@ -14,36 +15,17 @@ export type Branch = {
    * @type object | undefined
    */
   commit?: PayloadCommit;
-  /**
-   * @type string | undefined
-   */
   effective_branch_protection_name?: string;
-  /**
-   * @type boolean | undefined
-   */
   enable_status_check?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type boolean | undefined
-   */
   protected?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   required_approvals?: number;
-  /**
-   * @type array | undefined
-   */
   status_check_contexts?: string[];
-  /**
-   * @type boolean | undefined
-   */
   user_can_merge?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   user_can_push?: boolean;
 };

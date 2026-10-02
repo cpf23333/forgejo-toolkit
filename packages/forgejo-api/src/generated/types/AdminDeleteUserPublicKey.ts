@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminDeleteUserPublicKeyPathParams = {
+export type AdminDeleteUserPublicKeyPath = {
   /**
    * @description username of user
    * @type string
@@ -14,30 +14,64 @@ export type AdminDeleteUserPublicKeyPathParams = {
   username: string;
   /**
    * @description id of the key to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteUserPublicKey204 = any;
+export type AdminDeleteUserPublicKeyStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminDeleteUserPublicKey403 = APIForbiddenError;
+export type AdminDeleteUserPublicKeyStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminDeleteUserPublicKey404 = APINotFound;
+export type AdminDeleteUserPublicKeyStatus403Html = APIForbiddenError;
 
-export type AdminDeleteUserPublicKeyMutationResponse = AdminDeleteUserPublicKey204;
+export type AdminDeleteUserPublicKeyStatus403 =
+  | AdminDeleteUserPublicKeyStatus403Json
+  | AdminDeleteUserPublicKeyStatus403Html;
 
-export type AdminDeleteUserPublicKeyMutation = {
-  Response: AdminDeleteUserPublicKey204;
-  PathParams: AdminDeleteUserPublicKeyPathParams;
-  Errors: AdminDeleteUserPublicKey403 | AdminDeleteUserPublicKey404;
+export type AdminDeleteUserPublicKeyStatus404Json = APINotFound;
+
+export type AdminDeleteUserPublicKeyStatus404Html = APINotFound;
+
+export type AdminDeleteUserPublicKeyStatus404 =
+  | AdminDeleteUserPublicKeyStatus404Json
+  | AdminDeleteUserPublicKeyStatus404Html;
+
+export type AdminDeleteUserPublicKeyOptions = {
+  body?: never;
+  path: AdminDeleteUserPublicKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteUserPublicKeyResponses = {
+  '204': AdminDeleteUserPublicKeyStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserPublicKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserPublicKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserPublicKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserPublicKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteUserPublicKeyResponse =
+  | AdminDeleteUserPublicKeyStatus204
+  | AdminDeleteUserPublicKeyStatus403
+  | AdminDeleteUserPublicKeyStatus404;

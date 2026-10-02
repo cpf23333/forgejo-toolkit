@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentDeleteGPGKeyMutationResponse,
-  UserCurrentDeleteGPGKeyPathParams,
-  UserCurrentDeleteGPGKey401,
-  UserCurrentDeleteGPGKey403,
-  UserCurrentDeleteGPGKey404,
+  UserCurrentDeleteGPGKeyOptions,
+  UserCurrentDeleteGPGKeyResponses,
 } from '../types/UserCurrentDeleteGPGKey';
-
-function getUserCurrentDeleteGPGKeyUrl(id: UserCurrentDeleteGPGKeyPathParams['id']) {
-  const res = { method: 'DELETE', url: `/user/gpg_keys/${id}` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a GPG public key from current user's account
  * {@link /user/gpg_keys/:id}
  */
-export async function userCurrentDeleteGPGKey(
-  id: UserCurrentDeleteGPGKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentDeleteGPGKey<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentDeleteGPGKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentDeleteGPGKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentDeleteGPGKeyMutationResponse,
-    ResponseErrorConfig<UserCurrentDeleteGPGKey401 | UserCurrentDeleteGPGKey403 | UserCurrentDeleteGPGKey404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserCurrentDeleteGPGKeyUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/gpg_keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentDeleteGPGKeyResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminGetRegistrationTokenQueryResponse } from '../types/AdminGetRegistrationToken';
+import type { AdminGetRegistrationTokenResponse } from '../types/AdminGetRegistrationToken';
 import { http } from 'msw';
 
-export function adminGetRegistrationTokenHandlerResponse200(data: AdminGetRegistrationTokenQueryResponse) {
+export function adminGetRegistrationTokenHandlerResponse200(data: AdminGetRegistrationTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function adminGetRegistrationTokenHandlerResponse200(data: AdminGetRegist
 
 export function adminGetRegistrationTokenHandler(
   data?:
-    | AdminGetRegistrationTokenQueryResponse
+    | AdminGetRegistrationTokenResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/runners/registration-token`, function handler(info) {

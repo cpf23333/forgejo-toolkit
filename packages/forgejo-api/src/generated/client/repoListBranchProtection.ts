@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoListBranchProtectionQueryResponse,
-  RepoListBranchProtectionPathParams,
+  RepoListBranchProtectionOptions,
+  RepoListBranchProtectionResponses,
 } from '../types/RepoListBranchProtection';
-
-function getRepoListBranchProtectionUrl(
-  owner: RepoListBranchProtectionPathParams['owner'],
-  repo: RepoListBranchProtectionPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/branch_protections` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List branch protections for a repository
  * {@link /repos/:owner/:repo/branch_protections}
  */
-export async function repoListBranchProtection(
-  owner: RepoListBranchProtectionPathParams['owner'],
-  repo: RepoListBranchProtectionPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListBranchProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoListBranchProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListBranchProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListBranchProtectionQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getRepoListBranchProtectionUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/branch_protections',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListBranchProtectionResponses, ThrowOnError>>;
 }

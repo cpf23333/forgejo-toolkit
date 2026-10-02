@@ -5,7 +5,7 @@
 
 import type { WatchInfo } from './WatchInfo';
 
-export type UserCurrentCheckSubscriptionPathParams = {
+export type UserCurrentCheckSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,19 +19,46 @@ export type UserCurrentCheckSubscriptionPathParams = {
 };
 
 /**
- * @description WatchInfo
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type UserCurrentCheckSubscription200 = WatchInfo;
+export type UserCurrentCheckSubscriptionStatus200Json = WatchInfo;
 
 /**
- * @description User is not watching this repo or repo do not exist
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type UserCurrentCheckSubscription404 = any;
+export type UserCurrentCheckSubscriptionStatus200Html = WatchInfo;
 
-export type UserCurrentCheckSubscriptionQueryResponse = UserCurrentCheckSubscription200;
+export type UserCurrentCheckSubscriptionStatus200 =
+  | UserCurrentCheckSubscriptionStatus200Json
+  | UserCurrentCheckSubscriptionStatus200Html;
 
-export type UserCurrentCheckSubscriptionQuery = {
-  Response: UserCurrentCheckSubscription200;
-  PathParams: UserCurrentCheckSubscriptionPathParams;
-  Errors: UserCurrentCheckSubscription404;
+export type UserCurrentCheckSubscriptionStatus404 = unknown;
+
+export type UserCurrentCheckSubscriptionOptions = {
+  body?: never;
+  path: UserCurrentCheckSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentCheckSubscriptionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckSubscriptionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckSubscriptionStatus200Html;
+      };
+  '404': UserCurrentCheckSubscriptionStatus404;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentCheckSubscriptionResponse =
+  | UserCurrentCheckSubscriptionStatus200
+  | UserCurrentCheckSubscriptionStatus404;

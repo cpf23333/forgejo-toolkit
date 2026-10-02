@@ -5,6 +5,7 @@
 
 /**
  * @description QuotaUsedArtifact represents an artifact counting towards a user\'s quota
+ * @type object
  */
 export type QuotaUsedArtifact = {
   /**
@@ -19,7 +20,9 @@ export type QuotaUsedArtifact = {
   name?: string;
   /**
    * @description Size of the artifact (compressed)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
 };

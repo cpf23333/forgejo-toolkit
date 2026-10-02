@@ -5,18 +5,10 @@
 
 /**
  * @description GeneralUISettings contains global ui settings exposed by API
+ * @type object
  */
 export type GeneralUISettings = {
-  /**
-   * @type array | undefined
-   */
   allowed_reactions?: string[];
-  /**
-   * @type array | undefined
-   */
   custom_emojis?: string[];
-  /**
-   * @type string | undefined
-   */
   default_theme?: string;
 };

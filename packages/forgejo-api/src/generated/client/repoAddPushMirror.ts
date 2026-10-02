@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoAddPushMirrorMutationRequest,
-  RepoAddPushMirrorMutationResponse,
-  RepoAddPushMirrorPathParams,
-  RepoAddPushMirror400,
-  RepoAddPushMirror403,
-  RepoAddPushMirror404,
-  RepoAddPushMirror413,
-} from '../types/RepoAddPushMirror';
-
-function getRepoAddPushMirrorUrl(
-  owner: RepoAddPushMirrorPathParams['owner'],
-  repo: RepoAddPushMirrorPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/push_mirrors` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoAddPushMirrorOptions, RepoAddPushMirrorResponses } from '../types/RepoAddPushMirror';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Set up a new push mirror in a repository
  * {@link /repos/:owner/:repo/push_mirrors}
  */
-export async function repoAddPushMirror(
-  owner: RepoAddPushMirrorPathParams['owner'],
-  repo: RepoAddPushMirrorPathParams['repo'],
-  data?: RepoAddPushMirrorMutationRequest,
-  config: Partial<RequestConfig<RepoAddPushMirrorMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoAddPushMirror<ThrowOnError extends boolean = true>(
+  options: Options<RepoAddPushMirrorOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoAddPushMirrorResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoAddPushMirrorMutationResponse,
-    ResponseErrorConfig<RepoAddPushMirror400 | RepoAddPushMirror403 | RepoAddPushMirror404 | RepoAddPushMirror413>,
-    RepoAddPushMirrorMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoAddPushMirrorUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/push_mirrors',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoAddPushMirrorResponses, ThrowOnError>>;
 }

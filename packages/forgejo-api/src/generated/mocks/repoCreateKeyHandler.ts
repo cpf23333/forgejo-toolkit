@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoCreateKeyMutationResponse, RepoCreateKey404, RepoCreateKey422 } from '../types/RepoCreateKey';
+import type {
+  RepoCreateKeyResponse,
+  RepoCreateKeyStatus404,
+  RepoCreateKeyStatus422,
+  RepoCreateKeyBody,
+} from '../types/RepoCreateKey';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateKeyHandlerResponse201(data: RepoCreateKeyMutationResponse) {
+export function repoCreateKeyHandlerResponse201(data: RepoCreateKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +21,7 @@ export function repoCreateKeyHandlerResponse201(data: RepoCreateKeyMutationRespo
   });
 }
 
-export function repoCreateKeyHandlerResponse404(data: RepoCreateKey404) {
+export function repoCreateKeyHandlerResponse404(data: RepoCreateKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +30,7 @@ export function repoCreateKeyHandlerResponse404(data: RepoCreateKey404) {
   });
 }
 
-export function repoCreateKeyHandlerResponse422(data: RepoCreateKey422) {
+export function repoCreateKeyHandlerResponse422(data: RepoCreateKeyStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +40,9 @@ export function repoCreateKeyHandlerResponse422(data: RepoCreateKey422) {
 }
 
 export function repoCreateKeyHandler(
-  data?:
-    | RepoCreateKeyMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateKeyResponse | HttpResponseResolver<Record<string, string>, RepoCreateKeyBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/keys`, function handler(info) {
+  return http.post<Record<string, string>, RepoCreateKeyBody>(`/repos/:owner/:repo/keys`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -3,50 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetCombinedStatusByRefQueryResponse,
-  RepoGetCombinedStatusByRefPathParams,
-  RepoGetCombinedStatusByRefQueryParams,
-  RepoGetCombinedStatusByRef400,
-  RepoGetCombinedStatusByRef404,
+  RepoGetCombinedStatusByRefOptions,
+  RepoGetCombinedStatusByRefResponses,
 } from '../types/RepoGetCombinedStatusByRef';
-
-function getRepoGetCombinedStatusByRefUrl(
-  owner: RepoGetCombinedStatusByRefPathParams['owner'],
-  repo: RepoGetCombinedStatusByRefPathParams['repo'],
-  ref: RepoGetCombinedStatusByRefPathParams['ref'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/commits/${ref}/status` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a commit's combined status, by branch/tag/commit reference
  * {@link /repos/:owner/:repo/commits/:ref/status}
  */
-export async function repoGetCombinedStatusByRef(
-  owner: RepoGetCombinedStatusByRefPathParams['owner'],
-  repo: RepoGetCombinedStatusByRefPathParams['repo'],
-  ref: RepoGetCombinedStatusByRefPathParams['ref'],
-  params?: RepoGetCombinedStatusByRefQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetCombinedStatusByRef<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetCombinedStatusByRefOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetCombinedStatusByRefResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetCombinedStatusByRefQueryResponse,
-    ResponseErrorConfig<RepoGetCombinedStatusByRef400 | RepoGetCombinedStatusByRef404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetCombinedStatusByRefUrl(owner, repo, ref).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/commits/{ref}/status',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetCombinedStatusByRefResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type IssueResetTimePathParams = {
+export type IssueResetTimePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,84 @@ export type IssueResetTimePathParams = {
   repo: string;
   /**
    * @description index of the issue to add tracked time to
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueResetTime204 = any;
+export type IssueResetTimeStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueResetTime400 = APIError;
+export type IssueResetTimeStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueResetTime403 = APIForbiddenError;
+export type IssueResetTimeStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueResetTime404 = APINotFound;
+export type IssueResetTimeStatus400 = IssueResetTimeStatus400Json | IssueResetTimeStatus400Html;
 
-export type IssueResetTimeMutationResponse = IssueResetTime204;
+export type IssueResetTimeStatus403Json = APIForbiddenError;
 
-export type IssueResetTimeMutation = {
-  Response: IssueResetTime204;
-  PathParams: IssueResetTimePathParams;
-  Errors: IssueResetTime400 | IssueResetTime403 | IssueResetTime404;
+export type IssueResetTimeStatus403Html = APIForbiddenError;
+
+export type IssueResetTimeStatus403 = IssueResetTimeStatus403Json | IssueResetTimeStatus403Html;
+
+export type IssueResetTimeStatus404Json = APINotFound;
+
+export type IssueResetTimeStatus404Html = APINotFound;
+
+export type IssueResetTimeStatus404 = IssueResetTimeStatus404Json | IssueResetTimeStatus404Html;
+
+export type IssueResetTimeOptions = {
+  body?: never;
+  path: IssueResetTimePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueResetTimeResponses = {
+  '204': IssueResetTimeStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: IssueResetTimeStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueResetTimeStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueResetTimeStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueResetTimeStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueResetTimeStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueResetTimeStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueResetTimeResponse =
+  | IssueResetTimeStatus204
+  | IssueResetTimeStatus400
+  | IssueResetTimeStatus403
+  | IssueResetTimeStatus404;

@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { IssueLabelsOption } from './IssueLabelsOption';
 import type { Label } from './Label';
 
-export type IssueReplaceLabelsPathParams = {
+export type IssueReplaceLabelsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,78 @@ export type IssueReplaceLabelsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description LabelListWithoutPagination - Labels for a specific issue (no pagination headers)
- */
-export type IssueReplaceLabels200 = Label[];
+export type IssueReplaceLabelsStatus200Json = Label[];
+
+export type IssueReplaceLabelsStatus200Html = Label[];
+
+export type IssueReplaceLabelsStatus200 = IssueReplaceLabelsStatus200Json | IssueReplaceLabelsStatus200Html;
+
+export type IssueReplaceLabelsStatus403Json = APIForbiddenError;
+
+export type IssueReplaceLabelsStatus403Html = APIForbiddenError;
+
+export type IssueReplaceLabelsStatus403 = IssueReplaceLabelsStatus403Json | IssueReplaceLabelsStatus403Html;
+
+export type IssueReplaceLabelsStatus404Json = APINotFound;
+
+export type IssueReplaceLabelsStatus404Html = APINotFound;
+
+export type IssueReplaceLabelsStatus404 = IssueReplaceLabelsStatus404Json | IssueReplaceLabelsStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description IssueLabelsOption a collection of labels
+ * @type object | undefined
  */
-export type IssueReplaceLabels403 = APIForbiddenError;
+export type IssueReplaceLabelsBody = IssueLabelsOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueReplaceLabels404 = APINotFound;
-
-export type IssueReplaceLabelsMutationRequest = IssueLabelsOption;
-
-export type IssueReplaceLabelsMutationResponse = IssueReplaceLabels200;
-
-export type IssueReplaceLabelsMutation = {
-  Response: IssueReplaceLabels200;
-  Request: IssueReplaceLabelsMutationRequest;
-  PathParams: IssueReplaceLabelsPathParams;
-  Errors: IssueReplaceLabels403 | IssueReplaceLabels404;
+export type IssueReplaceLabelsOptions = {
+  body: IssueReplaceLabelsBody;
+  path: IssueReplaceLabelsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueReplaceLabelsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueReplaceLabelsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueReplaceLabelsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueReplaceLabelsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueReplaceLabelsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueReplaceLabelsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueReplaceLabelsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueReplaceLabelsResponse =
+  | IssueReplaceLabelsStatus200
+  | IssueReplaceLabelsStatus403
+  | IssueReplaceLabelsStatus404;

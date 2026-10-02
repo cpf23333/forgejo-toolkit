@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetContentsQueryResponse,
-  RepoGetContentsPathParams,
-  RepoGetContentsQueryParams,
-  RepoGetContents404,
-} from '../types/RepoGetContents';
-
-function getRepoGetContentsUrl(
-  owner: RepoGetContentsPathParams['owner'],
-  repo: RepoGetContentsPathParams['repo'],
-  filepath: RepoGetContentsPathParams['filepath'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetContentsOptions, RepoGetContentsResponses } from '../types/RepoGetContents';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets the metadata and contents (if a file) of an entry in a repository, or a list of entries if a dir
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
-export async function repoGetContents(
-  owner: RepoGetContentsPathParams['owner'],
-  repo: RepoGetContentsPathParams['repo'],
-  filepath: RepoGetContentsPathParams['filepath'],
-  params?: RepoGetContentsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetContents<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetContentsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetContentsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetContentsQueryResponse, ResponseErrorConfig<RepoGetContents404>, unknown>({
-    method: 'GET',
-    url: getRepoGetContentsUrl(owner, repo, filepath).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/contents/{filepath}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetContentsResponses, ThrowOnError>>;
 }

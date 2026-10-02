@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { UpdateVariableOption } from './UpdateVariableOption';
 
-export type UpdateRepoVariablePathParams = {
+export type UpdateRepoVariablePath = {
   /**
    * @description name of the owner
    * @type string
@@ -25,36 +25,71 @@ export type UpdateRepoVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when updating a repo-level variable
- */
-export type UpdateRepoVariable201 = any;
+export type UpdateRepoVariableStatus201 = unknown;
+
+export type UpdateRepoVariableStatus204 = unknown;
 
 /**
- * @description response when updating a repo-level variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateRepoVariable204 = any;
+export type UpdateRepoVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateRepoVariable400 = APIError;
+export type UpdateRepoVariableStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateRepoVariable404 = APINotFound;
+export type UpdateRepoVariableStatus400 = UpdateRepoVariableStatus400Json | UpdateRepoVariableStatus400Html;
 
-/**
- * UpdateVariableOption defines the properties of the variable to update.
- */
-export type UpdateRepoVariableMutationRequest = UpdateVariableOption;
+export type UpdateRepoVariableStatus404Json = APINotFound;
 
-export type UpdateRepoVariableMutationResponse = UpdateRepoVariable201 | UpdateRepoVariable204;
+export type UpdateRepoVariableStatus404Html = APINotFound;
 
-export type UpdateRepoVariableMutation = {
-  Response: UpdateRepoVariable201 | UpdateRepoVariable204;
-  Request: UpdateRepoVariableMutationRequest;
-  PathParams: UpdateRepoVariablePathParams;
-  Errors: UpdateRepoVariable400 | UpdateRepoVariable404;
+export type UpdateRepoVariableStatus404 = UpdateRepoVariableStatus404Json | UpdateRepoVariableStatus404Html;
+
+export type UpdateRepoVariableBodyJson = UpdateVariableOption | undefined;
+
+export type UpdateRepoVariableBodyPlain = UpdateVariableOption | undefined;
+
+export type UpdateRepoVariableBody = UpdateRepoVariableBodyJson | UpdateRepoVariableBodyPlain;
+
+export type UpdateRepoVariableOptions = {
+  body: UpdateRepoVariableBody;
+  path: UpdateRepoVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateRepoVariableResponses = {
+  '201': UpdateRepoVariableStatus201;
+  '204': UpdateRepoVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateRepoVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateRepoVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateRepoVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateRepoVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateRepoVariableResponse =
+  | UpdateRepoVariableStatus201
+  | UpdateRepoVariableStatus204
+  | UpdateRepoVariableStatus400
+  | UpdateRepoVariableStatus404;

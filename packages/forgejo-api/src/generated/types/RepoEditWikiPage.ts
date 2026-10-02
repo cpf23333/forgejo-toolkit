@@ -10,7 +10,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { CreateWikiPageOptions } from './CreateWikiPageOptions';
 import type { WikiPage } from './WikiPage';
 
-export type RepoEditWikiPagePathParams = {
+export type RepoEditWikiPagePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -29,42 +29,122 @@ export type RepoEditWikiPagePathParams = {
 };
 
 /**
- * @description WikiPage
+ * @description WikiPage a wiki page
+ * @type object
  */
-export type RepoEditWikiPage200 = WikiPage;
+export type RepoEditWikiPageStatus200Json = WikiPage;
 
 /**
- * @description APIError is error format response
+ * @description WikiPage a wiki page
+ * @type object
  */
-export type RepoEditWikiPage400 = APIError;
+export type RepoEditWikiPageStatus200Html = WikiPage;
+
+export type RepoEditWikiPageStatus200 = RepoEditWikiPageStatus200Json | RepoEditWikiPageStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditWikiPage403 = APIForbiddenError;
+export type RepoEditWikiPageStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoEditWikiPage404 = APINotFound;
+export type RepoEditWikiPageStatus400Html = APIError;
+
+export type RepoEditWikiPageStatus400 = RepoEditWikiPageStatus400Json | RepoEditWikiPageStatus400Html;
+
+export type RepoEditWikiPageStatus403Json = APIForbiddenError;
+
+export type RepoEditWikiPageStatus403Html = APIForbiddenError;
+
+export type RepoEditWikiPageStatus403 = RepoEditWikiPageStatus403Json | RepoEditWikiPageStatus403Html;
+
+export type RepoEditWikiPageStatus404Json = APINotFound;
+
+export type RepoEditWikiPageStatus404Html = APINotFound;
+
+export type RepoEditWikiPageStatus404 = RepoEditWikiPageStatus404Json | RepoEditWikiPageStatus404Html;
+
+export type RepoEditWikiPageStatus413 = unknown;
+
+export type RepoEditWikiPageStatus423Json = APIRepoArchivedError;
+
+export type RepoEditWikiPageStatus423Html = APIRepoArchivedError;
+
+export type RepoEditWikiPageStatus423 = RepoEditWikiPageStatus423Json | RepoEditWikiPageStatus423Html;
 
 /**
- * @description QuotaExceeded
+ * @description CreateWikiPageOptions form for creating wiki
+ * @type object | undefined
  */
-export type RepoEditWikiPage413 = any;
+export type RepoEditWikiPageBody = CreateWikiPageOptions | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoEditWikiPage423 = APIRepoArchivedError;
-
-export type RepoEditWikiPageMutationRequest = CreateWikiPageOptions;
-
-export type RepoEditWikiPageMutationResponse = RepoEditWikiPage200;
-
-export type RepoEditWikiPageMutation = {
-  Response: RepoEditWikiPage200;
-  Request: RepoEditWikiPageMutationRequest;
-  PathParams: RepoEditWikiPagePathParams;
-  Errors: RepoEditWikiPage400 | RepoEditWikiPage403 | RepoEditWikiPage404 | RepoEditWikiPage413 | RepoEditWikiPage423;
+export type RepoEditWikiPageOptions = {
+  body: RepoEditWikiPageBody;
+  path: RepoEditWikiPagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditWikiPageResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditWikiPageStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditWikiPageStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoEditWikiPageStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditWikiPageStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoEditWikiPageStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditWikiPageStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditWikiPageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditWikiPageStatus404Html;
+      };
+  '413': RepoEditWikiPageStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoEditWikiPageStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditWikiPageStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditWikiPageResponse =
+  | RepoEditWikiPageStatus200
+  | RepoEditWikiPageStatus400
+  | RepoEditWikiPageStatus403
+  | RepoEditWikiPageStatus404
+  | RepoEditWikiPageStatus413
+  | RepoEditWikiPageStatus423;

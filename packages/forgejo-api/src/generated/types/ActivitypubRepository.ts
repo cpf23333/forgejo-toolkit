@@ -5,23 +5,50 @@
 
 import type { ActivityPub } from './ActivityPub';
 
-export type ActivitypubRepositoryPathParams = {
+export type ActivitypubRepositoryPath = {
   /**
    * @description repository ID of the repo
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   'repository-id': number;
 };
 
 /**
- * @description ActivityPub
+ * @description ActivityPub type
+ * @type object
  */
-export type ActivitypubRepository200 = ActivityPub;
+export type ActivitypubRepositoryStatus200Json = ActivityPub;
 
-export type ActivitypubRepositoryQueryResponse = ActivitypubRepository200;
+/**
+ * @description ActivityPub type
+ * @type object
+ */
+export type ActivitypubRepositoryStatus200Html = ActivityPub;
 
-export type ActivitypubRepositoryQuery = {
-  Response: ActivitypubRepository200;
-  PathParams: ActivitypubRepositoryPathParams;
-  Errors: any;
+export type ActivitypubRepositoryStatus200 = ActivitypubRepositoryStatus200Json | ActivitypubRepositoryStatus200Html;
+
+export type ActivitypubRepositoryOptions = {
+  body?: never;
+  path: ActivitypubRepositoryPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubRepositoryResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubRepositoryStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubRepositoryStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubRepositoryResponse = ActivitypubRepositoryStatus200;

@@ -3,36 +3,22 @@
  * Do not edit manually.
  */
 
-/**
- * OAuth2Application represents an OAuth2 application.
- */
 export type OAuth2Application = {
-  /**
-   * @type string | undefined
-   */
   client_id?: string;
-  /**
-   * @type string | undefined
-   */
   client_secret?: string;
-  /**
-   * @type boolean | undefined
-   */
   confidential_client?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type array | undefined
-   */
   redirect_uris?: string[];
 };

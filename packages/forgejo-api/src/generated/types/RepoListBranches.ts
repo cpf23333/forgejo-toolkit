@@ -5,7 +5,7 @@
 
 import type { Branch } from './Branch';
 
-export type RepoListBranchesPathParams = {
+export type RepoListBranchesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,7 +18,7 @@ export type RepoListBranchesPathParams = {
   repo: string;
 };
 
-export type RepoListBranchesQueryParams = {
+export type RepoListBranchesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -31,16 +31,32 @@ export type RepoListBranchesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description BranchList
- */
-export type RepoListBranches200 = Branch[];
+export type RepoListBranchesStatus200Json = Branch[];
 
-export type RepoListBranchesQueryResponse = RepoListBranches200;
+export type RepoListBranchesStatus200Html = Branch[];
 
-export type RepoListBranchesQuery = {
-  Response: RepoListBranches200;
-  PathParams: RepoListBranchesPathParams;
-  QueryParams: RepoListBranchesQueryParams;
-  Errors: any;
+export type RepoListBranchesStatus200 = RepoListBranchesStatus200Json | RepoListBranchesStatus200Html;
+
+export type RepoListBranchesOptions = {
+  body?: never;
+  path: RepoListBranchesPath;
+  query?: RepoListBranchesQuery;
+  headers?: never;
 };
+
+export type RepoListBranchesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListBranchesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListBranchesStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListBranchesResponse = RepoListBranchesStatus200;

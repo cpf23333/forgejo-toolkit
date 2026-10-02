@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetOrgRunnersPathParams = {
+export type GetOrgRunnersPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,7 +15,7 @@ export type GetOrgRunnersPathParams = {
   org: string;
 };
 
-export type GetOrgRunnersQueryParams = {
+export type GetOrgRunnersQuery = {
   /**
    * @description whether to include all visible runners (true) or only those that are directly owned by the organization (false)
    * @type boolean | undefined
@@ -33,26 +33,70 @@ export type GetOrgRunnersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionRunnerList is a list of Forgejo Action runners
- */
-export type GetOrgRunners200 = ActionRunner[];
+export type GetOrgRunnersStatus200Json = ActionRunner[];
+
+export type GetOrgRunnersStatus200Html = ActionRunner[];
+
+export type GetOrgRunnersStatus200 = GetOrgRunnersStatus200Json | GetOrgRunnersStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgRunners400 = APIError;
+export type GetOrgRunnersStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgRunners404 = APINotFound;
+export type GetOrgRunnersStatus400Html = APIError;
 
-export type GetOrgRunnersQueryResponse = GetOrgRunners200;
+export type GetOrgRunnersStatus400 = GetOrgRunnersStatus400Json | GetOrgRunnersStatus400Html;
 
-export type GetOrgRunnersQuery = {
-  Response: GetOrgRunners200;
-  PathParams: GetOrgRunnersPathParams;
-  QueryParams: GetOrgRunnersQueryParams;
-  Errors: GetOrgRunners400 | GetOrgRunners404;
+export type GetOrgRunnersStatus404Json = APINotFound;
+
+export type GetOrgRunnersStatus404Html = APINotFound;
+
+export type GetOrgRunnersStatus404 = GetOrgRunnersStatus404Json | GetOrgRunnersStatus404Html;
+
+export type GetOrgRunnersOptions = {
+  body?: never;
+  path: GetOrgRunnersPath;
+  query?: GetOrgRunnersQuery;
+  headers?: never;
 };
+
+export type GetOrgRunnersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnersStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnersStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnersStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetOrgRunnersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgRunnersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetOrgRunnersResponse = GetOrgRunnersStatus200 | GetOrgRunnersStatus400 | GetOrgRunnersStatus404;

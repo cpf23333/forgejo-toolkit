@@ -4,13 +4,13 @@
  */
 
 import type {
-  ListActionArtifactsQueryResponse,
-  ListActionArtifacts400,
-  ListActionArtifacts403,
+  ListActionArtifactsResponse,
+  ListActionArtifactsStatus400,
+  ListActionArtifactsStatus403,
 } from '../types/ListActionArtifacts';
 import { http } from 'msw';
 
-export function listActionArtifactsHandlerResponse200(data: ListActionArtifactsQueryResponse) {
+export function listActionArtifactsHandlerResponse200(data: ListActionArtifactsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function listActionArtifactsHandlerResponse200(data: ListActionArtifactsQ
   });
 }
 
-export function listActionArtifactsHandlerResponse400(data: ListActionArtifacts400) {
+export function listActionArtifactsHandlerResponse400(data: ListActionArtifactsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function listActionArtifactsHandlerResponse400(data: ListActionArtifacts4
   });
 }
 
-export function listActionArtifactsHandlerResponse403(data: ListActionArtifacts403) {
+export function listActionArtifactsHandlerResponse403(data: ListActionArtifactsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function listActionArtifactsHandlerResponse403(data: ListActionArtifacts4
 
 export function listActionArtifactsHandler(
   data?:
-    | ListActionArtifactsQueryResponse
+    | ListActionArtifactsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/artifacts`, function handler(info) {

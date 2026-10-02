@@ -4,14 +4,14 @@
  */
 
 import type {
-  RepoListPullRequestsQueryResponse,
-  RepoListPullRequests400,
-  RepoListPullRequests404,
-  RepoListPullRequests500,
+  RepoListPullRequestsResponse,
+  RepoListPullRequestsStatus400,
+  RepoListPullRequestsStatus404,
+  RepoListPullRequestsStatus500,
 } from '../types/RepoListPullRequests';
 import { http } from 'msw';
 
-export function repoListPullRequestsHandlerResponse200(data: RepoListPullRequestsQueryResponse) {
+export function repoListPullRequestsHandlerResponse200(data: RepoListPullRequestsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function repoListPullRequestsHandlerResponse200(data: RepoListPullRequest
   });
 }
 
-export function repoListPullRequestsHandlerResponse400(data: RepoListPullRequests400) {
+export function repoListPullRequestsHandlerResponse400(data: RepoListPullRequestsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function repoListPullRequestsHandlerResponse400(data: RepoListPullRequest
   });
 }
 
-export function repoListPullRequestsHandlerResponse404(data: RepoListPullRequests404) {
+export function repoListPullRequestsHandlerResponse404(data: RepoListPullRequestsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +38,7 @@ export function repoListPullRequestsHandlerResponse404(data: RepoListPullRequest
   });
 }
 
-export function repoListPullRequestsHandlerResponse500(data: RepoListPullRequests500) {
+export function repoListPullRequestsHandlerResponse500(data: RepoListPullRequestsStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
@@ -49,7 +49,7 @@ export function repoListPullRequestsHandlerResponse500(data: RepoListPullRequest
 
 export function repoListPullRequestsHandler(
   data?:
-    | RepoListPullRequestsQueryResponse
+    | RepoListPullRequestsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls`, function handler(info) {

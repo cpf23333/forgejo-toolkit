@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditHookOption } from './EditHookOption';
 import type { Hook } from './Hook';
 
-export type OrgEditHookPathParams = {
+export type OrgEditHookPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,28 +15,68 @@ export type OrgEditHookPathParams = {
   org: string;
   /**
    * @description id of the hook to update
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgEditHook200 = Hook;
+export type OrgEditHookStatus200Json = Hook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgEditHook404 = APINotFound;
+export type OrgEditHookStatus200Html = Hook;
 
-export type OrgEditHookMutationRequest = EditHookOption;
+export type OrgEditHookStatus200 = OrgEditHookStatus200Json | OrgEditHookStatus200Html;
 
-export type OrgEditHookMutationResponse = OrgEditHook200;
+export type OrgEditHookStatus404Json = APINotFound;
 
-export type OrgEditHookMutation = {
-  Response: OrgEditHook200;
-  Request: OrgEditHookMutationRequest;
-  PathParams: OrgEditHookPathParams;
-  Errors: OrgEditHook404;
+export type OrgEditHookStatus404Html = APINotFound;
+
+export type OrgEditHookStatus404 = OrgEditHookStatus404Json | OrgEditHookStatus404Html;
+
+/**
+ * @description EditHookOption options when modify one hook
+ * @type object | undefined
+ */
+export type OrgEditHookBody = EditHookOption | undefined;
+
+export type OrgEditHookOptions = {
+  body: OrgEditHookBody;
+  path: OrgEditHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgEditHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgEditHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditHookStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgEditHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgEditHookResponse = OrgEditHookStatus200 | OrgEditHookStatus404;

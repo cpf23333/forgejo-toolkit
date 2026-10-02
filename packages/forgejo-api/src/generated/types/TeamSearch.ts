@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Team } from './Team';
 
-export type TeamSearchPathParams = {
+export type TeamSearchPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type TeamSearchPathParams = {
   org: string;
 };
 
-export type TeamSearchQueryParams = {
+export type TeamSearchQuery = {
   /**
    * @description keywords to search
    * @type string | undefined
@@ -37,31 +37,53 @@ export type TeamSearchQueryParams = {
   limit?: number;
 };
 
-/**
- * TeamSearchResults
- * @description SearchResults of a successful search
- */
-export type TeamSearch200 = {
-  /**
-   * @type array | undefined
-   */
+export type TeamSearchStatus200Json = {
   data?: Team[];
-  /**
-   * @type boolean | undefined
-   */
   ok?: boolean;
 };
 
-/**
- * @description APINotFound is a not found error response
- */
-export type TeamSearch404 = APINotFound;
-
-export type TeamSearchQueryResponse = TeamSearch200;
-
-export type TeamSearchQuery = {
-  Response: TeamSearch200;
-  PathParams: TeamSearchPathParams;
-  QueryParams: TeamSearchQueryParams;
-  Errors: TeamSearch404;
+export type TeamSearchStatus200Html = {
+  data?: Team[];
+  ok?: boolean;
 };
+
+export type TeamSearchStatus200 = TeamSearchStatus200Json | TeamSearchStatus200Html;
+
+export type TeamSearchStatus404Json = APINotFound;
+
+export type TeamSearchStatus404Html = APINotFound;
+
+export type TeamSearchStatus404 = TeamSearchStatus404Json | TeamSearchStatus404Html;
+
+export type TeamSearchOptions = {
+  body?: never;
+  path: TeamSearchPath;
+  query?: TeamSearchQuery;
+  headers?: never;
+};
+
+export type TeamSearchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: TeamSearchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: TeamSearchStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: TeamSearchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: TeamSearchStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type TeamSearchResponse = TeamSearchStatus200 | TeamSearchStatus404;

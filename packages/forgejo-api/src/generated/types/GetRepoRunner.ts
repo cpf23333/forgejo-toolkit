@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetRepoRunnerPathParams = {
+export type GetRepoRunnerPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,23 +27,76 @@ export type GetRepoRunnerPathParams = {
 
 /**
  * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetRepoRunner200 = ActionRunner;
+export type GetRepoRunnerStatus200Json = ActionRunner;
 
 /**
- * @description APIError is error format response
+ * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetRepoRunner400 = APIError;
+export type GetRepoRunnerStatus200Html = ActionRunner;
+
+export type GetRepoRunnerStatus200 = GetRepoRunnerStatus200Json | GetRepoRunnerStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoRunner404 = APINotFound;
+export type GetRepoRunnerStatus400Json = APIError;
 
-export type GetRepoRunnerQueryResponse = GetRepoRunner200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetRepoRunnerStatus400Html = APIError;
 
-export type GetRepoRunnerQuery = {
-  Response: GetRepoRunner200;
-  PathParams: GetRepoRunnerPathParams;
-  Errors: GetRepoRunner400 | GetRepoRunner404;
+export type GetRepoRunnerStatus400 = GetRepoRunnerStatus400Json | GetRepoRunnerStatus400Html;
+
+export type GetRepoRunnerStatus404Json = APINotFound;
+
+export type GetRepoRunnerStatus404Html = APINotFound;
+
+export type GetRepoRunnerStatus404 = GetRepoRunnerStatus404Json | GetRepoRunnerStatus404Html;
+
+export type GetRepoRunnerOptions = {
+  body?: never;
+  path: GetRepoRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetRepoRunnerResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnerStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnerStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetRepoRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetRepoRunnerResponse = GetRepoRunnerStatus200 | GetRepoRunnerStatus400 | GetRepoRunnerStatus404;

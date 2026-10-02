@@ -8,7 +8,7 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { APIValidationError } from './APIValidationError';
 import type { Repository } from './Repository';
 
-export const userCurrentListReposQueryParamsOrderByEnum = {
+export const userCurrentListReposOrderBy = {
   name: 'name',
   id: 'id',
   newest: 'newest',
@@ -29,10 +29,10 @@ export const userCurrentListReposQueryParamsOrderByEnum = {
   fewestforks: 'fewestforks',
 } as const;
 
-export type UserCurrentListReposQueryParamsOrderByEnumKey =
-  (typeof userCurrentListReposQueryParamsOrderByEnum)[keyof typeof userCurrentListReposQueryParamsOrderByEnum];
+export type UserCurrentListReposOrderByKey =
+  (typeof userCurrentListReposOrderBy)[keyof typeof userCurrentListReposOrderBy];
 
-export type UserCurrentListReposQueryParams = {
+export type UserCurrentListReposQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -47,33 +47,84 @@ export type UserCurrentListReposQueryParams = {
    * @description order the repositories
    * @type string | undefined
    */
-  order_by?: UserCurrentListReposQueryParamsOrderByEnumKey;
+  order_by?: UserCurrentListReposOrderByKey;
+};
+
+export type UserCurrentListReposStatus200Json = Repository[];
+
+export type UserCurrentListReposStatus200Html = Repository[];
+
+export type UserCurrentListReposStatus200 = UserCurrentListReposStatus200Json | UserCurrentListReposStatus200Html;
+
+export type UserCurrentListReposStatus401Json = APIUnauthorizedError;
+
+export type UserCurrentListReposStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListReposStatus401 = UserCurrentListReposStatus401Json | UserCurrentListReposStatus401Html;
+
+export type UserCurrentListReposStatus403Json = APIForbiddenError;
+
+export type UserCurrentListReposStatus403Html = APIForbiddenError;
+
+export type UserCurrentListReposStatus403 = UserCurrentListReposStatus403Json | UserCurrentListReposStatus403Html;
+
+export type UserCurrentListReposStatus422Json = APIValidationError;
+
+export type UserCurrentListReposStatus422Html = APIValidationError;
+
+export type UserCurrentListReposStatus422 = UserCurrentListReposStatus422Json | UserCurrentListReposStatus422Html;
+
+export type UserCurrentListReposOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListReposQuery;
+  headers?: never;
+};
+
+export type UserCurrentListReposResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListReposStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListReposStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListReposStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListReposStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListReposStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListReposStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListReposStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListReposStatus422Html;
+      };
 };
 
 /**
- * @description RepositoryList
+ * @description Union of all possible responses
  */
-export type UserCurrentListRepos200 = Repository[];
-
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListRepos401 = APIUnauthorizedError;
-
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListRepos403 = APIForbiddenError;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserCurrentListRepos422 = APIValidationError;
-
-export type UserCurrentListReposQueryResponse = UserCurrentListRepos200;
-
-export type UserCurrentListReposQuery = {
-  Response: UserCurrentListRepos200;
-  QueryParams: UserCurrentListReposQueryParams;
-  Errors: UserCurrentListRepos401 | UserCurrentListRepos403 | UserCurrentListRepos422;
-};
+export type UserCurrentListReposResponse =
+  | UserCurrentListReposStatus200
+  | UserCurrentListReposStatus401
+  | UserCurrentListReposStatus403
+  | UserCurrentListReposStatus422;

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type OrgSearchRunJobsPathParams = {
+export type OrgSearchRunJobsPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgSearchRunJobsPathParams = {
   org: string;
 };
 
-export type OrgSearchRunJobsQueryParams = {
+export type OrgSearchRunJobsQuery = {
   /**
    * @description a comma separated list of run job labels to search for
    * @type string | undefined
@@ -22,21 +22,47 @@ export type OrgSearchRunJobsQueryParams = {
   labels?: string;
 };
 
-/**
- * @description RunJobList is a list of action run jobs
- */
-export type OrgSearchRunJobs200 = ActionRunJob[];
+export type OrgSearchRunJobsStatus200Json = ActionRunJob[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgSearchRunJobs403 = APIForbiddenError;
+export type OrgSearchRunJobsStatus200Html = ActionRunJob[];
 
-export type OrgSearchRunJobsQueryResponse = OrgSearchRunJobs200;
+export type OrgSearchRunJobsStatus200 = OrgSearchRunJobsStatus200Json | OrgSearchRunJobsStatus200Html;
 
-export type OrgSearchRunJobsQuery = {
-  Response: OrgSearchRunJobs200;
-  PathParams: OrgSearchRunJobsPathParams;
-  QueryParams: OrgSearchRunJobsQueryParams;
-  Errors: OrgSearchRunJobs403;
+export type OrgSearchRunJobsStatus403Json = APIForbiddenError;
+
+export type OrgSearchRunJobsStatus403Html = APIForbiddenError;
+
+export type OrgSearchRunJobsStatus403 = OrgSearchRunJobsStatus403Json | OrgSearchRunJobsStatus403Html;
+
+export type OrgSearchRunJobsOptions = {
+  body?: never;
+  path: OrgSearchRunJobsPath;
+  query?: OrgSearchRunJobsQuery;
+  headers?: never;
 };
+
+export type OrgSearchRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgSearchRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgSearchRunJobsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgSearchRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgSearchRunJobsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgSearchRunJobsResponse = OrgSearchRunJobsStatus200 | OrgSearchRunJobsStatus403;

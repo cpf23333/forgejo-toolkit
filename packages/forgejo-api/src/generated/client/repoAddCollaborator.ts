@@ -3,55 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoAddCollaboratorMutationRequest,
-  RepoAddCollaboratorMutationResponse,
-  RepoAddCollaboratorPathParams,
-  RepoAddCollaborator403,
-  RepoAddCollaborator404,
-  RepoAddCollaborator422,
-} from '../types/RepoAddCollaborator';
-
-function getRepoAddCollaboratorUrl(
-  owner: RepoAddCollaboratorPathParams['owner'],
-  repo: RepoAddCollaboratorPathParams['repo'],
-  collaborator: RepoAddCollaboratorPathParams['collaborator'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/collaborators/${collaborator}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoAddCollaboratorOptions, RepoAddCollaboratorResponses } from '../types/RepoAddCollaborator';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a collaborator to a repository
  * {@link /repos/:owner/:repo/collaborators/:collaborator}
  */
-export async function repoAddCollaborator(
-  owner: RepoAddCollaboratorPathParams['owner'],
-  repo: RepoAddCollaboratorPathParams['repo'],
-  collaborator: RepoAddCollaboratorPathParams['collaborator'],
-  data?: RepoAddCollaboratorMutationRequest,
-  config: Partial<RequestConfig<RepoAddCollaboratorMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoAddCollaborator<ThrowOnError extends boolean = true>(
+  options: Options<RepoAddCollaboratorOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoAddCollaboratorResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoAddCollaboratorMutationResponse,
-    ResponseErrorConfig<RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422>,
-    RepoAddCollaboratorMutationRequest
-  >({
-    method: 'PUT',
-    url: getRepoAddCollaboratorUrl(owner, repo, collaborator).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/collaborators/{collaborator}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoAddCollaboratorResponses, ThrowOnError>>;
 }

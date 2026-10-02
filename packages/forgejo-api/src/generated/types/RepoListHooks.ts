@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Hook } from './Hook';
 
-export type RepoListHooksPathParams = {
+export type RepoListHooksPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListHooksPathParams = {
   repo: string;
 };
 
-export type RepoListHooksQueryParams = {
+export type RepoListHooksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListHooksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description HookList
- */
-export type RepoListHooks200 = Hook[];
+export type RepoListHooksStatus200Json = Hook[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListHooks404 = APINotFound;
+export type RepoListHooksStatus200Html = Hook[];
 
-export type RepoListHooksQueryResponse = RepoListHooks200;
+export type RepoListHooksStatus200 = RepoListHooksStatus200Json | RepoListHooksStatus200Html;
 
-export type RepoListHooksQuery = {
-  Response: RepoListHooks200;
-  PathParams: RepoListHooksPathParams;
-  QueryParams: RepoListHooksQueryParams;
-  Errors: RepoListHooks404;
+export type RepoListHooksStatus404Json = APINotFound;
+
+export type RepoListHooksStatus404Html = APINotFound;
+
+export type RepoListHooksStatus404 = RepoListHooksStatus404Json | RepoListHooksStatus404Html;
+
+export type RepoListHooksOptions = {
+  body?: never;
+  path: RepoListHooksPath;
+  query?: RepoListHooksQuery;
+  headers?: never;
 };
+
+export type RepoListHooksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListHooksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListHooksStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListHooksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListHooksStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListHooksResponse = RepoListHooksStatus200 | RepoListHooksStatus404;

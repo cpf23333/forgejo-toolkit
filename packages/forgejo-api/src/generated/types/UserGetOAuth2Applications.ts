@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { OAuth2Application } from './OAuth2Application';
 
-export type UserGetOAuth2ApplicationsQueryParams = {
+export type UserGetOAuth2ApplicationsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,71 @@ export type UserGetOAuth2ApplicationsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description OAuth2ApplicationList
- */
-export type UserGetOAuth2Applications200 = OAuth2Application[];
+export type UserGetOAuth2ApplicationsStatus200Json = OAuth2Application[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserGetOAuth2Applications401 = APIUnauthorizedError;
+export type UserGetOAuth2ApplicationsStatus200Html = OAuth2Application[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetOAuth2Applications403 = APIForbiddenError;
+export type UserGetOAuth2ApplicationsStatus200 =
+  | UserGetOAuth2ApplicationsStatus200Json
+  | UserGetOAuth2ApplicationsStatus200Html;
 
-export type UserGetOAuth2ApplicationsQueryResponse = UserGetOAuth2Applications200;
+export type UserGetOAuth2ApplicationsStatus401Json = APIUnauthorizedError;
 
-export type UserGetOAuth2ApplicationsQuery = {
-  Response: UserGetOAuth2Applications200;
-  QueryParams: UserGetOAuth2ApplicationsQueryParams;
-  Errors: UserGetOAuth2Applications401 | UserGetOAuth2Applications403;
+export type UserGetOAuth2ApplicationsStatus401Html = APIUnauthorizedError;
+
+export type UserGetOAuth2ApplicationsStatus401 =
+  | UserGetOAuth2ApplicationsStatus401Json
+  | UserGetOAuth2ApplicationsStatus401Html;
+
+export type UserGetOAuth2ApplicationsStatus403Json = APIForbiddenError;
+
+export type UserGetOAuth2ApplicationsStatus403Html = APIForbiddenError;
+
+export type UserGetOAuth2ApplicationsStatus403 =
+  | UserGetOAuth2ApplicationsStatus403Json
+  | UserGetOAuth2ApplicationsStatus403Html;
+
+export type UserGetOAuth2ApplicationsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserGetOAuth2ApplicationsQuery;
+  headers?: never;
 };
+
+export type UserGetOAuth2ApplicationsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetOAuth2ApplicationsResponse =
+  | UserGetOAuth2ApplicationsStatus200
+  | UserGetOAuth2ApplicationsStatus401
+  | UserGetOAuth2ApplicationsStatus403;

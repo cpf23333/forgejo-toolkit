@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoSyncForkBranchPathParams = {
+export type RepoSyncForkBranchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,61 @@ export type RepoSyncForkBranchPathParams = {
   branch: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoSyncForkBranch204 = any;
+export type RepoSyncForkBranchStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoSyncForkBranch400 = APIError;
+export type RepoSyncForkBranchStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoSyncForkBranch404 = APINotFound;
+export type RepoSyncForkBranchStatus400Html = APIError;
 
-export type RepoSyncForkBranchMutationResponse = RepoSyncForkBranch204;
+export type RepoSyncForkBranchStatus400 = RepoSyncForkBranchStatus400Json | RepoSyncForkBranchStatus400Html;
 
-export type RepoSyncForkBranchMutation = {
-  Response: RepoSyncForkBranch204;
-  PathParams: RepoSyncForkBranchPathParams;
-  Errors: RepoSyncForkBranch400 | RepoSyncForkBranch404;
+export type RepoSyncForkBranchStatus404Json = APINotFound;
+
+export type RepoSyncForkBranchStatus404Html = APINotFound;
+
+export type RepoSyncForkBranchStatus404 = RepoSyncForkBranchStatus404Json | RepoSyncForkBranchStatus404Html;
+
+export type RepoSyncForkBranchOptions = {
+  body?: never;
+  path: RepoSyncForkBranchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSyncForkBranchResponses = {
+  '204': RepoSyncForkBranchStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkBranchStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkBranchStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkBranchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkBranchStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSyncForkBranchResponse =
+  | RepoSyncForkBranchStatus204
+  | RepoSyncForkBranchStatus400
+  | RepoSyncForkBranchStatus404;

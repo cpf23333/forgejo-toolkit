@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetRunnerRegistrationTokenQueryResponse } from '../types/RepoGetRunnerRegistrationToken';
+import type { RepoGetRunnerRegistrationTokenResponse } from '../types/RepoGetRunnerRegistrationToken';
 import { http } from 'msw';
 
-export function repoGetRunnerRegistrationTokenHandlerResponse200(data: RepoGetRunnerRegistrationTokenQueryResponse) {
+export function repoGetRunnerRegistrationTokenHandlerResponse200(data: RepoGetRunnerRegistrationTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function repoGetRunnerRegistrationTokenHandlerResponse200(data: RepoGetRu
 
 export function repoGetRunnerRegistrationTokenHandler(
   data?:
-    | RepoGetRunnerRegistrationTokenQueryResponse
+    | RepoGetRunnerRegistrationTokenResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runners/registration-token`, function handler(info) {

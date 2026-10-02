@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListGPGKeysQueryResponse, UserListGPGKeys404 } from '../types/UserListGPGKeys';
+import type { UserListGPGKeysResponse, UserListGPGKeysStatus404 } from '../types/UserListGPGKeys';
 import { http } from 'msw';
 
-export function userListGPGKeysHandlerResponse200(data: UserListGPGKeysQueryResponse) {
+export function userListGPGKeysHandlerResponse200(data: UserListGPGKeysResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListGPGKeysHandlerResponse200(data: UserListGPGKeysQueryResp
   });
 }
 
-export function userListGPGKeysHandlerResponse404(data: UserListGPGKeys404) {
+export function userListGPGKeysHandlerResponse404(data: UserListGPGKeysStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListGPGKeysHandlerResponse404(data: UserListGPGKeys404) {
 
 export function userListGPGKeysHandler(
   data?:
-    | UserListGPGKeysQueryResponse
+    | UserListGPGKeysResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/gpg_keys`, function handler(info) {

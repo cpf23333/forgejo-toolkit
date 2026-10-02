@@ -5,6 +5,7 @@
 
 /**
  * @description CreateIssueCommentOption options for creating a comment on an issue
+ * @type object
  */
 export type CreateIssueCommentOption = {
   /**
@@ -14,7 +15,9 @@ export type CreateIssueCommentOption = {
   body: string;
   /**
    * @description The time of the comment\'s update, needs admin or repository owner permission
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

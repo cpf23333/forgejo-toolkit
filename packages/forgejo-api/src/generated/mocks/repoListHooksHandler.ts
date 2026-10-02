@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListHooksQueryResponse, RepoListHooks404 } from '../types/RepoListHooks';
+import type { RepoListHooksResponse, RepoListHooksStatus404 } from '../types/RepoListHooks';
 import { http } from 'msw';
 
-export function repoListHooksHandlerResponse200(data: RepoListHooksQueryResponse) {
+export function repoListHooksHandlerResponse200(data: RepoListHooksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListHooksHandlerResponse200(data: RepoListHooksQueryResponse
   });
 }
 
-export function repoListHooksHandlerResponse404(data: RepoListHooks404) {
+export function repoListHooksHandlerResponse404(data: RepoListHooksStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListHooksHandlerResponse404(data: RepoListHooks404) {
 
 export function repoListHooksHandler(
   data?:
-    | RepoListHooksQueryResponse
+    | RepoListHooksResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/hooks`, function handler(info) {

@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserCurrentGetGPGKeyQueryResponse,
-  UserCurrentGetGPGKey401,
-  UserCurrentGetGPGKey403,
-  UserCurrentGetGPGKey404,
+  UserCurrentGetGPGKeyResponse,
+  UserCurrentGetGPGKeyStatus401,
+  UserCurrentGetGPGKeyStatus403,
+  UserCurrentGetGPGKeyStatus404,
 } from '../types/UserCurrentGetGPGKey';
 import { http } from 'msw';
 
-export function userCurrentGetGPGKeyHandlerResponse200(data: UserCurrentGetGPGKeyQueryResponse) {
+export function userCurrentGetGPGKeyHandlerResponse200(data: UserCurrentGetGPGKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userCurrentGetGPGKeyHandlerResponse200(data: UserCurrentGetGPGKe
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse401(data: UserCurrentGetGPGKey401) {
+export function userCurrentGetGPGKeyHandlerResponse401(data: UserCurrentGetGPGKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function userCurrentGetGPGKeyHandlerResponse401(data: UserCurrentGetGPGKe
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse403(data: UserCurrentGetGPGKey403) {
+export function userCurrentGetGPGKeyHandlerResponse403(data: UserCurrentGetGPGKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userCurrentGetGPGKeyHandlerResponse403(data: UserCurrentGetGPGKe
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse404(data: UserCurrentGetGPGKey404) {
+export function userCurrentGetGPGKeyHandlerResponse404(data: UserCurrentGetGPGKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function userCurrentGetGPGKeyHandlerResponse404(data: UserCurrentGetGPGKe
 
 export function userCurrentGetGPGKeyHandler(
   data?:
-    | UserCurrentGetGPGKeyQueryResponse
+    | UserCurrentGetGPGKeyResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_keys/:id`, function handler(info) {

@@ -4,27 +4,29 @@
  */
 
 import type {
-  UpdateUserVariableMutationResponse,
-  UpdateUserVariable400,
-  UpdateUserVariable401,
-  UpdateUserVariable403,
-  UpdateUserVariable404,
+  UpdateUserVariableResponse,
+  UpdateUserVariableStatus400,
+  UpdateUserVariableStatus401,
+  UpdateUserVariableStatus403,
+  UpdateUserVariableStatus404,
+  UpdateUserVariableBody,
 } from '../types/UpdateUserVariable';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateUserVariableHandlerResponse201(data?: UpdateUserVariableMutationResponse) {
+export function updateUserVariableHandlerResponse201(data?: UpdateUserVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateUserVariableHandlerResponse204(data?: UpdateUserVariableMutationResponse) {
+export function updateUserVariableHandlerResponse204(data?: UpdateUserVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateUserVariableHandlerResponse400(data: UpdateUserVariable400) {
+export function updateUserVariableHandlerResponse400(data: UpdateUserVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -33,7 +35,7 @@ export function updateUserVariableHandlerResponse400(data: UpdateUserVariable400
   });
 }
 
-export function updateUserVariableHandlerResponse401(data: UpdateUserVariable401) {
+export function updateUserVariableHandlerResponse401(data: UpdateUserVariableStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -42,7 +44,7 @@ export function updateUserVariableHandlerResponse401(data: UpdateUserVariable401
   });
 }
 
-export function updateUserVariableHandlerResponse403(data: UpdateUserVariable403) {
+export function updateUserVariableHandlerResponse403(data: UpdateUserVariableStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -51,7 +53,7 @@ export function updateUserVariableHandlerResponse403(data: UpdateUserVariable403
   });
 }
 
-export function updateUserVariableHandlerResponse404(data: UpdateUserVariable404) {
+export function updateUserVariableHandlerResponse404(data: UpdateUserVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -67,13 +69,16 @@ export function updateUserVariableHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, UpdateUserVariableBody>,
 ) {
-  return http.put(`/user/actions/variables/:variablename`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, UpdateUserVariableBody>(
+    `/user/actions/variables/:variablename`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+      });
+    },
+  );
 }

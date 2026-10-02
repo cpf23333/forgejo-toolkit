@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { APIValidationError } from './APIValidationError';
 
-export type UserUnblockUserPathParams = {
+export type UserUnblockUserPath = {
   /**
    * @description username of the user
    * @type string
@@ -16,35 +16,85 @@ export type UserUnblockUserPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserUnblockUser204 = any;
+export type UserUnblockUserStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserUnblockUser401 = APIUnauthorizedError;
+export type UserUnblockUserStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserUnblockUser403 = APIForbiddenError;
+export type UserUnblockUserStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserUnblockUser404 = APINotFound;
+export type UserUnblockUserStatus401 = UserUnblockUserStatus401Json | UserUnblockUserStatus401Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserUnblockUser422 = APIValidationError;
+export type UserUnblockUserStatus403Json = APIForbiddenError;
 
-export type UserUnblockUserMutationResponse = UserUnblockUser204;
+export type UserUnblockUserStatus403Html = APIForbiddenError;
 
-export type UserUnblockUserMutation = {
-  Response: UserUnblockUser204;
-  PathParams: UserUnblockUserPathParams;
-  Errors: UserUnblockUser401 | UserUnblockUser403 | UserUnblockUser404 | UserUnblockUser422;
+export type UserUnblockUserStatus403 = UserUnblockUserStatus403Json | UserUnblockUserStatus403Html;
+
+export type UserUnblockUserStatus404Json = APINotFound;
+
+export type UserUnblockUserStatus404Html = APINotFound;
+
+export type UserUnblockUserStatus404 = UserUnblockUserStatus404Json | UserUnblockUserStatus404Html;
+
+export type UserUnblockUserStatus422Json = APIValidationError;
+
+export type UserUnblockUserStatus422Html = APIValidationError;
+
+export type UserUnblockUserStatus422 = UserUnblockUserStatus422Json | UserUnblockUserStatus422Html;
+
+export type UserUnblockUserOptions = {
+  body?: never;
+  path: UserUnblockUserPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserUnblockUserResponses = {
+  '204': UserUnblockUserStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserUnblockUserStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUnblockUserStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserUnblockUserStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUnblockUserStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserUnblockUserStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUnblockUserStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserUnblockUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUnblockUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserUnblockUserResponse =
+  | UserUnblockUserStatus204
+  | UserUnblockUserStatus401
+  | UserUnblockUserStatus403
+  | UserUnblockUserStatus404
+  | UserUnblockUserStatus422;

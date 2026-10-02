@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type AcceptRepoTransferPathParams = {
+export type AcceptRepoTransferPath = {
   /**
    * @description owner of the repo to transfer
    * @type string
@@ -21,29 +21,76 @@ export type AcceptRepoTransferPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type AcceptRepoTransfer202 = Repository;
+export type AcceptRepoTransferStatus202Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type AcceptRepoTransfer403 = APIForbiddenError;
+export type AcceptRepoTransferStatus202Html = Repository;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AcceptRepoTransfer404 = APINotFound;
+export type AcceptRepoTransferStatus202 = AcceptRepoTransferStatus202Json | AcceptRepoTransferStatus202Html;
 
-/**
- * @description QuotaExceeded
- */
-export type AcceptRepoTransfer413 = any;
+export type AcceptRepoTransferStatus403Json = APIForbiddenError;
 
-export type AcceptRepoTransferMutationResponse = AcceptRepoTransfer202;
+export type AcceptRepoTransferStatus403Html = APIForbiddenError;
 
-export type AcceptRepoTransferMutation = {
-  Response: AcceptRepoTransfer202;
-  PathParams: AcceptRepoTransferPathParams;
-  Errors: AcceptRepoTransfer403 | AcceptRepoTransfer404 | AcceptRepoTransfer413;
+export type AcceptRepoTransferStatus403 = AcceptRepoTransferStatus403Json | AcceptRepoTransferStatus403Html;
+
+export type AcceptRepoTransferStatus404Json = APINotFound;
+
+export type AcceptRepoTransferStatus404Html = APINotFound;
+
+export type AcceptRepoTransferStatus404 = AcceptRepoTransferStatus404Json | AcceptRepoTransferStatus404Html;
+
+export type AcceptRepoTransferStatus413 = unknown;
+
+export type AcceptRepoTransferOptions = {
+  body?: never;
+  path: AcceptRepoTransferPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AcceptRepoTransferResponses = {
+  '202':
+    | {
+        contentType: 'application/json';
+        data: AcceptRepoTransferStatus202Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AcceptRepoTransferStatus202Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AcceptRepoTransferStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AcceptRepoTransferStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AcceptRepoTransferStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AcceptRepoTransferStatus404Html;
+      };
+  '413': AcceptRepoTransferStatus413;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AcceptRepoTransferResponse =
+  | AcceptRepoTransferStatus202
+  | AcceptRepoTransferStatus403
+  | AcceptRepoTransferStatus404
+  | AcceptRepoTransferStatus413;

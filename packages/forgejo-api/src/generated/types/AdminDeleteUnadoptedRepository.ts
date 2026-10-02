@@ -5,7 +5,7 @@
 
 import type { APIForbiddenError } from './APIForbiddenError';
 
-export type AdminDeleteUnadoptedRepositoryPathParams = {
+export type AdminDeleteUnadoptedRepositoryPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,20 +18,39 @@ export type AdminDeleteUnadoptedRepositoryPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteUnadoptedRepository204 = any;
+export type AdminDeleteUnadoptedRepositoryStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminDeleteUnadoptedRepository403 = APIForbiddenError;
+export type AdminDeleteUnadoptedRepositoryStatus403Json = APIForbiddenError;
 
-export type AdminDeleteUnadoptedRepositoryMutationResponse = AdminDeleteUnadoptedRepository204;
+export type AdminDeleteUnadoptedRepositoryStatus403Html = APIForbiddenError;
 
-export type AdminDeleteUnadoptedRepositoryMutation = {
-  Response: AdminDeleteUnadoptedRepository204;
-  PathParams: AdminDeleteUnadoptedRepositoryPathParams;
-  Errors: AdminDeleteUnadoptedRepository403;
+export type AdminDeleteUnadoptedRepositoryStatus403 =
+  | AdminDeleteUnadoptedRepositoryStatus403Json
+  | AdminDeleteUnadoptedRepositoryStatus403Html;
+
+export type AdminDeleteUnadoptedRepositoryOptions = {
+  body?: never;
+  path: AdminDeleteUnadoptedRepositoryPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteUnadoptedRepositoryResponses = {
+  '204': AdminDeleteUnadoptedRepositoryStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUnadoptedRepositoryStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUnadoptedRepositoryStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteUnadoptedRepositoryResponse =
+  | AdminDeleteUnadoptedRepositoryStatus204
+  | AdminDeleteUnadoptedRepositoryStatus403;

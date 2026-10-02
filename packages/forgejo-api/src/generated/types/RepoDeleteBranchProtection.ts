@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteBranchProtectionPathParams = {
+export type RepoDeleteBranchProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,20 +23,39 @@ export type RepoDeleteBranchProtectionPathParams = {
   name: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteBranchProtection204 = any;
+export type RepoDeleteBranchProtectionStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteBranchProtection404 = APINotFound;
+export type RepoDeleteBranchProtectionStatus404Json = APINotFound;
 
-export type RepoDeleteBranchProtectionMutationResponse = RepoDeleteBranchProtection204;
+export type RepoDeleteBranchProtectionStatus404Html = APINotFound;
 
-export type RepoDeleteBranchProtectionMutation = {
-  Response: RepoDeleteBranchProtection204;
-  PathParams: RepoDeleteBranchProtectionPathParams;
-  Errors: RepoDeleteBranchProtection404;
+export type RepoDeleteBranchProtectionStatus404 =
+  | RepoDeleteBranchProtectionStatus404Json
+  | RepoDeleteBranchProtectionStatus404Html;
+
+export type RepoDeleteBranchProtectionOptions = {
+  body?: never;
+  path: RepoDeleteBranchProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteBranchProtectionResponses = {
+  '204': RepoDeleteBranchProtectionStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteBranchProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteBranchProtectionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteBranchProtectionResponse =
+  | RepoDeleteBranchProtectionStatus204
+  | RepoDeleteBranchProtectionStatus404;

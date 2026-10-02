@@ -9,33 +9,113 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { CreateOAuth2ApplicationOptions } from './CreateOAuth2ApplicationOptions';
 import type { OAuth2Application } from './OAuth2Application';
 
-/**
- * OAuth2Application represents an OAuth2 application.
- * @description OAuth2Application
- */
-export type UserCreateOAuth2Application201 = OAuth2Application;
+export type UserCreateOAuth2ApplicationStatus201Json = OAuth2Application;
+
+export type UserCreateOAuth2ApplicationStatus201Html = OAuth2Application;
+
+export type UserCreateOAuth2ApplicationStatus201 =
+  | UserCreateOAuth2ApplicationStatus201Json
+  | UserCreateOAuth2ApplicationStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserCreateOAuth2Application400 = APIError;
+export type UserCreateOAuth2ApplicationStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UserCreateOAuth2Application401 = APIUnauthorizedError;
+export type UserCreateOAuth2ApplicationStatus400Html = APIError;
+
+export type UserCreateOAuth2ApplicationStatus400 =
+  | UserCreateOAuth2ApplicationStatus400Json
+  | UserCreateOAuth2ApplicationStatus400Html;
+
+export type UserCreateOAuth2ApplicationStatus401Json = APIUnauthorizedError;
+
+export type UserCreateOAuth2ApplicationStatus401Html = APIUnauthorizedError;
+
+export type UserCreateOAuth2ApplicationStatus401 =
+  | UserCreateOAuth2ApplicationStatus401Json
+  | UserCreateOAuth2ApplicationStatus401Html;
+
+export type UserCreateOAuth2ApplicationStatus403Json = APIForbiddenError;
+
+export type UserCreateOAuth2ApplicationStatus403Html = APIForbiddenError;
+
+export type UserCreateOAuth2ApplicationStatus403 =
+  | UserCreateOAuth2ApplicationStatus403Json
+  | UserCreateOAuth2ApplicationStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateOAuth2ApplicationOptions holds options to create an oauth2 application
+ * @type object
  */
-export type UserCreateOAuth2Application403 = APIForbiddenError;
+export type UserCreateOAuth2ApplicationBodyJson = CreateOAuth2ApplicationOptions;
 
-export type UserCreateOAuth2ApplicationMutationRequest = CreateOAuth2ApplicationOptions;
+/**
+ * @description CreateOAuth2ApplicationOptions holds options to create an oauth2 application
+ * @type object
+ */
+export type UserCreateOAuth2ApplicationBodyPlain = CreateOAuth2ApplicationOptions;
 
-export type UserCreateOAuth2ApplicationMutationResponse = UserCreateOAuth2Application201;
+export type UserCreateOAuth2ApplicationBody =
+  | UserCreateOAuth2ApplicationBodyJson
+  | UserCreateOAuth2ApplicationBodyPlain;
 
-export type UserCreateOAuth2ApplicationMutation = {
-  Response: UserCreateOAuth2Application201;
-  Request: UserCreateOAuth2ApplicationMutationRequest;
-  Errors: UserCreateOAuth2Application400 | UserCreateOAuth2Application401 | UserCreateOAuth2Application403;
+export type UserCreateOAuth2ApplicationOptions = {
+  body: UserCreateOAuth2ApplicationBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCreateOAuth2ApplicationResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserCreateOAuth2ApplicationStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateOAuth2ApplicationStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UserCreateOAuth2ApplicationStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateOAuth2ApplicationStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCreateOAuth2ApplicationStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateOAuth2ApplicationStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCreateOAuth2ApplicationStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateOAuth2ApplicationStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCreateOAuth2ApplicationResponse =
+  | UserCreateOAuth2ApplicationStatus201
+  | UserCreateOAuth2ApplicationStatus400
+  | UserCreateOAuth2ApplicationStatus401
+  | UserCreateOAuth2ApplicationStatus403;

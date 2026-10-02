@@ -5,6 +5,7 @@
 
 /**
  * @description UpdateBranchRepoOption options when updating a branch in a repository
+ * @type object
  */
 export type UpdateBranchRepoOption = {
   /**

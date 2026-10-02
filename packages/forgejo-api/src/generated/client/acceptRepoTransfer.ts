@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AcceptRepoTransferMutationResponse,
-  AcceptRepoTransferPathParams,
-  AcceptRepoTransfer403,
-  AcceptRepoTransfer404,
-  AcceptRepoTransfer413,
-} from '../types/AcceptRepoTransfer';
-
-function getAcceptRepoTransferUrl(
-  owner: AcceptRepoTransferPathParams['owner'],
-  repo: AcceptRepoTransferPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/transfer/accept` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AcceptRepoTransferOptions, AcceptRepoTransferResponses } from '../types/AcceptRepoTransfer';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Accept a repo transfer
  * {@link /repos/:owner/:repo/transfer/accept}
  */
-export async function acceptRepoTransfer(
-  owner: AcceptRepoTransferPathParams['owner'],
-  repo: AcceptRepoTransferPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function acceptRepoTransfer<ThrowOnError extends boolean = true>(
+  options: Options<AcceptRepoTransferOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AcceptRepoTransferResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AcceptRepoTransferMutationResponse,
-    ResponseErrorConfig<AcceptRepoTransfer403 | AcceptRepoTransfer404 | AcceptRepoTransfer413>,
-    unknown
-  >({
-    method: 'POST',
-    url: getAcceptRepoTransferUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/transfer/accept',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AcceptRepoTransferResponses, ThrowOnError>>;
 }

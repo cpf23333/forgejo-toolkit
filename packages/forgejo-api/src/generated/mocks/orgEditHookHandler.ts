@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { OrgEditHookMutationResponse, OrgEditHook404 } from '../types/OrgEditHook';
+import type { OrgEditHookResponse, OrgEditHookStatus404, OrgEditHookBody } from '../types/OrgEditHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgEditHookHandlerResponse200(data: OrgEditHookMutationResponse) {
+export function orgEditHookHandlerResponse200(data: OrgEditHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +16,7 @@ export function orgEditHookHandlerResponse200(data: OrgEditHookMutationResponse)
   });
 }
 
-export function orgEditHookHandlerResponse404(data: OrgEditHook404) {
+export function orgEditHookHandlerResponse404(data: OrgEditHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,11 +26,9 @@ export function orgEditHookHandlerResponse404(data: OrgEditHook404) {
 }
 
 export function orgEditHookHandler(
-  data?:
-    | OrgEditHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgEditHookResponse | HttpResponseResolver<Record<string, string>, OrgEditHookBody>,
 ) {
-  return http.patch(`/orgs/:org/hooks/:id`, function handler(info) {
+  return http.patch<Record<string, string>, OrgEditHookBody>(`/orgs/:org/hooks/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

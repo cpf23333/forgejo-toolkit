@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoDeletePullReviewCommentMutationResponse,
-  RepoDeletePullReviewComment403,
-  RepoDeletePullReviewComment404,
+  RepoDeletePullReviewCommentResponse,
+  RepoDeletePullReviewCommentStatus403,
+  RepoDeletePullReviewCommentStatus404,
 } from '../types/RepoDeletePullReviewComment';
 import { http } from 'msw';
 
-export function repoDeletePullReviewCommentHandlerResponse204(data?: RepoDeletePullReviewCommentMutationResponse) {
+export function repoDeletePullReviewCommentHandlerResponse204(data?: RepoDeletePullReviewCommentResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeletePullReviewCommentHandlerResponse403(data: RepoDeletePullReviewComment403) {
+export function repoDeletePullReviewCommentHandlerResponse403(data: RepoDeletePullReviewCommentStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function repoDeletePullReviewCommentHandlerResponse403(data: RepoDeletePu
   });
 }
 
-export function repoDeletePullReviewCommentHandlerResponse404(data: RepoDeletePullReviewComment404) {
+export function repoDeletePullReviewCommentHandlerResponse404(data: RepoDeletePullReviewCommentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type RepoGetReviewersPathParams = {
+export type RepoGetReviewersPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoGetReviewersPathParams = {
   repo: string;
 };
 
-/**
- * @description UserList
- */
-export type RepoGetReviewers200 = User[];
+export type RepoGetReviewersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetReviewers404 = APINotFound;
+export type RepoGetReviewersStatus200Html = User[];
 
-export type RepoGetReviewersQueryResponse = RepoGetReviewers200;
+export type RepoGetReviewersStatus200 = RepoGetReviewersStatus200Json | RepoGetReviewersStatus200Html;
 
-export type RepoGetReviewersQuery = {
-  Response: RepoGetReviewers200;
-  PathParams: RepoGetReviewersPathParams;
-  Errors: RepoGetReviewers404;
+export type RepoGetReviewersStatus404Json = APINotFound;
+
+export type RepoGetReviewersStatus404Html = APINotFound;
+
+export type RepoGetReviewersStatus404 = RepoGetReviewersStatus404Json | RepoGetReviewersStatus404Html;
+
+export type RepoGetReviewersOptions = {
+  body?: never;
+  path: RepoGetReviewersPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetReviewersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReviewersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReviewersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReviewersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReviewersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetReviewersResponse = RepoGetReviewersStatus200 | RepoGetReviewersStatus404;

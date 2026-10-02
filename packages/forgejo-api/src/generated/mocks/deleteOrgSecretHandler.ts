@@ -3,16 +3,20 @@
  * Do not edit manually.
  */
 
-import type { DeleteOrgSecretMutationResponse, DeleteOrgSecret400, DeleteOrgSecret404 } from '../types/DeleteOrgSecret';
+import type {
+  DeleteOrgSecretResponse,
+  DeleteOrgSecretStatus400,
+  DeleteOrgSecretStatus404,
+} from '../types/DeleteOrgSecret';
 import { http } from 'msw';
 
-export function deleteOrgSecretHandlerResponse204(data?: DeleteOrgSecretMutationResponse) {
+export function deleteOrgSecretHandlerResponse204(data?: DeleteOrgSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteOrgSecretHandlerResponse400(data: DeleteOrgSecret400) {
+export function deleteOrgSecretHandlerResponse400(data: DeleteOrgSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -21,7 +25,7 @@ export function deleteOrgSecretHandlerResponse400(data: DeleteOrgSecret400) {
   });
 }
 
-export function deleteOrgSecretHandlerResponse404(data: DeleteOrgSecret404) {
+export function deleteOrgSecretHandlerResponse404(data: DeleteOrgSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteActionRunPathParams = {
+export type DeleteActionRunPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,84 @@ export type DeleteActionRunPathParams = {
   repo: string;
   /**
    * @description id of the action run
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
-/**
- * @description Workflow run has been removed
- */
-export type DeleteActionRun204 = any;
+export type DeleteActionRunStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteActionRun400 = APIError;
+export type DeleteActionRunStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteActionRun403 = APIForbiddenError;
+export type DeleteActionRunStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeleteActionRun404 = APINotFound;
+export type DeleteActionRunStatus400 = DeleteActionRunStatus400Json | DeleteActionRunStatus400Html;
 
-export type DeleteActionRunMutationResponse = DeleteActionRun204;
+export type DeleteActionRunStatus403Json = APIForbiddenError;
 
-export type DeleteActionRunMutation = {
-  Response: DeleteActionRun204;
-  PathParams: DeleteActionRunPathParams;
-  Errors: DeleteActionRun400 | DeleteActionRun403 | DeleteActionRun404;
+export type DeleteActionRunStatus403Html = APIForbiddenError;
+
+export type DeleteActionRunStatus403 = DeleteActionRunStatus403Json | DeleteActionRunStatus403Html;
+
+export type DeleteActionRunStatus404Json = APINotFound;
+
+export type DeleteActionRunStatus404Html = APINotFound;
+
+export type DeleteActionRunStatus404 = DeleteActionRunStatus404Json | DeleteActionRunStatus404Html;
+
+export type DeleteActionRunOptions = {
+  body?: never;
+  path: DeleteActionRunPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteActionRunResponses = {
+  '204': DeleteActionRunStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionRunStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionRunStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionRunStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionRunStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteActionRunStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteActionRunStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteActionRunResponse =
+  | DeleteActionRunStatus204
+  | DeleteActionRunStatus400
+  | DeleteActionRunStatus403
+  | DeleteActionRunStatus404;

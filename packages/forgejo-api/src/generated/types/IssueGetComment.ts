@@ -8,7 +8,7 @@ import type { APIInternalServerError } from './APIInternalServerError';
 import type { APINotFound } from './APINotFound';
 import type { Comment } from './Comment';
 
-export type IssueGetCommentPathParams = {
+export type IssueGetCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,40 +21,100 @@ export type IssueGetCommentPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Comment
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueGetComment200 = Comment;
+export type IssueGetCommentStatus200Json = Comment;
 
 /**
- * @description APIEmpty is an empty response
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueGetComment204 = any;
+export type IssueGetCommentStatus200Html = Comment;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueGetComment403 = APIForbiddenError;
+export type IssueGetCommentStatus200 = IssueGetCommentStatus200Json | IssueGetCommentStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetComment404 = APINotFound;
+export type IssueGetCommentStatus204 = unknown;
 
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueGetComment500 = APIInternalServerError;
+export type IssueGetCommentStatus403Json = APIForbiddenError;
 
-export type IssueGetCommentQueryResponse = IssueGetComment200 | IssueGetComment204;
+export type IssueGetCommentStatus403Html = APIForbiddenError;
 
-export type IssueGetCommentQuery = {
-  Response: IssueGetComment200 | IssueGetComment204;
-  PathParams: IssueGetCommentPathParams;
-  Errors: IssueGetComment403 | IssueGetComment404 | IssueGetComment500;
+export type IssueGetCommentStatus403 = IssueGetCommentStatus403Json | IssueGetCommentStatus403Html;
+
+export type IssueGetCommentStatus404Json = APINotFound;
+
+export type IssueGetCommentStatus404Html = APINotFound;
+
+export type IssueGetCommentStatus404 = IssueGetCommentStatus404Json | IssueGetCommentStatus404Html;
+
+export type IssueGetCommentStatus500Json = APIInternalServerError;
+
+export type IssueGetCommentStatus500Html = APIInternalServerError;
+
+export type IssueGetCommentStatus500 = IssueGetCommentStatus500Json | IssueGetCommentStatus500Html;
+
+export type IssueGetCommentOptions = {
+  body?: never;
+  path: IssueGetCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetCommentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentStatus200Html;
+      };
+  '204': IssueGetCommentStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentStatus404Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetCommentResponse =
+  | IssueGetCommentStatus200
+  | IssueGetCommentStatus204
+  | IssueGetCommentStatus403
+  | IssueGetCommentStatus404
+  | IssueGetCommentStatus500;

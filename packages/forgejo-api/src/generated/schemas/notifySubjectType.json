@@ -1,6 +1,0 @@
-{
-  "description": "NotifySubjectType represent type of notification subject",
-  "type": "string",
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "NotifySubjectType"
-}

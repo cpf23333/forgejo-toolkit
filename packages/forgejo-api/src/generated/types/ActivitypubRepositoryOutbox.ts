@@ -5,23 +5,52 @@
 
 import type { ForgeOutbox } from './ForgeOutbox';
 
-export type ActivitypubRepositoryOutboxPathParams = {
+export type ActivitypubRepositoryOutboxPath = {
   /**
    * @description repository ID of the repo
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   'repository-id': number;
 };
 
 /**
- * @description Outbox
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
  */
-export type ActivitypubRepositoryOutbox200 = ForgeOutbox;
+export type ActivitypubRepositoryOutboxStatus200Json = ForgeOutbox;
 
-export type ActivitypubRepositoryOutboxMutationResponse = ActivitypubRepositoryOutbox200;
+/**
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
+ */
+export type ActivitypubRepositoryOutboxStatus200Html = ForgeOutbox;
 
-export type ActivitypubRepositoryOutboxMutation = {
-  Response: ActivitypubRepositoryOutbox200;
-  PathParams: ActivitypubRepositoryOutboxPathParams;
-  Errors: any;
+export type ActivitypubRepositoryOutboxStatus200 =
+  | ActivitypubRepositoryOutboxStatus200Json
+  | ActivitypubRepositoryOutboxStatus200Html;
+
+export type ActivitypubRepositoryOutboxOptions = {
+  body?: never;
+  path: ActivitypubRepositoryOutboxPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubRepositoryOutboxResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubRepositoryOutboxStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubRepositoryOutboxStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubRepositoryOutboxResponse = ActivitypubRepositoryOutboxStatus200;

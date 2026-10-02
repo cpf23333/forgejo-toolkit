@@ -7,43 +7,92 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { NotificationThread } from './NotificationThread';
 
-export type NotifyReadThreadPathParams = {
+export type NotifyReadThreadPath = {
   /**
    * @description id of notification thread
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type NotifyReadThreadQueryParams = {
+export type NotifyReadThreadQuery = {
   /**
    * @description Status to mark notifications as
-   * @default "read"
+   * @default 'read'
    * @type string | undefined
    */
   'to-status'?: string;
 };
 
 /**
- * @description NotificationThread
+ * @description NotificationThread expose Notification on API
+ * @type object
  */
-export type NotifyReadThread205 = NotificationThread;
+export type NotifyReadThreadStatus205Json = NotificationThread;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description NotificationThread expose Notification on API
+ * @type object
  */
-export type NotifyReadThread403 = APIForbiddenError;
+export type NotifyReadThreadStatus205Html = NotificationThread;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type NotifyReadThread404 = APINotFound;
+export type NotifyReadThreadStatus205 = NotifyReadThreadStatus205Json | NotifyReadThreadStatus205Html;
 
-export type NotifyReadThreadMutationResponse = NotifyReadThread205;
+export type NotifyReadThreadStatus403Json = APIForbiddenError;
 
-export type NotifyReadThreadMutation = {
-  Response: NotifyReadThread205;
-  PathParams: NotifyReadThreadPathParams;
-  QueryParams: NotifyReadThreadQueryParams;
-  Errors: NotifyReadThread403 | NotifyReadThread404;
+export type NotifyReadThreadStatus403Html = APIForbiddenError;
+
+export type NotifyReadThreadStatus403 = NotifyReadThreadStatus403Json | NotifyReadThreadStatus403Html;
+
+export type NotifyReadThreadStatus404Json = APINotFound;
+
+export type NotifyReadThreadStatus404Html = APINotFound;
+
+export type NotifyReadThreadStatus404 = NotifyReadThreadStatus404Json | NotifyReadThreadStatus404Html;
+
+export type NotifyReadThreadOptions = {
+  body?: never;
+  path: NotifyReadThreadPath;
+  query?: NotifyReadThreadQuery;
+  headers?: never;
 };
+
+export type NotifyReadThreadResponses = {
+  '205':
+    | {
+        contentType: 'application/json';
+        data: NotifyReadThreadStatus205Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyReadThreadStatus205Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: NotifyReadThreadStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyReadThreadStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: NotifyReadThreadStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyReadThreadStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyReadThreadResponse =
+  | NotifyReadThreadStatus205
+  | NotifyReadThreadStatus403
+  | NotifyReadThreadStatus404;

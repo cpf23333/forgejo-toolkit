@@ -7,14 +7,9 @@ import type { Repository } from './Repository';
 
 /**
  * @description SearchResults results of a successful search
+ * @type object
  */
 export type SearchResults = {
-  /**
-   * @type array | undefined
-   */
   data?: Repository[];
-  /**
-   * @type boolean | undefined
-   */
   ok?: boolean;
 };

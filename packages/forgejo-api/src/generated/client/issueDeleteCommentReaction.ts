@@ -3,54 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueDeleteCommentReactionMutationRequest,
-  IssueDeleteCommentReactionMutationResponse,
-  IssueDeleteCommentReactionPathParams,
-  IssueDeleteCommentReaction403,
-  IssueDeleteCommentReaction404,
+  IssueDeleteCommentReactionOptions,
+  IssueDeleteCommentReactionResponses,
 } from '../types/IssueDeleteCommentReaction';
-
-function getIssueDeleteCommentReactionUrl(
-  owner: IssueDeleteCommentReactionPathParams['owner'],
-  repo: IssueDeleteCommentReactionPathParams['repo'],
-  id: IssueDeleteCommentReactionPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a reaction from a comment of an issue
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
-export async function issueDeleteCommentReaction(
-  owner: IssueDeleteCommentReactionPathParams['owner'],
-  repo: IssueDeleteCommentReactionPathParams['repo'],
-  id: IssueDeleteCommentReactionPathParams['id'],
-  data?: IssueDeleteCommentReactionMutationRequest,
-  config: Partial<RequestConfig<IssueDeleteCommentReactionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteCommentReaction<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteCommentReactionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteCommentReactionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueDeleteCommentReactionMutationResponse,
-    ResponseErrorConfig<IssueDeleteCommentReaction403 | IssueDeleteCommentReaction404>,
-    IssueDeleteCommentReactionMutationRequest
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteCommentReactionUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/reactions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteCommentReactionResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminSearchRunJobsQueryResponse, AdminSearchRunJobs403 } from '../types/AdminSearchRunJobs';
+import type { AdminSearchRunJobsResponse, AdminSearchRunJobsStatus403 } from '../types/AdminSearchRunJobs';
 import { http } from 'msw';
 
-export function adminSearchRunJobsHandlerResponse200(data: AdminSearchRunJobsQueryResponse) {
+export function adminSearchRunJobsHandlerResponse200(data: AdminSearchRunJobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminSearchRunJobsHandlerResponse200(data: AdminSearchRunJobsQue
   });
 }
 
-export function adminSearchRunJobsHandlerResponse403(data: AdminSearchRunJobs403) {
+export function adminSearchRunJobsHandlerResponse403(data: AdminSearchRunJobsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminSearchRunJobsHandlerResponse403(data: AdminSearchRunJobs403
 
 export function adminSearchRunJobsHandler(
   data?:
-    | AdminSearchRunJobsQueryResponse
+    | AdminSearchRunJobsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/runners/jobs`, function handler(info) {

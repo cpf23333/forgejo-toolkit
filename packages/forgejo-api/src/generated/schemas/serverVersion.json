@@ -1,7 +1,0 @@
-{
-  "description": "ServerVersion wraps the version of the server",
-  "type": "object",
-  "properties": { "version": { "type": "string", "x-go-name": "Version" } },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "ServerVersion"
-}

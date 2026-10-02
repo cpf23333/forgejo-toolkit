@@ -3,46 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetCommitPullRequestQueryResponse,
-  RepoGetCommitPullRequestPathParams,
-  RepoGetCommitPullRequest404,
+  RepoGetCommitPullRequestOptions,
+  RepoGetCommitPullRequestResponses,
 } from '../types/RepoGetCommitPullRequest';
-
-function getRepoGetCommitPullRequestUrl(
-  owner: RepoGetCommitPullRequestPathParams['owner'],
-  repo: RepoGetCommitPullRequestPathParams['repo'],
-  sha: RepoGetCommitPullRequestPathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/commits/${sha}/pull` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get the pull request of the commit
  * {@link /repos/:owner/:repo/commits/:sha/pull}
  */
-export async function repoGetCommitPullRequest(
-  owner: RepoGetCommitPullRequestPathParams['owner'],
-  repo: RepoGetCommitPullRequestPathParams['repo'],
-  sha: RepoGetCommitPullRequestPathParams['sha'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetCommitPullRequest<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetCommitPullRequestOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetCommitPullRequestResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetCommitPullRequestQueryResponse,
-    ResponseErrorConfig<RepoGetCommitPullRequest404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetCommitPullRequestUrl(owner, repo, sha).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/commits/{sha}/pull',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetCommitPullRequestResponses, ThrowOnError>>;
 }

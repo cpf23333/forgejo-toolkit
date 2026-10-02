@@ -5,18 +5,10 @@
 
 /**
  * @description CreateTagOption options when creating a tag
+ * @type object
  */
 export type CreateTagOption = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string
-   */
   tag_name: string;
-  /**
-   * @type string | undefined
-   */
   target?: string;
 };

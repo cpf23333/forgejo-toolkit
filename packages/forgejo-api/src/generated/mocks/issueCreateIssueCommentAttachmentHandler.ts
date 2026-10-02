@@ -4,18 +4,18 @@
  */
 
 import type {
-  IssueCreateIssueCommentAttachmentMutationResponse,
-  IssueCreateIssueCommentAttachment400,
-  IssueCreateIssueCommentAttachment404,
-  IssueCreateIssueCommentAttachment413,
-  IssueCreateIssueCommentAttachment422,
-  IssueCreateIssueCommentAttachment423,
+  IssueCreateIssueCommentAttachmentResponse,
+  IssueCreateIssueCommentAttachmentStatus400,
+  IssueCreateIssueCommentAttachmentStatus404,
+  IssueCreateIssueCommentAttachmentStatus413,
+  IssueCreateIssueCommentAttachmentStatus422,
+  IssueCreateIssueCommentAttachmentStatus423,
+  IssueCreateIssueCommentAttachmentBody,
 } from '../types/IssueCreateIssueCommentAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateIssueCommentAttachmentHandlerResponse201(
-  data: IssueCreateIssueCommentAttachmentMutationResponse,
-) {
+export function issueCreateIssueCommentAttachmentHandlerResponse201(data: IssueCreateIssueCommentAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -24,7 +24,7 @@ export function issueCreateIssueCommentAttachmentHandlerResponse201(
   });
 }
 
-export function issueCreateIssueCommentAttachmentHandlerResponse400(data: IssueCreateIssueCommentAttachment400) {
+export function issueCreateIssueCommentAttachmentHandlerResponse400(data: IssueCreateIssueCommentAttachmentStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -33,7 +33,7 @@ export function issueCreateIssueCommentAttachmentHandlerResponse400(data: IssueC
   });
 }
 
-export function issueCreateIssueCommentAttachmentHandlerResponse404(data: IssueCreateIssueCommentAttachment404) {
+export function issueCreateIssueCommentAttachmentHandlerResponse404(data: IssueCreateIssueCommentAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -42,13 +42,13 @@ export function issueCreateIssueCommentAttachmentHandlerResponse404(data: IssueC
   });
 }
 
-export function issueCreateIssueCommentAttachmentHandlerResponse413(data?: IssueCreateIssueCommentAttachment413) {
+export function issueCreateIssueCommentAttachmentHandlerResponse413(data?: IssueCreateIssueCommentAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueCreateIssueCommentAttachmentHandlerResponse422(data: IssueCreateIssueCommentAttachment422) {
+export function issueCreateIssueCommentAttachmentHandlerResponse422(data: IssueCreateIssueCommentAttachmentStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -57,7 +57,7 @@ export function issueCreateIssueCommentAttachmentHandlerResponse422(data: IssueC
   });
 }
 
-export function issueCreateIssueCommentAttachmentHandlerResponse423(data: IssueCreateIssueCommentAttachment423) {
+export function issueCreateIssueCommentAttachmentHandlerResponse423(data: IssueCreateIssueCommentAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -68,17 +68,20 @@ export function issueCreateIssueCommentAttachmentHandlerResponse423(data: IssueC
 
 export function issueCreateIssueCommentAttachmentHandler(
   data?:
-    | IssueCreateIssueCommentAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | IssueCreateIssueCommentAttachmentResponse
+    | HttpResponseResolver<Record<string, string>, IssueCreateIssueCommentAttachmentBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/comments/:id/assets`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueCreateIssueCommentAttachmentBody>(
+    `/repos/:owner/:repo/issues/comments/:id/assets`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

@@ -4,15 +4,17 @@
  */
 
 import type {
-  RepoMigrateMutationResponse,
-  RepoMigrate403,
-  RepoMigrate409,
-  RepoMigrate413,
-  RepoMigrate422,
+  RepoMigrateResponse,
+  RepoMigrateStatus403,
+  RepoMigrateStatus409,
+  RepoMigrateStatus413,
+  RepoMigrateStatus422,
+  RepoMigrateBody,
 } from '../types/RepoMigrate';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoMigrateHandlerResponse201(data: RepoMigrateMutationResponse) {
+export function repoMigrateHandlerResponse201(data: RepoMigrateResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function repoMigrateHandlerResponse201(data: RepoMigrateMutationResponse)
   });
 }
 
-export function repoMigrateHandlerResponse403(data: RepoMigrate403) {
+export function repoMigrateHandlerResponse403(data: RepoMigrateStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -30,19 +32,19 @@ export function repoMigrateHandlerResponse403(data: RepoMigrate403) {
   });
 }
 
-export function repoMigrateHandlerResponse409(data?: RepoMigrate409) {
+export function repoMigrateHandlerResponse409(data?: RepoMigrateStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function repoMigrateHandlerResponse413(data?: RepoMigrate413) {
+export function repoMigrateHandlerResponse413(data?: RepoMigrateStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoMigrateHandlerResponse422(data: RepoMigrate422) {
+export function repoMigrateHandlerResponse422(data: RepoMigrateStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -52,11 +54,9 @@ export function repoMigrateHandlerResponse422(data: RepoMigrate422) {
 }
 
 export function repoMigrateHandler(
-  data?:
-    | RepoMigrateMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoMigrateResponse | HttpResponseResolver<Record<string, string>, RepoMigrateBody>,
 ) {
-  return http.post(`/repos/migrate`, function handler(info) {
+  return http.post<Record<string, string>, RepoMigrateBody>(`/repos/migrate`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

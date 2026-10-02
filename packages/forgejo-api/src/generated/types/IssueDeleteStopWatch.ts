@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeleteStopWatchPathParams = {
+export type IssueDeleteStopWatchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,35 +18,52 @@ export type IssueDeleteStopWatchPathParams = {
   repo: string;
   /**
    * @description index of the issue to stop the stopwatch on
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteStopWatch204 = any;
+export type IssueDeleteStopWatchStatus204 = unknown;
 
-/**
- * @description Not repo writer, user does not have rights to toggle stopwatch
- */
-export type IssueDeleteStopWatch403 = any;
+export type IssueDeleteStopWatchStatus403 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteStopWatch404 = APINotFound;
+export type IssueDeleteStopWatchStatus404Json = APINotFound;
 
-/**
- * @description Cannot cancel a non existent stopwatch
- */
-export type IssueDeleteStopWatch409 = any;
+export type IssueDeleteStopWatchStatus404Html = APINotFound;
 
-export type IssueDeleteStopWatchMutationResponse = IssueDeleteStopWatch204;
+export type IssueDeleteStopWatchStatus404 = IssueDeleteStopWatchStatus404Json | IssueDeleteStopWatchStatus404Html;
 
-export type IssueDeleteStopWatchMutation = {
-  Response: IssueDeleteStopWatch204;
-  PathParams: IssueDeleteStopWatchPathParams;
-  Errors: IssueDeleteStopWatch403 | IssueDeleteStopWatch404 | IssueDeleteStopWatch409;
+export type IssueDeleteStopWatchStatus409 = unknown;
+
+export type IssueDeleteStopWatchOptions = {
+  body?: never;
+  path: IssueDeleteStopWatchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteStopWatchResponses = {
+  '204': IssueDeleteStopWatchStatus204;
+  '403': IssueDeleteStopWatchStatus403;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteStopWatchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteStopWatchStatus404Html;
+      };
+  '409': IssueDeleteStopWatchStatus409;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteStopWatchResponse =
+  | IssueDeleteStopWatchStatus204
+  | IssueDeleteStopWatchStatus403
+  | IssueDeleteStopWatchStatus404
+  | IssueDeleteStopWatchStatus409;

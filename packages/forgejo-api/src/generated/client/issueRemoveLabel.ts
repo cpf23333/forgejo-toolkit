@@ -3,57 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueRemoveLabelMutationRequest,
-  IssueRemoveLabelMutationResponse,
-  IssueRemoveLabelPathParams,
-  IssueRemoveLabel403,
-  IssueRemoveLabel404,
-  IssueRemoveLabel422,
-} from '../types/IssueRemoveLabel';
-
-function getIssueRemoveLabelUrl(
-  owner: IssueRemoveLabelPathParams['owner'],
-  repo: IssueRemoveLabelPathParams['repo'],
-  index: IssueRemoveLabelPathParams['index'],
-  identifier: IssueRemoveLabelPathParams['identifier'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/labels/${identifier}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueRemoveLabelOptions, IssueRemoveLabelResponses } from '../types/IssueRemoveLabel';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a label from an issue
  * {@link /repos/:owner/:repo/issues/:index/labels/:identifier}
  */
-export async function issueRemoveLabel(
-  owner: IssueRemoveLabelPathParams['owner'],
-  repo: IssueRemoveLabelPathParams['repo'],
-  index: IssueRemoveLabelPathParams['index'],
-  identifier: IssueRemoveLabelPathParams['identifier'],
-  data?: IssueRemoveLabelMutationRequest,
-  config: Partial<RequestConfig<IssueRemoveLabelMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueRemoveLabel<ThrowOnError extends boolean = true>(
+  options: Options<IssueRemoveLabelOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueRemoveLabelResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueRemoveLabelMutationResponse,
-    ResponseErrorConfig<IssueRemoveLabel403 | IssueRemoveLabel404 | IssueRemoveLabel422>,
-    IssueRemoveLabelMutationRequest
-  >({
-    method: 'DELETE',
-    url: getIssueRemoveLabelUrl(owner, repo, index, identifier).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/labels/{identifier}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueRemoveLabelResponses, ThrowOnError>>;
 }

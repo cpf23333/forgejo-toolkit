@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoAddTopicMutationResponse, RepoAddTopic404, RepoAddTopic422 } from '../types/RepoAddTopic';
+import type { RepoAddTopicResponse, RepoAddTopicStatus404, RepoAddTopicStatus422 } from '../types/RepoAddTopic';
 import { http } from 'msw';
 
-export function repoAddTopicHandlerResponse204(data?: RepoAddTopicMutationResponse) {
+export function repoAddTopicHandlerResponse204(data?: RepoAddTopicResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoAddTopicHandlerResponse404(data: RepoAddTopic404) {
+export function repoAddTopicHandlerResponse404(data: RepoAddTopicStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -21,7 +21,7 @@ export function repoAddTopicHandlerResponse404(data: RepoAddTopic404) {
   });
 }
 
-export function repoAddTopicHandlerResponse422(data: RepoAddTopic422) {
+export function repoAddTopicHandlerResponse422(data: RepoAddTopicStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

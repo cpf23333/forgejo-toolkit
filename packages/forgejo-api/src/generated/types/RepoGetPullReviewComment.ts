@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { PullReviewComment } from './PullReviewComment';
 
-export type RepoGetPullReviewCommentPathParams = {
+export type RepoGetPullReviewCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,40 +20,100 @@ export type RepoGetPullReviewCommentPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   comment: number;
 };
 
 /**
- * @description PullComment
+ * @description PullReviewComment represents a comment on a pull request review
+ * @type object
  */
-export type RepoGetPullReviewComment200 = PullReviewComment;
+export type RepoGetPullReviewCommentStatus200Json = PullReviewComment;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullReviewComment represents a comment on a pull request review
+ * @type object
  */
-export type RepoGetPullReviewComment403 = APIForbiddenError;
+export type RepoGetPullReviewCommentStatus200Html = PullReviewComment;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetPullReviewComment404 = APINotFound;
+export type RepoGetPullReviewCommentStatus200 =
+  | RepoGetPullReviewCommentStatus200Json
+  | RepoGetPullReviewCommentStatus200Html;
 
-export type RepoGetPullReviewCommentQueryResponse = RepoGetPullReviewComment200;
+export type RepoGetPullReviewCommentStatus403Json = APIForbiddenError;
 
-export type RepoGetPullReviewCommentQuery = {
-  Response: RepoGetPullReviewComment200;
-  PathParams: RepoGetPullReviewCommentPathParams;
-  Errors: RepoGetPullReviewComment403 | RepoGetPullReviewComment404;
+export type RepoGetPullReviewCommentStatus403Html = APIForbiddenError;
+
+export type RepoGetPullReviewCommentStatus403 =
+  | RepoGetPullReviewCommentStatus403Json
+  | RepoGetPullReviewCommentStatus403Html;
+
+export type RepoGetPullReviewCommentStatus404Json = APINotFound;
+
+export type RepoGetPullReviewCommentStatus404Html = APINotFound;
+
+export type RepoGetPullReviewCommentStatus404 =
+  | RepoGetPullReviewCommentStatus404Json
+  | RepoGetPullReviewCommentStatus404Html;
+
+export type RepoGetPullReviewCommentOptions = {
+  body?: never;
+  path: RepoGetPullReviewCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetPullReviewCommentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullReviewCommentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullReviewCommentStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullReviewCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullReviewCommentStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullReviewCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullReviewCommentStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullReviewCommentResponse =
+  | RepoGetPullReviewCommentStatus200
+  | RepoGetPullReviewCommentStatus403
+  | RepoGetPullReviewCommentStatus404;

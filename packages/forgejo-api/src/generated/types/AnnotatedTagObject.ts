@@ -5,18 +5,10 @@
 
 /**
  * @description AnnotatedTagObject contains meta information of the tag object
+ * @type object
  */
 export type AnnotatedTagObject = {
-  /**
-   * @type string | undefined
-   */
   sha?: string;
-  /**
-   * @type string | undefined
-   */
   type?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

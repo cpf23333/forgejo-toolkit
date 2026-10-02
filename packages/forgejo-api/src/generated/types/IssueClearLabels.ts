@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { DeleteLabelsOption } from './DeleteLabelsOption';
 
-export type IssueClearLabelsPathParams = {
+export type IssueClearLabelsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,33 +20,74 @@ export type IssueClearLabelsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueClearLabels204 = any;
+export type IssueClearLabelsStatus204 = unknown;
+
+export type IssueClearLabelsStatus403Json = APIForbiddenError;
+
+export type IssueClearLabelsStatus403Html = APIForbiddenError;
+
+export type IssueClearLabelsStatus403 = IssueClearLabelsStatus403Json | IssueClearLabelsStatus403Html;
+
+export type IssueClearLabelsStatus404Json = APINotFound;
+
+export type IssueClearLabelsStatus404Html = APINotFound;
+
+export type IssueClearLabelsStatus404 = IssueClearLabelsStatus404Json | IssueClearLabelsStatus404Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description DeleteLabelOption options for deleting a label
+ * @type object | undefined
  */
-export type IssueClearLabels403 = APIForbiddenError;
+export type IssueClearLabelsBodyJson = DeleteLabelsOption | undefined;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DeleteLabelOption options for deleting a label
+ * @type object | undefined
  */
-export type IssueClearLabels404 = APINotFound;
+export type IssueClearLabelsBodyPlain = DeleteLabelsOption | undefined;
 
-export type IssueClearLabelsMutationRequest = DeleteLabelsOption;
+export type IssueClearLabelsBody = IssueClearLabelsBodyJson | IssueClearLabelsBodyPlain;
 
-export type IssueClearLabelsMutationResponse = IssueClearLabels204;
-
-export type IssueClearLabelsMutation = {
-  Response: IssueClearLabels204;
-  Request: IssueClearLabelsMutationRequest;
-  PathParams: IssueClearLabelsPathParams;
-  Errors: IssueClearLabels403 | IssueClearLabels404;
+export type IssueClearLabelsOptions = {
+  body: IssueClearLabelsBody;
+  path: IssueClearLabelsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueClearLabelsResponses = {
+  '204': IssueClearLabelsStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueClearLabelsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueClearLabelsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueClearLabelsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueClearLabelsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueClearLabelsResponse =
+  | IssueClearLabelsStatus204
+  | IssueClearLabelsStatus403
+  | IssueClearLabelsStatus404;

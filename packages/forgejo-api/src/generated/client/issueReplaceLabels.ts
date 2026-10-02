@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueReplaceLabelsMutationRequest,
-  IssueReplaceLabelsMutationResponse,
-  IssueReplaceLabelsPathParams,
-  IssueReplaceLabels403,
-  IssueReplaceLabels404,
-} from '../types/IssueReplaceLabels';
-
-function getIssueReplaceLabelsUrl(
-  owner: IssueReplaceLabelsPathParams['owner'],
-  repo: IssueReplaceLabelsPathParams['repo'],
-  index: IssueReplaceLabelsPathParams['index'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/issues/${index}/labels` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueReplaceLabelsOptions, IssueReplaceLabelsResponses } from '../types/IssueReplaceLabels';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Replace an issue's labels
  * {@link /repos/:owner/:repo/issues/:index/labels}
  */
-export async function issueReplaceLabels(
-  owner: IssueReplaceLabelsPathParams['owner'],
-  repo: IssueReplaceLabelsPathParams['repo'],
-  index: IssueReplaceLabelsPathParams['index'],
-  data?: IssueReplaceLabelsMutationRequest,
-  config: Partial<RequestConfig<IssueReplaceLabelsMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueReplaceLabels<ThrowOnError extends boolean = true>(
+  options: Options<IssueReplaceLabelsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueReplaceLabelsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueReplaceLabelsMutationResponse,
-    ResponseErrorConfig<IssueReplaceLabels403 | IssueReplaceLabels404>,
-    IssueReplaceLabelsMutationRequest
-  >({
-    method: 'PUT',
-    url: getIssueReplaceLabelsUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/issues/{index}/labels',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueReplaceLabelsResponses, ThrowOnError>>;
 }

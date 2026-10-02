@@ -4,15 +4,15 @@
  */
 
 import type {
-  RepoTrackedTimesQueryResponse,
-  RepoTrackedTimes400,
-  RepoTrackedTimes403,
-  RepoTrackedTimes404,
-  RepoTrackedTimes422,
+  RepoTrackedTimesResponse,
+  RepoTrackedTimesStatus400,
+  RepoTrackedTimesStatus403,
+  RepoTrackedTimesStatus404,
+  RepoTrackedTimesStatus422,
 } from '../types/RepoTrackedTimes';
 import { http } from 'msw';
 
-export function repoTrackedTimesHandlerResponse200(data: RepoTrackedTimesQueryResponse) {
+export function repoTrackedTimesHandlerResponse200(data: RepoTrackedTimesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +21,7 @@ export function repoTrackedTimesHandlerResponse200(data: RepoTrackedTimesQueryRe
   });
 }
 
-export function repoTrackedTimesHandlerResponse400(data: RepoTrackedTimes400) {
+export function repoTrackedTimesHandlerResponse400(data: RepoTrackedTimesStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +30,7 @@ export function repoTrackedTimesHandlerResponse400(data: RepoTrackedTimes400) {
   });
 }
 
-export function repoTrackedTimesHandlerResponse403(data: RepoTrackedTimes403) {
+export function repoTrackedTimesHandlerResponse403(data: RepoTrackedTimesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function repoTrackedTimesHandlerResponse403(data: RepoTrackedTimes403) {
   });
 }
 
-export function repoTrackedTimesHandlerResponse404(data: RepoTrackedTimes404) {
+export function repoTrackedTimesHandlerResponse404(data: RepoTrackedTimesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,7 +48,7 @@ export function repoTrackedTimesHandlerResponse404(data: RepoTrackedTimes404) {
   });
 }
 
-export function repoTrackedTimesHandlerResponse422(data: RepoTrackedTimes422) {
+export function repoTrackedTimesHandlerResponse422(data: RepoTrackedTimesStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -59,7 +59,7 @@ export function repoTrackedTimesHandlerResponse422(data: RepoTrackedTimes422) {
 
 export function repoTrackedTimesHandler(
   data?:
-    | RepoTrackedTimesQueryResponse
+    | RepoTrackedTimesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/times`, function handler(info) {

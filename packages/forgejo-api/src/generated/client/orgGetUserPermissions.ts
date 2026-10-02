@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgGetUserPermissionsQueryResponse,
-  OrgGetUserPermissionsPathParams,
-  OrgGetUserPermissions403,
-  OrgGetUserPermissions404,
-} from '../types/OrgGetUserPermissions';
-
-function getOrgGetUserPermissionsUrl(
-  username: OrgGetUserPermissionsPathParams['username'],
-  org: OrgGetUserPermissionsPathParams['org'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/users/${username}/orgs/${org}/permissions` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgGetUserPermissionsOptions, OrgGetUserPermissionsResponses } from '../types/OrgGetUserPermissions';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get user permissions in organization
  * {@link /users/:username/orgs/:org/permissions}
  */
-export async function orgGetUserPermissions(
-  username: OrgGetUserPermissionsPathParams['username'],
-  org: OrgGetUserPermissionsPathParams['org'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgGetUserPermissions<ThrowOnError extends boolean = true>(
+  options: Options<OrgGetUserPermissionsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgGetUserPermissionsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    OrgGetUserPermissionsQueryResponse,
-    ResponseErrorConfig<OrgGetUserPermissions403 | OrgGetUserPermissions404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getOrgGetUserPermissionsUrl(username, org).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/orgs/{org}/permissions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgGetUserPermissionsResponses, ThrowOnError>>;
 }

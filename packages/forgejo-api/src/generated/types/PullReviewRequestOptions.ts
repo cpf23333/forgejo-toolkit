@@ -5,14 +5,9 @@
 
 /**
  * @description PullReviewRequestOptions are options to add or remove pull review requests
+ * @type object
  */
 export type PullReviewRequestOptions = {
-  /**
-   * @type array | undefined
-   */
   reviewers?: string[];
-  /**
-   * @type array | undefined
-   */
   team_reviewers?: string[];
 };

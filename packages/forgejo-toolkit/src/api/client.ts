@@ -2,13 +2,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
-import {
-  buildUrl,
-  client as baseClient,
-  encodePathSegment,
-  mergeHeaders,
-  RequestError,
-} from '@cpf23333-forgejo-toolkit/shared/request';
+import { encodePathSegment, RequestError } from '@cpf23333-forgejo-toolkit/shared/request';
 import { LIST_ITEM_LIMIT, MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, requestContextFor } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
@@ -16,7 +10,11 @@ import type { TranslateFn } from './translate';
 import { assertActionsSupportedAfterProbe, setServerVersion } from './serverVersion';
 import { withSharedServerVersion } from './serverVersionCache';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
-import type { Client, RequestConfig, RequestFetch, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RequestConfig, RequestFetch } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ClientInstance } from '@cpf23333-forgejo-toolkit/api/kubb';
+import { createClientCore } from '@cpf23333-forgejo-toolkit/api/kubb';
+import { defaultPathSerializer } from '@cpf23333-forgejo-toolkit/api/kubb/serializers';
+import { rememberResponseType, sharedRequestTransport } from './sharedTransport';
 import {
   createCurrentUserRepo,
   getTree,
@@ -717,6 +715,22 @@ export class ForgejoClient {
    * a later stale-version gate can probe again.
    */
   private versionProbe: Promise<string | undefined> | undefined;
+  /**
+   * When the request currently in flight started, for the debug response line.
+   * Only read while debug logging is on, so a single field is enough: the
+   * generated layer runs one `_client()` per call and a `ForgejoClient` is built
+   * per message, so concurrent requests on one instance are a burst of the same
+   * read rather than a sequence a caller distinguishes.
+   */
+  private _requestStartedAt: number | undefined;
+  /**
+   * The Kubb client every generated operation in this file sends through. Built
+   * once, in the constructor: the base URL, credential and abort signal are fixed
+   * for a `ForgejoClient`'s lifetime (`withSignal` builds a new one instead of
+   * mutating a shared client), while the proxy pair is resolved per request by
+   * the transport — see `_client()`.
+   */
+  private readonly client: ClientInstance;
 
   constructor(
     private url: string,
@@ -737,15 +751,16 @@ export class ForgejoClient {
     this.configuredInstanceUrl = `${configured.origin}${configured.pathname}`.replace(/\/+$/, '');
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
     this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
+    this.client = this._client();
   }
 
   getCurrentUser(): Promise<ForgejoUser> {
-    return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
+    return userGetCurrent({ client: this.client }) as Promise<ForgejoUser>;
   }
 
   /** Raw `/api/v1/version` string (e.g. "1.21.5"), undefined when the server omits it. */
   async getServerVersion(): Promise<string | undefined> {
-    const result = await getVersion({ client: this._client() });
+    const result = await getVersion({ client: this.client });
     return (result as { version?: string }).version;
   }
 
@@ -791,7 +806,7 @@ export class ForgejoClient {
     const probe = (async () => {
       try {
         const outcome = await withSharedServerVersion(this.url, async () => {
-          const result = await getVersion({ client: this._client() });
+          const result = await getVersion({ client: this.client });
           return (result as { version?: string }).version;
         });
         const version = outcome?.version;
@@ -836,10 +851,25 @@ export class ForgejoClient {
     params?: Record<string, unknown>,
     extract?: (data: unknown) => T[] | undefined,
   ): Promise<PagedList<T>> {
-    const res = await this._client()<T[], unknown, unknown>({ method: 'GET', url: path, params });
-    const rawTotal = res.headers.get('x-total-count');
+    // The path is already built (see `_repoPath`) and the query is serialized
+    // here, so it travels as `params` rather than through the generated path
+    // template. `throwOnError: false` is what keeps the response headers
+    // reachable: a generated operation with `throwOnError` on resolves to the
+    // success body alone, while off it resolves to the whole result — the
+    // `X-Total-Count` header this caller exists for lives on `response`.
+    const res = await this.client({ method: 'GET', url: path, params, throwOnError: false });
+    if (res.error !== undefined) {
+      // `throwOnError: false` bought the headers at the cost of the throw the
+      // caller had before. Restore it rather than reading `data` off a failure:
+      // a 404 read as an empty page would report "this list is empty" for a list
+      // the server refused to answer, and `_fetchAllPagesMeta` would stop paging
+      // on that page instead of failing.
+      throw res.error;
+    }
+    const rawTotal = res.response.headers.get('x-total-count');
     const parsedTotal = rawTotal === null ? NaN : Number(rawTotal);
-    const items = extract ? extract(res.data) : Array.isArray(res.data) ? res.data : [];
+    const data = res.data;
+    const items = extract ? extract(data) : Array.isArray(data) ? (data as T[]) : [];
     return {
       items: items ?? [],
       totalCount: Number.isFinite(parsedTotal) ? parsedTotal : undefined,
@@ -973,7 +1003,7 @@ export class ForgejoClient {
 
   async getUserStopWatches(): Promise<StopWatch[]> {
     const watches = await this._fetchAllPages(
-      (page) => userGetStopWatches({ page, limit: PAGE_SIZE }, { client: this._client() }),
+      (page) => userGetStopWatches({ query: { page, limit: PAGE_SIZE }, client: this.client }),
       { label: 'stop watches' },
     );
     return watches as StopWatch[];
@@ -987,14 +1017,14 @@ export class ForgejoClient {
   }
 
   createUserRepo(data: CreateRepoOption): Promise<Repository> {
-    return createCurrentUserRepo(data, { client: this._client() });
+    return createCurrentUserRepo({ body: data, client: this.client });
   }
 
   async getUserIssues(state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
     const issues = await this._fetchAllPages(
       (page) =>
-        issueSearchIssues(
-          {
+        issueSearchIssues({
+          query: {
             state: state as 'open' | 'closed' | 'all',
             type: 'issues',
             // /repos/issues/search is unfiltered by default: without these flags
@@ -1014,8 +1044,8 @@ export class ForgejoClient {
             page,
             limit: PAGE_SIZE,
           },
-          { client: this._client() },
-        ),
+          client: this.client,
+        }),
       { label: 'user issues' },
     );
     return issues as ForgejoIssue[];
@@ -1024,8 +1054,8 @@ export class ForgejoClient {
   async getUserPullRequests(state: string = 'open', query?: string): Promise<ForgejoPullRequest[]> {
     const pulls = await this._fetchAllPages(
       (page) =>
-        issueSearchIssues(
-          {
+        issueSearchIssues({
+          query: {
             state: state as 'open' | 'closed' | 'all',
             type: 'pulls',
             // Same default-unfiltered caveat as getUserIssues.
@@ -1038,31 +1068,31 @@ export class ForgejoClient {
             page,
             limit: PAGE_SIZE,
           },
-          { client: this._client() },
-        ),
+          client: this.client,
+        }),
       { label: 'user pull requests' },
     );
     return pulls as ForgejoPullRequest[];
   }
 
   searchRepositories(query: string, limit: number = 20): Promise<ForgejoRepository[]> {
-    return repoSearch({ q: query, limit }, { client: this._client() }).then(
+    return repoSearch({ query: { q: query, limit }, client: this.client }).then(
       (result) => (result?.data ?? []) as ForgejoRepository[],
     );
   }
 
   searchIssues(query: string, state: string = 'open', limit: number = 20): Promise<ForgejoIssue[]> {
-    return issueSearchIssues(
-      { q: query, state: state as 'open' | 'closed' | 'all', type: 'issues', limit },
-      { client: this._client() },
-    ) as Promise<ForgejoIssue[]>;
+    return issueSearchIssues({
+      query: { q: query, state: state as 'open' | 'closed' | 'all', type: 'issues', limit },
+      client: this.client,
+    }) as Promise<ForgejoIssue[]>;
   }
 
   searchPullRequests(query: string, state: string = 'open', limit: number = 20): Promise<ForgejoPullRequest[]> {
-    return issueSearchIssues(
-      { q: query, state: state as 'open' | 'closed' | 'all', type: 'pulls', limit },
-      { client: this._client() },
-    ) as Promise<ForgejoPullRequest[]>;
+    return issueSearchIssues({
+      query: { q: query, state: state as 'open' | 'closed' | 'all', type: 'pulls', limit },
+      client: this.client,
+    }) as Promise<ForgejoPullRequest[]>;
   }
 
   async listActionRuns(
@@ -1072,17 +1102,21 @@ export class ForgejoClient {
     limit: number = 30,
   ): Promise<ForgejoActionRunList> {
     await this._assertActions();
-    return listActionRuns(owner, repo, { page, limit }, { client: this._client() }) as Promise<ForgejoActionRunList>;
+    return listActionRuns({
+      path: { owner, repo },
+      query: { page, limit },
+      client: this.client,
+    }) as Promise<ForgejoActionRunList>;
   }
 
   async getActionRun(owner: string, repo: string, runId: number): Promise<ActionRun> {
     await this._assertActions();
-    return actionRun(owner, repo, runId, { client: this._client() }) as Promise<ActionRun>;
+    return actionRun({ path: { owner, repo, run_id: runId }, client: this.client }) as Promise<ActionRun>;
   }
 
   async getActionRunJobs(owner: string, repo: string, runId: number): Promise<ForgejoActionRunJob[]> {
     await this._assertActions();
-    const result = await listActionRunJobs(owner, repo, runId, { client: this._client() });
+    const result = await listActionRunJobs({ path: { owner, repo, run_id: runId }, client: this.client });
     return (
       Array.isArray(result) ? result : ((result as { jobs?: ActionRunJob[] }).jobs ?? [])
     ) as ForgejoActionRunJob[];
@@ -1126,8 +1160,9 @@ export class ForgejoClient {
 
   async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
     await this._assertActions();
-    const response = await repoGetActionJobLogs(owner, repo, jobId, undefined, {
-      client: this._client(),
+    const response = await repoGetActionJobLogs({
+      path: { owner, repo, job_id: jobId },
+      client: this.client,
       responseType: 'text',
       signal: AbortSignal.timeout(API_DOWNLOAD_TIMEOUT_MS),
     });
@@ -1152,15 +1187,11 @@ export class ForgejoClient {
     inputs?: Record<string, string>,
   ): Promise<DispatchWorkflowRun | undefined> {
     await this._assertActions();
-    const result = await dispatchWorkflow(
-      owner,
-      repo,
-      encodePathSegment(workflowfilename),
-      { ref, inputs, return_run_info: true },
-      {
-        client: this._client(),
-      },
-    );
+    const result = await dispatchWorkflow({
+      path: { owner, repo, workflowfilename },
+      body: { ref, inputs, return_run_info: true },
+      client: this.client,
+    });
     // Servers without return_run_info support answer 204 No Content, which
     // the base client surfaces as an empty object rather than undefined.
     if (!result || typeof result !== 'object' || Object.keys(result).length === 0) {
@@ -1171,7 +1202,7 @@ export class ForgejoClient {
 
   async cancelActionRun(owner: string, repo: string, runId: number): Promise<void> {
     await this._assertActions();
-    await cancelActionRun(owner, repo, runId, { client: this._client() });
+    await cancelActionRun({ path: { owner, repo, run_id: runId }, client: this.client });
   }
 
   /**
@@ -1223,8 +1254,9 @@ export class ForgejoClient {
     resetIdleWatchdog();
     let stream: ReadableStream<Uint8Array> | null;
     try {
-      stream = (await downloadActionArtifact(owner, repo, artifactId, {
-        client: this._client(),
+      stream = (await downloadActionArtifact({
+        path: { owner, repo, artifact_id: artifactId },
+        client: this.client,
         responseType: 'stream',
         signal: controller.signal,
       })) as unknown as ReadableStream<Uint8Array> | null;
@@ -1293,7 +1325,7 @@ export class ForgejoClient {
 
   async deleteActionRun(owner: string, repo: string, runId: number): Promise<void> {
     await this._assertActions();
-    await deleteActionRun(owner, repo, runId, { client: this._client() });
+    await deleteActionRun({ path: { owner, repo, run_id: runId }, client: this.client });
   }
 
   /**
@@ -1319,11 +1351,11 @@ export class ForgejoClient {
   }
 
   async markNotificationRead(id: number): Promise<void> {
-    await notifyReadThread(id, undefined, { client: this._client() });
+    await notifyReadThread({ path: { id }, client: this.client });
   }
 
   async markAllNotificationsRead(): Promise<void> {
-    await notifyReadList({ all: true, 'to-status': 'read' }, { client: this._client() });
+    await notifyReadList({ query: { all: true, 'to-status': 'read' }, client: this.client });
   }
 
   /**
@@ -1361,7 +1393,11 @@ export class ForgejoClient {
    */
   async getReadmeEntry(owner: string, repo: string, ref?: string): Promise<ReadmeEntry | undefined> {
     const readmeFile = await this._probe(
-      repoGetContents(owner, repo, README_PATH, ref ? { ref } : undefined, { client: this._client() }),
+      repoGetContents({
+        path: { owner, repo, filepath: README_PATH },
+        ...(ref ? { query: { ref } } : {}),
+        client: this.client,
+      }),
       `getReadmeEntry ${owner}/${repo}`,
     );
     if (!readmeFile || Array.isArray(readmeFile)) {
@@ -1444,7 +1480,7 @@ export class ForgejoClient {
    */
   async probeRepository(owner: string, repo: string): Promise<boolean> {
     const repository = await this._probe(
-      repoGet(owner, repo, { client: this._client() }),
+      repoGet({ path: { owner, repo }, client: this.client }),
       `probeRepository ${owner}/${repo}`,
     );
     return repository !== undefined;
@@ -1469,7 +1505,7 @@ export class ForgejoClient {
    * withheld). A localized caller builds its own sentence from `readmeNotice`.
    */
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetailWithCaps> {
-    const repository = await repoGet(owner, repo, { client: this._client() });
+    const repository = await repoGet({ path: { owner, repo }, client: this.client });
     const isEmpty = (repository as { empty?: boolean }).empty ?? false;
 
     if (isEmpty) {
@@ -1489,8 +1525,16 @@ export class ForgejoClient {
     // asked for `REPO_DETAIL_LIST_LIMIT + 1` rows so the cut can be observed.
     const [readmeEntry, branchPage, commitPage] = await Promise.all([
       this.getReadmeEntry(owner, repo),
-      repoListBranches(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT + 1 }, { client: this._client() }),
-      repoGetAllCommits(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT + 1 }, { client: this._client() }),
+      repoListBranches({
+        path: { owner, repo },
+        query: { limit: REPO_DETAIL_LIST_LIMIT + 1 },
+        client: this.client,
+      }),
+      repoGetAllCommits({
+        path: { owner, repo },
+        query: { limit: REPO_DETAIL_LIST_LIMIT + 1 },
+        client: this.client,
+      }),
     ]);
     // Read off the raw page, not the filtered list: an entry the mapping below
     // drops (a branch with no name) must not hide the extra row that proves the
@@ -1551,13 +1595,15 @@ export class ForgejoClient {
 
   /** Default branch of a repository, for tool calls that omit an explicit ref. */
   async getRepoDefaultBranch(owner: string, repo: string): Promise<string> {
-    const repository = await repoGet(owner, repo, { client: this._client() });
+    const repository = await repoGet({ path: { owner, repo }, client: this.client });
     return (repository as ForgejoRepository).default_branch ?? 'main';
   }
 
   async getRepoBranchCommits(owner: string, repo: string, branch?: string): Promise<ForgejoCommit[]> {
-    const commits = await repoGetAllCommits(owner, repo, branch ? { sha: branch, limit: 10 } : { limit: 10 }, {
-      client: this._client(),
+    const commits = await repoGetAllCommits({
+      path: { owner, repo },
+      query: branch ? { sha: branch, limit: 10 } : { limit: 10 },
+      client: this.client,
     });
     return (commits ?? []).map(
       (commit) =>
@@ -1663,10 +1709,14 @@ export class ForgejoClient {
 
     let entries: ForgejoContentEntry[];
     if (!path) {
-      entries = ((await repoGetContentsList(owner, repo, params, { client: this._client() })) ??
+      entries = ((await repoGetContentsList({ path: { owner, repo }, query: params, client: this.client })) ??
         []) as ForgejoContentEntry[];
     } else {
-      const result = await repoGetContents(owner, repo, encodeFilePath(path), params, { client: this._client() });
+      const result = await repoGetContents({
+        path: { owner, repo, filepath: path },
+        query: params,
+        client: this.client,
+      });
       entries = (Array.isArray(result) ? result : [result]) as ForgejoContentEntry[];
     }
 
@@ -1769,13 +1819,11 @@ export class ForgejoClient {
     let truncated = false;
     let previousFirstSha: string | undefined;
     for (let page = 1; page <= MAX_TREE_PAGES; page++) {
-      const response = await getTree(
-        owner,
-        repo,
-        encodePathSegment(ref),
-        { recursive: true, page, per_page: 100 },
-        { client: this._client() },
-      );
+      const response = await getTree({
+        path: { owner, repo, sha: ref },
+        query: { recursive: true, page, per_page: 100 },
+        client: this.client,
+      });
       const entries = response?.tree ?? [];
       const firstSha = entries[0]?.sha;
       if (entries.length === 0) {
@@ -1872,27 +1920,27 @@ export class ForgejoClient {
   }
 
   createBranch(owner: string, repo: string, data: CreateBranchRepoOption): Promise<ForgejoBranch> {
-    return repoCreateBranch(owner, repo, data, { client: this._client() }) as Promise<ForgejoBranch>;
+    return repoCreateBranch({ path: { owner, repo }, body: data, client: this.client }) as Promise<ForgejoBranch>;
   }
 
   deleteBranch(owner: string, repo: string, branch: string): Promise<void> {
-    return repoDeleteBranch(owner, repo, encodePathSegment(branch), { client: this._client() }) as Promise<void>;
+    return repoDeleteBranch({ path: { owner, repo, branch }, client: this.client }) as Promise<void>;
   }
 
   createTag(owner: string, repo: string, data: CreateTagOption): Promise<ForgejoTag> {
-    return repoCreateTag(owner, repo, data, { client: this._client() }) as Promise<ForgejoTag>;
+    return repoCreateTag({ path: { owner, repo }, body: data, client: this.client }) as Promise<ForgejoTag>;
   }
 
   deleteTag(owner: string, repo: string, tag: string): Promise<void> {
-    return repoDeleteTag(owner, repo, encodePathSegment(tag), { client: this._client() }) as Promise<void>;
+    return repoDeleteTag({ path: { owner, repo, tag }, client: this.client }) as Promise<void>;
   }
 
   createRelease(owner: string, repo: string, data: CreateReleaseOption): Promise<ForgejoRelease> {
-    return repoCreateRelease(owner, repo, data, { client: this._client() }) as Promise<ForgejoRelease>;
+    return repoCreateRelease({ path: { owner, repo }, body: data, client: this.client }) as Promise<ForgejoRelease>;
   }
 
   editRelease(owner: string, repo: string, id: number, data: EditReleaseOption): Promise<ForgejoRelease> {
-    return repoEditRelease(owner, repo, id, data, { client: this._client() }) as Promise<ForgejoRelease>;
+    return repoEditRelease({ path: { owner, repo, id }, body: data, client: this.client }) as Promise<ForgejoRelease>;
   }
 
   createReleaseAttachment(
@@ -1905,14 +1953,12 @@ export class ForgejoClient {
     // Copy the bytes first: `file` may be a Uint8Array view over a larger
     // buffer, and `file.buffer` would upload the whole underlying buffer.
     const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
-    return repoCreateReleaseAttachment(
-      owner,
-      repo,
-      id,
-      { attachment },
-      { name: filename },
-      { client: this._client() },
-    ).then((result) => {
+    return repoCreateReleaseAttachment({
+      path: { owner, repo, id },
+      body: { attachment },
+      query: { name: filename },
+      client: this.client,
+    }).then((result) => {
       const data = result as Attachment;
       return {
         ...data,
@@ -1922,17 +1968,20 @@ export class ForgejoClient {
   }
 
   deleteReleaseAttachment(owner: string, repo: string, id: number, attachmentId: number): Promise<void> {
-    return repoDeleteReleaseAttachment(owner, repo, id, attachmentId, { client: this._client() }) as Promise<void>;
+    return repoDeleteReleaseAttachment({
+      path: { owner, repo, id, attachment_id: attachmentId },
+      client: this.client,
+    }) as Promise<void>;
   }
 
   deleteRelease(owner: string, repo: string, id: number): Promise<void> {
-    return repoDeleteRelease(owner, repo, id, { client: this._client() }) as Promise<void>;
+    return repoDeleteRelease({ path: { owner, repo, id }, client: this.client }) as Promise<void>;
   }
 
   async getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {
     const [issue, repoInfo] = await Promise.all([
-      issueGetIssue(owner, repo, index, { client: this._client() }),
-      this._probe(repoGet(owner, repo, { client: this._client() }), `getIssueDetail repo ${owner}/${repo}`),
+      issueGetIssue({ path: { owner, repo, index }, client: this.client }),
+      this._probe(repoGet({ path: { owner, repo }, client: this.client }), `getIssueDetail repo ${owner}/${repo}`),
     ]);
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
@@ -1950,7 +1999,10 @@ export class ForgejoClient {
    * there would be cost with no reader.
    */
   async getPullRequest(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
-    return (await repoGetPullRequest(owner, repo, index, { client: this._client() })) as ForgejoPullRequestDetail;
+    return (await repoGetPullRequest({
+      path: { owner, repo, index },
+      client: this.client,
+    })) as ForgejoPullRequestDetail;
   }
 
   async getPullRequestDetail(
@@ -1962,12 +2014,15 @@ export class ForgejoClient {
     // The same underlying object is accessible via the issues endpoint,
     // which does include the `assets` field. See KNOWN_ISSUES.md.
     const [pr, issue, repoInfo] = await Promise.all([
-      repoGetPullRequest(owner, repo, index, { client: this._client() }),
+      repoGetPullRequest({ path: { owner, repo, index }, client: this.client }),
       this._probe(
-        issueGetIssue(owner, repo, index, { client: this._client() }),
+        issueGetIssue({ path: { owner, repo, index }, client: this.client }),
         `getPullRequestDetail issue #${index}`,
       ),
-      this._probe(repoGet(owner, repo, { client: this._client() }), `getPullRequestDetail repo ${owner}/${repo}`),
+      this._probe(
+        repoGet({ path: { owner, repo }, client: this.client }),
+        `getPullRequestDetail repo ${owner}/${repo}`,
+      ),
     ]);
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
@@ -1976,9 +2031,7 @@ export class ForgejoClient {
     const headSha = prDetail.head?.sha;
     const combinedStatusPromise = headSha
       ? this._probe(
-          repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
-            client: this._client(),
-          }),
+          repoGetCombinedStatusByRef({ path: { owner, repo, ref: headSha }, client: this.client }),
           `combined status ${owner}/${repo}@${headSha}`,
         )
       : undefined;
@@ -2072,8 +2125,9 @@ export class ForgejoClient {
       return { unknown: true };
     }
     try {
-      const protection = (await repoGetBranchProtection(owner, repo, encodePathSegment(branch), {
-        client: this._client(),
+      const protection = (await repoGetBranchProtection({
+        path: { owner, repo, name: branch },
+        client: this.client,
       })) as {
         apply_to_admins?: boolean;
         required_approvals?: number;
@@ -2217,7 +2271,7 @@ export class ForgejoClient {
   }
 
   async getRepoAssignees(owner: string, repo: string): Promise<string[]> {
-    const users = await repoGetAssignees(owner, repo, { client: this._client() });
+    const users = await repoGetAssignees({ path: { owner, repo }, client: this.client });
     return ((users ?? []) as User[]).map((user) => user.login ?? '').filter(Boolean);
   }
 
@@ -2250,7 +2304,7 @@ export class ForgejoClient {
 
     const [userResults, issueResults] = await Promise.all([
       searchUsers
-        ? userSearch({ q: query, limit: 10 }, { client: this._client() })
+        ? userSearch({ query: { q: query, limit: 10 }, client: this.client })
             .then((result) => (result?.data ?? []) as User[])
             // Best-effort like `_probe`: a failed suggestion lookup must not
             // break the composer, but the failure is logged so a systematically
@@ -2263,7 +2317,11 @@ export class ForgejoClient {
             })
         : Promise.resolve([] as User[]),
       searchIssues
-        ? issueListIssues(owner, repo, { state: 'all', q: query, limit: 10 }, { client: this._client() })
+        ? issueListIssues({
+            path: { owner, repo },
+            query: { state: 'all', q: query, limit: 10 },
+            client: this.client,
+          })
             .then((issues) => (issues ?? []) as ForgejoIssue[])
             .catch((error: unknown) => {
               this.logger?.debug(
@@ -2296,16 +2354,13 @@ export class ForgejoClient {
   }
 
   async getUserPreview(username: string): Promise<ForgejoUser | undefined> {
-    const user = await this._probe(
-      userGet(encodePathSegment(username), { client: this._client() }),
-      `getUserPreview ${username}`,
-    );
+    const user = await this._probe(userGet({ path: { username }, client: this.client }), `getUserPreview ${username}`);
     return user as ForgejoUser | undefined;
   }
 
   async getIssuePreview(owner: string, repo: string, index: number): Promise<ForgejoIssue | undefined> {
     const issue = await this._probe(
-      issueGetIssue(owner, repo, index, { client: this._client() }),
+      issueGetIssue({ path: { owner, repo, index }, client: this.client }),
       `getIssuePreview #${index}`,
     );
     return issue as ForgejoIssue | undefined;
@@ -2369,48 +2424,57 @@ export class ForgejoClient {
   }
 
   createIssue(owner: string, repo: string, data: CreateIssueOption): Promise<ForgejoIssue> {
-    return issueCreateIssue(owner, repo, data, { client: this._client() }) as Promise<ForgejoIssue>;
+    return issueCreateIssue({ path: { owner, repo }, body: data, client: this.client }) as Promise<ForgejoIssue>;
   }
 
   editIssue(owner: string, repo: string, index: number, data: EditIssueOption): Promise<ForgejoIssue> {
-    return issueEditIssue(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoIssue>;
+    return issueEditIssue({ path: { owner, repo, index }, body: data, client: this.client }) as Promise<ForgejoIssue>;
   }
 
   deleteIssue(owner: string, repo: string, index: number): Promise<unknown> {
-    return issueDelete(owner, repo, index, { client: this._client() });
+    return issueDelete({ path: { owner, repo, index }, client: this.client });
   }
 
   replaceIssueLabels(owner: string, repo: string, index: number, labels: number[]): Promise<Label[]> {
-    return issueReplaceLabels(owner, repo, index, { labels }, { client: this._client() }) as Promise<Label[]>;
+    return issueReplaceLabels({
+      path: { owner, repo, index },
+      body: { labels },
+      client: this.client,
+    }) as Promise<Label[]>;
   }
 
   checkIssueSubscription(owner: string, repo: string, index: number): Promise<WatchInfo> {
-    return issueCheckSubscription(owner, repo, index, { client: this._client() }) as Promise<WatchInfo>;
+    return issueCheckSubscription({ path: { owner, repo, index }, client: this.client }) as Promise<WatchInfo>;
   }
 
   addIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
-    return issueAddSubscription(owner, repo, index, encodePathSegment(user), { client: this._client() });
+    return issueAddSubscription({ path: { owner, repo, index, user }, client: this.client });
   }
 
   deleteIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
-    return issueDeleteSubscription(owner, repo, index, encodePathSegment(user), { client: this._client() });
+    return issueDeleteSubscription({ path: { owner, repo, index, user }, client: this.client });
   }
 
   startIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
-    return issueStartStopWatch(owner, repo, index, { client: this._client() });
+    return issueStartStopWatch({ path: { owner, repo, index }, client: this.client });
   }
 
   stopIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
-    return issueStopStopWatch(owner, repo, index, { client: this._client() });
+    return issueStopStopWatch({ path: { owner, repo, index }, client: this.client });
   }
 
   deleteIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
-    return issueDeleteStopWatch(owner, repo, index, { client: this._client() });
+    return issueDeleteStopWatch({ path: { owner, repo, index }, client: this.client });
   }
 
   async listIssueTrackedTimes(owner: string, repo: string, index: number): Promise<TrackedTime[]> {
     const times = await this._fetchAllPages(
-      (page) => issueTrackedTimes(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      (page) =>
+        issueTrackedTimes({
+          path: { owner, repo, index },
+          query: { page, limit: PAGE_SIZE },
+          client: this.client,
+        }),
       { label: 'tracked times' },
     );
     return times as TrackedTime[];
@@ -2420,15 +2484,15 @@ export class ForgejoClient {
   // only declares 400/403/404; regenerating from a pinned spec would add it).
   addIssueTime(owner: string, repo: string, index: number, time: number): Promise<TrackedTime> {
     const data: AddTimeOption = { time };
-    return issueAddTime(owner, repo, index, data, { client: this._client() }) as Promise<TrackedTime>;
+    return issueAddTime({ path: { owner, repo, index }, body: data, client: this.client }) as Promise<TrackedTime>;
   }
 
   resetIssueTime(owner: string, repo: string, index: number): Promise<unknown> {
-    return issueResetTime(owner, repo, index, { client: this._client() });
+    return issueResetTime({ path: { owner, repo, index }, client: this.client });
   }
 
   deleteIssueTime(owner: string, repo: string, index: number, id: number): Promise<unknown> {
-    return issueDeleteTime(owner, repo, index, id, { client: this._client() });
+    return issueDeleteTime({ path: { owner, repo, index, id }, client: this.client });
   }
 
   async listIssueDependencies(owner: string, repo: string, index: number): Promise<ForgejoIssue[]> {
@@ -2437,53 +2501,75 @@ export class ForgejoClient {
     // truncated issues with more than 30 dependencies. `_fetchAllPages` walks the
     // pages until one comes back short.
     return (await this._fetchAllPages(
-      (page) => issueListIssueDependencies(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      (page) =>
+        issueListIssueDependencies({
+          path: { owner, repo, index },
+          query: { page, limit: PAGE_SIZE },
+          client: this.client,
+        }),
       { label: 'issue dependencies' },
     )) as ForgejoIssue[];
   }
 
   createIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
     const data: IssueMeta = { index: dependencyIndex, owner, repo };
-    return issueCreateIssueDependencies(owner, repo, index, data, { client: this._client() });
+    return issueCreateIssueDependencies({ path: { owner, repo, index }, body: data, client: this.client });
   }
 
   removeIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
     const data: IssueMeta = { index: dependencyIndex, owner, repo };
-    return issueRemoveIssueDependencies(owner, repo, index, data, { client: this._client() });
+    return issueRemoveIssueDependencies({ path: { owner, repo, index }, body: data, client: this.client });
   }
 
   async getIssueReactions(owner: string, repo: string, index: number): Promise<Reaction[]> {
     const reactions = await this._fetchAllPages(
-      (page) => issueGetIssueReactions(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      (page) =>
+        issueGetIssueReactions({
+          path: { owner, repo, index },
+          query: { page, limit: PAGE_SIZE },
+          client: this.client,
+        }),
       { label: 'issue reactions' },
     );
     return reactions as Reaction[];
   }
 
   addIssueReaction(owner: string, repo: string, index: number, content: string): Promise<Reaction> {
-    return issuePostIssueReaction(owner, repo, index, { content }, { client: this._client() }) as Promise<Reaction>;
+    return issuePostIssueReaction({
+      path: { owner, repo, index },
+      body: { content },
+      client: this.client,
+    }) as Promise<Reaction>;
   }
 
   removeIssueReaction(owner: string, repo: string, index: number, content: string): Promise<unknown> {
-    return issueDeleteIssueReaction(owner, repo, index, { content }, { client: this._client() });
+    return issueDeleteIssueReaction({
+      path: { owner, repo, index },
+      body: { content },
+      client: this.client,
+    });
   }
 
   getCommentReactions(owner: string, repo: string, commentId: number): Promise<Reaction[]> {
-    return issueGetCommentReactions(owner, repo, commentId, { client: this._client() }) as Promise<Reaction[]>;
+    return issueGetCommentReactions({ path: { owner, repo, id: commentId }, client: this.client }) as Promise<
+      Reaction[]
+    >;
   }
 
   addCommentReaction(owner: string, repo: string, commentId: number, content: string): Promise<Reaction> {
-    return issuePostCommentReaction(
-      owner,
-      repo,
-      commentId,
-      { content },
-      { client: this._client() },
-    ) as Promise<Reaction>;
+    return issuePostCommentReaction({
+      path: { owner, repo, id: commentId },
+      body: { content },
+      client: this.client,
+    }) as Promise<Reaction>;
   }
 
   removeCommentReaction(owner: string, repo: string, commentId: number, content: string): Promise<unknown> {
-    return issueDeleteCommentReaction(owner, repo, commentId, { content }, { client: this._client() });
+    return issueDeleteCommentReaction({
+      path: { owner, repo, id: commentId },
+      body: { content },
+      client: this.client,
+    });
   }
 
   createIssueAttachment(
@@ -2496,14 +2582,12 @@ export class ForgejoClient {
     // Copy the bytes first: `file` may be a Uint8Array view over a larger
     // buffer, and `file.buffer` would upload the whole underlying buffer.
     const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
-    return issueCreateIssueAttachment(
-      owner,
-      repo,
-      index,
-      { attachment },
-      { name: filename },
-      { client: this._client() },
-    ).then((result) => {
+    return issueCreateIssueAttachment({
+      path: { owner, repo, index },
+      body: { attachment },
+      query: { name: filename },
+      client: this.client,
+    }).then((result) => {
       const data = result as {
         id?: number;
         uuid?: string;
@@ -2524,11 +2608,18 @@ export class ForgejoClient {
   }
 
   deleteIssueAttachment(owner: string, repo: string, index: number, attachmentId: number): Promise<void> {
-    return issueDeleteIssueAttachment(owner, repo, index, attachmentId, { client: this._client() }) as Promise<void>;
+    return issueDeleteIssueAttachment({
+      path: { owner, repo, index, attachment_id: attachmentId },
+      client: this.client,
+    }) as Promise<void>;
   }
 
   createPullRequest(owner: string, repo: string, data: CreatePullRequestOption): Promise<ForgejoPullRequest> {
-    return repoCreatePullRequest(owner, repo, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
+    return repoCreatePullRequest({
+      path: { owner, repo },
+      body: data,
+      client: this.client,
+    }) as Promise<ForgejoPullRequest>;
   }
 
   editPullRequest(
@@ -2537,7 +2628,11 @@ export class ForgejoClient {
     index: number,
     data: EditPullRequestOption,
   ): Promise<ForgejoPullRequest> {
-    return repoEditPullRequest(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
+    return repoEditPullRequest({
+      path: { owner, repo, index },
+      body: data,
+      client: this.client,
+    }) as Promise<ForgejoPullRequest>;
   }
 
   /**
@@ -2566,8 +2661,15 @@ export class ForgejoClient {
    * send is always file content, whatever the entry says.
    */
   async getFileContentResult(owner: string, repo: string, filepath: string, ref?: string): Promise<FileContentResult> {
-    const params = ref ? { ref } : undefined;
-    const response = await repoGetContents(owner, repo, encodeFilePath(filepath), params, { client: this._client() });
+    // The filepath is passed raw: the generated client's path serializer
+    // percent-encodes it per segment and leaves the `/` separators alone, which
+    // is exactly what this route needs (the contents API wildcard-matches the
+    // rest of the path). Encoding it here as well would send `%252F`.
+    const response = await repoGetContents({
+      path: { owner, repo, filepath },
+      ...(ref ? { query: { ref } } : {}),
+      client: this.client,
+    });
     if (Array.isArray(response)) {
       // An empty listing is not proof of a directory. `GetContentsOrList` answers
       // an empty list for *every* path once `repo.IsEmpty` is set — the root, a
@@ -2679,8 +2781,9 @@ export class ForgejoClient {
     // parser resolves dot segments, so both refs are encoded per segment: a
     // forged `../` value cannot walk the request onto another endpoint. Anything
     // that is exactly `.`/`..` is refused by `encodePathSegment`.
-    const compare = await repoCompareDiff(owner, repo, `${encodePathSegment(baseSha)}..${encodePathSegment(headSha)}`, {
-      client: this._client(),
+    const compare = await repoCompareDiff({
+      path: { owner, repo, basehead: `${baseSha}..${headSha}` },
+      client: this.client,
     });
     const statusMap = new Map<string, string>();
     const compareFiles = (compare.files ?? []) as Array<{ filename?: string; status?: string }>;
@@ -2767,8 +2870,9 @@ export class ForgejoClient {
     // flooding the server.
     await mapWithConcurrency(commentIds, 4, async (commentId) => {
       try {
-        const assets = (await issueListIssueCommentAttachments(owner, repo, commentId, {
-          client: this._client(),
+        const assets = (await issueListIssueCommentAttachments({
+          path: { owner, repo, id: commentId },
+          client: this.client,
         })) as {
           id?: number;
           uuid?: string;
@@ -2813,20 +2917,29 @@ export class ForgejoClient {
   }
 
   createIssueComment(owner: string, repo: string, index: number, body: string): Promise<TimelineComment> {
-    return issueCreateComment(owner, repo, index, { body }, { client: this._client() }) as Promise<TimelineComment>;
+    return issueCreateComment({
+      path: { owner, repo, index },
+      body: { body },
+      client: this.client,
+    }) as Promise<TimelineComment>;
   }
 
   editIssueComment(owner: string, repo: string, commentId: number, body: string): Promise<TimelineComment> {
-    return issueEditComment(owner, repo, commentId, { body }, { client: this._client() }) as Promise<TimelineComment>;
+    return issueEditComment({
+      path: { owner, repo, id: commentId },
+      body: { body },
+      client: this.client,
+    }) as Promise<TimelineComment>;
   }
 
   deleteIssueComment(owner: string, repo: string, commentId: number): Promise<void> {
-    return issueDeleteComment(owner, repo, commentId, { client: this._client() }) as Promise<void>;
+    return issueDeleteComment({ path: { owner, repo, id: commentId }, client: this.client }) as Promise<void>;
   }
 
   deleteIssueCommentAttachment(owner: string, repo: string, commentId: number, attachmentId: number): Promise<void> {
-    return issueDeleteIssueCommentAttachment(owner, repo, commentId, attachmentId, {
-      client: this._client(),
+    return issueDeleteIssueCommentAttachment({
+      path: { owner, repo, id: commentId, attachment_id: attachmentId },
+      client: this.client,
     }) as Promise<void>;
   }
 
@@ -2840,14 +2953,12 @@ export class ForgejoClient {
     // Copy the bytes first: `file` may be a Uint8Array view over a larger
     // buffer, and `file.buffer` would upload the whole underlying buffer.
     const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
-    return issueCreateIssueCommentAttachment(
-      owner,
-      repo,
-      commentId,
-      { attachment },
-      { name: filename },
-      { client: this._client() },
-    ).then((result) => {
+    return issueCreateIssueCommentAttachment({
+      path: { owner, repo, id: commentId },
+      body: { attachment },
+      query: { name: filename },
+      client: this.client,
+    }).then((result) => {
       const data = result as {
         id?: number;
         uuid?: string;
@@ -2889,7 +3000,7 @@ export class ForgejoClient {
     index: number,
     strategy: 'merge' | 'rebase' | 'squash',
   ): Promise<void> {
-    await repoMergePullRequest(owner, repo, index, { Do: strategy }, { client: this._client() });
+    await repoMergePullRequest({ path: { owner, repo, index }, body: { Do: strategy }, client: this.client });
     // The merge moved the base branch, so every cached tree and file body for
     // this instance is now potentially pre-merge: the tree cache has no way to
     // know which ref changed, and serving a cached commit list or file from
@@ -2899,8 +3010,9 @@ export class ForgejoClient {
   }
 
   async getPullRequestDiff(owner: string, repo: string, index: number): Promise<string> {
-    const response = await repoDownloadPullDiffOrPatch(owner, repo, index, 'diff', undefined, {
-      client: this._client(),
+    const response = await repoDownloadPullDiffOrPatch({
+      path: { owner, repo, index, diffType: 'diff' },
+      client: this.client,
       responseType: 'text',
       signal: AbortSignal.timeout(API_DOWNLOAD_TIMEOUT_MS),
     });
@@ -2930,7 +3042,10 @@ export class ForgejoClient {
     index: number,
     reviewId: number,
   ): Promise<PullReviewComment[]> {
-    const result = await repoGetPullReviewComments(owner, repo, index, reviewId, { client: this._client() });
+    const result = await repoGetPullReviewComments({
+      path: { owner, repo, index, id: reviewId },
+      client: this.client,
+    });
     return (result ?? []) as PullReviewComment[];
   }
 
@@ -2942,16 +3057,14 @@ export class ForgejoClient {
   ): Promise<PullReview> {
     // For event=COMMENT with comments, Forgejo does not require a review-level body.
     // Leaving it empty avoids duplicating the comment text as a timeline entry.
-    return repoCreatePullReview(
-      owner,
-      repo,
-      index,
-      {
+    return repoCreatePullReview({
+      path: { owner, repo, index },
+      body: {
         event: 'COMMENT',
         comments: [comment],
       },
-      { client: this._client() },
-    ) as Promise<PullReview>;
+      client: this.client,
+    }) as Promise<PullReview>;
   }
 
   async createPendingPullReview(
@@ -2962,17 +3075,15 @@ export class ForgejoClient {
   ): Promise<PullReview> {
     // Pending reviews require a non-empty body even when comments are attached.
     // Use a placeholder; it will be replaced when the review is submitted.
-    return repoCreatePullReview(
-      owner,
-      repo,
-      index,
-      {
+    return repoCreatePullReview({
+      path: { owner, repo, index },
+      body: {
         event: 'PENDING',
         body: '.',
         comments: [comment],
       },
-      { client: this._client() },
-    ) as Promise<PullReview>;
+      client: this.client,
+    }) as Promise<PullReview>;
   }
 
   async addPullReviewComment(
@@ -2982,8 +3093,10 @@ export class ForgejoClient {
     reviewId: number,
     comment: CreatePullReviewComment,
   ): Promise<PullReviewComment> {
-    return repoCreatePullReviewComment(owner, repo, index, reviewId, comment, {
-      client: this._client(),
+    return repoCreatePullReviewComment({
+      path: { owner, repo, index, id: reviewId },
+      body: comment,
+      client: this.client,
     }) as Promise<PullReviewComment>;
   }
 
@@ -2995,18 +3108,15 @@ export class ForgejoClient {
     event: string = 'COMMENT',
     body?: string,
   ): Promise<PullReview> {
-    return repoSubmitPullReview(
-      owner,
-      repo,
-      index,
-      reviewId,
-      { event, body: body ?? '' },
-      { client: this._client() },
-    ) as Promise<PullReview>;
+    return repoSubmitPullReview({
+      path: { owner, repo, index, id: reviewId },
+      body: { event, body: body ?? '' },
+      client: this.client,
+    }) as Promise<PullReview>;
   }
 
   async deletePullReview(owner: string, repo: string, index: number, reviewId: number): Promise<void> {
-    await repoDeletePullReview(owner, repo, index, reviewId, { client: this._client() });
+    await repoDeletePullReview({ path: { owner, repo, index, id: reviewId }, client: this.client });
   }
 
   async deletePullReviewComment(
@@ -3016,16 +3126,26 @@ export class ForgejoClient {
     reviewId: number,
     commentId: number,
   ): Promise<void> {
-    await repoDeletePullReviewComment(owner, repo, index, reviewId, commentId, { client: this._client() });
+    await repoDeletePullReviewComment({
+      path: { owner, repo, index, id: reviewId, comment: commentId },
+      client: this.client,
+    });
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {
     // Routed through _client() like every other call: debug logging, error
     // body truncation, and syncApiUrlsToInstanceUrl URL rewriting all apply.
-    const result = await apiRenderMarkdown(
-      { Text: text, Mode: 'gfm', Context: context },
-      { client: this._client(), responseType: 'text', headers: { Accept: 'text/html' } },
-    );
+    const result = await apiRenderMarkdown({
+      body: { Text: text, Mode: 'gfm', Context: context },
+      client: this.client,
+      responseType: 'text',
+      // The endpoint answers JSON or HTML for the same 200. The render target is
+      // HTML, and the request asks for it by name: the generated operation types
+      // `headers` as `never` (the spec declares no header parameters), while the
+      // negotiated response content type is the generated client's own option —
+      // it sets `Accept` and picks the matching response variant.
+      contentType: { response: 'text/html' },
+    });
     return (result as unknown as string) ?? '';
   }
 
@@ -3244,90 +3364,124 @@ export class ForgejoClient {
     });
   }
 
-  private _client(): Client {
+  private _client(): ClientInstance {
+    // The generated operations are transport-agnostic: they send through the
+    // Kubb client core, and the transport below is where this client's concerns
+    // live. It is built once per ForgejoClient (never per request) so the
+    // interceptors installed here are the ones every call runs through; the
+    // dispatcher and the timeout are resolved inside the transport, per request,
+    // because the extension installs the configured proxy during activation and
+    // a client can be constructed before that happens.
     const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
-    return async <TResponseData, _TError = unknown, TRequestData = unknown>(
-      config: RequestConfig<TRequestData>,
-    ): Promise<ResponseConfig<TResponseData>> => {
-      const method = config.method ?? 'GET';
-      // Serialize via the same helper the base client uses, so the logged URL
-      // matches the actual request (array params repeat the key).
-      const targetUrl = buildUrl({ ...config, baseURL });
-      // A configured instance URL may embed the access token
-      // (`https://user:token@host`), and buildUrl carries that userinfo into
-      // every request URL. These lines reach the output channel and the MCP
-      // server's stderr, so the userinfo is blanked before logging. The request
-      // itself is unaffected: the token travels in the Authorization header.
-      const logUrl = redactUrlUserinfo(targetUrl);
-      const debugEnabled = this.logger?.isDebugEnabled() ?? false;
-      const start = debugEnabled ? Date.now() : 0;
-      this.logger?.debug(`Request: ${method} ${logUrl}`);
-
-      try {
-        const dispatcher = this.requestDispatcher ?? defaultRequestDispatcher;
-        // A client-local dispatcher must be paired with its own fetch; only the
-        // activation-wide pair is safe to reuse for the default one.
-        const requestFetch = this.requestDispatcher ? this.requestFetch : defaultRequestFetch;
-        const response = await baseClient<TResponseData>({
-          // A cancelled MCP tool call aborts its requests, and a configured proxy is
-          // a Node fetch dispatcher plus the undici fetch that understands it.
-          ...withDispatcher(
-            withAbortSignal(config, requestSignalFor(config.signal, this.abortSignal)),
-            dispatcher,
-            requestFetch,
-          ),
-          baseURL,
-          // No token means anonymous access to a public instance; sending
-          // `Authorization: token ` with an empty credential makes some
-          // servers reject the request outright instead of treating it as
-          // anonymous.
-          headers: mergeHeaders(config.headers, this.token.trim() ? { Authorization: `token ${this.token}` } : {}),
-        });
-
-        if (debugEnabled) {
-          const duration = Date.now() - start;
-          this.logger?.debug(`Response: ${response.status} ${response.statusText} (${duration}ms)`);
-          if (config.responseType === 'text' || config.responseType === 'arraybuffer') {
-            // Raw payloads (CI logs, diffs, artifacts) can be huge and may
-            // contain secrets in plain text; log metadata only.
-            this.logger?.debug(`Response body: <${config.responseType}> (not logged)`);
-          } else {
-            this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+    const client = createClientCore({
+      baseURL,
+      // Forgejo's contents route is a wildcard that matches the rest of the
+      // path, and its router matches on the escaped path (RawPath) before
+      // unescaping — so `{filepath}` must go out with its `/` separators intact
+      // and only the segments encoded. Kubb's default serializer percent-encodes
+      // the whole value, which turned `src/index.ts` into `src%2Findex.ts` and
+      // 404'd every nested path. See `slashPreservingPathSerializer`.
+      serializer: { path: slashPreservingPathSerializer },
+      // A cancelled MCP tool call aborts its requests, and a configured proxy is
+      // a Node fetch dispatcher plus the undici fetch that understands it.
+      defaultTransport: sharedRequestTransport({
+        // No token means anonymous access to a public instance. A blank
+        // credential must leave the header off entirely: `Authorization: token `
+        // with an empty value makes some servers reject the request outright
+        // instead of treating it as anonymous.
+        getAuthorization: () => (this.token.trim() ? `token ${this.token}` : undefined),
+        resolveDispatcherPair: () => ({
+          dispatcher: this.requestDispatcher ?? defaultRequestDispatcher,
+          // A client-local dispatcher must be paired with its own fetch; only
+          // the activation-wide pair is safe to reuse for the default one.
+          fetchImpl: this.requestDispatcher ? this.requestFetch : defaultRequestFetch,
+        }),
+        resolveSignal: (request) => requestSignalFor(request.signal, this.abortSignal),
+        onRequestFailed: (error, request) => {
+          const debugEnabled = this.logger?.isDebugEnabled() ?? false;
+          if (debugEnabled) {
+            const started = this._requestStartedAt;
+            const duration = started === undefined ? 0 : Date.now() - started;
+            // The URL is redacted here for the same reason the request line is: a
+            // configured instance URL may embed the access token.
+            this.logger?.debug(
+              `Request failed after ${duration}ms: ${request.method} ${redactUrlUserinfo(request.url)}`,
+            );
           }
-        }
+          if (error instanceof Error) {
+            this._notifyIfPermissionError(error);
+          }
+          // Normalize into a structured ApiError: message stays raw for logs and
+          // pattern matching, userMessage carries the localized rendering. The
+          // request URL supplies the resource kind and scope a 404 message names,
+          // and an installed dispatcher tells the classifier that a connection
+          // failure happened on the way through the proxy.
+          //
+          // The proxy signal has to come from the dispatcher the request actually
+          // used, not from this client's own field: the extension installs the
+          // configured proxy once through `setDefaultRequestDispatcher`, so every
+          // ordinary client (`this.requestDispatcher === undefined`) runs proxied
+          // while the per-client field stays unset. Reading the field alone left
+          // the whole sidebar, onboarding panel and review-comment panel reporting
+          // "Cannot connect to the instance. Check that it is running" for a proxy
+          // that refused the connection — the wrong host to look at.
+          const viaProxy = this.requestDispatcher !== undefined || defaultRequestDispatcher !== undefined;
+          return toApiError(error, requestContextFor(request.url, { viaProxy }));
+        },
+      }),
+    });
 
-        return {
-          ...response,
-          // Streams are passed through untouched: rewriting walks JSON-shaped
-          // payloads and would mangle a ReadableStream into an empty object.
-          data: config.responseType === 'stream' ? response.data : this._rewriteResponseData(response.data),
-        };
-      } catch (error) {
-        if (debugEnabled) {
-          const duration = Date.now() - start;
-          this.logger?.debug(`Request failed after ${duration}ms: ${method} ${logUrl}`);
-        }
-        if (error instanceof Error) {
-          this._notifyIfPermissionError(error);
-        }
-        // Normalize into a structured ApiError: message stays raw for logs and
-        // pattern matching, userMessage carries the localized rendering. The
-        // request URL supplies the resource kind and scope a 404 message names,
-        // and an installed dispatcher tells the classifier that a connection
-        // failure happened on the way through the proxy.
-        //
-        // The proxy signal has to come from the dispatcher the request actually
-        // used, not from this client's own field: the extension installs the
-        // configured proxy once through `setDefaultRequestDispatcher`, so every
-        // ordinary client (`this.requestDispatcher === undefined`) runs proxied
-        // while the per-client field stays unset. Reading the field alone left
-        // the whole sidebar, onboarding panel and review-comment panel reporting
-        // "Cannot connect to the instance. Check that it is running" for a proxy
-        // that refused the connection — the wrong host to look at.
-        const viaProxy = this.requestDispatcher !== undefined || defaultRequestDispatcher !== undefined;
-        throw toApiError(error, requestContextFor(targetUrl, { viaProxy }));
+    client.interceptors.request.use((request, config) => {
+      // The transport is handed the resolved request only, so the caller's own
+      // options are recorded here: `responseType` decides how the shared client
+      // parses the body (a `text` call must not be JSON-parsed).
+      rememberResponseType(request, config?.responseType);
+      const debugEnabled = this.logger?.isDebugEnabled() ?? false;
+      if (debugEnabled) {
+        this._requestStartedAt = Date.now();
       }
-    };
+      // A configured instance URL may embed the access token
+      // (`https://user:token@host`), and the request URL carries that userinfo.
+      // These lines reach the output channel and the MCP server's stderr, so the
+      // userinfo is blanked before logging. The request itself is unaffected:
+      // the token travels in the Authorization header.
+      this.logger?.debug(`Request: ${request.method} ${redactUrlUserinfo(request.url)}`);
+      return request;
+    });
+
+    client.interceptors.response.use((result, config) => {
+      const debugEnabled = this.logger?.isDebugEnabled() ?? false;
+      if (debugEnabled) {
+        const started = this._requestStartedAt;
+        const duration = started === undefined ? 0 : Date.now() - started;
+        this.logger?.debug(`Response: ${result.status} ${result.statusText} (${duration}ms)`);
+        const responseType = config?.responseType;
+        if (responseType === 'stream') {
+          this.logger?.debug('Response body: <stream> (not logged)');
+        } else if (responseType === 'text' || responseType === 'arraybuffer') {
+          // Raw payloads (CI logs, diffs, artifacts) can be huge and may
+          // contain secrets in plain text; log metadata only.
+          this.logger?.debug(`Response body: <${responseType}> (not logged)`);
+        } else {
+          this.logger?.debug(`Response body: ${JSON.stringify(result.data).slice(0, 2000)}`);
+        }
+      }
+      return {
+        ...result,
+        // Streams are passed through untouched: rewriting walks JSON-shaped
+        // payloads and would mangle a ReadableStream into an empty object.
+        data: config?.responseType === 'stream' ? result.data : this._rewriteResponseData(result.data),
+      };
+    });
+
+    // Errors that never became a response — a network failure, a refused
+    // connection, a non-2xx answered by the shared client, which throws before
+    // this client core ever sees a result — are logged and classified inside the
+    // transport's `onRequestFailed` (above), which is the only place that runs
+    // for every failure. The generated error interceptor channel is therefore
+    // left to the operations that own it.
+
+    return client as ClientInstance;
   }
 
   /**
@@ -3576,28 +3730,47 @@ function formatSizeLimit(bytes: number): string {
   return `${bytes} bytes`;
 }
 
-// The generated API clients interpolate path parameters into the URL without
-// any encoding (they build the path via plain template literals), so values
-// coming from repository data — branch names, tags, refs, file paths — would
-// corrupt the request path when they contain `/`, `#` or `?`. Encoding at the
-// call layer is safe from double encoding because the generated code never
-// encodes itself.
+// The generated API clients percent-encode each path parameter themselves now
+// (through the path serializer in `src/generated/.kubb/serializers.ts`), so this
+// layer no longer pre-encodes them: doing both would send `%252F`.
 //
-// Single-segment params (branch/tag/ref) use encodePathSegment, i.e. full
-// encodeURIComponent. Verified against the Forgejo source: a global
-// middleware forces chi to route on the escaped path (RawPath) and
-// ctx.Params unescapes afterwards, so `%2F` survives matching even on
-// non-wildcard single-segment routes like git/trees/{sha} —
-// `feature%2Ffoo` resolves correctly (routers/common/middleware.go,
-// services/context/base.go in the Forgejo tree). The only case that
-// still 404s is a reverse proxy in front of Forgejo that decodes %2F
-// before forwarding; that is a deployment issue the client cannot fix.
+// Their default is `encodeURIComponent` per parameter, which is right for a
+// single-segment route — `branches/{branch}` with `feature/x#1` must go out as
+// `feature%2Fx%231`, and a global middleware forces chi to route on the escaped
+// path (RawPath) with `ctx.Params` unescaping afterwards, so `%2F` survives
+// matching (routers/common/middleware.go, services/context/base.go in the
+// Forgejo tree). The only case that still 404s is a reverse proxy in front of
+// Forgejo that decodes %2F before forwarding; that is a deployment issue the
+// client cannot fix.
 //
-// File paths keep their `/` separators because the contents API route
-// wildcard-matches the remainder of the path, so each segment is encoded
-// separately.
-function encodeFilePath(path: string): string {
-  return path.split('/').map(encodePathSegment).join('/');
+// `/repos/{owner}/{repo}/contents/{filepath}` is the exception: it is a wildcard
+// route that matches the remainder of the path, so its `/` separators must stay
+// literal — encoding them makes Forgejo answer 404 for every nested path. Its
+// segments are therefore encoded one by one and rejoined, which is what the v4
+// call layer did by hand (`encodeFilePath`) before the generated client learned
+// to encode at all. `?` and `#` must be escaped inside a segment: leaving them
+// would end the path (or start a fragment) early and send the rest as a query.
+//
+// The dot-segment refusal `encodePathSegment` used to perform has to survive
+// here, because it is the wildcard route that made it necessary: the URL parser
+// resolves `.` and `..` (literal or percent-encoded) as navigation, so a
+// filepath of `../../../user/keys` would make the request escape the route it
+// was built for. Encoding a segment cannot stop that — `encodeURIComponent` does
+// not encode `.` — so the segments are checked before the value is rendered.
+function slashPreservingPathSerializer(args: Parameters<typeof defaultPathSerializer>[0]): string {
+  if (args.name === 'filepath' && typeof args.value === 'string') {
+    return assertSafePathSegments(args.value).split('/').map(encodeURIComponent).join('/');
+  }
+  return defaultPathSerializer(args);
+}
+
+/** Rejects a `.`/`..` path segment, which the URL parser would resolve as navigation. */
+function assertSafePathSegments(value: string): string {
+  const unsafe = value.split('/').find((segment) => segment === '.' || segment === '..');
+  if (unsafe !== undefined) {
+    throw new Error(`Unsafe path segment: ${unsafe}`);
+  }
+  return value;
 }
 
 function fileSearchScore(name: string, path: string, query: string): number {

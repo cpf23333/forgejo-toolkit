@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
-export type UpdateOrgSecretPathParams = {
+export type UpdateOrgSecretPath = {
   /**
    * @description name of organization
    * @type string
@@ -20,36 +20,67 @@ export type UpdateOrgSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description response when creating a secret
- */
-export type UpdateOrgSecret201 = any;
+export type UpdateOrgSecretStatus201 = unknown;
+
+export type UpdateOrgSecretStatus204 = unknown;
 
 /**
- * @description response when updating a secret
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateOrgSecret204 = any;
+export type UpdateOrgSecretStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateOrgSecret400 = APIError;
+export type UpdateOrgSecretStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateOrgSecret404 = APINotFound;
+export type UpdateOrgSecretStatus400 = UpdateOrgSecretStatus400Json | UpdateOrgSecretStatus400Html;
 
-/**
- * CreateOrUpdateSecretOption defines the properties of the secret to create or update.
- */
-export type UpdateOrgSecretMutationRequest = CreateOrUpdateSecretOption;
+export type UpdateOrgSecretStatus404Json = APINotFound;
 
-export type UpdateOrgSecretMutationResponse = UpdateOrgSecret201 | UpdateOrgSecret204;
+export type UpdateOrgSecretStatus404Html = APINotFound;
 
-export type UpdateOrgSecretMutation = {
-  Response: UpdateOrgSecret201 | UpdateOrgSecret204;
-  Request: UpdateOrgSecretMutationRequest;
-  PathParams: UpdateOrgSecretPathParams;
-  Errors: UpdateOrgSecret400 | UpdateOrgSecret404;
+export type UpdateOrgSecretStatus404 = UpdateOrgSecretStatus404Json | UpdateOrgSecretStatus404Html;
+
+export type UpdateOrgSecretBody = CreateOrUpdateSecretOption | undefined;
+
+export type UpdateOrgSecretOptions = {
+  body: UpdateOrgSecretBody;
+  path: UpdateOrgSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateOrgSecretResponses = {
+  '201': UpdateOrgSecretStatus201;
+  '204': UpdateOrgSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateOrgSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateOrgSecretStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateOrgSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateOrgSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateOrgSecretResponse =
+  | UpdateOrgSecretStatus201
+  | UpdateOrgSecretStatus204
+  | UpdateOrgSecretStatus400
+  | UpdateOrgSecretStatus404;

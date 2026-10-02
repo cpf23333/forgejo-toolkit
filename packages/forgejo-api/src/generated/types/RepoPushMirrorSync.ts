@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoPushMirrorSyncPathParams = {
+export type RepoPushMirrorSyncPath = {
   /**
    * @description owner of the repo to sync
    * @type string
@@ -20,35 +20,81 @@ export type RepoPushMirrorSyncPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoPushMirrorSync200 = any;
+export type RepoPushMirrorSyncStatus200 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoPushMirrorSync400 = APIError;
+export type RepoPushMirrorSyncStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoPushMirrorSync403 = APIForbiddenError;
+export type RepoPushMirrorSyncStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoPushMirrorSync404 = APINotFound;
+export type RepoPushMirrorSyncStatus400 = RepoPushMirrorSyncStatus400Json | RepoPushMirrorSyncStatus400Html;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoPushMirrorSync413 = any;
+export type RepoPushMirrorSyncStatus403Json = APIForbiddenError;
 
-export type RepoPushMirrorSyncMutationResponse = RepoPushMirrorSync200;
+export type RepoPushMirrorSyncStatus403Html = APIForbiddenError;
 
-export type RepoPushMirrorSyncMutation = {
-  Response: RepoPushMirrorSync200;
-  PathParams: RepoPushMirrorSyncPathParams;
-  Errors: RepoPushMirrorSync400 | RepoPushMirrorSync403 | RepoPushMirrorSync404 | RepoPushMirrorSync413;
+export type RepoPushMirrorSyncStatus403 = RepoPushMirrorSyncStatus403Json | RepoPushMirrorSyncStatus403Html;
+
+export type RepoPushMirrorSyncStatus404Json = APINotFound;
+
+export type RepoPushMirrorSyncStatus404Html = APINotFound;
+
+export type RepoPushMirrorSyncStatus404 = RepoPushMirrorSyncStatus404Json | RepoPushMirrorSyncStatus404Html;
+
+export type RepoPushMirrorSyncStatus413 = unknown;
+
+export type RepoPushMirrorSyncOptions = {
+  body?: never;
+  path: RepoPushMirrorSyncPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoPushMirrorSyncResponses = {
+  '200': RepoPushMirrorSyncStatus200;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoPushMirrorSyncStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoPushMirrorSyncStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoPushMirrorSyncStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoPushMirrorSyncStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoPushMirrorSyncStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoPushMirrorSyncStatus404Html;
+      };
+  '413': RepoPushMirrorSyncStatus413;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoPushMirrorSyncResponse =
+  | RepoPushMirrorSyncStatus200
+  | RepoPushMirrorSyncStatus400
+  | RepoPushMirrorSyncStatus403
+  | RepoPushMirrorSyncStatus404
+  | RepoPushMirrorSyncStatus413;

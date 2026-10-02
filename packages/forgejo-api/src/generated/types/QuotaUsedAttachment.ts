@@ -5,6 +5,7 @@
 
 /**
  * @description QuotaUsedAttachment represents an attachment counting towards a user\'s quota
+ * @type object
  */
 export type QuotaUsedAttachment = {
   /**
@@ -35,7 +36,9 @@ export type QuotaUsedAttachment = {
   name?: string;
   /**
    * @description Size of the attachment (in bytes)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
 };

@@ -5,6 +5,7 @@
 
 /**
  * @description DeleteEmailOption options when deleting email addresses
+ * @type object
  */
 export type DeleteEmailOption = {
   /**

@@ -4,14 +4,16 @@
  */
 
 import type {
-  RegisterUserRunnerMutationResponse,
-  RegisterUserRunner400,
-  RegisterUserRunner401,
-  RegisterUserRunner404,
+  RegisterUserRunnerResponse,
+  RegisterUserRunnerStatus400,
+  RegisterUserRunnerStatus401,
+  RegisterUserRunnerStatus404,
+  RegisterUserRunnerBody,
 } from '../types/RegisterUserRunner';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function registerUserRunnerHandlerResponse201(data: RegisterUserRunnerMutationResponse) {
+export function registerUserRunnerHandlerResponse201(data: RegisterUserRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function registerUserRunnerHandlerResponse201(data: RegisterUserRunnerMut
   });
 }
 
-export function registerUserRunnerHandlerResponse400(data: RegisterUserRunner400) {
+export function registerUserRunnerHandlerResponse400(data: RegisterUserRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function registerUserRunnerHandlerResponse400(data: RegisterUserRunner400
   });
 }
 
-export function registerUserRunnerHandlerResponse401(data: RegisterUserRunner401) {
+export function registerUserRunnerHandlerResponse401(data: RegisterUserRunnerStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +40,7 @@ export function registerUserRunnerHandlerResponse401(data: RegisterUserRunner401
   });
 }
 
-export function registerUserRunnerHandlerResponse404(data: RegisterUserRunner404) {
+export function registerUserRunnerHandlerResponse404(data: RegisterUserRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,11 +50,9 @@ export function registerUserRunnerHandlerResponse404(data: RegisterUserRunner404
 }
 
 export function registerUserRunnerHandler(
-  data?:
-    | RegisterUserRunnerMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RegisterUserRunnerResponse | HttpResponseResolver<Record<string, string>, RegisterUserRunnerBody>,
 ) {
-  return http.post(`/user/actions/runners`, function handler(info) {
+  return http.post<Record<string, string>, RegisterUserRunnerBody>(`/user/actions/runners`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

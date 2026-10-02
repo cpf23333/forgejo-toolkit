@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Label } from './Label';
 
-export type OrgListLabelsPathParams = {
+export type OrgListLabelsPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,21 +14,20 @@ export type OrgListLabelsPathParams = {
   org: string;
 };
 
-export const orgListLabelsQueryParamsSortEnum = {
+export const orgListLabelsSort = {
   mostissues: 'mostissues',
   leastissues: 'leastissues',
   reversealphabetically: 'reversealphabetically',
 } as const;
 
-export type OrgListLabelsQueryParamsSortEnumKey =
-  (typeof orgListLabelsQueryParamsSortEnum)[keyof typeof orgListLabelsQueryParamsSortEnum];
+export type OrgListLabelsSortKey = (typeof orgListLabelsSort)[keyof typeof orgListLabelsSort];
 
-export type OrgListLabelsQueryParams = {
+export type OrgListLabelsQuery = {
   /**
    * @description Specifies the sorting method: mostissues, leastissues, or reversealphabetically.
    * @type string | undefined
    */
-  sort?: OrgListLabelsQueryParamsSortEnumKey;
+  sort?: OrgListLabelsSortKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -41,21 +40,47 @@ export type OrgListLabelsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description LabelList
- */
-export type OrgListLabels200 = Label[];
+export type OrgListLabelsStatus200Json = Label[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListLabels404 = APINotFound;
+export type OrgListLabelsStatus200Html = Label[];
 
-export type OrgListLabelsQueryResponse = OrgListLabels200;
+export type OrgListLabelsStatus200 = OrgListLabelsStatus200Json | OrgListLabelsStatus200Html;
 
-export type OrgListLabelsQuery = {
-  Response: OrgListLabels200;
-  PathParams: OrgListLabelsPathParams;
-  QueryParams: OrgListLabelsQueryParams;
-  Errors: OrgListLabels404;
+export type OrgListLabelsStatus404Json = APINotFound;
+
+export type OrgListLabelsStatus404Html = APINotFound;
+
+export type OrgListLabelsStatus404 = OrgListLabelsStatus404Json | OrgListLabelsStatus404Html;
+
+export type OrgListLabelsOptions = {
+  body?: never;
+  path: OrgListLabelsPath;
+  query?: OrgListLabelsQuery;
+  headers?: never;
 };
+
+export type OrgListLabelsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListLabelsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListLabelsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListLabelsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListLabelsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListLabelsResponse = OrgListLabelsStatus200 | OrgListLabelsStatus404;

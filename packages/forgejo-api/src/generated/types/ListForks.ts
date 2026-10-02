@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type ListForksPathParams = {
+export type ListForksPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type ListForksPathParams = {
   repo: string;
 };
 
-export type ListForksQueryParams = {
+export type ListForksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type ListForksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type ListForks200 = Repository[];
+export type ListForksStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type ListForks404 = APINotFound;
+export type ListForksStatus200Html = Repository[];
 
-export type ListForksQueryResponse = ListForks200;
+export type ListForksStatus200 = ListForksStatus200Json | ListForksStatus200Html;
 
-export type ListForksQuery = {
-  Response: ListForks200;
-  PathParams: ListForksPathParams;
-  QueryParams: ListForksQueryParams;
-  Errors: ListForks404;
+export type ListForksStatus404Json = APINotFound;
+
+export type ListForksStatus404Html = APINotFound;
+
+export type ListForksStatus404 = ListForksStatus404Json | ListForksStatus404Html;
+
+export type ListForksOptions = {
+  body?: never;
+  path: ListForksPath;
+  query?: ListForksQuery;
+  headers?: never;
 };
+
+export type ListForksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListForksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListForksStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListForksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListForksStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListForksResponse = ListForksStatus200 | ListForksStatus404;

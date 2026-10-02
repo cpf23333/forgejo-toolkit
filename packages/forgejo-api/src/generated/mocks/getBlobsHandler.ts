@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetBlobsQueryResponse, GetBlobs400 } from '../types/GetBlobs';
+import type { GetBlobsResponse, GetBlobsStatus400 } from '../types/GetBlobs';
 import { http } from 'msw';
 
-export function getBlobsHandlerResponse200(data: GetBlobsQueryResponse) {
+export function getBlobsHandlerResponse200(data: GetBlobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getBlobsHandlerResponse200(data: GetBlobsQueryResponse) {
   });
 }
 
-export function getBlobsHandlerResponse400(data: GetBlobs400) {
+export function getBlobsHandlerResponse400(data: GetBlobsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,9 +25,7 @@ export function getBlobsHandlerResponse400(data: GetBlobs400) {
 }
 
 export function getBlobsHandler(
-  data?:
-    | GetBlobsQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: GetBlobsResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/blobs`, function handler(info) {
     if (typeof data === 'function') return data(info);

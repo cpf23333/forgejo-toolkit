@@ -7,5 +7,6 @@ import type { QuotaUsedAttachment } from './QuotaUsedAttachment';
 
 /**
  * @description QuotaUsedAttachmentList represents a list of attachment counting towards a user\'s quota
+ * @type array
  */
 export type QuotaUsedAttachmentList = QuotaUsedAttachment[];

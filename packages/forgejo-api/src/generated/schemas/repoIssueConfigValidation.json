@@ -1,9 +1,0 @@
-{
-  "type": "object",
-  "properties": {
-    "message": { "type": "string", "x-go-name": "Message" },
-    "valid": { "type": "boolean", "x-go-name": "Valid" }
-  },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "IssueConfigValidation"
-}

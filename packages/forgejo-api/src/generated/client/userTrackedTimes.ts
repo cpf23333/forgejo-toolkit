@@ -3,49 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserTrackedTimesQueryResponse,
-  UserTrackedTimesPathParams,
-  UserTrackedTimes400,
-  UserTrackedTimes403,
-  UserTrackedTimes404,
-} from '../types/UserTrackedTimes';
-
-function getUserTrackedTimesUrl(
-  owner: UserTrackedTimesPathParams['owner'],
-  repo: UserTrackedTimesPathParams['repo'],
-  user: UserTrackedTimesPathParams['user'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/times/${user}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserTrackedTimesOptions, UserTrackedTimesResponses } from '../types/UserTrackedTimes';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a user's tracked times in a repo
  * {@link /repos/:owner/:repo/times/:user}
  * @deprecated
  */
-export async function userTrackedTimes(
-  owner: UserTrackedTimesPathParams['owner'],
-  repo: UserTrackedTimesPathParams['repo'],
-  user: UserTrackedTimesPathParams['user'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userTrackedTimes<ThrowOnError extends boolean = true>(
+  options: Options<UserTrackedTimesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserTrackedTimesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserTrackedTimesQueryResponse,
-    ResponseErrorConfig<UserTrackedTimes400 | UserTrackedTimes403 | UserTrackedTimes404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserTrackedTimesUrl(owner, repo, user).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/times/{user}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserTrackedTimesResponses, ThrowOnError>>;
 }

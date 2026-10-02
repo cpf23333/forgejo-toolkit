@@ -4,21 +4,21 @@
  */
 
 import type {
-  UserBlockUserMutationResponse,
-  UserBlockUser401,
-  UserBlockUser403,
-  UserBlockUser404,
-  UserBlockUser422,
+  UserBlockUserResponse,
+  UserBlockUserStatus401,
+  UserBlockUserStatus403,
+  UserBlockUserStatus404,
+  UserBlockUserStatus422,
 } from '../types/UserBlockUser';
 import { http } from 'msw';
 
-export function userBlockUserHandlerResponse204(data?: UserBlockUserMutationResponse) {
+export function userBlockUserHandlerResponse204(data?: UserBlockUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userBlockUserHandlerResponse401(data: UserBlockUser401) {
+export function userBlockUserHandlerResponse401(data: UserBlockUserStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -27,7 +27,7 @@ export function userBlockUserHandlerResponse401(data: UserBlockUser401) {
   });
 }
 
-export function userBlockUserHandlerResponse403(data: UserBlockUser403) {
+export function userBlockUserHandlerResponse403(data: UserBlockUserStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -36,7 +36,7 @@ export function userBlockUserHandlerResponse403(data: UserBlockUser403) {
   });
 }
 
-export function userBlockUserHandlerResponse404(data: UserBlockUser404) {
+export function userBlockUserHandlerResponse404(data: UserBlockUserStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -45,7 +45,7 @@ export function userBlockUserHandlerResponse404(data: UserBlockUser404) {
   });
 }
 
-export function userBlockUserHandlerResponse422(data: UserBlockUser422) {
+export function userBlockUserHandlerResponse422(data: UserBlockUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

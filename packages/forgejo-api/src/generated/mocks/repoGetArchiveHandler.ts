@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoGetArchiveQueryResponse, RepoGetArchive404 } from '../types/RepoGetArchive';
+import type { RepoGetArchiveResponse, RepoGetArchiveStatus404 } from '../types/RepoGetArchive';
 import { http } from 'msw';
 
-export function repoGetArchiveHandlerResponse200(data?: RepoGetArchiveQueryResponse) {
+export function repoGetArchiveHandlerResponse200(data?: RepoGetArchiveResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoGetArchiveHandlerResponse404(data: RepoGetArchive404) {
+export function repoGetArchiveHandlerResponse404(data: RepoGetArchiveStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

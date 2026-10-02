@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentListFollowingQueryResponse,
-  UserCurrentListFollowingQueryParams,
-  UserCurrentListFollowing401,
-  UserCurrentListFollowing403,
+  UserCurrentListFollowingOptions,
+  UserCurrentListFollowingResponses,
 } from '../types/UserCurrentListFollowing';
-
-function getUserCurrentListFollowingUrl() {
-  const res = { method: 'GET', url: `/user/following` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the users that the authenticated user is following
  * {@link /user/following}
  */
-export async function userCurrentListFollowing(
-  params?: UserCurrentListFollowingQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentListFollowing<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentListFollowingOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentListFollowingResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentListFollowingQueryResponse,
-    ResponseErrorConfig<UserCurrentListFollowing401 | UserCurrentListFollowing403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentListFollowingUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/following',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentListFollowingResponses, ThrowOnError>>;
 }

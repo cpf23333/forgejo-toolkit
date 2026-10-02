@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserSearchRunJobsQueryResponse,
-  UserSearchRunJobsQueryParams,
-  UserSearchRunJobs401,
-  UserSearchRunJobs403,
-} from '../types/UserSearchRunJobs';
-
-function getUserSearchRunJobsUrl() {
-  const res = { method: 'GET', url: `/user/actions/runners/jobs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserSearchRunJobsOptions, UserSearchRunJobsResponses } from '../types/UserSearchRunJobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for user's action jobs according filter conditions
  * {@link /user/actions/runners/jobs}
  */
-export async function userSearchRunJobs(
-  params?: UserSearchRunJobsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userSearchRunJobs<ThrowOnError extends boolean = true>(
+  options: Options<UserSearchRunJobsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserSearchRunJobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserSearchRunJobsQueryResponse,
-    ResponseErrorConfig<UserSearchRunJobs401 | UserSearchRunJobs403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserSearchRunJobsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/actions/runners/jobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserSearchRunJobsResponses, ThrowOnError>>;
 }

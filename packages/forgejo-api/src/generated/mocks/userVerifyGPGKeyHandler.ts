@@ -4,15 +4,17 @@
  */
 
 import type {
-  UserVerifyGPGKeyMutationResponse,
-  UserVerifyGPGKey401,
-  UserVerifyGPGKey403,
-  UserVerifyGPGKey404,
-  UserVerifyGPGKey422,
+  UserVerifyGPGKeyResponse,
+  UserVerifyGPGKeyStatus401,
+  UserVerifyGPGKeyStatus403,
+  UserVerifyGPGKeyStatus404,
+  UserVerifyGPGKeyStatus422,
+  UserVerifyGPGKeyBody,
 } from '../types/UserVerifyGPGKey';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userVerifyGPGKeyHandlerResponse201(data: UserVerifyGPGKeyMutationResponse) {
+export function userVerifyGPGKeyHandlerResponse201(data: UserVerifyGPGKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function userVerifyGPGKeyHandlerResponse201(data: UserVerifyGPGKeyMutatio
   });
 }
 
-export function userVerifyGPGKeyHandlerResponse401(data: UserVerifyGPGKey401) {
+export function userVerifyGPGKeyHandlerResponse401(data: UserVerifyGPGKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -30,7 +32,7 @@ export function userVerifyGPGKeyHandlerResponse401(data: UserVerifyGPGKey401) {
   });
 }
 
-export function userVerifyGPGKeyHandlerResponse403(data: UserVerifyGPGKey403) {
+export function userVerifyGPGKeyHandlerResponse403(data: UserVerifyGPGKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function userVerifyGPGKeyHandlerResponse403(data: UserVerifyGPGKey403) {
   });
 }
 
-export function userVerifyGPGKeyHandlerResponse404(data: UserVerifyGPGKey404) {
+export function userVerifyGPGKeyHandlerResponse404(data: UserVerifyGPGKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,7 +50,7 @@ export function userVerifyGPGKeyHandlerResponse404(data: UserVerifyGPGKey404) {
   });
 }
 
-export function userVerifyGPGKeyHandlerResponse422(data: UserVerifyGPGKey422) {
+export function userVerifyGPGKeyHandlerResponse422(data: UserVerifyGPGKeyStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,11 +60,9 @@ export function userVerifyGPGKeyHandlerResponse422(data: UserVerifyGPGKey422) {
 }
 
 export function userVerifyGPGKeyHandler(
-  data?:
-    | UserVerifyGPGKeyMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: UserVerifyGPGKeyResponse | HttpResponseResolver<Record<string, string>, UserVerifyGPGKeyBody>,
 ) {
-  return http.post(`/user/gpg_key_verify`, function handler(info) {
+  return http.post<Record<string, string>, UserVerifyGPGKeyBody>(`/user/gpg_key_verify`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

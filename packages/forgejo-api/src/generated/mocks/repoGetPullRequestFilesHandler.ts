@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetPullRequestFilesQueryResponse,
-  RepoGetPullRequestFiles404,
+  RepoGetPullRequestFilesResponse,
+  RepoGetPullRequestFilesStatus404,
 } from '../types/RepoGetPullRequestFiles';
 import { http } from 'msw';
 
-export function repoGetPullRequestFilesHandlerResponse200(data: RepoGetPullRequestFilesQueryResponse) {
+export function repoGetPullRequestFilesHandlerResponse200(data: RepoGetPullRequestFilesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetPullRequestFilesHandlerResponse200(data: RepoGetPullReque
   });
 }
 
-export function repoGetPullRequestFilesHandlerResponse404(data: RepoGetPullRequestFiles404) {
+export function repoGetPullRequestFilesHandlerResponse404(data: RepoGetPullRequestFilesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetPullRequestFilesHandlerResponse404(data: RepoGetPullReque
 
 export function repoGetPullRequestFilesHandler(
   data?:
-    | RepoGetPullRequestFilesQueryResponse
+    | RepoGetPullRequestFilesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index/files`, function handler(info) {

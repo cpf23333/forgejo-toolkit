@@ -3,16 +3,17 @@
  * Do not edit manually.
  */
 
-import type { OrgUpdateAvatarMutationResponse, OrgUpdateAvatar404 } from '../types/OrgUpdateAvatar';
+import type { OrgUpdateAvatarResponse, OrgUpdateAvatarStatus404, OrgUpdateAvatarBody } from '../types/OrgUpdateAvatar';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgUpdateAvatarHandlerResponse204(data?: OrgUpdateAvatarMutationResponse) {
+export function orgUpdateAvatarHandlerResponse204(data?: OrgUpdateAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgUpdateAvatarHandlerResponse404(data: OrgUpdateAvatar404) {
+export function orgUpdateAvatarHandlerResponse404(data: OrgUpdateAvatarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -22,15 +23,9 @@ export function orgUpdateAvatarHandlerResponse404(data: OrgUpdateAvatar404) {
 }
 
 export function orgUpdateAvatarHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, OrgUpdateAvatarBody>,
 ) {
-  return http.post(`/orgs/:org/avatar`, function handler(info) {
+  return http.post<Record<string, string>, OrgUpdateAvatarBody>(`/orgs/:org/avatar`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

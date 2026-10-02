@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type UserCheckFollowingPathParams = {
+export type UserCheckFollowingPath = {
   /**
    * @description username of following user
    * @type string
@@ -18,20 +18,35 @@ export type UserCheckFollowingPathParams = {
   target: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCheckFollowing204 = any;
+export type UserCheckFollowingStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCheckFollowing404 = APINotFound;
+export type UserCheckFollowingStatus404Json = APINotFound;
 
-export type UserCheckFollowingQueryResponse = UserCheckFollowing204;
+export type UserCheckFollowingStatus404Html = APINotFound;
 
-export type UserCheckFollowingQuery = {
-  Response: UserCheckFollowing204;
-  PathParams: UserCheckFollowingPathParams;
-  Errors: UserCheckFollowing404;
+export type UserCheckFollowingStatus404 = UserCheckFollowingStatus404Json | UserCheckFollowingStatus404Html;
+
+export type UserCheckFollowingOptions = {
+  body?: never;
+  path: UserCheckFollowingPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCheckFollowingResponses = {
+  '204': UserCheckFollowingStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCheckFollowingStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCheckFollowingStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCheckFollowingResponse = UserCheckFollowingStatus204 | UserCheckFollowingStatus404;

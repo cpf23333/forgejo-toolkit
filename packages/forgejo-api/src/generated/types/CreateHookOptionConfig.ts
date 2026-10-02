@@ -5,6 +5,7 @@
 
 /**
  * @description CreateHookOptionConfig has all config options in it\nrequired are \"content_type\" and \"url\" Required
+ * @type object
  */
 export type CreateHookOptionConfig = {
   [key: string]: string;

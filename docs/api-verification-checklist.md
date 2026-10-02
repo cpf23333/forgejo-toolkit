@@ -23,8 +23,9 @@
 - Git commit：`62c6d1c782720308d0a973435c62ce50fdebd99f`
 - 本地源码路径：由用户环境决定，后续核对前请提供当前使用的 Forgejo 仓库路径
 - 最近一次核对结论：当前清单中所有端点与该版本 Forgejo 源码一致；上一次 diff 复核（`b4d03e7..62c6d1c`）仅涉及代码格式化、webhook 内部事件调整以及当前未使用的新类型（`IssueSuggestion`、`RepoFundingEntry`），不影响已记录端点的行为。
-- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（`ActionRun` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等，run 名在 `title`；`ActionRunJob` **有** `name`，但没有 `conclusion`/`started_at`/`completed_at`）。当时覆盖率为 94/94，`check.mjs` 退出码为 0。客户端随后于 2026-09-24 与 2026-09-27 按固定快照重新生成（`d3e4677`、`a301201`），因此今天同一脚本反解出的是 82 个端点，仍全部有记录（退出码 0）：计数只说明客户端调用了多少个端点，端点是否被记录由退出码判定。
-- 生成客户端规格来源：`packages/forgejo-api/kubb.config.ts` 现在读取仓库内的固定快照 `packages/forgejo-api/spec/swagger.v1.json`（2026-09-23 抓取，326 条路径；刷新方式见 `packages/forgejo-api/spec/README.md` 与 `spec:update` 脚本）。快照是 Forgejo `v16.0.0` tag 上 `templates/swagger/v1_json.tmpl` 的逐字节副本，因此文件里的 `info.version` 与 `basePath` 仍是模板占位符 `{{AppVer | JSEscape}}` / `{{AppSubUrl | JSEscape}}/api/v1`（`spec/swagger.v1.json:22,24`）——版本号只能从固定的 tag `v16.0.0` 读取，不能从文件内容推断。因此 `packages/forgejo-api/src/generated` 中的类型对应这份快照，可能仍落后于本清单核对的源码版本。例如 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 的 `step` 查询参数已存在于上游（`routers/api/v1/repo/action.go:1657-1666`），但生成类型 `RepoGetActionJobLogsQueryParams` 只有 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:28-34`）。生成目录首次提交于 2026-06-30（`52e21e8`），随后于 2026-08-11（`8d67aa5`，更新 Forgejo API 至 16）与 **2026-09-24（`d3e4677`，`chore(api): regenerate the client from the pinned snapshot`）** 更新，最近一次即为 `d3e4677`（`git log -1 --date=short -- packages/forgejo-api/src/generated`）。
+- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（`ActionRun` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等，run 名在 `title`；`ActionRunJob` **有** `name`，但没有 `conclusion`/`started_at`/`completed_at`）。当时覆盖率为 94/94，`check.mjs` 退出码为 0。客户端随后于 2026-09-24 与 2026-09-27 按固定快照重新生成（`d3e4677`、`a301201`），因此同一脚本反解出的是 82 个端点，仍全部有记录（退出码 0）：计数只说明客户端调用了多少个端点，端点是否被记录由退出码判定。
+- 2026-10 Kubb 5 迁移：`check.mjs` 的端点表改从固定快照 `packages/forgejo-api/spec/swagger.v1.json` 读取（按 `operationId` 反查 method 与 path）。原先它从每个 `src/generated/client/<operation>.ts` 里抓 `method: '…'` / `url: \`…\``字面量，而 Kubb 5 把这些字面量收进了`.kubb/client.ts`，于是该扫描一个都匹配不到、报出「0 endpoints called」却仍然退出 0 —— 一道什么都没守住的闸门。现在 `check.mjs`在解析出 0 个操作、或 0 次调用时以退出码 2 失败（见脚本里的自检），覆盖率回到 82/82、退出码 0。生成操作的导出名与`operationId`并不总是逐字相同（Kubb 会把`ListActionRuns`/`GetTree` 这类首字母缩写段小写化），脚本同时索引两种写法，506 个生成文件与 82 个导入全部可解析。
+- 生成客户端规格来源：`packages/forgejo-api/kubb.config.ts` 现在读取仓库内的固定快照 `packages/forgejo-api/spec/swagger.v1.json`（2026-09-23 抓取，326 条路径；刷新方式见 `packages/forgejo-api/spec/README.md` 与 `spec:update` 脚本）。快照是 Forgejo `v16.0.0` tag 上 `templates/swagger/v1_json.tmpl` 的逐字节副本，因此文件里的 `info.version` 与 `basePath` 仍是模板占位符 `{{AppVer | JSEscape}}` / `{{AppSubUrl | JSEscape}}/api/v1`（`spec/swagger.v1.json:22,24`）——版本号只能从固定的 tag `v16.0.0` 读取，不能从文件内容推断。因此 `packages/forgejo-api/src/generated` 中的类型对应这份快照，可能仍落后于本清单核对的源码版本。例如 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 的 `step` 查询参数已存在于上游（`routers/api/v1/repo/action.go:1657-1666`），但生成类型 `RepoGetActionJobLogsQuery` 只有 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:30-38`）。生成目录首次提交于 2026-06-30（`52e21e8`），随后于 2026-08-11（`8d67aa5`，更新 Forgejo API 至 16）与 **2026-09-24（`d3e4677`，`chore(api): regenerate the client from the pinned snapshot`）** 更新，最近一次即为 `d3e4677`（`git log -1 --date=short -- packages/forgejo-api/src/generated`）。清单正文里指向生成文件的少量行号引用写于 Kubb 5 迁移之前，重生成后已失效；以符号名（如 `RepoGetActionJobLogsQuery`）为准。
 
 > 历史核对记录由本文件的 git 日志保存，无需在正文中保留。
 
@@ -35,6 +36,10 @@
 3. 确认响应字段的实际构造逻辑（哪些字段一定存在、哪些条件下存在）。
 4. 确认错误码和错误消息（404 含义、权限不足的表现等）。
 5. 记录与本项目当前用法的差异，必要时更新 `KNOWN_ISSUES.md`。
+
+> 正文里的 `client.ts:<行号>` 只是定位辅助：`packages/forgejo-toolkit/src/api/client.ts` 有三千多行，
+> 任何一次重构都会让行号漂移。判断某条记录指向哪段代码时以方法名（`listIssueDependencies`、
+> `getPullRequestCommentsAndTimeline` 等）为准；行号仍必须落在文件内，`tools/docs-audit/check.mjs` 会检查这一点。
 
 ---
 
@@ -658,7 +663,7 @@
 - [x] 响应头固定 `Content-Type: text/plain; charset=utf-8`（显式 pin，避免 `.log` 被嗅探成 `text/x-log`）与 `Accept-Ranges: bytes`，正文由 `http.ServeContent` 输出，支持 Range/206
 - [x] 支持 `?attempt=N`（1-based，省略即最新 attempt）与 `?step=N`（`routers/api/v1/repo/action.go:1651-1666`、`services/actions/job_logs.go:43-119`）；`?step=` 的 N 取自 `GET /actions/jobs/{job_id}` 的 `steps[].number`（0 是 "Set up job"，末位是 "Complete job"），返回该 step 的字节切片，切片内仍支持 Range
 - [x] 404 的三种业务原因：job 尚未被 runner 领取（`ErrJobNotExecuted`）、日志已过期（`ErrLogsExpired`）、step 越界（`ErrStepOutOfRange`）；其余错误 500。`?attempt=` 指向不存在的 attempt 也走 404
-- [x] 生成的 client 无法表达 `step`：`RepoGetActionJobLogsQueryParams` 只声明 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:28-34`），传 `{ step }` 会触发 TS 类型错误
+- [x] 生成的 client 无法表达 `step`：`RepoGetActionJobLogsQuery` 只声明 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:30-38`），传 `{ step }` 会触发 TS 类型错误
 - [x] 源码位置：`routers/api/v1/repo/action.go:1620-1720`、`services/actions/job_logs.go:22-119`、`models/actions/task.go:195-205`
 - [x] 差异记录：当前使用 `responseType: 'text'`（`client.ts:467-471`）与源码一致；但调用时 `params` 传 `undefined`（`client.ts:467`），既不传 `attempt` 也不传 `step`，恒取最新 attempt 的完整日志——服务端的 step/attempt 能力未被使用（有意为之，非缺陷）
 
@@ -753,7 +758,7 @@
 - [x] 扩展只发 `{ name, private, auto_init: false }`，**从不发送 `description`**（`packages/forgejo-toolkit/src/commands/publish.ts:213`）；`auto_init=false` 时不会自动补 README，创建的是空仓库，需扩展推送首个提交（与 `publish.ts` 后续流程一致）
 - [x] 响应：201 + `convert.ToRepo(…)`（`api.Repository`），扩展消费 `clone_url` 与 `full_name`；重名 **409** + `The repository with the same name already exists.`，扩展的 `isNameConflictError` 同时匹配 409 与「422 + already exists」（422 对应保留名/命名规则不符）；组织账号调用 422，配额超限 413
 - [x] 权限：`/user` 分组要求 `tokenRequiresScopes(User)` + `reqToken()`（无 token 401），路由再叠加 `tokenRequiresScopes(Repository)`
-- [x] 源码位置：`routers/api/v1/api.go:727-728,634,765`、`routers/api/v1/repo/repo.go:257-341`、`modules/structs/repo.go:136-168`、`packages/forgejo-api/src/generated/client/createCurrentUserRepo.ts:19-56`
+- [x] 源码位置：`routers/api/v1/api.go:727-728,634,765`、`routers/api/v1/repo/repo.go:257-341`、`modules/structs/repo.go:136-168`、`packages/forgejo-api/src/generated/client/createCurrentUserRepo.ts:14-35`
 - [x] 差异记录：无字段错误；仅记录扩展不发 `description`（服务端可选，不影响），以及重名只会得到 409 而 422 分支实际对应命名规则校验失败，代码注释可更精确
 
 ### Issue / PR / Comment 附件

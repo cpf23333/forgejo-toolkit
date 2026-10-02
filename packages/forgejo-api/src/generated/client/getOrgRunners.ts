@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetOrgRunnersQueryResponse,
-  GetOrgRunnersPathParams,
-  GetOrgRunnersQueryParams,
-  GetOrgRunners400,
-  GetOrgRunners404,
-} from '../types/GetOrgRunners';
-
-function getGetOrgRunnersUrl(org: GetOrgRunnersPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/actions/runners` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetOrgRunnersOptions, GetOrgRunnersResponses } from '../types/GetOrgRunners';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get the organization's runners
  * {@link /orgs/:org/actions/runners}
  */
-export async function getOrgRunners(
-  org: GetOrgRunnersPathParams['org'],
-  params?: GetOrgRunnersQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getOrgRunners<ThrowOnError extends boolean = true>(
+  options: Options<GetOrgRunnersOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetOrgRunnersResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetOrgRunnersQueryResponse,
-    ResponseErrorConfig<GetOrgRunners400 | GetOrgRunners404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetOrgRunnersUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetOrgRunnersResponses, ThrowOnError>>;
 }

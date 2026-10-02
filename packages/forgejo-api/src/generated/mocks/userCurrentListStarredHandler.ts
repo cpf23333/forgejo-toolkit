@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserCurrentListStarredQueryResponse,
-  UserCurrentListStarred401,
-  UserCurrentListStarred403,
+  UserCurrentListStarredResponse,
+  UserCurrentListStarredStatus401,
+  UserCurrentListStarredStatus403,
 } from '../types/UserCurrentListStarred';
 import { http } from 'msw';
 
-export function userCurrentListStarredHandlerResponse200(data: UserCurrentListStarredQueryResponse) {
+export function userCurrentListStarredHandlerResponse200(data: UserCurrentListStarredResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userCurrentListStarredHandlerResponse200(data: UserCurrentListSt
   });
 }
 
-export function userCurrentListStarredHandlerResponse401(data: UserCurrentListStarred401) {
+export function userCurrentListStarredHandlerResponse401(data: UserCurrentListStarredStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userCurrentListStarredHandlerResponse401(data: UserCurrentListSt
   });
 }
 
-export function userCurrentListStarredHandlerResponse403(data: UserCurrentListStarred403) {
+export function userCurrentListStarredHandlerResponse403(data: UserCurrentListStarredStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userCurrentListStarredHandlerResponse403(data: UserCurrentListSt
 
 export function userCurrentListStarredHandler(
   data?:
-    | UserCurrentListStarredQueryResponse
+    | UserCurrentListStarredResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/starred`, function handler(info) {

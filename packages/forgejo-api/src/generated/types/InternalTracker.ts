@@ -5,6 +5,7 @@
 
 /**
  * @description InternalTracker represents settings for internal tracker
+ * @type object
  */
 export type InternalTracker = {
   /**

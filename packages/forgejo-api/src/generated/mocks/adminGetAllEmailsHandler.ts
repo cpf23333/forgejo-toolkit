@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminGetAllEmailsQueryResponse, AdminGetAllEmails403 } from '../types/AdminGetAllEmails';
+import type { AdminGetAllEmailsResponse, AdminGetAllEmailsStatus403 } from '../types/AdminGetAllEmails';
 import { http } from 'msw';
 
-export function adminGetAllEmailsHandlerResponse200(data: AdminGetAllEmailsQueryResponse) {
+export function adminGetAllEmailsHandlerResponse200(data: AdminGetAllEmailsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminGetAllEmailsHandlerResponse200(data: AdminGetAllEmailsQuery
   });
 }
 
-export function adminGetAllEmailsHandlerResponse403(data: AdminGetAllEmails403) {
+export function adminGetAllEmailsHandlerResponse403(data: AdminGetAllEmailsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminGetAllEmailsHandlerResponse403(data: AdminGetAllEmails403) 
 
 export function adminGetAllEmailsHandler(
   data?:
-    | AdminGetAllEmailsQueryResponse
+    | AdminGetAllEmailsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/emails`, function handler(info) {

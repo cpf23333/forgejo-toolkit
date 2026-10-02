@@ -3,28 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { UserGetQuotaQueryResponse, UserGetQuota401, UserGetQuota403 } from '../types/UserGetQuota';
-
-function getUserGetQuotaUrl() {
-  const res = { method: 'GET', url: `/user/quota` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserGetQuotaOptions, UserGetQuotaResponses } from '../types/UserGetQuota';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get quota information for the authenticated user
  * {@link /user/quota}
  */
-export async function userGetQuota(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userGetQuota<ThrowOnError extends boolean = true>(
+  options: Options<UserGetQuotaOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserGetQuotaResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserGetQuotaQueryResponse, ResponseErrorConfig<UserGetQuota401 | UserGetQuota403>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getUserGetQuotaUrl().url.toString(),
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/user/quota',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserGetQuotaResponses, ThrowOnError>>;
 }

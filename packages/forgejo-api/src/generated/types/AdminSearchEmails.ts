@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { Email } from './Email';
 
-export type AdminSearchEmailsQueryParams = {
+export type AdminSearchEmailsQuery = {
   /**
    * @description keyword
    * @type string | undefined
@@ -24,20 +24,47 @@ export type AdminSearchEmailsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description EmailList
- */
-export type AdminSearchEmails200 = Email[];
+export type AdminSearchEmailsStatus200Json = Email[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminSearchEmails403 = APIForbiddenError;
+export type AdminSearchEmailsStatus200Html = Email[];
 
-export type AdminSearchEmailsQueryResponse = AdminSearchEmails200;
+export type AdminSearchEmailsStatus200 = AdminSearchEmailsStatus200Json | AdminSearchEmailsStatus200Html;
 
-export type AdminSearchEmailsQuery = {
-  Response: AdminSearchEmails200;
-  QueryParams: AdminSearchEmailsQueryParams;
-  Errors: AdminSearchEmails403;
+export type AdminSearchEmailsStatus403Json = APIForbiddenError;
+
+export type AdminSearchEmailsStatus403Html = APIForbiddenError;
+
+export type AdminSearchEmailsStatus403 = AdminSearchEmailsStatus403Json | AdminSearchEmailsStatus403Html;
+
+export type AdminSearchEmailsOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminSearchEmailsQuery;
+  headers?: never;
 };
+
+export type AdminSearchEmailsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchEmailsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchEmailsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchEmailsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchEmailsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminSearchEmailsResponse = AdminSearchEmailsStatus200 | AdminSearchEmailsStatus403;

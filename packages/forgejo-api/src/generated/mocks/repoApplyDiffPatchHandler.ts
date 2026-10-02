@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoApplyDiffPatchMutationResponse,
-  RepoApplyDiffPatch404,
-  RepoApplyDiffPatch413,
-  RepoApplyDiffPatch423,
+  RepoApplyDiffPatchResponse,
+  RepoApplyDiffPatchStatus404,
+  RepoApplyDiffPatchStatus413,
+  RepoApplyDiffPatchStatus423,
+  RepoApplyDiffPatchBody,
 } from '../types/RepoApplyDiffPatch';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoApplyDiffPatchHandlerResponse200(data: RepoApplyDiffPatchMutationResponse) {
+export function repoApplyDiffPatchHandlerResponse200(data: RepoApplyDiffPatchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function repoApplyDiffPatchHandlerResponse200(data: RepoApplyDiffPatchMut
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse404(data: RepoApplyDiffPatch404) {
+export function repoApplyDiffPatchHandlerResponse404(data: RepoApplyDiffPatchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,13 +31,13 @@ export function repoApplyDiffPatchHandlerResponse404(data: RepoApplyDiffPatch404
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse413(data?: RepoApplyDiffPatch413) {
+export function repoApplyDiffPatchHandlerResponse413(data?: RepoApplyDiffPatchStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse423(data: RepoApplyDiffPatch423) {
+export function repoApplyDiffPatchHandlerResponse423(data: RepoApplyDiffPatchStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -45,18 +47,19 @@ export function repoApplyDiffPatchHandlerResponse423(data: RepoApplyDiffPatch423
 }
 
 export function repoApplyDiffPatchHandler(
-  data?:
-    | RepoApplyDiffPatchMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoApplyDiffPatchResponse | HttpResponseResolver<Record<string, string>, RepoApplyDiffPatchBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/diffpatch`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoApplyDiffPatchBody>(
+    `/repos/:owner/:repo/diffpatch`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

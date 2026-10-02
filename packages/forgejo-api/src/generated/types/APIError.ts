@@ -5,14 +5,9 @@
 
 /**
  * @description APIError is an api error with a message
+ * @type object
  */
 export type APIError = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

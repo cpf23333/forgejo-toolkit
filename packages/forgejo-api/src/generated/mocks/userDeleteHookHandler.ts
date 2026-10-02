@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UserDeleteHookMutationResponse, UserDeleteHook401, UserDeleteHook403 } from '../types/UserDeleteHook';
+import type { UserDeleteHookResponse, UserDeleteHookStatus401, UserDeleteHookStatus403 } from '../types/UserDeleteHook';
 import { http } from 'msw';
 
-export function userDeleteHookHandlerResponse204(data?: UserDeleteHookMutationResponse) {
+export function userDeleteHookHandlerResponse204(data?: UserDeleteHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteHookHandlerResponse401(data: UserDeleteHook401) {
+export function userDeleteHookHandlerResponse401(data: UserDeleteHookStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -21,7 +21,7 @@ export function userDeleteHookHandlerResponse401(data: UserDeleteHook401) {
   });
 }
 
-export function userDeleteHookHandlerResponse403(data: UserDeleteHook403) {
+export function userDeleteHookHandlerResponse403(data: UserDeleteHookStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {

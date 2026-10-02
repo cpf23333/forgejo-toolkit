@@ -5,18 +5,25 @@
 
 /**
  * @description CommitStats is statistics for a RepoCommit
+ * @type object
  */
 export type CommitStats = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   additions?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   deletions?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total?: number;
 };

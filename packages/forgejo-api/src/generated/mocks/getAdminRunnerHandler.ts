@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetAdminRunnerQueryResponse, GetAdminRunner400, GetAdminRunner404 } from '../types/GetAdminRunner';
+import type { GetAdminRunnerResponse, GetAdminRunnerStatus400, GetAdminRunnerStatus404 } from '../types/GetAdminRunner';
 import { http } from 'msw';
 
-export function getAdminRunnerHandlerResponse200(data: GetAdminRunnerQueryResponse) {
+export function getAdminRunnerHandlerResponse200(data: GetAdminRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getAdminRunnerHandlerResponse200(data: GetAdminRunnerQueryRespon
   });
 }
 
-export function getAdminRunnerHandlerResponse400(data: GetAdminRunner400) {
+export function getAdminRunnerHandlerResponse400(data: GetAdminRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function getAdminRunnerHandlerResponse400(data: GetAdminRunner400) {
   });
 }
 
-export function getAdminRunnerHandlerResponse404(data: GetAdminRunner404) {
+export function getAdminRunnerHandlerResponse404(data: GetAdminRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function getAdminRunnerHandlerResponse404(data: GetAdminRunner404) {
 
 export function getAdminRunnerHandler(
   data?:
-    | GetAdminRunnerQueryResponse
+    | GetAdminRunnerResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/actions/runners/:runner_id`, function handler(info) {

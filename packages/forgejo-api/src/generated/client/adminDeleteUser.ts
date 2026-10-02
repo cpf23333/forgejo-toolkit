@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminDeleteUserMutationResponse,
-  AdminDeleteUserPathParams,
-  AdminDeleteUserQueryParams,
-  AdminDeleteUser403,
-  AdminDeleteUser404,
-  AdminDeleteUser422,
-} from '../types/AdminDeleteUser';
-
-function getAdminDeleteUserUrl(username: AdminDeleteUserPathParams['username']) {
-  const res = { method: 'DELETE', url: `/admin/users/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminDeleteUserOptions, AdminDeleteUserResponses } from '../types/AdminDeleteUser';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete user account
  * {@link /admin/users/:username}
  */
-export async function adminDeleteUser(
-  username: AdminDeleteUserPathParams['username'],
-  params?: AdminDeleteUserQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminDeleteUser<ThrowOnError extends boolean = true>(
+  options: Options<AdminDeleteUserOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminDeleteUserResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminDeleteUserMutationResponse,
-    ResponseErrorConfig<AdminDeleteUser403 | AdminDeleteUser404 | AdminDeleteUser422>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getAdminDeleteUserUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/users/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminDeleteUserResponses, ThrowOnError>>;
 }

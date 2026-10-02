@@ -4,14 +4,16 @@
  */
 
 import type {
-  UserCreateOAuth2ApplicationMutationResponse,
-  UserCreateOAuth2Application400,
-  UserCreateOAuth2Application401,
-  UserCreateOAuth2Application403,
+  UserCreateOAuth2ApplicationResponse,
+  UserCreateOAuth2ApplicationStatus400,
+  UserCreateOAuth2ApplicationStatus401,
+  UserCreateOAuth2ApplicationStatus403,
+  UserCreateOAuth2ApplicationBody,
 } from '../types/UserCreateOAuth2Application';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userCreateOAuth2ApplicationHandlerResponse201(data: UserCreateOAuth2ApplicationMutationResponse) {
+export function userCreateOAuth2ApplicationHandlerResponse201(data: UserCreateOAuth2ApplicationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function userCreateOAuth2ApplicationHandlerResponse201(data: UserCreateOA
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse400(data: UserCreateOAuth2Application400) {
+export function userCreateOAuth2ApplicationHandlerResponse400(data: UserCreateOAuth2ApplicationStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function userCreateOAuth2ApplicationHandlerResponse400(data: UserCreateOA
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse401(data: UserCreateOAuth2Application401) {
+export function userCreateOAuth2ApplicationHandlerResponse401(data: UserCreateOAuth2ApplicationStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +40,7 @@ export function userCreateOAuth2ApplicationHandlerResponse401(data: UserCreateOA
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse403(data: UserCreateOAuth2Application403) {
+export function userCreateOAuth2ApplicationHandlerResponse403(data: UserCreateOAuth2ApplicationStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -49,17 +51,20 @@ export function userCreateOAuth2ApplicationHandlerResponse403(data: UserCreateOA
 
 export function userCreateOAuth2ApplicationHandler(
   data?:
-    | UserCreateOAuth2ApplicationMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | UserCreateOAuth2ApplicationResponse
+    | HttpResponseResolver<Record<string, string>, UserCreateOAuth2ApplicationBody>,
 ) {
-  return http.post(`/user/applications/oauth2`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, UserCreateOAuth2ApplicationBody>(
+    `/user/applications/oauth2`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

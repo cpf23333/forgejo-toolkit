@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListPullReviewsQueryResponse,
-  RepoListPullReviewsPathParams,
-  RepoListPullReviewsQueryParams,
-  RepoListPullReviews404,
-} from '../types/RepoListPullReviews';
-
-function getRepoListPullReviewsUrl(
-  owner: RepoListPullReviewsPathParams['owner'],
-  repo: RepoListPullReviewsPathParams['repo'],
-  index: RepoListPullReviewsPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}/reviews` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListPullReviewsOptions, RepoListPullReviewsResponses } from '../types/RepoListPullReviews';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all reviews for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/reviews}
  */
-export async function repoListPullReviews(
-  owner: RepoListPullReviewsPathParams['owner'],
-  repo: RepoListPullReviewsPathParams['repo'],
-  index: RepoListPullReviewsPathParams['index'],
-  params?: RepoListPullReviewsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListPullReviews<ThrowOnError extends boolean = true>(
+  options: Options<RepoListPullReviewsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListPullReviewsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListPullReviewsQueryResponse, ResponseErrorConfig<RepoListPullReviews404>, unknown>({
-    method: 'GET',
-    url: getRepoListPullReviewsUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}/reviews',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListPullReviewsResponses, ThrowOnError>>;
 }

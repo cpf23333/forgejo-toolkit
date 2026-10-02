@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminDeleteHookMutationResponse } from '../types/AdminDeleteHook';
+import type { AdminDeleteHookResponse } from '../types/AdminDeleteHook';
 import { http } from 'msw';
 
-export function adminDeleteHookHandlerResponse204(data?: AdminDeleteHookMutationResponse) {
+export function adminDeleteHookHandlerResponse204(data?: AdminDeleteHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });

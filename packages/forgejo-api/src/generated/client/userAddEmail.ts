@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserAddEmailMutationRequest,
-  UserAddEmailMutationResponse,
-  UserAddEmail401,
-  UserAddEmail403,
-  UserAddEmail422,
-} from '../types/UserAddEmail';
-
-function getUserAddEmailUrl() {
-  const res = { method: 'POST', url: `/user/emails` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserAddEmailOptions, UserAddEmailResponses } from '../types/UserAddEmail';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add an email addresses to the current user's account
  * {@link /user/emails}
  */
-export async function userAddEmail(
-  data?: UserAddEmailMutationRequest,
-  config: Partial<RequestConfig<UserAddEmailMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userAddEmail<ThrowOnError extends boolean = true>(
+  options: Options<UserAddEmailOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserAddEmailResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserAddEmailMutationResponse,
-    ResponseErrorConfig<UserAddEmail401 | UserAddEmail403 | UserAddEmail422>,
-    UserAddEmailMutationRequest
-  >({
-    method: 'POST',
-    url: getUserAddEmailUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/emails',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserAddEmailResponses, ThrowOnError>>;
 }

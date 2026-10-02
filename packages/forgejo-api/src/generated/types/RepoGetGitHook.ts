@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { GitHook } from './GitHook';
 
-export type RepoGetGitHookPathParams = {
+export type RepoGetGitHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,54 @@ export type RepoGetGitHookPathParams = {
 };
 
 /**
- * @description GitHook
+ * @description GitHook represents a Git repository hook
+ * @type object
  */
-export type RepoGetGitHook200 = GitHook;
+export type RepoGetGitHookStatus200Json = GitHook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description GitHook represents a Git repository hook
+ * @type object
  */
-export type RepoGetGitHook404 = APINotFound;
+export type RepoGetGitHookStatus200Html = GitHook;
 
-export type RepoGetGitHookQueryResponse = RepoGetGitHook200;
+export type RepoGetGitHookStatus200 = RepoGetGitHookStatus200Json | RepoGetGitHookStatus200Html;
 
-export type RepoGetGitHookQuery = {
-  Response: RepoGetGitHook200;
-  PathParams: RepoGetGitHookPathParams;
-  Errors: RepoGetGitHook404;
+export type RepoGetGitHookStatus404Json = APINotFound;
+
+export type RepoGetGitHookStatus404Html = APINotFound;
+
+export type RepoGetGitHookStatus404 = RepoGetGitHookStatus404Json | RepoGetGitHookStatus404Html;
+
+export type RepoGetGitHookOptions = {
+  body?: never;
+  path: RepoGetGitHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetGitHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetGitHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetGitHookStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetGitHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetGitHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetGitHookResponse = RepoGetGitHookStatus200 | RepoGetGitHookStatus404;

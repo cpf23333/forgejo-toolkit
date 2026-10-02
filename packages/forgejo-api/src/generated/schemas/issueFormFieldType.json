@@ -1,6 +1,0 @@
-{
-  "type": "string",
-  "title": "IssueFormFieldType defines issue form field type, can be \"markdown\", \"textarea\", \"input\", \"dropdown\" or \"checkboxes\"",
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "IssueFormFieldType"
-}

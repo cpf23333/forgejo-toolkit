@@ -10,7 +10,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Comment } from './Comment';
 import type { EditIssueCommentOption } from './EditIssueCommentOption';
 
-export type IssueEditCommentPathParams = {
+export type IssueEditCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,48 +23,122 @@ export type IssueEditCommentPathParams = {
   repo: string;
   /**
    * @description id of the comment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Comment
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueEditComment200 = Comment;
+export type IssueEditCommentStatus200Json = Comment;
 
 /**
- * @description APIEmpty is an empty response
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueEditComment204 = any;
+export type IssueEditCommentStatus200Html = Comment;
+
+export type IssueEditCommentStatus200 = IssueEditCommentStatus200Json | IssueEditCommentStatus200Html;
+
+export type IssueEditCommentStatus204 = unknown;
+
+export type IssueEditCommentStatus403Json = APIForbiddenError;
+
+export type IssueEditCommentStatus403Html = APIForbiddenError;
+
+export type IssueEditCommentStatus403 = IssueEditCommentStatus403Json | IssueEditCommentStatus403Html;
+
+export type IssueEditCommentStatus404Json = APINotFound;
+
+export type IssueEditCommentStatus404Html = APINotFound;
+
+export type IssueEditCommentStatus404 = IssueEditCommentStatus404Json | IssueEditCommentStatus404Html;
+
+export type IssueEditCommentStatus423Json = APIRepoArchivedError;
+
+export type IssueEditCommentStatus423Html = APIRepoArchivedError;
+
+export type IssueEditCommentStatus423 = IssueEditCommentStatus423Json | IssueEditCommentStatus423Html;
+
+export type IssueEditCommentStatus500Json = APIInternalServerError;
+
+export type IssueEditCommentStatus500Html = APIInternalServerError;
+
+export type IssueEditCommentStatus500 = IssueEditCommentStatus500Json | IssueEditCommentStatus500Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description EditIssueCommentOption options for editing a comment
+ * @type object | undefined
  */
-export type IssueEditComment403 = APIForbiddenError;
+export type IssueEditCommentBody = EditIssueCommentOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueEditComment404 = APINotFound;
-
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type IssueEditComment423 = APIRepoArchivedError;
-
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueEditComment500 = APIInternalServerError;
-
-export type IssueEditCommentMutationRequest = EditIssueCommentOption;
-
-export type IssueEditCommentMutationResponse = IssueEditComment200 | IssueEditComment204;
-
-export type IssueEditCommentMutation = {
-  Response: IssueEditComment200 | IssueEditComment204;
-  Request: IssueEditCommentMutationRequest;
-  PathParams: IssueEditCommentPathParams;
-  Errors: IssueEditComment403 | IssueEditComment404 | IssueEditComment423 | IssueEditComment500;
+export type IssueEditCommentOptions = {
+  body: IssueEditCommentBody;
+  path: IssueEditCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditCommentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentStatus200Html;
+      };
+  '204': IssueEditCommentStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentStatus423Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditCommentResponse =
+  | IssueEditCommentStatus200
+  | IssueEditCommentStatus204
+  | IssueEditCommentStatus403
+  | IssueEditCommentStatus404
+  | IssueEditCommentStatus423
+  | IssueEditCommentStatus500;

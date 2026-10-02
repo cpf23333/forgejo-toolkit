@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { NotifyReadListMutationResponse } from '../types/NotifyReadList';
+import type { NotifyReadListResponse } from '../types/NotifyReadList';
 import { http } from 'msw';
 
-export function notifyReadListHandlerResponse205(data: NotifyReadListMutationResponse) {
+export function notifyReadListHandlerResponse205(data: NotifyReadListResponse) {
   return new Response(JSON.stringify(data), {
     status: 205,
     headers: {
@@ -17,7 +17,7 @@ export function notifyReadListHandlerResponse205(data: NotifyReadListMutationRes
 
 export function notifyReadListHandler(
   data?:
-    | NotifyReadListMutationResponse
+    | NotifyReadListResponse
     | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/notifications`, function handler(info) {

@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { AddTimeOption } from './AddTimeOption';
 import type { TrackedTime } from './TrackedTime';
 
-export type IssueAddTimePathParams = {
+export type IssueAddTimePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,38 +22,110 @@ export type IssueAddTimePathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description TrackedTime
+ * @description TrackedTime worked time for an issue / pr
+ * @type object
  */
-export type IssueAddTime200 = TrackedTime;
+export type IssueAddTimeStatus200Json = TrackedTime;
 
 /**
- * @description APIError is error format response
+ * @description TrackedTime worked time for an issue / pr
+ * @type object
  */
-export type IssueAddTime400 = APIError;
+export type IssueAddTimeStatus200Html = TrackedTime;
+
+export type IssueAddTimeStatus200 = IssueAddTimeStatus200Json | IssueAddTimeStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueAddTime403 = APIForbiddenError;
+export type IssueAddTimeStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueAddTime404 = APINotFound;
+export type IssueAddTimeStatus400Html = APIError;
 
-export type IssueAddTimeMutationRequest = AddTimeOption;
+export type IssueAddTimeStatus400 = IssueAddTimeStatus400Json | IssueAddTimeStatus400Html;
 
-export type IssueAddTimeMutationResponse = IssueAddTime200;
+export type IssueAddTimeStatus403Json = APIForbiddenError;
 
-export type IssueAddTimeMutation = {
-  Response: IssueAddTime200;
-  Request: IssueAddTimeMutationRequest;
-  PathParams: IssueAddTimePathParams;
-  Errors: IssueAddTime400 | IssueAddTime403 | IssueAddTime404;
+export type IssueAddTimeStatus403Html = APIForbiddenError;
+
+export type IssueAddTimeStatus403 = IssueAddTimeStatus403Json | IssueAddTimeStatus403Html;
+
+export type IssueAddTimeStatus404Json = APINotFound;
+
+export type IssueAddTimeStatus404Html = APINotFound;
+
+export type IssueAddTimeStatus404 = IssueAddTimeStatus404Json | IssueAddTimeStatus404Html;
+
+/**
+ * @description AddTimeOption options for adding time to an issue
+ * @type object | undefined
+ */
+export type IssueAddTimeBody = AddTimeOption | undefined;
+
+export type IssueAddTimeOptions = {
+  body: IssueAddTimeBody;
+  path: IssueAddTimePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueAddTimeResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueAddTimeStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddTimeStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: IssueAddTimeStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddTimeStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueAddTimeStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddTimeStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueAddTimeStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueAddTimeStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueAddTimeResponse =
+  | IssueAddTimeStatus200
+  | IssueAddTimeStatus400
+  | IssueAddTimeStatus403
+  | IssueAddTimeStatus404;

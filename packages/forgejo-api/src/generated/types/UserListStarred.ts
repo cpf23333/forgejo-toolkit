@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type UserListStarredPathParams = {
+export type UserListStarredPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListStarredPathParams = {
   username: string;
 };
 
-export type UserListStarredQueryParams = {
+export type UserListStarredQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type UserListStarredQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type UserListStarred200 = Repository[];
+export type UserListStarredStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListStarred404 = APINotFound;
+export type UserListStarredStatus200Html = Repository[];
 
-export type UserListStarredQueryResponse = UserListStarred200;
+export type UserListStarredStatus200 = UserListStarredStatus200Json | UserListStarredStatus200Html;
 
-export type UserListStarredQuery = {
-  Response: UserListStarred200;
-  PathParams: UserListStarredPathParams;
-  QueryParams: UserListStarredQueryParams;
-  Errors: UserListStarred404;
+export type UserListStarredStatus404Json = APINotFound;
+
+export type UserListStarredStatus404Html = APINotFound;
+
+export type UserListStarredStatus404 = UserListStarredStatus404Json | UserListStarredStatus404Html;
+
+export type UserListStarredOptions = {
+  body?: never;
+  path: UserListStarredPath;
+  query?: UserListStarredQuery;
+  headers?: never;
 };
+
+export type UserListStarredResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListStarredStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListStarredStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListStarredStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListStarredStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListStarredResponse = UserListStarredStatus200 | UserListStarredStatus404;

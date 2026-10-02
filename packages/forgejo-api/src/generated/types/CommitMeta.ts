@@ -3,20 +3,13 @@
  * Do not edit manually.
  */
 
-/**
- * CommitMeta contains meta information of a commit in terms of API.
- */
 export type CommitMeta = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

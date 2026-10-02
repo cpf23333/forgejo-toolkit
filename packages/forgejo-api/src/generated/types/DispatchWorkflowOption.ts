@@ -5,6 +5,7 @@
 
 /**
  * @description DispatchWorkflowOption options when dispatching a workflow
+ * @type object
  */
 export type DispatchWorkflowOption = {
   /**

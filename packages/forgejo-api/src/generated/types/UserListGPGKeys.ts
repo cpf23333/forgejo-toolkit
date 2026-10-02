@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { GPGKey } from './GPGKey';
 
-export type UserListGPGKeysPathParams = {
+export type UserListGPGKeysPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListGPGKeysPathParams = {
   username: string;
 };
 
-export type UserListGPGKeysQueryParams = {
+export type UserListGPGKeysQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type UserListGPGKeysQueryParams = {
   limit?: number;
 };
 
-/**
- * @description GPGKeyList
- */
-export type UserListGPGKeys200 = GPGKey[];
+export type UserListGPGKeysStatus200Json = GPGKey[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListGPGKeys404 = APINotFound;
+export type UserListGPGKeysStatus200Html = GPGKey[];
 
-export type UserListGPGKeysQueryResponse = UserListGPGKeys200;
+export type UserListGPGKeysStatus200 = UserListGPGKeysStatus200Json | UserListGPGKeysStatus200Html;
 
-export type UserListGPGKeysQuery = {
-  Response: UserListGPGKeys200;
-  PathParams: UserListGPGKeysPathParams;
-  QueryParams: UserListGPGKeysQueryParams;
-  Errors: UserListGPGKeys404;
+export type UserListGPGKeysStatus404Json = APINotFound;
+
+export type UserListGPGKeysStatus404Html = APINotFound;
+
+export type UserListGPGKeysStatus404 = UserListGPGKeysStatus404Json | UserListGPGKeysStatus404Html;
+
+export type UserListGPGKeysOptions = {
+  body?: never;
+  path: UserListGPGKeysPath;
+  query?: UserListGPGKeysQuery;
+  headers?: never;
 };
+
+export type UserListGPGKeysResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListGPGKeysStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListGPGKeysStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListGPGKeysStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListGPGKeysStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListGPGKeysResponse = UserListGPGKeysStatus200 | UserListGPGKeysStatus404;

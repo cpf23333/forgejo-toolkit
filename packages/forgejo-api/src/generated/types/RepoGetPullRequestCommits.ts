@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Commit } from './Commit';
 
-export type RepoGetPullRequestCommitsPathParams = {
+export type RepoGetPullRequestCommitsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,12 +19,14 @@ export type RepoGetPullRequestCommitsPathParams = {
   repo: string;
   /**
    * @description index of the pull request to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type RepoGetPullRequestCommitsQueryParams = {
+export type RepoGetPullRequestCommitsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -47,21 +49,51 @@ export type RepoGetPullRequestCommitsQueryParams = {
   files?: boolean;
 };
 
-/**
- * @description CommitList
- */
-export type RepoGetPullRequestCommits200 = Commit[];
+export type RepoGetPullRequestCommitsStatus200Json = Commit[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetPullRequestCommits404 = APINotFound;
+export type RepoGetPullRequestCommitsStatus200Html = Commit[];
 
-export type RepoGetPullRequestCommitsQueryResponse = RepoGetPullRequestCommits200;
+export type RepoGetPullRequestCommitsStatus200 =
+  | RepoGetPullRequestCommitsStatus200Json
+  | RepoGetPullRequestCommitsStatus200Html;
 
-export type RepoGetPullRequestCommitsQuery = {
-  Response: RepoGetPullRequestCommits200;
-  PathParams: RepoGetPullRequestCommitsPathParams;
-  QueryParams: RepoGetPullRequestCommitsQueryParams;
-  Errors: RepoGetPullRequestCommits404;
+export type RepoGetPullRequestCommitsStatus404Json = APINotFound;
+
+export type RepoGetPullRequestCommitsStatus404Html = APINotFound;
+
+export type RepoGetPullRequestCommitsStatus404 =
+  | RepoGetPullRequestCommitsStatus404Json
+  | RepoGetPullRequestCommitsStatus404Html;
+
+export type RepoGetPullRequestCommitsOptions = {
+  body?: never;
+  path: RepoGetPullRequestCommitsPath;
+  query?: RepoGetPullRequestCommitsQuery;
+  headers?: never;
 };
+
+export type RepoGetPullRequestCommitsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestCommitsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestCommitsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestCommitsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestCommitsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullRequestCommitsResponse = RepoGetPullRequestCommitsStatus200 | RepoGetPullRequestCommitsStatus404;

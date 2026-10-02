@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgCreateMutationRequest,
-  OrgCreateMutationResponse,
-  OrgCreate403,
-  OrgCreate422,
-} from '../types/OrgCreate';
-
-function getOrgCreateUrl() {
-  const res = { method: 'POST', url: `/orgs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgCreateOptions, OrgCreateResponses } from '../types/OrgCreate';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create an organization
  * {@link /orgs}
  */
-export async function orgCreate(
-  data: OrgCreateMutationRequest,
-  config: Partial<RequestConfig<OrgCreateMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgCreate<ThrowOnError extends boolean = true>(
+  options: Options<OrgCreateOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgCreateResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    OrgCreateMutationResponse,
-    ResponseErrorConfig<OrgCreate403 | OrgCreate422>,
-    OrgCreateMutationRequest
-  >({
-    method: 'POST',
-    url: getOrgCreateUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgCreateResponses, ThrowOnError>>;
 }

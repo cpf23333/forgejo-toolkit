@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoAddTeamMutationResponse,
-  RepoAddTeamPathParams,
-  RepoAddTeam404,
-  RepoAddTeam405,
-  RepoAddTeam422,
-} from '../types/RepoAddTeam';
-
-function getRepoAddTeamUrl(
-  owner: RepoAddTeamPathParams['owner'],
-  repo: RepoAddTeamPathParams['repo'],
-  team: RepoAddTeamPathParams['team'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/teams/${team}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoAddTeamOptions, RepoAddTeamResponses } from '../types/RepoAddTeam';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a team to a repository
  * {@link /repos/:owner/:repo/teams/:team}
  */
-export async function repoAddTeam(
-  owner: RepoAddTeamPathParams['owner'],
-  repo: RepoAddTeamPathParams['repo'],
-  team: RepoAddTeamPathParams['team'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoAddTeam<ThrowOnError extends boolean = true>(
+  options: Options<RepoAddTeamOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoAddTeamResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoAddTeamMutationResponse,
-    ResponseErrorConfig<RepoAddTeam404 | RepoAddTeam405 | RepoAddTeam422>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getRepoAddTeamUrl(owner, repo, team).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/teams/{team}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoAddTeamResponses, ThrowOnError>>;
 }

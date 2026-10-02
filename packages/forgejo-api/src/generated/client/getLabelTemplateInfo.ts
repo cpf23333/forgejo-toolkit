@@ -3,33 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetLabelTemplateInfoQueryResponse,
-  GetLabelTemplateInfoPathParams,
-  GetLabelTemplateInfo404,
-} from '../types/GetLabelTemplateInfo';
-
-function getGetLabelTemplateInfoUrl(name: GetLabelTemplateInfoPathParams['name']) {
-  const res = { method: 'GET', url: `/label/templates/${name}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetLabelTemplateInfoOptions, GetLabelTemplateInfoResponses } from '../types/GetLabelTemplateInfo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Returns all labels in a template
  * {@link /label/templates/:name}
  */
-export async function getLabelTemplateInfo(
-  name: GetLabelTemplateInfoPathParams['name'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getLabelTemplateInfo<ThrowOnError extends boolean = true>(
+  options: Options<GetLabelTemplateInfoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetLabelTemplateInfoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetLabelTemplateInfoQueryResponse, ResponseErrorConfig<GetLabelTemplateInfo404>, unknown>({
-    method: 'GET',
-    url: getGetLabelTemplateInfoUrl(name).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/label/templates/{name}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetLabelTemplateInfoResponses, ThrowOnError>>;
 }

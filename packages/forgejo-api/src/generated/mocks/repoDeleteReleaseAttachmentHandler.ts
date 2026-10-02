@@ -4,18 +4,18 @@
  */
 
 import type {
-  RepoDeleteReleaseAttachmentMutationResponse,
-  RepoDeleteReleaseAttachment404,
+  RepoDeleteReleaseAttachmentResponse,
+  RepoDeleteReleaseAttachmentStatus404,
 } from '../types/RepoDeleteReleaseAttachment';
 import { http } from 'msw';
 
-export function repoDeleteReleaseAttachmentHandlerResponse204(data?: RepoDeleteReleaseAttachmentMutationResponse) {
+export function repoDeleteReleaseAttachmentHandlerResponse204(data?: RepoDeleteReleaseAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteReleaseAttachmentHandlerResponse404(data: RepoDeleteReleaseAttachment404) {
+export function repoDeleteReleaseAttachmentHandlerResponse404(data: RepoDeleteReleaseAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

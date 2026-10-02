@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueGetIssueAttachmentQueryResponse,
-  IssueGetIssueAttachmentPathParams,
-  IssueGetIssueAttachment404,
+  IssueGetIssueAttachmentOptions,
+  IssueGetIssueAttachmentResponses,
 } from '../types/IssueGetIssueAttachment';
-
-function getIssueGetIssueAttachmentUrl(
-  owner: IssueGetIssueAttachmentPathParams['owner'],
-  repo: IssueGetIssueAttachmentPathParams['repo'],
-  index: IssueGetIssueAttachmentPathParams['index'],
-  attachment_id: IssueGetIssueAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get an issue attachment
  * {@link /repos/:owner/:repo/issues/:index/assets/:attachment_id}
  */
-export async function issueGetIssueAttachment(
-  owner: IssueGetIssueAttachmentPathParams['owner'],
-  repo: IssueGetIssueAttachmentPathParams['repo'],
-  index: IssueGetIssueAttachmentPathParams['index'],
-  attachment_id: IssueGetIssueAttachmentPathParams['attachment_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetIssueAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetIssueAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetIssueAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueGetIssueAttachmentQueryResponse,
-    ResponseErrorConfig<IssueGetIssueAttachment404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueGetIssueAttachmentUrl(owner, repo, index, attachment_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetIssueAttachmentResponses, ThrowOnError>>;
 }

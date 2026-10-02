@@ -5,11 +5,9 @@
 
 /**
  * @description TransferRepoOption options when transfer a repository\'s ownership
+ * @type object
  */
 export type TransferRepoOption = {
-  /**
-   * @type string
-   */
   new_owner: string;
   /**
    * @description ID of the team or teams to add to the repository. Teams can only be added to organization-owned repositories.

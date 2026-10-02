@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetUserVariablesListQueryResponse,
-  GetUserVariablesListQueryParams,
-  GetUserVariablesList400,
-  GetUserVariablesList401,
-  GetUserVariablesList403,
-  GetUserVariablesList404,
-} from '../types/GetUserVariablesList';
-
-function getGetUserVariablesListUrl() {
-  const res = { method: 'GET', url: `/user/actions/variables` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetUserVariablesListOptions, GetUserVariablesListResponses } from '../types/GetUserVariablesList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get the user-level list of variables which is created by current doer
  * {@link /user/actions/variables}
  */
-export async function getUserVariablesList(
-  params?: GetUserVariablesListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getUserVariablesList<ThrowOnError extends boolean = true>(
+  options: Options<GetUserVariablesListOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetUserVariablesListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetUserVariablesListQueryResponse,
-    ResponseErrorConfig<
-      GetUserVariablesList400 | GetUserVariablesList401 | GetUserVariablesList403 | GetUserVariablesList404
-    >,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetUserVariablesListUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/actions/variables',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetUserVariablesListResponses, ThrowOnError>>;
 }

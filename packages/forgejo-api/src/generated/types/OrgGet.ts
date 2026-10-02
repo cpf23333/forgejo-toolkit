@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Organization } from './Organization';
 
-export type OrgGetPathParams = {
+export type OrgGetPath = {
   /**
    * @description name of the organization to get
    * @type string
@@ -15,19 +15,54 @@ export type OrgGetPathParams = {
 };
 
 /**
- * @description Organization
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgGet200 = Organization;
+export type OrgGetStatus200Json = Organization;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgGet404 = APINotFound;
+export type OrgGetStatus200Html = Organization;
 
-export type OrgGetQueryResponse = OrgGet200;
+export type OrgGetStatus200 = OrgGetStatus200Json | OrgGetStatus200Html;
 
-export type OrgGetQuery = {
-  Response: OrgGet200;
-  PathParams: OrgGetPathParams;
-  Errors: OrgGet404;
+export type OrgGetStatus404Json = APINotFound;
+
+export type OrgGetStatus404Html = APINotFound;
+
+export type OrgGetStatus404 = OrgGetStatus404Json | OrgGetStatus404Html;
+
+export type OrgGetOptions = {
+  body?: never;
+  path: OrgGetPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetResponse = OrgGetStatus200 | OrgGetStatus404;

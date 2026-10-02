@@ -3,14 +3,34 @@
  * Do not edit manually.
  */
 
-/**
- * @description GitignoreTemplateList
- */
-export type ListGitignoresTemplates200 = string[];
+export type ListGitignoresTemplatesStatus200Json = string[];
 
-export type ListGitignoresTemplatesQueryResponse = ListGitignoresTemplates200;
+export type ListGitignoresTemplatesStatus200Html = string[];
 
-export type ListGitignoresTemplatesQuery = {
-  Response: ListGitignoresTemplates200;
-  Errors: any;
+export type ListGitignoresTemplatesStatus200 =
+  | ListGitignoresTemplatesStatus200Json
+  | ListGitignoresTemplatesStatus200Html;
+
+export type ListGitignoresTemplatesOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ListGitignoresTemplatesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListGitignoresTemplatesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListGitignoresTemplatesStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListGitignoresTemplatesResponse = ListGitignoresTemplatesStatus200;

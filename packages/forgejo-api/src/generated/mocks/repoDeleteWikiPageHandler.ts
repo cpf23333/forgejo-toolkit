@@ -4,20 +4,20 @@
  */
 
 import type {
-  RepoDeleteWikiPageMutationResponse,
-  RepoDeleteWikiPage403,
-  RepoDeleteWikiPage404,
-  RepoDeleteWikiPage423,
+  RepoDeleteWikiPageResponse,
+  RepoDeleteWikiPageStatus403,
+  RepoDeleteWikiPageStatus404,
+  RepoDeleteWikiPageStatus423,
 } from '../types/RepoDeleteWikiPage';
 import { http } from 'msw';
 
-export function repoDeleteWikiPageHandlerResponse204(data?: RepoDeleteWikiPageMutationResponse) {
+export function repoDeleteWikiPageHandlerResponse204(data?: RepoDeleteWikiPageResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse403(data: RepoDeleteWikiPage403) {
+export function repoDeleteWikiPageHandlerResponse403(data: RepoDeleteWikiPageStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function repoDeleteWikiPageHandlerResponse403(data: RepoDeleteWikiPage403
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse404(data: RepoDeleteWikiPage404) {
+export function repoDeleteWikiPageHandlerResponse404(data: RepoDeleteWikiPageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function repoDeleteWikiPageHandlerResponse404(data: RepoDeleteWikiPage404
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse423(data: RepoDeleteWikiPage423) {
+export function repoDeleteWikiPageHandlerResponse423(data: RepoDeleteWikiPageStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

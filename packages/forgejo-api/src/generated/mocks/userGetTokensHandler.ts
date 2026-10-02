@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetTokensQueryResponse, UserGetTokens403, UserGetTokens404 } from '../types/UserGetTokens';
+import type { UserGetTokensResponse, UserGetTokensStatus403, UserGetTokensStatus404 } from '../types/UserGetTokens';
 import { http } from 'msw';
 
-export function userGetTokensHandlerResponse200(data: UserGetTokensQueryResponse) {
+export function userGetTokensHandlerResponse200(data: UserGetTokensResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetTokensHandlerResponse200(data: UserGetTokensQueryResponse
   });
 }
 
-export function userGetTokensHandlerResponse403(data: UserGetTokens403) {
+export function userGetTokensHandlerResponse403(data: UserGetTokensStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +24,7 @@ export function userGetTokensHandlerResponse403(data: UserGetTokens403) {
   });
 }
 
-export function userGetTokensHandlerResponse404(data: UserGetTokens404) {
+export function userGetTokensHandlerResponse404(data: UserGetTokensStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function userGetTokensHandlerResponse404(data: UserGetTokens404) {
 
 export function userGetTokensHandler(
   data?:
-    | UserGetTokensQueryResponse
+    | UserGetTokensResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/tokens`, function handler(info) {

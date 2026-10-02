@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ForgeOutbox } from './ForgeOutbox';
 
-export type ActivitypubPersonFeedPathParams = {
+export type ActivitypubPersonFeedPath = {
   /**
    * @description user ID of the user
    * @type integer
@@ -15,19 +15,54 @@ export type ActivitypubPersonFeedPathParams = {
 };
 
 /**
- * @description Outbox
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
  */
-export type ActivitypubPersonFeed200 = ForgeOutbox;
+export type ActivitypubPersonFeedStatus200Json = ForgeOutbox;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
  */
-export type ActivitypubPersonFeed403 = APIForbiddenError;
+export type ActivitypubPersonFeedStatus200Html = ForgeOutbox;
 
-export type ActivitypubPersonFeedQueryResponse = ActivitypubPersonFeed200;
+export type ActivitypubPersonFeedStatus200 = ActivitypubPersonFeedStatus200Json | ActivitypubPersonFeedStatus200Html;
 
-export type ActivitypubPersonFeedQuery = {
-  Response: ActivitypubPersonFeed200;
-  PathParams: ActivitypubPersonFeedPathParams;
-  Errors: ActivitypubPersonFeed403;
+export type ActivitypubPersonFeedStatus403Json = APIForbiddenError;
+
+export type ActivitypubPersonFeedStatus403Html = APIForbiddenError;
+
+export type ActivitypubPersonFeedStatus403 = ActivitypubPersonFeedStatus403Json | ActivitypubPersonFeedStatus403Html;
+
+export type ActivitypubPersonFeedOptions = {
+  body?: never;
+  path: ActivitypubPersonFeedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubPersonFeedResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubPersonFeedStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubPersonFeedStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubPersonFeedStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubPersonFeedStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubPersonFeedResponse = ActivitypubPersonFeedStatus200 | ActivitypubPersonFeedStatus403;

@@ -7,27 +7,16 @@ import type { PayloadUser } from './PayloadUser';
 
 /**
  * @description PayloadCommitVerification represents the GPG verification of a commit
+ * @type object
  */
 export type PayloadCommitVerification = {
-  /**
-   * @type string | undefined
-   */
   payload?: string;
-  /**
-   * @type string | undefined
-   */
   reason?: string;
-  /**
-   * @type string | undefined
-   */
   signature?: string;
   /**
    * @description PayloadUser represents the author or committer of a commit
    * @type object | undefined
    */
   signer?: PayloadUser;
-  /**
-   * @type boolean | undefined
-   */
   verified?: boolean;
 };

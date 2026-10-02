@@ -4,14 +4,16 @@
  */
 
 import type {
-  IssueEditIssueAttachmentMutationResponse,
-  IssueEditIssueAttachment404,
-  IssueEditIssueAttachment413,
-  IssueEditIssueAttachment423,
+  IssueEditIssueAttachmentResponse,
+  IssueEditIssueAttachmentStatus404,
+  IssueEditIssueAttachmentStatus413,
+  IssueEditIssueAttachmentStatus423,
+  IssueEditIssueAttachmentBody,
 } from '../types/IssueEditIssueAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueEditIssueAttachmentHandlerResponse201(data: IssueEditIssueAttachmentMutationResponse) {
+export function issueEditIssueAttachmentHandlerResponse201(data: IssueEditIssueAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function issueEditIssueAttachmentHandlerResponse201(data: IssueEditIssueA
   });
 }
 
-export function issueEditIssueAttachmentHandlerResponse404(data: IssueEditIssueAttachment404) {
+export function issueEditIssueAttachmentHandlerResponse404(data: IssueEditIssueAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,13 +31,13 @@ export function issueEditIssueAttachmentHandlerResponse404(data: IssueEditIssueA
   });
 }
 
-export function issueEditIssueAttachmentHandlerResponse413(data?: IssueEditIssueAttachment413) {
+export function issueEditIssueAttachmentHandlerResponse413(data?: IssueEditIssueAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueEditIssueAttachmentHandlerResponse423(data: IssueEditIssueAttachment423) {
+export function issueEditIssueAttachmentHandlerResponse423(data: IssueEditIssueAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -45,18 +47,19 @@ export function issueEditIssueAttachmentHandlerResponse423(data: IssueEditIssueA
 }
 
 export function issueEditIssueAttachmentHandler(
-  data?:
-    | IssueEditIssueAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueEditIssueAttachmentResponse | HttpResponseResolver<Record<string, string>, IssueEditIssueAttachmentBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/issues/:index/assets/:attachment_id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, IssueEditIssueAttachmentBody>(
+    `/repos/:owner/:repo/issues/:index/assets/:attachment_id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

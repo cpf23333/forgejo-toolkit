@@ -4,15 +4,17 @@
  */
 
 import type {
-  RepoTransferMutationResponse,
-  RepoTransfer403,
-  RepoTransfer404,
-  RepoTransfer413,
-  RepoTransfer422,
+  RepoTransferResponse,
+  RepoTransferStatus403,
+  RepoTransferStatus404,
+  RepoTransferStatus413,
+  RepoTransferStatus422,
+  RepoTransferBody,
 } from '../types/RepoTransfer';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoTransferHandlerResponse202(data: RepoTransferMutationResponse) {
+export function repoTransferHandlerResponse202(data: RepoTransferResponse) {
   return new Response(JSON.stringify(data), {
     status: 202,
     headers: {
@@ -21,7 +23,7 @@ export function repoTransferHandlerResponse202(data: RepoTransferMutationRespons
   });
 }
 
-export function repoTransferHandlerResponse403(data: RepoTransfer403) {
+export function repoTransferHandlerResponse403(data: RepoTransferStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -30,7 +32,7 @@ export function repoTransferHandlerResponse403(data: RepoTransfer403) {
   });
 }
 
-export function repoTransferHandlerResponse404(data: RepoTransfer404) {
+export function repoTransferHandlerResponse404(data: RepoTransferStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,13 +41,13 @@ export function repoTransferHandlerResponse404(data: RepoTransfer404) {
   });
 }
 
-export function repoTransferHandlerResponse413(data?: RepoTransfer413) {
+export function repoTransferHandlerResponse413(data?: RepoTransferStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoTransferHandlerResponse422(data: RepoTransfer422) {
+export function repoTransferHandlerResponse422(data: RepoTransferStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -55,11 +57,9 @@ export function repoTransferHandlerResponse422(data: RepoTransfer422) {
 }
 
 export function repoTransferHandler(
-  data?:
-    | RepoTransferMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoTransferResponse | HttpResponseResolver<Record<string, string>, RepoTransferBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/transfer`, function handler(info) {
+  return http.post<Record<string, string>, RepoTransferBody>(`/repos/:owner/:repo/transfer`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

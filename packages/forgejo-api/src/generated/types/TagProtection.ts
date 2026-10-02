@@ -5,30 +5,28 @@
 
 /**
  * @description TagProtection represents a tag protection
+ * @type object
  */
 export type TagProtection = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name_pattern?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
-  /**
-   * @type array | undefined
-   */
   whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   whitelist_usernames?: string[];
 };

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionVariable } from './ActionVariable';
 
-export type GetRepoVariablePathParams = {
+export type GetRepoVariablePath = {
   /**
    * @description name of the owner
    * @type string
@@ -26,24 +26,77 @@ export type GetRepoVariablePathParams = {
 };
 
 /**
- * @description ActionVariable
+ * @description ActionVariable return value of the query API
+ * @type object
  */
-export type GetRepoVariable200 = ActionVariable;
+export type GetRepoVariableStatus200Json = ActionVariable;
 
 /**
- * @description APIError is error format response
+ * @description ActionVariable return value of the query API
+ * @type object
  */
-export type GetRepoVariable400 = APIError;
+export type GetRepoVariableStatus200Html = ActionVariable;
+
+export type GetRepoVariableStatus200 = GetRepoVariableStatus200Json | GetRepoVariableStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoVariable404 = APINotFound;
+export type GetRepoVariableStatus400Json = APIError;
 
-export type GetRepoVariableQueryResponse = GetRepoVariable200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetRepoVariableStatus400Html = APIError;
 
-export type GetRepoVariableQuery = {
-  Response: GetRepoVariable200;
-  PathParams: GetRepoVariablePathParams;
-  Errors: GetRepoVariable400 | GetRepoVariable404;
+export type GetRepoVariableStatus400 = GetRepoVariableStatus400Json | GetRepoVariableStatus400Html;
+
+export type GetRepoVariableStatus404Json = APINotFound;
+
+export type GetRepoVariableStatus404Html = APINotFound;
+
+export type GetRepoVariableStatus404 = GetRepoVariableStatus404Json | GetRepoVariableStatus404Html;
+
+export type GetRepoVariableOptions = {
+  body?: never;
+  path: GetRepoVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetRepoVariableResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariableStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariableStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetRepoVariableResponse = GetRepoVariableStatus200 | GetRepoVariableStatus400 | GetRepoVariableStatus404;

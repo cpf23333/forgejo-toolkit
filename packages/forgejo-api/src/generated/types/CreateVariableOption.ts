@@ -3,9 +3,6 @@
  * Do not edit manually.
  */
 
-/**
- * CreateVariableOption defines the properties of the variable to create.
- */
 export type CreateVariableOption = {
   /**
    * @description Value of the variable to create. Special characters will be retained. Line endings will be normalized to LF to\nmatch the behaviour of browsers. Encode the data with Base64 if line endings should be retained.

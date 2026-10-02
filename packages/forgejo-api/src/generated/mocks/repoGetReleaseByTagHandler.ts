@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetReleaseByTagQueryResponse, RepoGetReleaseByTag404 } from '../types/RepoGetReleaseByTag';
+import type { RepoGetReleaseByTagResponse, RepoGetReleaseByTagStatus404 } from '../types/RepoGetReleaseByTag';
 import { http } from 'msw';
 
-export function repoGetReleaseByTagHandlerResponse200(data: RepoGetReleaseByTagQueryResponse) {
+export function repoGetReleaseByTagHandlerResponse200(data: RepoGetReleaseByTagResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetReleaseByTagHandlerResponse200(data: RepoGetReleaseByTagQ
   });
 }
 
-export function repoGetReleaseByTagHandlerResponse404(data: RepoGetReleaseByTag404) {
+export function repoGetReleaseByTagHandlerResponse404(data: RepoGetReleaseByTagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetReleaseByTagHandlerResponse404(data: RepoGetReleaseByTag4
 
 export function repoGetReleaseByTagHandler(
   data?:
-    | RepoGetReleaseByTagQueryResponse
+    | RepoGetReleaseByTagResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/releases/tags/:tag`, function handler(info) {

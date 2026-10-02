@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetAssigneesQueryResponse, RepoGetAssignees404 } from '../types/RepoGetAssignees';
+import type { RepoGetAssigneesResponse, RepoGetAssigneesStatus404 } from '../types/RepoGetAssignees';
 import { http } from 'msw';
 
-export function repoGetAssigneesHandlerResponse200(data: RepoGetAssigneesQueryResponse) {
+export function repoGetAssigneesHandlerResponse200(data: RepoGetAssigneesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetAssigneesHandlerResponse200(data: RepoGetAssigneesQueryRe
   });
 }
 
-export function repoGetAssigneesHandlerResponse404(data: RepoGetAssignees404) {
+export function repoGetAssigneesHandlerResponse404(data: RepoGetAssigneesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetAssigneesHandlerResponse404(data: RepoGetAssignees404) {
 
 export function repoGetAssigneesHandler(
   data?:
-    | RepoGetAssigneesQueryResponse
+    | RepoGetAssigneesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/assignees`, function handler(info) {

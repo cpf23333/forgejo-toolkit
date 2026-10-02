@@ -3,21 +3,21 @@
  * Do not edit manually.
  */
 
-import type { GetSigningKeyQueryResponse } from '../types/GetSigningKey';
+import type { GetSigningKeyResponse } from '../types/GetSigningKey';
 import { http } from 'msw';
 
-export function getSigningKeyHandlerResponse200(data: GetSigningKeyQueryResponse) {
+export function getSigningKeyHandlerResponse200(data: GetSigningKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/json',
     },
   });
 }
 
 export function getSigningKeyHandler(
   data?:
-    | GetSigningKeyQueryResponse
+    | GetSigningKeyResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/signing-key.gpg`, function handler(info) {
@@ -26,7 +26,7 @@ export function getSigningKeyHandler(
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
     });
   });

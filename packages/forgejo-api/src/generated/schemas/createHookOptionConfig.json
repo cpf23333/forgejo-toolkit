@@ -1,7 +1,0 @@
-{
-  "description": "CreateHookOptionConfig has all config options in it\nrequired are \"content_type\" and \"url\" Required",
-  "type": "object",
-  "additionalProperties": { "type": "string" },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "CreateHookOptionConfig"
-}

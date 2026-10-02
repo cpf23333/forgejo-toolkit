@@ -23,6 +23,7 @@ export type CreateRepoOptionTrustModelEnumKey =
 
 /**
  * @description CreateRepoOption options when creating repository
+ * @type object
  */
 export type CreateRepoOption = {
   /**

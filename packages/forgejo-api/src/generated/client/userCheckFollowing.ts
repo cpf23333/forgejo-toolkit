@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCheckFollowingQueryResponse,
-  UserCheckFollowingPathParams,
-  UserCheckFollowing404,
-} from '../types/UserCheckFollowing';
-
-function getUserCheckFollowingUrl(
-  username: UserCheckFollowingPathParams['username'],
-  target: UserCheckFollowingPathParams['target'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/users/${username}/following/${target}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCheckFollowingOptions, UserCheckFollowingResponses } from '../types/UserCheckFollowing';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if one user is following another user
  * {@link /users/:username/following/:target}
  */
-export async function userCheckFollowing(
-  username: UserCheckFollowingPathParams['username'],
-  target: UserCheckFollowingPathParams['target'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCheckFollowing<ThrowOnError extends boolean = true>(
+  options: Options<UserCheckFollowingOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCheckFollowingResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserCheckFollowingQueryResponse, ResponseErrorConfig<UserCheckFollowing404>, unknown>({
-    method: 'GET',
-    url: getUserCheckFollowingUrl(username, target).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/following/{target}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCheckFollowingResponses, ThrowOnError>>;
 }

@@ -4,14 +4,14 @@
  */
 
 import type {
-  RepoListPushMirrorsQueryResponse,
-  RepoListPushMirrors400,
-  RepoListPushMirrors403,
-  RepoListPushMirrors404,
+  RepoListPushMirrorsResponse,
+  RepoListPushMirrorsStatus400,
+  RepoListPushMirrorsStatus403,
+  RepoListPushMirrorsStatus404,
 } from '../types/RepoListPushMirrors';
 import { http } from 'msw';
 
-export function repoListPushMirrorsHandlerResponse200(data: RepoListPushMirrorsQueryResponse) {
+export function repoListPushMirrorsHandlerResponse200(data: RepoListPushMirrorsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function repoListPushMirrorsHandlerResponse200(data: RepoListPushMirrorsQ
   });
 }
 
-export function repoListPushMirrorsHandlerResponse400(data: RepoListPushMirrors400) {
+export function repoListPushMirrorsHandlerResponse400(data: RepoListPushMirrorsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function repoListPushMirrorsHandlerResponse400(data: RepoListPushMirrors4
   });
 }
 
-export function repoListPushMirrorsHandlerResponse403(data: RepoListPushMirrors403) {
+export function repoListPushMirrorsHandlerResponse403(data: RepoListPushMirrorsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function repoListPushMirrorsHandlerResponse403(data: RepoListPushMirrors4
   });
 }
 
-export function repoListPushMirrorsHandlerResponse404(data: RepoListPushMirrors404) {
+export function repoListPushMirrorsHandlerResponse404(data: RepoListPushMirrorsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function repoListPushMirrorsHandlerResponse404(data: RepoListPushMirrors4
 
 export function repoListPushMirrorsHandler(
   data?:
-    | RepoListPushMirrorsQueryResponse
+    | RepoListPushMirrorsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/push_mirrors`, function handler(info) {

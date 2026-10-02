@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoRemoveNotePathParams = {
+export type RepoRemoveNotePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoRemoveNotePathParams = {
   sha: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoRemoveNote204 = any;
+export type RepoRemoveNoteStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoRemoveNote404 = APINotFound;
+export type RepoRemoveNoteStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoRemoveNote422 = APIValidationError;
+export type RepoRemoveNoteStatus404Html = APINotFound;
 
-export type RepoRemoveNoteMutationResponse = RepoRemoveNote204;
+export type RepoRemoveNoteStatus404 = RepoRemoveNoteStatus404Json | RepoRemoveNoteStatus404Html;
 
-export type RepoRemoveNoteMutation = {
-  Response: RepoRemoveNote204;
-  PathParams: RepoRemoveNotePathParams;
-  Errors: RepoRemoveNote404 | RepoRemoveNote422;
+export type RepoRemoveNoteStatus422Json = APIValidationError;
+
+export type RepoRemoveNoteStatus422Html = APIValidationError;
+
+export type RepoRemoveNoteStatus422 = RepoRemoveNoteStatus422Json | RepoRemoveNoteStatus422Html;
+
+export type RepoRemoveNoteOptions = {
+  body?: never;
+  path: RepoRemoveNotePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoRemoveNoteResponses = {
+  '204': RepoRemoveNoteStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoRemoveNoteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoRemoveNoteStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoRemoveNoteStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoRemoveNoteStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoRemoveNoteResponse = RepoRemoveNoteStatus204 | RepoRemoveNoteStatus404 | RepoRemoveNoteStatus422;

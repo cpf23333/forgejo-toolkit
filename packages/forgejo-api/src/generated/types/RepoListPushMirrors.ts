@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { PushMirror } from './PushMirror';
 
-export type RepoListPushMirrorsPathParams = {
+export type RepoListPushMirrorsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,7 +21,7 @@ export type RepoListPushMirrorsPathParams = {
   repo: string;
 };
 
-export type RepoListPushMirrorsQueryParams = {
+export type RepoListPushMirrorsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -34,31 +34,89 @@ export type RepoListPushMirrorsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description PushMirrorList
- */
-export type RepoListPushMirrors200 = PushMirror[];
+export type RepoListPushMirrorsStatus200Json = PushMirror[];
+
+export type RepoListPushMirrorsStatus200Html = PushMirror[];
+
+export type RepoListPushMirrorsStatus200 = RepoListPushMirrorsStatus200Json | RepoListPushMirrorsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListPushMirrors400 = APIError;
+export type RepoListPushMirrorsStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListPushMirrors403 = APIForbiddenError;
+export type RepoListPushMirrorsStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListPushMirrors404 = APINotFound;
+export type RepoListPushMirrorsStatus400 = RepoListPushMirrorsStatus400Json | RepoListPushMirrorsStatus400Html;
 
-export type RepoListPushMirrorsQueryResponse = RepoListPushMirrors200;
+export type RepoListPushMirrorsStatus403Json = APIForbiddenError;
 
-export type RepoListPushMirrorsQuery = {
-  Response: RepoListPushMirrors200;
-  PathParams: RepoListPushMirrorsPathParams;
-  QueryParams: RepoListPushMirrorsQueryParams;
-  Errors: RepoListPushMirrors400 | RepoListPushMirrors403 | RepoListPushMirrors404;
+export type RepoListPushMirrorsStatus403Html = APIForbiddenError;
+
+export type RepoListPushMirrorsStatus403 = RepoListPushMirrorsStatus403Json | RepoListPushMirrorsStatus403Html;
+
+export type RepoListPushMirrorsStatus404Json = APINotFound;
+
+export type RepoListPushMirrorsStatus404Html = APINotFound;
+
+export type RepoListPushMirrorsStatus404 = RepoListPushMirrorsStatus404Json | RepoListPushMirrorsStatus404Html;
+
+export type RepoListPushMirrorsOptions = {
+  body?: never;
+  path: RepoListPushMirrorsPath;
+  query?: RepoListPushMirrorsQuery;
+  headers?: never;
 };
+
+export type RepoListPushMirrorsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListPushMirrorsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPushMirrorsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoListPushMirrorsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPushMirrorsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoListPushMirrorsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPushMirrorsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListPushMirrorsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPushMirrorsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListPushMirrorsResponse =
+  | RepoListPushMirrorsStatus200
+  | RepoListPushMirrorsStatus400
+  | RepoListPushMirrorsStatus403
+  | RepoListPushMirrorsStatus404;

@@ -8,7 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { DeleteFileOptions } from './DeleteFileOptions';
 import type { FileDeleteResponse } from './FileDeleteResponse';
 
-export type RepoDeleteFilePathParams = {
+export type RepoDeleteFilePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,42 +27,138 @@ export type RepoDeleteFilePathParams = {
 };
 
 /**
- * @description FileDeleteResponse
+ * @description FileDeleteResponse contains information about a repo\'s file that was deleted
+ * @type object
  */
-export type RepoDeleteFile200 = FileDeleteResponse;
+export type RepoDeleteFileStatus200Json = FileDeleteResponse;
 
 /**
- * @description APIError is error format response
+ * @description FileDeleteResponse contains information about a repo\'s file that was deleted
+ * @type object
  */
-export type RepoDeleteFile400 = APIError;
+export type RepoDeleteFileStatus200Html = FileDeleteResponse;
+
+export type RepoDeleteFileStatus200 = RepoDeleteFileStatus200Json | RepoDeleteFileStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteFile403 = APIError;
+export type RepoDeleteFileStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteFile404 = APIError;
+export type RepoDeleteFileStatus400Html = APIError;
+
+export type RepoDeleteFileStatus400 = RepoDeleteFileStatus400Json | RepoDeleteFileStatus400Html;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteFile413 = any;
+export type RepoDeleteFileStatus403Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoDeleteFile423 = APIRepoArchivedError;
+export type RepoDeleteFileStatus403Html = APIError;
 
-export type RepoDeleteFileMutationRequest = DeleteFileOptions;
+export type RepoDeleteFileStatus403 = RepoDeleteFileStatus403Json | RepoDeleteFileStatus403Html;
 
-export type RepoDeleteFileMutationResponse = RepoDeleteFile200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoDeleteFileStatus404Json = APIError;
 
-export type RepoDeleteFileMutation = {
-  Response: RepoDeleteFile200;
-  Request: RepoDeleteFileMutationRequest;
-  PathParams: RepoDeleteFilePathParams;
-  Errors: RepoDeleteFile400 | RepoDeleteFile403 | RepoDeleteFile404 | RepoDeleteFile413 | RepoDeleteFile423;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoDeleteFileStatus404Html = APIError;
+
+export type RepoDeleteFileStatus404 = RepoDeleteFileStatus404Json | RepoDeleteFileStatus404Html;
+
+export type RepoDeleteFileStatus413 = unknown;
+
+export type RepoDeleteFileStatus423Json = APIRepoArchivedError;
+
+export type RepoDeleteFileStatus423Html = APIRepoArchivedError;
+
+export type RepoDeleteFileStatus423 = RepoDeleteFileStatus423Json | RepoDeleteFileStatus423Html;
+
+/**
+ * @description DeleteFileOptions options for deleting files (used for other File structs below)\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
+ */
+export type RepoDeleteFileBody = DeleteFileOptions;
+
+export type RepoDeleteFileOptions = {
+  body: RepoDeleteFileBody;
+  path: RepoDeleteFilePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteFileResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFileStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFileStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFileStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFileStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFileStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFileStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFileStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFileStatus404Html;
+      };
+  '413': RepoDeleteFileStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteFileStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteFileStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteFileResponse =
+  | RepoDeleteFileStatus200
+  | RepoDeleteFileStatus400
+  | RepoDeleteFileStatus403
+  | RepoDeleteFileStatus404
+  | RepoDeleteFileStatus413
+  | RepoDeleteFileStatus423;

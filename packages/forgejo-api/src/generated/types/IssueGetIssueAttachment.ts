@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { Attachment } from './Attachment';
 
-export type IssueGetIssueAttachmentPathParams = {
+export type IssueGetIssueAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,81 @@ export type IssueGetIssueAttachmentPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the attachment to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueGetIssueAttachment200 = Attachment;
+export type IssueGetIssueAttachmentStatus200Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueGetIssueAttachment404 = APIError;
+export type IssueGetIssueAttachmentStatus200Html = Attachment;
 
-export type IssueGetIssueAttachmentQueryResponse = IssueGetIssueAttachment200;
+export type IssueGetIssueAttachmentStatus200 =
+  | IssueGetIssueAttachmentStatus200Json
+  | IssueGetIssueAttachmentStatus200Html;
 
-export type IssueGetIssueAttachmentQuery = {
-  Response: IssueGetIssueAttachment200;
-  PathParams: IssueGetIssueAttachmentPathParams;
-  Errors: IssueGetIssueAttachment404;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueGetIssueAttachmentStatus404Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueGetIssueAttachmentStatus404Html = APIError;
+
+export type IssueGetIssueAttachmentStatus404 =
+  | IssueGetIssueAttachmentStatus404Json
+  | IssueGetIssueAttachmentStatus404Html;
+
+export type IssueGetIssueAttachmentOptions = {
+  body?: never;
+  path: IssueGetIssueAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetIssueAttachmentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueAttachmentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueAttachmentStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueAttachmentStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetIssueAttachmentResponse = IssueGetIssueAttachmentStatus200 | IssueGetIssueAttachmentStatus404;

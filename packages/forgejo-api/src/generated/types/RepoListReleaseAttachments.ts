@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Attachment } from './Attachment';
 
-export type RepoListReleaseAttachmentsPathParams = {
+export type RepoListReleaseAttachmentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,60 @@ export type RepoListReleaseAttachmentsPathParams = {
   repo: string;
   /**
    * @description id of the release
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description AttachmentList
- */
-export type RepoListReleaseAttachments200 = Attachment[];
+export type RepoListReleaseAttachmentsStatus200Json = Attachment[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListReleaseAttachments404 = APINotFound;
+export type RepoListReleaseAttachmentsStatus200Html = Attachment[];
 
-export type RepoListReleaseAttachmentsQueryResponse = RepoListReleaseAttachments200;
+export type RepoListReleaseAttachmentsStatus200 =
+  | RepoListReleaseAttachmentsStatus200Json
+  | RepoListReleaseAttachmentsStatus200Html;
 
-export type RepoListReleaseAttachmentsQuery = {
-  Response: RepoListReleaseAttachments200;
-  PathParams: RepoListReleaseAttachmentsPathParams;
-  Errors: RepoListReleaseAttachments404;
+export type RepoListReleaseAttachmentsStatus404Json = APINotFound;
+
+export type RepoListReleaseAttachmentsStatus404Html = APINotFound;
+
+export type RepoListReleaseAttachmentsStatus404 =
+  | RepoListReleaseAttachmentsStatus404Json
+  | RepoListReleaseAttachmentsStatus404Html;
+
+export type RepoListReleaseAttachmentsOptions = {
+  body?: never;
+  path: RepoListReleaseAttachmentsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListReleaseAttachmentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListReleaseAttachmentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListReleaseAttachmentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListReleaseAttachmentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListReleaseAttachmentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListReleaseAttachmentsResponse =
+  | RepoListReleaseAttachmentsStatus200
+  | RepoListReleaseAttachmentsStatus404;

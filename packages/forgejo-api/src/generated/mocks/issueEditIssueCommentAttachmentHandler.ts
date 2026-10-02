@@ -4,16 +4,16 @@
  */
 
 import type {
-  IssueEditIssueCommentAttachmentMutationResponse,
-  IssueEditIssueCommentAttachment404,
-  IssueEditIssueCommentAttachment413,
-  IssueEditIssueCommentAttachment423,
+  IssueEditIssueCommentAttachmentResponse,
+  IssueEditIssueCommentAttachmentStatus404,
+  IssueEditIssueCommentAttachmentStatus413,
+  IssueEditIssueCommentAttachmentStatus423,
+  IssueEditIssueCommentAttachmentBody,
 } from '../types/IssueEditIssueCommentAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueEditIssueCommentAttachmentHandlerResponse201(
-  data: IssueEditIssueCommentAttachmentMutationResponse,
-) {
+export function issueEditIssueCommentAttachmentHandlerResponse201(data: IssueEditIssueCommentAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +22,7 @@ export function issueEditIssueCommentAttachmentHandlerResponse201(
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse404(data: IssueEditIssueCommentAttachment404) {
+export function issueEditIssueCommentAttachmentHandlerResponse404(data: IssueEditIssueCommentAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -31,13 +31,13 @@ export function issueEditIssueCommentAttachmentHandlerResponse404(data: IssueEdi
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse413(data?: IssueEditIssueCommentAttachment413) {
+export function issueEditIssueCommentAttachmentHandlerResponse413(data?: IssueEditIssueCommentAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse423(data: IssueEditIssueCommentAttachment423) {
+export function issueEditIssueCommentAttachmentHandlerResponse423(data: IssueEditIssueCommentAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -48,17 +48,20 @@ export function issueEditIssueCommentAttachmentHandlerResponse423(data: IssueEdi
 
 export function issueEditIssueCommentAttachmentHandler(
   data?:
-    | IssueEditIssueCommentAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+    | IssueEditIssueCommentAttachmentResponse
+    | HttpResponseResolver<Record<string, string>, IssueEditIssueCommentAttachmentBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, IssueEditIssueCommentAttachmentBody>(
+    `/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

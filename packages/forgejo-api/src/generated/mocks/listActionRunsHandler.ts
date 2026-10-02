@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListActionRunsQueryResponse, ListActionRuns400, ListActionRuns403 } from '../types/ListActionRuns';
+import type { ListActionRunsResponse, ListActionRunsStatus400, ListActionRunsStatus403 } from '../types/ListActionRuns';
 import { http } from 'msw';
 
-export function listActionRunsHandlerResponse200(data: ListActionRunsQueryResponse) {
+export function listActionRunsHandlerResponse200(data: ListActionRunsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function listActionRunsHandlerResponse200(data: ListActionRunsQueryRespon
   });
 }
 
-export function listActionRunsHandlerResponse400(data: ListActionRuns400) {
+export function listActionRunsHandlerResponse400(data: ListActionRunsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function listActionRunsHandlerResponse400(data: ListActionRuns400) {
   });
 }
 
-export function listActionRunsHandlerResponse403(data: ListActionRuns403) {
+export function listActionRunsHandlerResponse403(data: ListActionRunsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function listActionRunsHandlerResponse403(data: ListActionRuns403) {
 
 export function listActionRunsHandler(
   data?:
-    | ListActionRunsQueryResponse
+    | ListActionRunsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runs`, function handler(info) {

@@ -6,12 +6,6 @@
 import type { IssueConfigContactLink } from './IssueConfigContactLink';
 
 export type IssueConfig = {
-  /**
-   * @type boolean | undefined
-   */
   blank_issues_enabled?: boolean;
-  /**
-   * @type array | undefined
-   */
   contact_links?: IssueConfigContactLink[];
 };

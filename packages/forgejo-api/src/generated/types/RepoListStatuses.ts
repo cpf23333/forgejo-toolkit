@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CommitStatus } from './CommitStatus';
 
-export type RepoListStatusesPathParams = {
+export type RepoListStatusesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type RepoListStatusesPathParams = {
   sha: string;
 };
 
-export const repoListStatusesQueryParamsSortEnum = {
+export const repoListStatusesSort = {
   oldest: 'oldest',
   recentupdate: 'recentupdate',
   leastupdate: 'leastupdate',
@@ -33,10 +33,9 @@ export const repoListStatusesQueryParamsSortEnum = {
   highestindex: 'highestindex',
 } as const;
 
-export type RepoListStatusesQueryParamsSortEnumKey =
-  (typeof repoListStatusesQueryParamsSortEnum)[keyof typeof repoListStatusesQueryParamsSortEnum];
+export type RepoListStatusesSortKey = (typeof repoListStatusesSort)[keyof typeof repoListStatusesSort];
 
-export const repoListStatusesQueryParamsStateEnum = {
+export const repoListStatusesState = {
   pending: 'pending',
   success: 'success',
   error: 'error',
@@ -44,20 +43,19 @@ export const repoListStatusesQueryParamsStateEnum = {
   warning: 'warning',
 } as const;
 
-export type RepoListStatusesQueryParamsStateEnumKey =
-  (typeof repoListStatusesQueryParamsStateEnum)[keyof typeof repoListStatusesQueryParamsStateEnum];
+export type RepoListStatusesStateKey = (typeof repoListStatusesState)[keyof typeof repoListStatusesState];
 
-export type RepoListStatusesQueryParams = {
+export type RepoListStatusesQuery = {
   /**
    * @description type of sort
    * @type string | undefined
    */
-  sort?: RepoListStatusesQueryParamsSortEnumKey;
+  sort?: RepoListStatusesSortKey;
   /**
    * @description type of state
    * @type string | undefined
    */
-  state?: RepoListStatusesQueryParamsStateEnumKey;
+  state?: RepoListStatusesStateKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -70,26 +68,73 @@ export type RepoListStatusesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description CommitStatusList
- */
-export type RepoListStatuses200 = CommitStatus[];
+export type RepoListStatusesStatus200Json = CommitStatus[];
+
+export type RepoListStatusesStatus200Html = CommitStatus[];
+
+export type RepoListStatusesStatus200 = RepoListStatusesStatus200Json | RepoListStatusesStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListStatuses400 = APIError;
+export type RepoListStatusesStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListStatuses404 = APINotFound;
+export type RepoListStatusesStatus400Html = APIError;
 
-export type RepoListStatusesQueryResponse = RepoListStatuses200;
+export type RepoListStatusesStatus400 = RepoListStatusesStatus400Json | RepoListStatusesStatus400Html;
 
-export type RepoListStatusesQuery = {
-  Response: RepoListStatuses200;
-  PathParams: RepoListStatusesPathParams;
-  QueryParams: RepoListStatusesQueryParams;
-  Errors: RepoListStatuses400 | RepoListStatuses404;
+export type RepoListStatusesStatus404Json = APINotFound;
+
+export type RepoListStatusesStatus404Html = APINotFound;
+
+export type RepoListStatusesStatus404 = RepoListStatusesStatus404Json | RepoListStatusesStatus404Html;
+
+export type RepoListStatusesOptions = {
+  body?: never;
+  path: RepoListStatusesPath;
+  query?: RepoListStatusesQuery;
+  headers?: never;
 };
+
+export type RepoListStatusesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListStatusesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListStatusesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListStatusesResponse =
+  | RepoListStatusesStatus200
+  | RepoListStatusesStatus400
+  | RepoListStatusesStatus404;

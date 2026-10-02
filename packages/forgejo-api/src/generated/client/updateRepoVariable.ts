@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UpdateRepoVariableMutationRequest,
-  UpdateRepoVariableMutationResponse,
-  UpdateRepoVariablePathParams,
-  UpdateRepoVariable400,
-  UpdateRepoVariable404,
-} from '../types/UpdateRepoVariable';
-
-function getUpdateRepoVariableUrl(
-  owner: UpdateRepoVariablePathParams['owner'],
-  repo: UpdateRepoVariablePathParams['repo'],
-  variablename: UpdateRepoVariablePathParams['variablename'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UpdateRepoVariableOptions, UpdateRepoVariableResponses } from '../types/UpdateRepoVariable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a repo-level variable
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
-export async function updateRepoVariable(
-  owner: UpdateRepoVariablePathParams['owner'],
-  repo: UpdateRepoVariablePathParams['repo'],
-  variablename: UpdateRepoVariablePathParams['variablename'],
-  data: UpdateRepoVariableMutationRequest,
-  config: Partial<RequestConfig<UpdateRepoVariableMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function updateRepoVariable<ThrowOnError extends boolean = true>(
+  options: Options<UpdateRepoVariableOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UpdateRepoVariableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UpdateRepoVariableMutationResponse,
-    ResponseErrorConfig<UpdateRepoVariable400 | UpdateRepoVariable404>,
-    UpdateRepoVariableMutationRequest
-  >({
-    method: 'PUT',
-    url: getUpdateRepoVariableUrl(owner, repo, variablename).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/actions/variables/{variablename}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UpdateRepoVariableResponses, ThrowOnError>>;
 }

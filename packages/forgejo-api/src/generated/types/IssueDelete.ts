@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeletePathParams = {
+export type IssueDeletePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,57 @@ export type IssueDeletePathParams = {
   repo: string;
   /**
    * @description index of issue to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDelete204 = any;
+export type IssueDeleteStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueDelete403 = APIForbiddenError;
+export type IssueDeleteStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDelete404 = APINotFound;
+export type IssueDeleteStatus403Html = APIForbiddenError;
 
-export type IssueDeleteMutationResponse = IssueDelete204;
+export type IssueDeleteStatus403 = IssueDeleteStatus403Json | IssueDeleteStatus403Html;
 
-export type IssueDeleteMutation = {
-  Response: IssueDelete204;
-  PathParams: IssueDeletePathParams;
-  Errors: IssueDelete403 | IssueDelete404;
+export type IssueDeleteStatus404Json = APINotFound;
+
+export type IssueDeleteStatus404Html = APINotFound;
+
+export type IssueDeleteStatus404 = IssueDeleteStatus404Json | IssueDeleteStatus404Html;
+
+export type IssueDeleteOptions = {
+  body?: never;
+  path: IssueDeletePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteResponses = {
+  '204': IssueDeleteStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteResponse = IssueDeleteStatus204 | IssueDeleteStatus403 | IssueDeleteStatus404;

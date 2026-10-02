@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetLatestReleaseQueryResponse,
-  RepoGetLatestReleasePathParams,
-  RepoGetLatestRelease404,
-} from '../types/RepoGetLatestRelease';
-
-function getRepoGetLatestReleaseUrl(
-  owner: RepoGetLatestReleasePathParams['owner'],
-  repo: RepoGetLatestReleasePathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/releases/latest` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetLatestReleaseOptions, RepoGetLatestReleaseResponses } from '../types/RepoGetLatestRelease';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets the most recent non-prerelease, non-draft release of a repository, sorted by created_at
  * {@link /repos/:owner/:repo/releases/latest}
  */
-export async function repoGetLatestRelease(
-  owner: RepoGetLatestReleasePathParams['owner'],
-  repo: RepoGetLatestReleasePathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetLatestRelease<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetLatestReleaseOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetLatestReleaseResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetLatestReleaseQueryResponse, ResponseErrorConfig<RepoGetLatestRelease404>, unknown>({
-    method: 'GET',
-    url: getRepoGetLatestReleaseUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/releases/latest',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetLatestReleaseResponses, ThrowOnError>>;
 }

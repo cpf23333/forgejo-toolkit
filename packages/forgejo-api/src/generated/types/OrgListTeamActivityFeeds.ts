@@ -6,18 +6,22 @@
 import type { APINotFound } from './APINotFound';
 import type { Activity } from './Activity';
 
-export type OrgListTeamActivityFeedsPathParams = {
+export type OrgListTeamActivityFeedsPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type OrgListTeamActivityFeedsQueryParams = {
+export type OrgListTeamActivityFeedsQuery = {
   /**
    * @description the date of the activities to be found
-   * @type string | undefined, date
+   *
+   * Format: `date`
+   * @type string | undefined
    */
   date?: string;
   /**
@@ -32,21 +36,51 @@ export type OrgListTeamActivityFeedsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActivityFeedsList
- */
-export type OrgListTeamActivityFeeds200 = Activity[];
+export type OrgListTeamActivityFeedsStatus200Json = Activity[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListTeamActivityFeeds404 = APINotFound;
+export type OrgListTeamActivityFeedsStatus200Html = Activity[];
 
-export type OrgListTeamActivityFeedsQueryResponse = OrgListTeamActivityFeeds200;
+export type OrgListTeamActivityFeedsStatus200 =
+  | OrgListTeamActivityFeedsStatus200Json
+  | OrgListTeamActivityFeedsStatus200Html;
 
-export type OrgListTeamActivityFeedsQuery = {
-  Response: OrgListTeamActivityFeeds200;
-  PathParams: OrgListTeamActivityFeedsPathParams;
-  QueryParams: OrgListTeamActivityFeedsQueryParams;
-  Errors: OrgListTeamActivityFeeds404;
+export type OrgListTeamActivityFeedsStatus404Json = APINotFound;
+
+export type OrgListTeamActivityFeedsStatus404Html = APINotFound;
+
+export type OrgListTeamActivityFeedsStatus404 =
+  | OrgListTeamActivityFeedsStatus404Json
+  | OrgListTeamActivityFeedsStatus404Html;
+
+export type OrgListTeamActivityFeedsOptions = {
+  body?: never;
+  path: OrgListTeamActivityFeedsPath;
+  query?: OrgListTeamActivityFeedsQuery;
+  headers?: never;
 };
+
+export type OrgListTeamActivityFeedsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamActivityFeedsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamActivityFeedsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamActivityFeedsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamActivityFeedsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamActivityFeedsResponse = OrgListTeamActivityFeedsStatus200 | OrgListTeamActivityFeedsStatus404;

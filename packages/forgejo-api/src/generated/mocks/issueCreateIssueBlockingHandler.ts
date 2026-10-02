@@ -4,12 +4,14 @@
  */
 
 import type {
-  IssueCreateIssueBlockingMutationResponse,
-  IssueCreateIssueBlocking404,
+  IssueCreateIssueBlockingResponse,
+  IssueCreateIssueBlockingStatus404,
+  IssueCreateIssueBlockingBody,
 } from '../types/IssueCreateIssueBlocking';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateIssueBlockingHandlerResponse201(data: IssueCreateIssueBlockingMutationResponse) {
+export function issueCreateIssueBlockingHandlerResponse201(data: IssueCreateIssueBlockingResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -18,25 +20,26 @@ export function issueCreateIssueBlockingHandlerResponse201(data: IssueCreateIssu
   });
 }
 
-export function issueCreateIssueBlockingHandlerResponse404(data?: IssueCreateIssueBlocking404) {
+export function issueCreateIssueBlockingHandlerResponse404(data?: IssueCreateIssueBlockingStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
 }
 
 export function issueCreateIssueBlockingHandler(
-  data?:
-    | IssueCreateIssueBlockingMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueCreateIssueBlockingResponse | HttpResponseResolver<Record<string, string>, IssueCreateIssueBlockingBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueCreateIssueBlockingBody>(
+    `/repos/:owner/:repo/issues/:index/blocks`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

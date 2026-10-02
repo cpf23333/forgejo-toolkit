@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgUnblockUserMutationResponse, OrgUnblockUser404, OrgUnblockUser422 } from '../types/OrgUnblockUser';
+import type { OrgUnblockUserResponse, OrgUnblockUserStatus404, OrgUnblockUserStatus422 } from '../types/OrgUnblockUser';
 import { http } from 'msw';
 
-export function orgUnblockUserHandlerResponse204(data?: OrgUnblockUserMutationResponse) {
+export function orgUnblockUserHandlerResponse204(data?: OrgUnblockUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgUnblockUserHandlerResponse404(data: OrgUnblockUser404) {
+export function orgUnblockUserHandlerResponse404(data: OrgUnblockUserStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -21,7 +21,7 @@ export function orgUnblockUserHandlerResponse404(data: OrgUnblockUser404) {
   });
 }
 
-export function orgUnblockUserHandlerResponse422(data: OrgUnblockUser422) {
+export function orgUnblockUserHandlerResponse422(data: OrgUnblockUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

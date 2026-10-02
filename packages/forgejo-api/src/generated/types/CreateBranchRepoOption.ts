@@ -5,6 +5,7 @@
 
 /**
  * @description CreateBranchRepoOption options when creating a branch in a repository
+ * @type object
  */
 export type CreateBranchRepoOption = {
   /**

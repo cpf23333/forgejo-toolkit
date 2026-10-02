@@ -3,46 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueListIssueCommentAttachmentsQueryResponse,
-  IssueListIssueCommentAttachmentsPathParams,
-  IssueListIssueCommentAttachments404,
+  IssueListIssueCommentAttachmentsOptions,
+  IssueListIssueCommentAttachmentsResponses,
 } from '../types/IssueListIssueCommentAttachments';
-
-function getIssueListIssueCommentAttachmentsUrl(
-  owner: IssueListIssueCommentAttachmentsPathParams['owner'],
-  repo: IssueListIssueCommentAttachmentsPathParams['repo'],
-  id: IssueListIssueCommentAttachmentsPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/assets` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List comment's attachments
  * {@link /repos/:owner/:repo/issues/comments/:id/assets}
  */
-export async function issueListIssueCommentAttachments(
-  owner: IssueListIssueCommentAttachmentsPathParams['owner'],
-  repo: IssueListIssueCommentAttachmentsPathParams['repo'],
-  id: IssueListIssueCommentAttachmentsPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueListIssueCommentAttachments<ThrowOnError extends boolean = true>(
+  options: Options<IssueListIssueCommentAttachmentsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueListIssueCommentAttachmentsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueListIssueCommentAttachmentsQueryResponse,
-    ResponseErrorConfig<IssueListIssueCommentAttachments404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueListIssueCommentAttachmentsUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/assets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueListIssueCommentAttachmentsResponses, ThrowOnError>>;
 }

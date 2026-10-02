@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentPutStarMutationResponse,
-  UserCurrentPutStarPathParams,
-  UserCurrentPutStar401,
-  UserCurrentPutStar403,
-  UserCurrentPutStar404,
-} from '../types/UserCurrentPutStar';
-
-function getUserCurrentPutStarUrl(
-  owner: UserCurrentPutStarPathParams['owner'],
-  repo: UserCurrentPutStarPathParams['repo'],
-) {
-  const res = { method: 'PUT', url: `/user/starred/${owner}/${repo}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentPutStarOptions, UserCurrentPutStarResponses } from '../types/UserCurrentPutStar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Star the given repo
  * {@link /user/starred/:owner/:repo}
  */
-export async function userCurrentPutStar(
-  owner: UserCurrentPutStarPathParams['owner'],
-  repo: UserCurrentPutStarPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentPutStar<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentPutStarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentPutStarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentPutStarMutationResponse,
-    ResponseErrorConfig<UserCurrentPutStar401 | UserCurrentPutStar403 | UserCurrentPutStar404>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getUserCurrentPutStarUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/user/starred/{owner}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentPutStarResponses, ThrowOnError>>;
 }

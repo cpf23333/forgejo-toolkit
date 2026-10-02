@@ -5,26 +5,24 @@
 
 /**
  * @description CreateLabelOption options for creating a label
+ * @type object
  */
 export type CreateLabelOption = {
   /**
+   * @example #00aabb
    * @type string
    */
   color: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
+   * @example false
    * @type boolean | undefined
    */
   exclusive?: boolean;
   /**
+   * @example false
    * @type boolean | undefined
    */
   is_archived?: boolean;
-  /**
-   * @type string
-   */
   name: string;
 };

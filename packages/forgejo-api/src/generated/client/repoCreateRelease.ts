@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreateReleaseMutationRequest,
-  RepoCreateReleaseMutationResponse,
-  RepoCreateReleasePathParams,
-  RepoCreateRelease404,
-  RepoCreateRelease409,
-  RepoCreateRelease422,
-} from '../types/RepoCreateRelease';
-
-function getRepoCreateReleaseUrl(
-  owner: RepoCreateReleasePathParams['owner'],
-  repo: RepoCreateReleasePathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/releases` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreateReleaseOptions, RepoCreateReleaseResponses } from '../types/RepoCreateRelease';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a release
  * {@link /repos/:owner/:repo/releases}
  */
-export async function repoCreateRelease(
-  owner: RepoCreateReleasePathParams['owner'],
-  repo: RepoCreateReleasePathParams['repo'],
-  data: RepoCreateReleaseMutationRequest,
-  config: Partial<RequestConfig<RepoCreateReleaseMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateRelease<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateReleaseOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateReleaseResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateReleaseMutationResponse,
-    ResponseErrorConfig<RepoCreateRelease404 | RepoCreateRelease409 | RepoCreateRelease422>,
-    RepoCreateReleaseMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateReleaseUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/releases',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateReleaseResponses, ThrowOnError>>;
 }

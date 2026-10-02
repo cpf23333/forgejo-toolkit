@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreatePullRequestOption } from './CreatePullRequestOption';
 import type { PullRequest } from './PullRequest';
 
-export type RepoCreatePullRequestPathParams = {
+export type RepoCreatePullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,47 +24,122 @@ export type RepoCreatePullRequestPathParams = {
 };
 
 /**
- * @description PullRequest
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoCreatePullRequest201 = PullRequest;
+export type RepoCreatePullRequestStatus201Json = PullRequest;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoCreatePullRequest404 = APINotFound;
+export type RepoCreatePullRequestStatus201Html = PullRequest;
+
+export type RepoCreatePullRequestStatus201 = RepoCreatePullRequestStatus201Json | RepoCreatePullRequestStatus201Html;
+
+export type RepoCreatePullRequestStatus404Json = APINotFound;
+
+export type RepoCreatePullRequestStatus404Html = APINotFound;
+
+export type RepoCreatePullRequestStatus404 = RepoCreatePullRequestStatus404Json | RepoCreatePullRequestStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreatePullRequest409 = APIError;
+export type RepoCreatePullRequestStatus409Json = APIError;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreatePullRequest413 = any;
+export type RepoCreatePullRequestStatus409Html = APIError;
+
+export type RepoCreatePullRequestStatus409 = RepoCreatePullRequestStatus409Json | RepoCreatePullRequestStatus409Html;
+
+export type RepoCreatePullRequestStatus413 = unknown;
+
+export type RepoCreatePullRequestStatus422Json = APIValidationError;
+
+export type RepoCreatePullRequestStatus422Html = APIValidationError;
+
+export type RepoCreatePullRequestStatus422 = RepoCreatePullRequestStatus422Json | RepoCreatePullRequestStatus422Html;
+
+export type RepoCreatePullRequestStatus423Json = APIRepoArchivedError;
+
+export type RepoCreatePullRequestStatus423Html = APIRepoArchivedError;
+
+export type RepoCreatePullRequestStatus423 = RepoCreatePullRequestStatus423Json | RepoCreatePullRequestStatus423Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreatePullRequestOption options when creating a pull request
+ * @type object | undefined
  */
-export type RepoCreatePullRequest422 = APIValidationError;
+export type RepoCreatePullRequestBody = CreatePullRequestOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCreatePullRequest423 = APIRepoArchivedError;
-
-export type RepoCreatePullRequestMutationRequest = CreatePullRequestOption;
-
-export type RepoCreatePullRequestMutationResponse = RepoCreatePullRequest201;
-
-export type RepoCreatePullRequestMutation = {
-  Response: RepoCreatePullRequest201;
-  Request: RepoCreatePullRequestMutationRequest;
-  PathParams: RepoCreatePullRequestPathParams;
-  Errors:
-    | RepoCreatePullRequest404
-    | RepoCreatePullRequest409
-    | RepoCreatePullRequest413
-    | RepoCreatePullRequest422
-    | RepoCreatePullRequest423;
+export type RepoCreatePullRequestOptions = {
+  body: RepoCreatePullRequestBody;
+  path: RepoCreatePullRequestPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreatePullRequestResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullRequestStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullRequestStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullRequestStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullRequestStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullRequestStatus409Html;
+      };
+  '413': RepoCreatePullRequestStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullRequestStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullRequestStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullRequestStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullRequestStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreatePullRequestResponse =
+  | RepoCreatePullRequestStatus201
+  | RepoCreatePullRequestStatus404
+  | RepoCreatePullRequestStatus409
+  | RepoCreatePullRequestStatus413
+  | RepoCreatePullRequestStatus422
+  | RepoCreatePullRequestStatus423;

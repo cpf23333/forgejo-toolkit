@@ -3,65 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreateFileMutationRequest,
-  RepoCreateFileMutationResponse,
-  RepoCreateFilePathParams,
-  RepoCreateFile403,
-  RepoCreateFile404,
-  RepoCreateFile409,
-  RepoCreateFile413,
-  RepoCreateFile422,
-  RepoCreateFile423,
-} from '../types/RepoCreateFile';
-
-function getRepoCreateFileUrl(
-  owner: RepoCreateFilePathParams['owner'],
-  repo: RepoCreateFilePathParams['repo'],
-  filepath: RepoCreateFilePathParams['filepath'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreateFileOptions, RepoCreateFileResponses } from '../types/RepoCreateFile';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a file in a repository
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
-export async function repoCreateFile(
-  owner: RepoCreateFilePathParams['owner'],
-  repo: RepoCreateFilePathParams['repo'],
-  filepath: RepoCreateFilePathParams['filepath'],
-  data: RepoCreateFileMutationRequest,
-  config: Partial<RequestConfig<RepoCreateFileMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateFile<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateFileOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateFileResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateFileMutationResponse,
-    ResponseErrorConfig<
-      | RepoCreateFile403
-      | RepoCreateFile404
-      | RepoCreateFile409
-      | RepoCreateFile413
-      | RepoCreateFile422
-      | RepoCreateFile423
-    >,
-    RepoCreateFileMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateFileUrl(owner, repo, filepath).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/contents/{filepath}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateFileResponses, ThrowOnError>>;
 }

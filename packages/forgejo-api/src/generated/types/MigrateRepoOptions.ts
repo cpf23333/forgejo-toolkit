@@ -19,88 +19,37 @@ export type MigrateRepoOptionsServiceEnumKey =
 
 /**
  * @description MigrateRepoOptions options for migrating repository\'s\nthis is used to interact with api v1
+ * @type object
  */
 export type MigrateRepoOptions = {
-  /**
-   * @type string | undefined
-   */
   auth_password?: string;
-  /**
-   * @type string | undefined
-   */
   auth_token?: string;
-  /**
-   * @type string | undefined
-   */
   auth_username?: string;
-  /**
-   * @type string
-   */
   clone_addr: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type boolean | undefined
-   */
   issues?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   labels?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   lfs?: boolean;
-  /**
-   * @type string | undefined
-   */
   lfs_endpoint?: string;
-  /**
-   * @type boolean | undefined
-   */
   milestones?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   mirror?: boolean;
-  /**
-   * @type string | undefined
-   */
   mirror_interval?: string;
-  /**
-   * @type boolean | undefined
-   */
   private?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   pull_requests?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   releases?: boolean;
-  /**
-   * @type string
-   */
   repo_name: string;
   /**
    * @description Name of User or Organisation who will own Repo after migration
    * @type string | undefined
    */
   repo_owner?: string;
-  /**
-   * @type string | undefined
-   */
   service?: MigrateRepoOptionsServiceEnumKey;
   /**
    * @description deprecated (only for backwards compatibility)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   uid?: number;
-  /**
-   * @type boolean | undefined
-   */
   wiki?: boolean;
 };

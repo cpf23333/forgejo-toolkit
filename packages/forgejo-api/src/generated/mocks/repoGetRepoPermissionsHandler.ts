@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoGetRepoPermissionsQueryResponse,
-  RepoGetRepoPermissions403,
-  RepoGetRepoPermissions404,
+  RepoGetRepoPermissionsResponse,
+  RepoGetRepoPermissionsStatus403,
+  RepoGetRepoPermissionsStatus404,
 } from '../types/RepoGetRepoPermissions';
 import { http } from 'msw';
 
-export function repoGetRepoPermissionsHandlerResponse200(data: RepoGetRepoPermissionsQueryResponse) {
+export function repoGetRepoPermissionsHandlerResponse200(data: RepoGetRepoPermissionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoGetRepoPermissionsHandlerResponse200(data: RepoGetRepoPermis
   });
 }
 
-export function repoGetRepoPermissionsHandlerResponse403(data: RepoGetRepoPermissions403) {
+export function repoGetRepoPermissionsHandlerResponse403(data: RepoGetRepoPermissionsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function repoGetRepoPermissionsHandlerResponse403(data: RepoGetRepoPermis
   });
 }
 
-export function repoGetRepoPermissionsHandlerResponse404(data: RepoGetRepoPermissions404) {
+export function repoGetRepoPermissionsHandlerResponse404(data: RepoGetRepoPermissionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoGetRepoPermissionsHandlerResponse404(data: RepoGetRepoPermis
 
 export function repoGetRepoPermissionsHandler(
   data?:
-    | RepoGetRepoPermissionsQueryResponse
+    | RepoGetRepoPermissionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/collaborators/:collaborator/permission`, function handler(info) {

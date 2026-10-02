@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type AdminCronRunPathParams = {
+export type AdminCronRunPath = {
   /**
    * @description task to run
    * @type string
@@ -13,20 +13,35 @@ export type AdminCronRunPathParams = {
   task: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminCronRun204 = any;
+export type AdminCronRunStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminCronRun404 = APINotFound;
+export type AdminCronRunStatus404Json = APINotFound;
 
-export type AdminCronRunMutationResponse = AdminCronRun204;
+export type AdminCronRunStatus404Html = APINotFound;
 
-export type AdminCronRunMutation = {
-  Response: AdminCronRun204;
-  PathParams: AdminCronRunPathParams;
-  Errors: AdminCronRun404;
+export type AdminCronRunStatus404 = AdminCronRunStatus404Json | AdminCronRunStatus404Html;
+
+export type AdminCronRunOptions = {
+  body?: never;
+  path: AdminCronRunPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCronRunResponses = {
+  '204': AdminCronRunStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminCronRunStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCronRunStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCronRunResponse = AdminCronRunStatus204 | AdminCronRunStatus404;

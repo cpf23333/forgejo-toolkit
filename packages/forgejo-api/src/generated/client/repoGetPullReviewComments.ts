@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetPullReviewCommentsQueryResponse,
-  RepoGetPullReviewCommentsPathParams,
-  RepoGetPullReviewComments404,
+  RepoGetPullReviewCommentsOptions,
+  RepoGetPullReviewCommentsResponses,
 } from '../types/RepoGetPullReviewComments';
-
-function getRepoGetPullReviewCommentsUrl(
-  owner: RepoGetPullReviewCommentsPathParams['owner'],
-  repo: RepoGetPullReviewCommentsPathParams['repo'],
-  index: RepoGetPullReviewCommentsPathParams['index'],
-  id: RepoGetPullReviewCommentsPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/comments` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a specific review for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/comments}
  */
-export async function repoGetPullReviewComments(
-  owner: RepoGetPullReviewCommentsPathParams['owner'],
-  repo: RepoGetPullReviewCommentsPathParams['repo'],
-  index: RepoGetPullReviewCommentsPathParams['index'],
-  id: RepoGetPullReviewCommentsPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetPullReviewComments<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetPullReviewCommentsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetPullReviewCommentsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetPullReviewCommentsQueryResponse,
-    ResponseErrorConfig<RepoGetPullReviewComments404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetPullReviewCommentsUrl(owner, repo, index, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/comments',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetPullReviewCommentsResponses, ThrowOnError>>;
 }

@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { UnlinkPackageMutationResponse, UnlinkPackagePathParams, UnlinkPackage404 } from '../types/UnlinkPackage';
-
-function getUnlinkPackageUrl(
-  owner: UnlinkPackagePathParams['owner'],
-  type: UnlinkPackagePathParams['type'],
-  name: UnlinkPackagePathParams['name'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/packages/${owner}/${type}/${name}/-/unlink` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UnlinkPackageOptions, UnlinkPackageResponses } from '../types/UnlinkPackage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unlink a package from a repository
  * {@link /packages/:owner/:type/:name/-/unlink}
  */
-export async function unlinkPackage(
-  owner: UnlinkPackagePathParams['owner'],
-  type: UnlinkPackagePathParams['type'],
-  name: UnlinkPackagePathParams['name'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function unlinkPackage<ThrowOnError extends boolean = true>(
+  options: Options<UnlinkPackageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UnlinkPackageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UnlinkPackageMutationResponse, ResponseErrorConfig<UnlinkPackage404>, unknown>({
-    method: 'POST',
-    url: getUnlinkPackageUrl(owner, type, name).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/packages/{owner}/{type}/{name}/-/unlink',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UnlinkPackageResponses, ThrowOnError>>;
 }

@@ -5,11 +5,14 @@
 
 /**
  * @description QuotaUsedSizeAssetsPackages represents the size-based package quota usage of a user
+ * @type object
  */
 export type QuotaUsedSizeAssetsPackages = {
   /**
    * @description Storage suze used for the user\'s packages
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   all?: number;
 };

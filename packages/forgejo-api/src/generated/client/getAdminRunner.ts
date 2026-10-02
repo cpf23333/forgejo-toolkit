@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetAdminRunnerQueryResponse,
-  GetAdminRunnerPathParams,
-  GetAdminRunner400,
-  GetAdminRunner404,
-} from '../types/GetAdminRunner';
-
-function getGetAdminRunnerUrl(runner_id: GetAdminRunnerPathParams['runner_id']) {
-  const res = {
-    method: 'GET',
-    url: `/admin/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetAdminRunnerOptions, GetAdminRunnerResponses } from '../types/GetAdminRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a particular runner, no matter whether it is a global runner or scoped to an organization, user, or repository
  * {@link /admin/actions/runners/:runner_id}
  */
-export async function getAdminRunner(
-  runner_id: GetAdminRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getAdminRunner<ThrowOnError extends boolean = true>(
+  options: Options<GetAdminRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetAdminRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetAdminRunnerQueryResponse,
-    ResponseErrorConfig<GetAdminRunner400 | GetAdminRunner404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetAdminRunnerUrl(runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetAdminRunnerResponses, ThrowOnError>>;
 }

@@ -4,16 +4,18 @@
  */
 
 import type {
-  RepoEditPullRequestMutationResponse,
-  RepoEditPullRequest403,
-  RepoEditPullRequest404,
-  RepoEditPullRequest409,
-  RepoEditPullRequest412,
-  RepoEditPullRequest422,
+  RepoEditPullRequestResponse,
+  RepoEditPullRequestStatus403,
+  RepoEditPullRequestStatus404,
+  RepoEditPullRequestStatus409,
+  RepoEditPullRequestStatus412,
+  RepoEditPullRequestStatus422,
+  RepoEditPullRequestBody,
 } from '../types/RepoEditPullRequest';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditPullRequestHandlerResponse201(data: RepoEditPullRequestMutationResponse) {
+export function repoEditPullRequestHandlerResponse201(data: RepoEditPullRequestResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function repoEditPullRequestHandlerResponse201(data: RepoEditPullRequestM
   });
 }
 
-export function repoEditPullRequestHandlerResponse403(data: RepoEditPullRequest403) {
+export function repoEditPullRequestHandlerResponse403(data: RepoEditPullRequestStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -31,7 +33,7 @@ export function repoEditPullRequestHandlerResponse403(data: RepoEditPullRequest4
   });
 }
 
-export function repoEditPullRequestHandlerResponse404(data: RepoEditPullRequest404) {
+export function repoEditPullRequestHandlerResponse404(data: RepoEditPullRequestStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -40,7 +42,7 @@ export function repoEditPullRequestHandlerResponse404(data: RepoEditPullRequest4
   });
 }
 
-export function repoEditPullRequestHandlerResponse409(data: RepoEditPullRequest409) {
+export function repoEditPullRequestHandlerResponse409(data: RepoEditPullRequestStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -49,7 +51,7 @@ export function repoEditPullRequestHandlerResponse409(data: RepoEditPullRequest4
   });
 }
 
-export function repoEditPullRequestHandlerResponse412(data: RepoEditPullRequest412) {
+export function repoEditPullRequestHandlerResponse412(data: RepoEditPullRequestStatus412) {
   return new Response(JSON.stringify(data), {
     status: 412,
     headers: {
@@ -58,7 +60,7 @@ export function repoEditPullRequestHandlerResponse412(data: RepoEditPullRequest4
   });
 }
 
-export function repoEditPullRequestHandlerResponse422(data: RepoEditPullRequest422) {
+export function repoEditPullRequestHandlerResponse422(data: RepoEditPullRequestStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -68,18 +70,19 @@ export function repoEditPullRequestHandlerResponse422(data: RepoEditPullRequest4
 }
 
 export function repoEditPullRequestHandler(
-  data?:
-    | RepoEditPullRequestMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoEditPullRequestResponse | HttpResponseResolver<Record<string, string>, RepoEditPullRequestBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/pulls/:index`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoEditPullRequestBody>(
+    `/repos/:owner/:repo/pulls/:index`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

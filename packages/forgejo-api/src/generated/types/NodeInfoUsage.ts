@@ -7,14 +7,19 @@ import type { NodeInfoUsageUsers } from './NodeInfoUsageUsers';
 
 /**
  * @description NodeInfoUsage contains usage statistics for this server
+ * @type object
  */
 export type NodeInfoUsage = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   localComments?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   localPosts?: number;
   /**

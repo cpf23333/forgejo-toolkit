@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetPullRequestByBaseHeadQueryResponse,
-  RepoGetPullRequestByBaseHeadPathParams,
-  RepoGetPullRequestByBaseHead404,
+  RepoGetPullRequestByBaseHeadOptions,
+  RepoGetPullRequestByBaseHeadResponses,
 } from '../types/RepoGetPullRequestByBaseHead';
-
-function getRepoGetPullRequestByBaseHeadUrl(
-  owner: RepoGetPullRequestByBaseHeadPathParams['owner'],
-  repo: RepoGetPullRequestByBaseHeadPathParams['repo'],
-  base: RepoGetPullRequestByBaseHeadPathParams['base'],
-  head: RepoGetPullRequestByBaseHeadPathParams['head'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${base}/${head}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a pull request by base and head
  * {@link /repos/:owner/:repo/pulls/:base/:head}
  */
-export async function repoGetPullRequestByBaseHead(
-  owner: RepoGetPullRequestByBaseHeadPathParams['owner'],
-  repo: RepoGetPullRequestByBaseHeadPathParams['repo'],
-  base: RepoGetPullRequestByBaseHeadPathParams['base'],
-  head: RepoGetPullRequestByBaseHeadPathParams['head'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetPullRequestByBaseHead<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetPullRequestByBaseHeadOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetPullRequestByBaseHeadResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetPullRequestByBaseHeadQueryResponse,
-    ResponseErrorConfig<RepoGetPullRequestByBaseHead404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetPullRequestByBaseHeadUrl(owner, repo, base, head).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{base}/{head}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetPullRequestByBaseHeadResponses, ThrowOnError>>;
 }

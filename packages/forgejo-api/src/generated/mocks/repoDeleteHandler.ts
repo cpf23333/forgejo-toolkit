@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoDeleteMutationResponse, RepoDelete403, RepoDelete404 } from '../types/RepoDelete';
+import type { RepoDeleteResponse, RepoDeleteStatus403, RepoDeleteStatus404 } from '../types/RepoDelete';
 import { http } from 'msw';
 
-export function repoDeleteHandlerResponse204(data?: RepoDeleteMutationResponse) {
+export function repoDeleteHandlerResponse204(data?: RepoDeleteResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteHandlerResponse403(data: RepoDelete403) {
+export function repoDeleteHandlerResponse403(data: RepoDeleteStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function repoDeleteHandlerResponse403(data: RepoDelete403) {
   });
 }
 
-export function repoDeleteHandlerResponse404(data: RepoDelete404) {
+export function repoDeleteHandlerResponse404(data: RepoDeleteStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

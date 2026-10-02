@@ -5,6 +5,7 @@
 
 /**
  * @description UpdateRepoAvatarUserOption options when updating the repo avatar
+ * @type object
  */
 export type UpdateRepoAvatarOption = {
   /**

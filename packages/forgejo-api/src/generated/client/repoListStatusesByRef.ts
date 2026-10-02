@@ -3,50 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListStatusesByRefQueryResponse,
-  RepoListStatusesByRefPathParams,
-  RepoListStatusesByRefQueryParams,
-  RepoListStatusesByRef400,
-  RepoListStatusesByRef404,
-} from '../types/RepoListStatusesByRef';
-
-function getRepoListStatusesByRefUrl(
-  owner: RepoListStatusesByRefPathParams['owner'],
-  repo: RepoListStatusesByRefPathParams['repo'],
-  ref: RepoListStatusesByRefPathParams['ref'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/commits/${ref}/statuses` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListStatusesByRefOptions, RepoListStatusesByRefResponses } from '../types/RepoListStatusesByRef';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a commit's statuses, by branch/tag/commit reference
  * {@link /repos/:owner/:repo/commits/:ref/statuses}
  */
-export async function repoListStatusesByRef(
-  owner: RepoListStatusesByRefPathParams['owner'],
-  repo: RepoListStatusesByRefPathParams['repo'],
-  ref: RepoListStatusesByRefPathParams['ref'],
-  params?: RepoListStatusesByRefQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListStatusesByRef<ThrowOnError extends boolean = true>(
+  options: Options<RepoListStatusesByRefOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListStatusesByRefResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListStatusesByRefQueryResponse,
-    ResponseErrorConfig<RepoListStatusesByRef400 | RepoListStatusesByRef404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListStatusesByRefUrl(owner, repo, ref).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/commits/{ref}/statuses',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListStatusesByRefResponses, ThrowOnError>>;
 }

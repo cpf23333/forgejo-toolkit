@@ -4,14 +4,16 @@
  */
 
 import type {
-  RegisterRepoRunnerMutationResponse,
-  RegisterRepoRunner400,
-  RegisterRepoRunner401,
-  RegisterRepoRunner404,
+  RegisterRepoRunnerResponse,
+  RegisterRepoRunnerStatus400,
+  RegisterRepoRunnerStatus401,
+  RegisterRepoRunnerStatus404,
+  RegisterRepoRunnerBody,
 } from '../types/RegisterRepoRunner';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function registerRepoRunnerHandlerResponse201(data: RegisterRepoRunnerMutationResponse) {
+export function registerRepoRunnerHandlerResponse201(data: RegisterRepoRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function registerRepoRunnerHandlerResponse201(data: RegisterRepoRunnerMut
   });
 }
 
-export function registerRepoRunnerHandlerResponse400(data: RegisterRepoRunner400) {
+export function registerRepoRunnerHandlerResponse400(data: RegisterRepoRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function registerRepoRunnerHandlerResponse400(data: RegisterRepoRunner400
   });
 }
 
-export function registerRepoRunnerHandlerResponse401(data: RegisterRepoRunner401) {
+export function registerRepoRunnerHandlerResponse401(data: RegisterRepoRunnerStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +40,7 @@ export function registerRepoRunnerHandlerResponse401(data: RegisterRepoRunner401
   });
 }
 
-export function registerRepoRunnerHandlerResponse404(data: RegisterRepoRunner404) {
+export function registerRepoRunnerHandlerResponse404(data: RegisterRepoRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,18 +50,19 @@ export function registerRepoRunnerHandlerResponse404(data: RegisterRepoRunner404
 }
 
 export function registerRepoRunnerHandler(
-  data?:
-    | RegisterRepoRunnerMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RegisterRepoRunnerResponse | HttpResponseResolver<Record<string, string>, RegisterRepoRunnerBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/actions/runners`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RegisterRepoRunnerBody>(
+    `/repos/:owner/:repo/actions/runners`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

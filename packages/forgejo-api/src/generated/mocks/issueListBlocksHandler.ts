@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { IssueListBlocksQueryResponse, IssueListBlocks404 } from '../types/IssueListBlocks';
+import type { IssueListBlocksResponse, IssueListBlocksStatus404 } from '../types/IssueListBlocks';
 import { http } from 'msw';
 
-export function issueListBlocksHandlerResponse200(data: IssueListBlocksQueryResponse) {
+export function issueListBlocksHandlerResponse200(data: IssueListBlocksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function issueListBlocksHandlerResponse200(data: IssueListBlocksQueryResp
   });
 }
 
-export function issueListBlocksHandlerResponse404(data: IssueListBlocks404) {
+export function issueListBlocksHandlerResponse404(data: IssueListBlocksStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function issueListBlocksHandlerResponse404(data: IssueListBlocks404) {
 
 export function issueListBlocksHandler(
   data?:
-    | IssueListBlocksQueryResponse
+    | IssueListBlocksResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {

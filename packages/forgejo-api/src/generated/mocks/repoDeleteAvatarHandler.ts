@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoDeleteAvatarMutationResponse, RepoDeleteAvatar404 } from '../types/RepoDeleteAvatar';
+import type { RepoDeleteAvatarResponse, RepoDeleteAvatarStatus404 } from '../types/RepoDeleteAvatar';
 import { http } from 'msw';
 
-export function repoDeleteAvatarHandlerResponse204(data?: RepoDeleteAvatarMutationResponse) {
+export function repoDeleteAvatarHandlerResponse204(data?: RepoDeleteAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteAvatarHandlerResponse404(data: RepoDeleteAvatar404) {
+export function repoDeleteAvatarHandlerResponse404(data: RepoDeleteAvatarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -6,13 +6,39 @@
 import type { NodeInfo } from './NodeInfo';
 
 /**
- * @description NodeInfo
+ * @description NodeInfo contains standardized way of exposing metadata about a server running one of the distributed social networks
+ * @type object
  */
-export type GetNodeInfo200 = NodeInfo;
+export type GetNodeInfoStatus200Json = NodeInfo;
 
-export type GetNodeInfoQueryResponse = GetNodeInfo200;
+/**
+ * @description NodeInfo contains standardized way of exposing metadata about a server running one of the distributed social networks
+ * @type object
+ */
+export type GetNodeInfoStatus200Html = NodeInfo;
 
-export type GetNodeInfoQuery = {
-  Response: GetNodeInfo200;
-  Errors: any;
+export type GetNodeInfoStatus200 = GetNodeInfoStatus200Json | GetNodeInfoStatus200Html;
+
+export type GetNodeInfoOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetNodeInfoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetNodeInfoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetNodeInfoStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetNodeInfoResponse = GetNodeInfoStatus200;

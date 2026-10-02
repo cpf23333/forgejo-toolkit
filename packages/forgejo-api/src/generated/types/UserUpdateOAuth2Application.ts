@@ -9,42 +9,115 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { CreateOAuth2ApplicationOptions } from './CreateOAuth2ApplicationOptions';
 import type { OAuth2Application } from './OAuth2Application';
 
-export type UserUpdateOAuth2ApplicationPathParams = {
+export type UserUpdateOAuth2ApplicationPath = {
   /**
    * @description application to be updated
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * OAuth2Application represents an OAuth2 application.
- * @description OAuth2Application
- */
-export type UserUpdateOAuth2Application200 = OAuth2Application;
+export type UserUpdateOAuth2ApplicationStatus200Json = OAuth2Application;
+
+export type UserUpdateOAuth2ApplicationStatus200Html = OAuth2Application;
+
+export type UserUpdateOAuth2ApplicationStatus200 =
+  | UserUpdateOAuth2ApplicationStatus200Json
+  | UserUpdateOAuth2ApplicationStatus200Html;
+
+export type UserUpdateOAuth2ApplicationStatus401Json = APIUnauthorizedError;
+
+export type UserUpdateOAuth2ApplicationStatus401Html = APIUnauthorizedError;
+
+export type UserUpdateOAuth2ApplicationStatus401 =
+  | UserUpdateOAuth2ApplicationStatus401Json
+  | UserUpdateOAuth2ApplicationStatus401Html;
+
+export type UserUpdateOAuth2ApplicationStatus403Json = APIForbiddenError;
+
+export type UserUpdateOAuth2ApplicationStatus403Html = APIForbiddenError;
+
+export type UserUpdateOAuth2ApplicationStatus403 =
+  | UserUpdateOAuth2ApplicationStatus403Json
+  | UserUpdateOAuth2ApplicationStatus403Html;
+
+export type UserUpdateOAuth2ApplicationStatus404Json = APINotFound;
+
+export type UserUpdateOAuth2ApplicationStatus404Html = APINotFound;
+
+export type UserUpdateOAuth2ApplicationStatus404 =
+  | UserUpdateOAuth2ApplicationStatus404Json
+  | UserUpdateOAuth2ApplicationStatus404Html;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description CreateOAuth2ApplicationOptions holds options to create an oauth2 application
+ * @type object
  */
-export type UserUpdateOAuth2Application401 = APIUnauthorizedError;
+export type UserUpdateOAuth2ApplicationBodyJson = CreateOAuth2ApplicationOptions;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateOAuth2ApplicationOptions holds options to create an oauth2 application
+ * @type object
  */
-export type UserUpdateOAuth2Application403 = APIForbiddenError;
+export type UserUpdateOAuth2ApplicationBodyPlain = CreateOAuth2ApplicationOptions;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserUpdateOAuth2Application404 = APINotFound;
+export type UserUpdateOAuth2ApplicationBody =
+  | UserUpdateOAuth2ApplicationBodyJson
+  | UserUpdateOAuth2ApplicationBodyPlain;
 
-export type UserUpdateOAuth2ApplicationMutationRequest = CreateOAuth2ApplicationOptions;
-
-export type UserUpdateOAuth2ApplicationMutationResponse = UserUpdateOAuth2Application200;
-
-export type UserUpdateOAuth2ApplicationMutation = {
-  Response: UserUpdateOAuth2Application200;
-  Request: UserUpdateOAuth2ApplicationMutationRequest;
-  PathParams: UserUpdateOAuth2ApplicationPathParams;
-  Errors: UserUpdateOAuth2Application401 | UserUpdateOAuth2Application403 | UserUpdateOAuth2Application404;
+export type UserUpdateOAuth2ApplicationOptions = {
+  body: UserUpdateOAuth2ApplicationBody;
+  path: UserUpdateOAuth2ApplicationPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserUpdateOAuth2ApplicationResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateOAuth2ApplicationStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateOAuth2ApplicationStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateOAuth2ApplicationStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateOAuth2ApplicationStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateOAuth2ApplicationStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateOAuth2ApplicationStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateOAuth2ApplicationStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateOAuth2ApplicationStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserUpdateOAuth2ApplicationResponse =
+  | UserUpdateOAuth2ApplicationStatus200
+  | UserUpdateOAuth2ApplicationStatus401
+  | UserUpdateOAuth2ApplicationStatus403
+  | UserUpdateOAuth2ApplicationStatus404;

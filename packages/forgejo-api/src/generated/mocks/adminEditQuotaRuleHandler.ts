@@ -4,15 +4,17 @@
  */
 
 import type {
-  AdminEditQuotaRuleMutationResponse,
-  AdminEditQuotaRule400,
-  AdminEditQuotaRule403,
-  AdminEditQuotaRule404,
-  AdminEditQuotaRule422,
+  AdminEditQuotaRuleResponse,
+  AdminEditQuotaRuleStatus400,
+  AdminEditQuotaRuleStatus403,
+  AdminEditQuotaRuleStatus404,
+  AdminEditQuotaRuleStatus422,
+  AdminEditQuotaRuleBody,
 } from '../types/AdminEditQuotaRule';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminEditQuotaRuleHandlerResponse200(data: AdminEditQuotaRuleMutationResponse) {
+export function adminEditQuotaRuleHandlerResponse200(data: AdminEditQuotaRuleResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +23,7 @@ export function adminEditQuotaRuleHandlerResponse200(data: AdminEditQuotaRuleMut
   });
 }
 
-export function adminEditQuotaRuleHandlerResponse400(data: AdminEditQuotaRule400) {
+export function adminEditQuotaRuleHandlerResponse400(data: AdminEditQuotaRuleStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +32,7 @@ export function adminEditQuotaRuleHandlerResponse400(data: AdminEditQuotaRule400
   });
 }
 
-export function adminEditQuotaRuleHandlerResponse403(data: AdminEditQuotaRule403) {
+export function adminEditQuotaRuleHandlerResponse403(data: AdminEditQuotaRuleStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function adminEditQuotaRuleHandlerResponse403(data: AdminEditQuotaRule403
   });
 }
 
-export function adminEditQuotaRuleHandlerResponse404(data: AdminEditQuotaRule404) {
+export function adminEditQuotaRuleHandlerResponse404(data: AdminEditQuotaRuleStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,7 +50,7 @@ export function adminEditQuotaRuleHandlerResponse404(data: AdminEditQuotaRule404
   });
 }
 
-export function adminEditQuotaRuleHandlerResponse422(data: AdminEditQuotaRule422) {
+export function adminEditQuotaRuleHandlerResponse422(data: AdminEditQuotaRuleStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,18 +60,19 @@ export function adminEditQuotaRuleHandlerResponse422(data: AdminEditQuotaRule422
 }
 
 export function adminEditQuotaRuleHandler(
-  data?:
-    | AdminEditQuotaRuleMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminEditQuotaRuleResponse | HttpResponseResolver<Record<string, string>, AdminEditQuotaRuleBody>,
 ) {
-  return http.patch(`/admin/quota/rules/:quotarule`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, AdminEditQuotaRuleBody>(
+    `/admin/quota/rules/:quotarule`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

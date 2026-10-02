@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoDownloadCommitDiffOrPatchQueryResponse,
-  RepoDownloadCommitDiffOrPatch404,
+  RepoDownloadCommitDiffOrPatchResponse,
+  RepoDownloadCommitDiffOrPatchStatus404,
 } from '../types/RepoDownloadCommitDiffOrPatch';
 import { http } from 'msw';
 
-export function repoDownloadCommitDiffOrPatchHandlerResponse200(data: RepoDownloadCommitDiffOrPatchQueryResponse) {
+export function repoDownloadCommitDiffOrPatchHandlerResponse200(data: RepoDownloadCommitDiffOrPatchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoDownloadCommitDiffOrPatchHandlerResponse200(data: RepoDownlo
   });
 }
 
-export function repoDownloadCommitDiffOrPatchHandlerResponse404(data: RepoDownloadCommitDiffOrPatch404) {
+export function repoDownloadCommitDiffOrPatchHandlerResponse404(data: RepoDownloadCommitDiffOrPatchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,10 +29,10 @@ export function repoDownloadCommitDiffOrPatchHandlerResponse404(data: RepoDownlo
 
 export function repoDownloadCommitDiffOrPatchHandler(
   data?:
-    | RepoDownloadCommitDiffOrPatchQueryResponse
+    | RepoDownloadCommitDiffOrPatchResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(`/repos/:owner/:repo/git/commits/:sha.\\\\:diffType`, function handler(info) {
+  return http.get(`/repos/:owner/:repo/git/commits/:sha.\\:diffType`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

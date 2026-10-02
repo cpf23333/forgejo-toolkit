@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetReviewersQueryResponse, RepoGetReviewers404 } from '../types/RepoGetReviewers';
+import type { RepoGetReviewersResponse, RepoGetReviewersStatus404 } from '../types/RepoGetReviewers';
 import { http } from 'msw';
 
-export function repoGetReviewersHandlerResponse200(data: RepoGetReviewersQueryResponse) {
+export function repoGetReviewersHandlerResponse200(data: RepoGetReviewersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetReviewersHandlerResponse200(data: RepoGetReviewersQueryRe
   });
 }
 
-export function repoGetReviewersHandlerResponse404(data: RepoGetReviewers404) {
+export function repoGetReviewersHandlerResponse404(data: RepoGetReviewersStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetReviewersHandlerResponse404(data: RepoGetReviewers404) {
 
 export function repoGetReviewersHandler(
   data?:
-    | RepoGetReviewersQueryResponse
+    | RepoGetReviewersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/reviewers`, function handler(info) {

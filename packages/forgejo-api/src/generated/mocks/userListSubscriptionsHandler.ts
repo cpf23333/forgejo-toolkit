@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListSubscriptionsQueryResponse, UserListSubscriptions404 } from '../types/UserListSubscriptions';
+import type { UserListSubscriptionsResponse, UserListSubscriptionsStatus404 } from '../types/UserListSubscriptions';
 import { http } from 'msw';
 
-export function userListSubscriptionsHandlerResponse200(data: UserListSubscriptionsQueryResponse) {
+export function userListSubscriptionsHandlerResponse200(data: UserListSubscriptionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListSubscriptionsHandlerResponse200(data: UserListSubscripti
   });
 }
 
-export function userListSubscriptionsHandlerResponse404(data: UserListSubscriptions404) {
+export function userListSubscriptionsHandlerResponse404(data: UserListSubscriptionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListSubscriptionsHandlerResponse404(data: UserListSubscripti
 
 export function userListSubscriptionsHandler(
   data?:
-    | UserListSubscriptionsQueryResponse
+    | UserListSubscriptionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/subscriptions`, function handler(info) {

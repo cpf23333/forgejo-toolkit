@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetUserRunnersQueryResponse,
-  GetUserRunnersQueryParams,
-  GetUserRunners400,
-  GetUserRunners401,
-  GetUserRunners404,
-} from '../types/GetUserRunners';
-
-function getGetUserRunnersUrl() {
-  const res = { method: 'GET', url: `/user/actions/runners` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetUserRunnersOptions, GetUserRunnersResponses } from '../types/GetUserRunners';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get the user's runners
  * {@link /user/actions/runners}
  */
-export async function getUserRunners(
-  params?: GetUserRunnersQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getUserRunners<ThrowOnError extends boolean = true>(
+  options: Options<GetUserRunnersOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetUserRunnersResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetUserRunnersQueryResponse,
-    ResponseErrorConfig<GetUserRunners400 | GetUserRunners401 | GetUserRunners404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetUserRunnersUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetUserRunnersResponses, ThrowOnError>>;
 }

@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditOrgOption } from './EditOrgOption';
 import type { Organization } from './Organization';
 
-export type OrgEditPathParams = {
+export type OrgEditPath = {
   /**
    * @description name of the organization to edit
    * @type string
@@ -17,27 +17,83 @@ export type OrgEditPathParams = {
 };
 
 /**
- * @description Organization
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgEdit200 = Organization;
+export type OrgEditStatus200Json = Organization;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Organization represents an organization
+ * @type object
  */
-export type OrgEdit404 = APINotFound;
+export type OrgEditStatus200Html = Organization;
+
+export type OrgEditStatus200 = OrgEditStatus200Json | OrgEditStatus200Html;
+
+export type OrgEditStatus404Json = APINotFound;
+
+export type OrgEditStatus404Html = APINotFound;
+
+export type OrgEditStatus404 = OrgEditStatus404Json | OrgEditStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type OrgEdit422 = APIError;
+export type OrgEditStatus422Json = APIError;
 
-export type OrgEditMutationRequest = EditOrgOption;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type OrgEditStatus422Html = APIError;
 
-export type OrgEditMutationResponse = OrgEdit200;
+export type OrgEditStatus422 = OrgEditStatus422Json | OrgEditStatus422Html;
 
-export type OrgEditMutation = {
-  Response: OrgEdit200;
-  Request: OrgEditMutationRequest;
-  PathParams: OrgEditPathParams;
-  Errors: OrgEdit404 | OrgEdit422;
+/**
+ * @description EditOrgOption options for editing an organization
+ * @type object
+ */
+export type OrgEditBody = EditOrgOption;
+
+export type OrgEditOptions = {
+  body: OrgEditBody;
+  path: OrgEditPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgEditResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgEditStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgEditStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgEditStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgEditResponse = OrgEditStatus200 | OrgEditStatus404 | OrgEditStatus422;

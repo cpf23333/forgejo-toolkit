@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditLabelOption } from './EditLabelOption';
 import type { Label } from './Label';
 
-export type IssueEditLabelPathParams = {
+export type IssueEditLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,83 @@ export type IssueEditLabelPathParams = {
   repo: string;
   /**
    * @description id of the label to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueEditLabel200 = Label;
+export type IssueEditLabelStatus200Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueEditLabel404 = APINotFound;
+export type IssueEditLabelStatus200Html = Label;
+
+export type IssueEditLabelStatus200 = IssueEditLabelStatus200Json | IssueEditLabelStatus200Html;
+
+export type IssueEditLabelStatus404Json = APINotFound;
+
+export type IssueEditLabelStatus404Html = APINotFound;
+
+export type IssueEditLabelStatus404 = IssueEditLabelStatus404Json | IssueEditLabelStatus404Html;
+
+export type IssueEditLabelStatus422Json = APIValidationError;
+
+export type IssueEditLabelStatus422Html = APIValidationError;
+
+export type IssueEditLabelStatus422 = IssueEditLabelStatus422Json | IssueEditLabelStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description EditLabelOption options for editing a label
+ * @type object | undefined
  */
-export type IssueEditLabel422 = APIValidationError;
+export type IssueEditLabelBody = EditLabelOption | undefined;
 
-export type IssueEditLabelMutationRequest = EditLabelOption;
-
-export type IssueEditLabelMutationResponse = IssueEditLabel200;
-
-export type IssueEditLabelMutation = {
-  Response: IssueEditLabel200;
-  Request: IssueEditLabelMutationRequest;
-  PathParams: IssueEditLabelPathParams;
-  Errors: IssueEditLabel404 | IssueEditLabel422;
+export type IssueEditLabelOptions = {
+  body: IssueEditLabelBody;
+  path: IssueEditLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditLabelResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueEditLabelStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditLabelStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditLabelStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueEditLabelStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditLabelStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditLabelResponse = IssueEditLabelStatus200 | IssueEditLabelStatus404 | IssueEditLabelStatus422;

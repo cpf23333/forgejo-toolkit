@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RenameOrgMutationRequest,
-  RenameOrgMutationResponse,
-  RenameOrgPathParams,
-  RenameOrg403,
-  RenameOrg422,
-} from '../types/RenameOrg';
-
-function getRenameOrgUrl(org: RenameOrgPathParams['org']) {
-  const res = { method: 'POST', url: `/orgs/${org}/rename` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RenameOrgOptions, RenameOrgResponses } from '../types/RenameOrg';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Rename an organization
  * {@link /orgs/:org/rename}
  */
-export async function renameOrg(
-  org: RenameOrgPathParams['org'],
-  data: RenameOrgMutationRequest,
-  config: Partial<RequestConfig<RenameOrgMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function renameOrg<ThrowOnError extends boolean = true>(
+  options: Options<RenameOrgOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RenameOrgResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RenameOrgMutationResponse,
-    ResponseErrorConfig<RenameOrg403 | RenameOrg422>,
-    RenameOrgMutationRequest
-  >({
-    method: 'POST',
-    url: getRenameOrgUrl(org).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/rename',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RenameOrgResponses, ThrowOnError>>;
 }

@@ -6,13 +6,41 @@
 import type { ActivityPub } from './ActivityPub';
 
 /**
- * @description ActivityPub
+ * @description ActivityPub type
+ * @type object
  */
-export type ActivitypubInstanceActor200 = ActivityPub;
+export type ActivitypubInstanceActorStatus200Json = ActivityPub;
 
-export type ActivitypubInstanceActorQueryResponse = ActivitypubInstanceActor200;
+/**
+ * @description ActivityPub type
+ * @type object
+ */
+export type ActivitypubInstanceActorStatus200Html = ActivityPub;
 
-export type ActivitypubInstanceActorQuery = {
-  Response: ActivitypubInstanceActor200;
-  Errors: any;
+export type ActivitypubInstanceActorStatus200 =
+  | ActivitypubInstanceActorStatus200Json
+  | ActivitypubInstanceActorStatus200Html;
+
+export type ActivitypubInstanceActorOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubInstanceActorResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubInstanceActorStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubInstanceActorStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubInstanceActorResponse = ActivitypubInstanceActorStatus200;

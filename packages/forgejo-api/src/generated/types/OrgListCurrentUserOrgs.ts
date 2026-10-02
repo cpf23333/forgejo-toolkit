@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Organization } from './Organization';
 
-export type OrgListCurrentUserOrgsQueryParams = {
+export type OrgListCurrentUserOrgsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -21,30 +21,81 @@ export type OrgListCurrentUserOrgsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description OrganizationListWithoutPagination - Organizations without pagination headers
- */
-export type OrgListCurrentUserOrgs200 = Organization[];
+export type OrgListCurrentUserOrgsStatus200Json = Organization[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type OrgListCurrentUserOrgs401 = APIUnauthorizedError;
+export type OrgListCurrentUserOrgsStatus200Html = Organization[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgListCurrentUserOrgs403 = APIForbiddenError;
+export type OrgListCurrentUserOrgsStatus200 = OrgListCurrentUserOrgsStatus200Json | OrgListCurrentUserOrgsStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListCurrentUserOrgs404 = APINotFound;
+export type OrgListCurrentUserOrgsStatus401Json = APIUnauthorizedError;
 
-export type OrgListCurrentUserOrgsQueryResponse = OrgListCurrentUserOrgs200;
+export type OrgListCurrentUserOrgsStatus401Html = APIUnauthorizedError;
 
-export type OrgListCurrentUserOrgsQuery = {
-  Response: OrgListCurrentUserOrgs200;
-  QueryParams: OrgListCurrentUserOrgsQueryParams;
-  Errors: OrgListCurrentUserOrgs401 | OrgListCurrentUserOrgs403 | OrgListCurrentUserOrgs404;
+export type OrgListCurrentUserOrgsStatus401 = OrgListCurrentUserOrgsStatus401Json | OrgListCurrentUserOrgsStatus401Html;
+
+export type OrgListCurrentUserOrgsStatus403Json = APIForbiddenError;
+
+export type OrgListCurrentUserOrgsStatus403Html = APIForbiddenError;
+
+export type OrgListCurrentUserOrgsStatus403 = OrgListCurrentUserOrgsStatus403Json | OrgListCurrentUserOrgsStatus403Html;
+
+export type OrgListCurrentUserOrgsStatus404Json = APINotFound;
+
+export type OrgListCurrentUserOrgsStatus404Html = APINotFound;
+
+export type OrgListCurrentUserOrgsStatus404 = OrgListCurrentUserOrgsStatus404Json | OrgListCurrentUserOrgsStatus404Html;
+
+export type OrgListCurrentUserOrgsOptions = {
+  body?: never;
+  path?: never;
+  query?: OrgListCurrentUserOrgsQuery;
+  headers?: never;
 };
+
+export type OrgListCurrentUserOrgsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListCurrentUserOrgsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListCurrentUserOrgsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: OrgListCurrentUserOrgsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListCurrentUserOrgsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgListCurrentUserOrgsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListCurrentUserOrgsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListCurrentUserOrgsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListCurrentUserOrgsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListCurrentUserOrgsResponse =
+  | OrgListCurrentUserOrgsStatus200
+  | OrgListCurrentUserOrgsStatus401
+  | OrgListCurrentUserOrgsStatus403
+  | OrgListCurrentUserOrgsStatus404;

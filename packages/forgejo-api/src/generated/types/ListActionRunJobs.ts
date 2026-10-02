@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type ListActionRunJobsPathParams = {
+export type ListActionRunJobsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,35 +21,96 @@ export type ListActionRunJobsPathParams = {
   repo: string;
   /**
    * @description ID of the workflow run
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
-/**
- * @description ActionRunJobList
- */
-export type ListActionRunJobs200 = ActionRunJob[];
+export type ListActionRunJobsStatus200Json = ActionRunJob[];
+
+export type ListActionRunJobsStatus200Html = ActionRunJob[];
+
+export type ListActionRunJobsStatus200 = ListActionRunJobsStatus200Json | ListActionRunJobsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionRunJobs400 = APIError;
+export type ListActionRunJobsStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionRunJobs403 = APIForbiddenError;
+export type ListActionRunJobsStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type ListActionRunJobs404 = APINotFound;
+export type ListActionRunJobsStatus400 = ListActionRunJobsStatus400Json | ListActionRunJobsStatus400Html;
 
-export type ListActionRunJobsQueryResponse = ListActionRunJobs200;
+export type ListActionRunJobsStatus403Json = APIForbiddenError;
 
-export type ListActionRunJobsQuery = {
-  Response: ListActionRunJobs200;
-  PathParams: ListActionRunJobsPathParams;
-  Errors: ListActionRunJobs400 | ListActionRunJobs403 | ListActionRunJobs404;
+export type ListActionRunJobsStatus403Html = APIForbiddenError;
+
+export type ListActionRunJobsStatus403 = ListActionRunJobsStatus403Json | ListActionRunJobsStatus403Html;
+
+export type ListActionRunJobsStatus404Json = APINotFound;
+
+export type ListActionRunJobsStatus404Html = APINotFound;
+
+export type ListActionRunJobsStatus404 = ListActionRunJobsStatus404Json | ListActionRunJobsStatus404Html;
+
+export type ListActionRunJobsOptions = {
+  body?: never;
+  path: ListActionRunJobsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ListActionRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunJobsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunJobsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunJobsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunJobsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunJobsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunJobsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListActionRunJobsResponse =
+  | ListActionRunJobsStatus200
+  | ListActionRunJobsStatus400
+  | ListActionRunJobsStatus403
+  | ListActionRunJobsStatus404;

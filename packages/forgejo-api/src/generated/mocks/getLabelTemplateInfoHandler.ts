@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetLabelTemplateInfoQueryResponse, GetLabelTemplateInfo404 } from '../types/GetLabelTemplateInfo';
+import type { GetLabelTemplateInfoResponse, GetLabelTemplateInfoStatus404 } from '../types/GetLabelTemplateInfo';
 import { http } from 'msw';
 
-export function getLabelTemplateInfoHandlerResponse200(data: GetLabelTemplateInfoQueryResponse) {
+export function getLabelTemplateInfoHandlerResponse200(data: GetLabelTemplateInfoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getLabelTemplateInfoHandlerResponse200(data: GetLabelTemplateInf
   });
 }
 
-export function getLabelTemplateInfoHandlerResponse404(data: GetLabelTemplateInfo404) {
+export function getLabelTemplateInfoHandlerResponse404(data: GetLabelTemplateInfoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function getLabelTemplateInfoHandlerResponse404(data: GetLabelTemplateInf
 
 export function getLabelTemplateInfoHandler(
   data?:
-    | GetLabelTemplateInfoQueryResponse
+    | GetLabelTemplateInfoResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/label/templates/:name`, function handler(info) {

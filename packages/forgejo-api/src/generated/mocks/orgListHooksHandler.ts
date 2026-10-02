@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListHooksQueryResponse, OrgListHooks404 } from '../types/OrgListHooks';
+import type { OrgListHooksResponse, OrgListHooksStatus404 } from '../types/OrgListHooks';
 import { http } from 'msw';
 
-export function orgListHooksHandlerResponse200(data: OrgListHooksQueryResponse) {
+export function orgListHooksHandlerResponse200(data: OrgListHooksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListHooksHandlerResponse200(data: OrgListHooksQueryResponse) 
   });
 }
 
-export function orgListHooksHandlerResponse404(data: OrgListHooks404) {
+export function orgListHooksHandlerResponse404(data: OrgListHooksStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function orgListHooksHandlerResponse404(data: OrgListHooks404) {
 }
 
 export function orgListHooksHandler(
-  data?:
-    | OrgListHooksQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgListHooksResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/hooks`, function handler(info) {
     if (typeof data === 'function') return data(info);

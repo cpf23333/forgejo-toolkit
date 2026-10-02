@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoListPinnedPullRequestsQueryResponse,
-  RepoListPinnedPullRequests404,
+  RepoListPinnedPullRequestsResponse,
+  RepoListPinnedPullRequestsStatus404,
 } from '../types/RepoListPinnedPullRequests';
 import { http } from 'msw';
 
-export function repoListPinnedPullRequestsHandlerResponse200(data: RepoListPinnedPullRequestsQueryResponse) {
+export function repoListPinnedPullRequestsHandlerResponse200(data: RepoListPinnedPullRequestsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoListPinnedPullRequestsHandlerResponse200(data: RepoListPinne
   });
 }
 
-export function repoListPinnedPullRequestsHandlerResponse404(data: RepoListPinnedPullRequests404) {
+export function repoListPinnedPullRequestsHandlerResponse404(data: RepoListPinnedPullRequestsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoListPinnedPullRequestsHandlerResponse404(data: RepoListPinne
 
 export function repoListPinnedPullRequestsHandler(
   data?:
-    | RepoListPinnedPullRequestsQueryResponse
+    | RepoListPinnedPullRequestsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/pinned`, function handler(info) {

@@ -3,35 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ActivitypubPersonInboxMutationResponse,
-  ActivitypubPersonInboxPathParams,
-} from '../types/ActivitypubPersonInbox';
-
-function getActivitypubPersonInboxUrl(userId: ActivitypubPersonInboxPathParams['user-id']) {
-  const res = {
-    method: 'POST',
-    url: `/activitypub/user-id/${userId}/inbox` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ActivitypubPersonInboxOptions, ActivitypubPersonInboxResponses } from '../types/ActivitypubPersonInbox';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Send to the inbox
- * {@link /activitypub/user-id/:user-id/inbox}
+ * {@link /activitypub/user-id/:userId/inbox}
  */
-export async function activitypubPersonInbox(
-  userId: ActivitypubPersonInboxPathParams['user-id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubPersonInbox<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubPersonInboxOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActivitypubPersonInboxResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubPersonInboxMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'POST',
-    url: getActivitypubPersonInboxUrl(userId).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/activitypub/user-id/{user-id}/inbox',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubPersonInboxResponses, ThrowOnError>>;
 }

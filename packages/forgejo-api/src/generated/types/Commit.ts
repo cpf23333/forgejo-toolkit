@@ -9,18 +9,12 @@ import type { CommitStats } from './CommitStats';
 import type { RepoCommit } from './RepoCommit';
 import type { User } from './User';
 
-/**
- * Commit contains information generated from a Git commit.
- */
 export type Commit = {
   /**
    * @description User represents a user
    * @type object | undefined
    */
   author?: User;
-  /**
-   * @type object | undefined
-   */
   commit?: RepoCommit;
   /**
    * @description User represents a user
@@ -28,32 +22,19 @@ export type Commit = {
    */
   committer?: User;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type array | undefined
-   */
   files?: CommitAffectedFiles[];
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type array | undefined
-   */
   parents?: CommitMeta[];
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
    * @description CommitStats is statistics for a RepoCommit
    * @type object | undefined
    */
   stats?: CommitStats;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

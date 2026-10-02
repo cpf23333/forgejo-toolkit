@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCompareDiffQueryResponse,
-  RepoCompareDiffPathParams,
-  RepoCompareDiff404,
-} from '../types/RepoCompareDiff';
-
-function getRepoCompareDiffUrl(
-  owner: RepoCompareDiffPathParams['owner'],
-  repo: RepoCompareDiffPathParams['repo'],
-  basehead: RepoCompareDiffPathParams['basehead'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/compare/${basehead}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCompareDiffOptions, RepoCompareDiffResponses } from '../types/RepoCompareDiff';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get commit comparison information
  * {@link /repos/:owner/:repo/compare/:basehead}
  */
-export async function repoCompareDiff(
-  owner: RepoCompareDiffPathParams['owner'],
-  repo: RepoCompareDiffPathParams['repo'],
-  basehead: RepoCompareDiffPathParams['basehead'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCompareDiff<ThrowOnError extends boolean = true>(
+  options: Options<RepoCompareDiffOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCompareDiffResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoCompareDiffQueryResponse, ResponseErrorConfig<RepoCompareDiff404>, unknown>({
-    method: 'GET',
-    url: getRepoCompareDiffUrl(owner, repo, basehead).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/compare/{basehead}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCompareDiffResponses, ThrowOnError>>;
 }

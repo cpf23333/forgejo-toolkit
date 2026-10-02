@@ -3,26 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetVersionQueryResponse } from '../types/GetVersion';
-
-function getGetVersionUrl() {
-  const res = { method: 'GET', url: `/version` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetVersionOptions, GetVersionResponses } from '../types/GetVersion';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Returns the version of the running application
  * {@link /version}
  */
-export async function getVersion(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getVersion<ThrowOnError extends boolean = true>(
+  options: Options<GetVersionOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetVersionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetVersionQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getGetVersionUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/version',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetVersionResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListHooksQueryResponse, UserListHooks401, UserListHooks403 } from '../types/UserListHooks';
+import type { UserListHooksResponse, UserListHooksStatus401, UserListHooksStatus403 } from '../types/UserListHooks';
 import { http } from 'msw';
 
-export function userListHooksHandlerResponse200(data: UserListHooksQueryResponse) {
+export function userListHooksHandlerResponse200(data: UserListHooksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListHooksHandlerResponse200(data: UserListHooksQueryResponse
   });
 }
 
-export function userListHooksHandlerResponse401(data: UserListHooks401) {
+export function userListHooksHandlerResponse401(data: UserListHooksStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +24,7 @@ export function userListHooksHandlerResponse401(data: UserListHooks401) {
   });
 }
 
-export function userListHooksHandlerResponse403(data: UserListHooks403) {
+export function userListHooksHandlerResponse403(data: UserListHooksStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userListHooksHandlerResponse403(data: UserListHooks403) {
 
 export function userListHooksHandler(
   data?:
-    | UserListHooksQueryResponse
+    | UserListHooksResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/hooks`, function handler(info) {

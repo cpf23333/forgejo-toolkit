@@ -4,25 +4,27 @@
  */
 
 import type {
-  UpdateRepoVariableMutationResponse,
-  UpdateRepoVariable400,
-  UpdateRepoVariable404,
+  UpdateRepoVariableResponse,
+  UpdateRepoVariableStatus400,
+  UpdateRepoVariableStatus404,
+  UpdateRepoVariableBody,
 } from '../types/UpdateRepoVariable';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateRepoVariableHandlerResponse201(data?: UpdateRepoVariableMutationResponse) {
+export function updateRepoVariableHandlerResponse201(data?: UpdateRepoVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateRepoVariableHandlerResponse204(data?: UpdateRepoVariableMutationResponse) {
+export function updateRepoVariableHandlerResponse204(data?: UpdateRepoVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateRepoVariableHandlerResponse400(data: UpdateRepoVariable400) {
+export function updateRepoVariableHandlerResponse400(data: UpdateRepoVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function updateRepoVariableHandlerResponse400(data: UpdateRepoVariable400
   });
 }
 
-export function updateRepoVariableHandlerResponse404(data: UpdateRepoVariable404) {
+export function updateRepoVariableHandlerResponse404(data: UpdateRepoVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -47,13 +49,16 @@ export function updateRepoVariableHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, UpdateRepoVariableBody>,
 ) {
-  return http.put(`/repos/:owner/:repo/actions/variables/:variablename`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, UpdateRepoVariableBody>(
+    `/repos/:owner/:repo/actions/variables/:variablename`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+      });
+    },
+  );
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgSearchRunJobsQueryResponse, OrgSearchRunJobs403 } from '../types/OrgSearchRunJobs';
+import type { OrgSearchRunJobsResponse, OrgSearchRunJobsStatus403 } from '../types/OrgSearchRunJobs';
 import { http } from 'msw';
 
-export function orgSearchRunJobsHandlerResponse200(data: OrgSearchRunJobsQueryResponse) {
+export function orgSearchRunJobsHandlerResponse200(data: OrgSearchRunJobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgSearchRunJobsHandlerResponse200(data: OrgSearchRunJobsQueryRe
   });
 }
 
-export function orgSearchRunJobsHandlerResponse403(data: OrgSearchRunJobs403) {
+export function orgSearchRunJobsHandlerResponse403(data: OrgSearchRunJobsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function orgSearchRunJobsHandlerResponse403(data: OrgSearchRunJobs403) {
 
 export function orgSearchRunJobsHandler(
   data?:
-    | OrgSearchRunJobsQueryResponse
+    | OrgSearchRunJobsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/runners/jobs`, function handler(info) {

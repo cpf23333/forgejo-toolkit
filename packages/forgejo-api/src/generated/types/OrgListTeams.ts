@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Team } from './Team';
 
-export type OrgListTeamsPathParams = {
+export type OrgListTeamsPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListTeamsPathParams = {
   org: string;
 };
 
-export type OrgListTeamsQueryParams = {
+export type OrgListTeamsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListTeamsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description TeamList
- */
-export type OrgListTeams200 = Team[];
+export type OrgListTeamsStatus200Json = Team[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListTeams404 = APINotFound;
+export type OrgListTeamsStatus200Html = Team[];
 
-export type OrgListTeamsQueryResponse = OrgListTeams200;
+export type OrgListTeamsStatus200 = OrgListTeamsStatus200Json | OrgListTeamsStatus200Html;
 
-export type OrgListTeamsQuery = {
-  Response: OrgListTeams200;
-  PathParams: OrgListTeamsPathParams;
-  QueryParams: OrgListTeamsQueryParams;
-  Errors: OrgListTeams404;
+export type OrgListTeamsStatus404Json = APINotFound;
+
+export type OrgListTeamsStatus404Html = APINotFound;
+
+export type OrgListTeamsStatus404 = OrgListTeamsStatus404Json | OrgListTeamsStatus404Html;
+
+export type OrgListTeamsOptions = {
+  body?: never;
+  path: OrgListTeamsPath;
+  query?: OrgListTeamsQuery;
+  headers?: never;
 };
+
+export type OrgListTeamsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamsResponse = OrgListTeamsStatus200 | OrgListTeamsStatus404;

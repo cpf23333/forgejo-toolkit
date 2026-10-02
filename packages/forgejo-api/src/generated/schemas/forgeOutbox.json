@@ -1,6 +1,0 @@
-{
-  "description": "ActivityStream OrderedCollection of activities",
-  "type": "object",
-  "x-go-package": "forgejo.org/modules/forgefed",
-  "x-readme-ref-name": "ForgeOutbox"
-}

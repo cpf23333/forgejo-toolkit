@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { BranchProtection } from './BranchProtection';
 
-export type RepoGetBranchProtectionPathParams = {
+export type RepoGetBranchProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,58 @@ export type RepoGetBranchProtectionPathParams = {
 };
 
 /**
- * @description BranchProtection
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoGetBranchProtection200 = BranchProtection;
+export type RepoGetBranchProtectionStatus200Json = BranchProtection;
 
 /**
- * @description APINotFound is a not found error response
+ * @description BranchProtection represents a branch protection for a repository
+ * @type object
  */
-export type RepoGetBranchProtection404 = APINotFound;
+export type RepoGetBranchProtectionStatus200Html = BranchProtection;
 
-export type RepoGetBranchProtectionQueryResponse = RepoGetBranchProtection200;
+export type RepoGetBranchProtectionStatus200 =
+  | RepoGetBranchProtectionStatus200Json
+  | RepoGetBranchProtectionStatus200Html;
 
-export type RepoGetBranchProtectionQuery = {
-  Response: RepoGetBranchProtection200;
-  PathParams: RepoGetBranchProtectionPathParams;
-  Errors: RepoGetBranchProtection404;
+export type RepoGetBranchProtectionStatus404Json = APINotFound;
+
+export type RepoGetBranchProtectionStatus404Html = APINotFound;
+
+export type RepoGetBranchProtectionStatus404 =
+  | RepoGetBranchProtectionStatus404Json
+  | RepoGetBranchProtectionStatus404Html;
+
+export type RepoGetBranchProtectionOptions = {
+  body?: never;
+  path: RepoGetBranchProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetBranchProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetBranchProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetBranchProtectionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetBranchProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetBranchProtectionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetBranchProtectionResponse = RepoGetBranchProtectionStatus200 | RepoGetBranchProtectionStatus404;

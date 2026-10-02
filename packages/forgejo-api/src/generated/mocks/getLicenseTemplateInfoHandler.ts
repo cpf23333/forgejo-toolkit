@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetLicenseTemplateInfoQueryResponse, GetLicenseTemplateInfo404 } from '../types/GetLicenseTemplateInfo';
+import type { GetLicenseTemplateInfoResponse, GetLicenseTemplateInfoStatus404 } from '../types/GetLicenseTemplateInfo';
 import { http } from 'msw';
 
-export function getLicenseTemplateInfoHandlerResponse200(data: GetLicenseTemplateInfoQueryResponse) {
+export function getLicenseTemplateInfoHandlerResponse200(data: GetLicenseTemplateInfoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getLicenseTemplateInfoHandlerResponse200(data: GetLicenseTemplat
   });
 }
 
-export function getLicenseTemplateInfoHandlerResponse404(data: GetLicenseTemplateInfo404) {
+export function getLicenseTemplateInfoHandlerResponse404(data: GetLicenseTemplateInfoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function getLicenseTemplateInfoHandlerResponse404(data: GetLicenseTemplat
 
 export function getLicenseTemplateInfoHandler(
   data?:
-    | GetLicenseTemplateInfoQueryResponse
+    | GetLicenseTemplateInfoResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/licenses/:name`, function handler(info) {

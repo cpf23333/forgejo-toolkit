@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { Email } from './Email';
 
-export type AdminGetAllEmailsQueryParams = {
+export type AdminGetAllEmailsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -19,20 +19,47 @@ export type AdminGetAllEmailsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description EmailList
- */
-export type AdminGetAllEmails200 = Email[];
+export type AdminGetAllEmailsStatus200Json = Email[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminGetAllEmails403 = APIForbiddenError;
+export type AdminGetAllEmailsStatus200Html = Email[];
 
-export type AdminGetAllEmailsQueryResponse = AdminGetAllEmails200;
+export type AdminGetAllEmailsStatus200 = AdminGetAllEmailsStatus200Json | AdminGetAllEmailsStatus200Html;
 
-export type AdminGetAllEmailsQuery = {
-  Response: AdminGetAllEmails200;
-  QueryParams: AdminGetAllEmailsQueryParams;
-  Errors: AdminGetAllEmails403;
+export type AdminGetAllEmailsStatus403Json = APIForbiddenError;
+
+export type AdminGetAllEmailsStatus403Html = APIForbiddenError;
+
+export type AdminGetAllEmailsStatus403 = AdminGetAllEmailsStatus403Json | AdminGetAllEmailsStatus403Html;
+
+export type AdminGetAllEmailsOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminGetAllEmailsQuery;
+  headers?: never;
 };
+
+export type AdminGetAllEmailsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetAllEmailsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetAllEmailsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetAllEmailsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetAllEmailsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetAllEmailsResponse = AdminGetAllEmailsStatus200 | AdminGetAllEmailsStatus403;

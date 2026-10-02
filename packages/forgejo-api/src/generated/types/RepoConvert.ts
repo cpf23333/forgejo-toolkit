@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Repository } from './Repository';
 
-export type RepoConvertPathParams = {
+export type RepoConvertPath = {
   /**
    * @description owner of the repo to convert
    * @type string
@@ -22,29 +22,88 @@ export type RepoConvertPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoConvert200 = Repository;
+export type RepoConvertStatus200Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoConvert403 = APIForbiddenError;
+export type RepoConvertStatus200Html = Repository;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoConvert404 = APINotFound;
+export type RepoConvertStatus200 = RepoConvertStatus200Json | RepoConvertStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoConvert422 = APIValidationError;
+export type RepoConvertStatus403Json = APIForbiddenError;
 
-export type RepoConvertMutationResponse = RepoConvert200;
+export type RepoConvertStatus403Html = APIForbiddenError;
 
-export type RepoConvertMutation = {
-  Response: RepoConvert200;
-  PathParams: RepoConvertPathParams;
-  Errors: RepoConvert403 | RepoConvert404 | RepoConvert422;
+export type RepoConvertStatus403 = RepoConvertStatus403Json | RepoConvertStatus403Html;
+
+export type RepoConvertStatus404Json = APINotFound;
+
+export type RepoConvertStatus404Html = APINotFound;
+
+export type RepoConvertStatus404 = RepoConvertStatus404Json | RepoConvertStatus404Html;
+
+export type RepoConvertStatus422Json = APIValidationError;
+
+export type RepoConvertStatus422Html = APIValidationError;
+
+export type RepoConvertStatus422 = RepoConvertStatus422Json | RepoConvertStatus422Html;
+
+export type RepoConvertOptions = {
+  body?: never;
+  path: RepoConvertPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoConvertResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoConvertStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoConvertStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoConvertStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoConvertStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoConvertStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoConvertStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoConvertStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoConvertStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoConvertResponse =
+  | RepoConvertStatus200
+  | RepoConvertStatus403
+  | RepoConvertStatus404
+  | RepoConvertStatus422;

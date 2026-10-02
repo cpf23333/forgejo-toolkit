@@ -4,14 +4,14 @@
  */
 
 import type {
-  GetVerificationTokenQueryResponse,
-  GetVerificationToken401,
-  GetVerificationToken403,
-  GetVerificationToken404,
+  GetVerificationTokenResponse,
+  GetVerificationTokenStatus401,
+  GetVerificationTokenStatus403,
+  GetVerificationTokenStatus404,
 } from '../types/GetVerificationToken';
 import { http } from 'msw';
 
-export function getVerificationTokenHandlerResponse200(data: GetVerificationTokenQueryResponse) {
+export function getVerificationTokenHandlerResponse200(data: GetVerificationTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function getVerificationTokenHandlerResponse200(data: GetVerificationToke
   });
 }
 
-export function getVerificationTokenHandlerResponse401(data: GetVerificationToken401) {
+export function getVerificationTokenHandlerResponse401(data: GetVerificationTokenStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function getVerificationTokenHandlerResponse401(data: GetVerificationToke
   });
 }
 
-export function getVerificationTokenHandlerResponse403(data: GetVerificationToken403) {
+export function getVerificationTokenHandlerResponse403(data: GetVerificationTokenStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function getVerificationTokenHandlerResponse403(data: GetVerificationToke
   });
 }
 
-export function getVerificationTokenHandlerResponse404(data: GetVerificationToken404) {
+export function getVerificationTokenHandlerResponse404(data: GetVerificationTokenStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function getVerificationTokenHandlerResponse404(data: GetVerificationToke
 
 export function getVerificationTokenHandler(
   data?:
-    | GetVerificationTokenQueryResponse
+    | GetVerificationTokenResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_key_token`, function handler(info) {

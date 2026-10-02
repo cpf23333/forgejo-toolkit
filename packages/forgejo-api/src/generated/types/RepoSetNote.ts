@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { Note } from './Note';
 import type { NoteOptions } from './NoteOptions';
 
-export type RepoSetNotePathParams = {
+export type RepoSetNotePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,27 +27,75 @@ export type RepoSetNotePathParams = {
 };
 
 /**
- * @description Note
+ * @description Note contains information related to a git note
+ * @type object
  */
-export type RepoSetNote200 = Note;
+export type RepoSetNoteStatus200Json = Note;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Note contains information related to a git note
+ * @type object
  */
-export type RepoSetNote404 = APINotFound;
+export type RepoSetNoteStatus200Html = Note;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoSetNote422 = APIValidationError;
+export type RepoSetNoteStatus200 = RepoSetNoteStatus200Json | RepoSetNoteStatus200Html;
 
-export type RepoSetNoteMutationRequest = NoteOptions;
+export type RepoSetNoteStatus404Json = APINotFound;
 
-export type RepoSetNoteMutationResponse = RepoSetNote200;
+export type RepoSetNoteStatus404Html = APINotFound;
 
-export type RepoSetNoteMutation = {
-  Response: RepoSetNote200;
-  Request: RepoSetNoteMutationRequest;
-  PathParams: RepoSetNotePathParams;
-  Errors: RepoSetNote404 | RepoSetNote422;
+export type RepoSetNoteStatus404 = RepoSetNoteStatus404Json | RepoSetNoteStatus404Html;
+
+export type RepoSetNoteStatus422Json = APIValidationError;
+
+export type RepoSetNoteStatus422Html = APIValidationError;
+
+export type RepoSetNoteStatus422 = RepoSetNoteStatus422Json | RepoSetNoteStatus422Html;
+
+export type RepoSetNoteBodyJson = NoteOptions | undefined;
+
+export type RepoSetNoteBodyPlain = NoteOptions | undefined;
+
+export type RepoSetNoteBody = RepoSetNoteBodyJson | RepoSetNoteBodyPlain;
+
+export type RepoSetNoteOptions = {
+  body: RepoSetNoteBody;
+  path: RepoSetNotePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSetNoteResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSetNoteStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSetNoteStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoSetNoteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSetNoteStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoSetNoteStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSetNoteStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSetNoteResponse = RepoSetNoteStatus200 | RepoSetNoteStatus404 | RepoSetNoteStatus422;

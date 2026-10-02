@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListEmailsQueryResponse, UserListEmails401, UserListEmails403 } from '../types/UserListEmails';
+import type { UserListEmailsResponse, UserListEmailsStatus401, UserListEmailsStatus403 } from '../types/UserListEmails';
 import { http } from 'msw';
 
-export function userListEmailsHandlerResponse200(data: UserListEmailsQueryResponse) {
+export function userListEmailsHandlerResponse200(data: UserListEmailsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListEmailsHandlerResponse200(data: UserListEmailsQueryRespon
   });
 }
 
-export function userListEmailsHandlerResponse401(data: UserListEmails401) {
+export function userListEmailsHandlerResponse401(data: UserListEmailsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +24,7 @@ export function userListEmailsHandlerResponse401(data: UserListEmails401) {
   });
 }
 
-export function userListEmailsHandlerResponse403(data: UserListEmails403) {
+export function userListEmailsHandlerResponse403(data: UserListEmailsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userListEmailsHandlerResponse403(data: UserListEmails403) {
 
 export function userListEmailsHandler(
   data?:
-    | UserListEmailsQueryResponse
+    | UserListEmailsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/emails`, function handler(info) {

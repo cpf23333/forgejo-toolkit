@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIValidationError } from './APIValidationError';
 import type { RenameUserOption } from './RenameUserOption';
 
-export type AdminRenameUserPathParams = {
+export type AdminRenameUserPath = {
   /**
    * @description existing username of user
    * @type string
@@ -15,28 +15,64 @@ export type AdminRenameUserPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminRenameUser204 = any;
+export type AdminRenameUserStatus204 = unknown;
+
+export type AdminRenameUserStatus403Json = APIForbiddenError;
+
+export type AdminRenameUserStatus403Html = APIForbiddenError;
+
+export type AdminRenameUserStatus403 = AdminRenameUserStatus403Json | AdminRenameUserStatus403Html;
+
+export type AdminRenameUserStatus422Json = APIValidationError;
+
+export type AdminRenameUserStatus422Html = APIValidationError;
+
+export type AdminRenameUserStatus422 = AdminRenameUserStatus422Json | AdminRenameUserStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description RenameUserOption options when renaming a user
+ * @type object
  */
-export type AdminRenameUser403 = APIForbiddenError;
+export type AdminRenameUserBodyJson = RenameUserOption;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description RenameUserOption options when renaming a user
+ * @type object
  */
-export type AdminRenameUser422 = APIValidationError;
+export type AdminRenameUserBodyPlain = RenameUserOption;
 
-export type AdminRenameUserMutationRequest = RenameUserOption;
+export type AdminRenameUserBody = AdminRenameUserBodyJson | AdminRenameUserBodyPlain;
 
-export type AdminRenameUserMutationResponse = AdminRenameUser204;
-
-export type AdminRenameUserMutation = {
-  Response: AdminRenameUser204;
-  Request: AdminRenameUserMutationRequest;
-  PathParams: AdminRenameUserPathParams;
-  Errors: AdminRenameUser403 | AdminRenameUser422;
+export type AdminRenameUserOptions = {
+  body: AdminRenameUserBody;
+  path: AdminRenameUserPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminRenameUserResponses = {
+  '204': AdminRenameUserStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminRenameUserStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRenameUserStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminRenameUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRenameUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminRenameUserResponse = AdminRenameUserStatus204 | AdminRenameUserStatus403 | AdminRenameUserStatus422;

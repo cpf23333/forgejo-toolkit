@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserCurrentListReposQueryResponse,
-  UserCurrentListRepos401,
-  UserCurrentListRepos403,
-  UserCurrentListRepos422,
+  UserCurrentListReposResponse,
+  UserCurrentListReposStatus401,
+  UserCurrentListReposStatus403,
+  UserCurrentListReposStatus422,
 } from '../types/UserCurrentListRepos';
 import { http } from 'msw';
 
-export function userCurrentListReposHandlerResponse200(data: UserCurrentListReposQueryResponse) {
+export function userCurrentListReposHandlerResponse200(data: UserCurrentListReposResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userCurrentListReposHandlerResponse200(data: UserCurrentListRepo
   });
 }
 
-export function userCurrentListReposHandlerResponse401(data: UserCurrentListRepos401) {
+export function userCurrentListReposHandlerResponse401(data: UserCurrentListReposStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function userCurrentListReposHandlerResponse401(data: UserCurrentListRepo
   });
 }
 
-export function userCurrentListReposHandlerResponse403(data: UserCurrentListRepos403) {
+export function userCurrentListReposHandlerResponse403(data: UserCurrentListReposStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userCurrentListReposHandlerResponse403(data: UserCurrentListRepo
   });
 }
 
-export function userCurrentListReposHandlerResponse422(data: UserCurrentListRepos422) {
+export function userCurrentListReposHandlerResponse422(data: UserCurrentListReposStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,7 +49,7 @@ export function userCurrentListReposHandlerResponse422(data: UserCurrentListRepo
 
 export function userCurrentListReposHandler(
   data?:
-    | UserCurrentListReposQueryResponse
+    | UserCurrentListReposResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/repos`, function handler(info) {

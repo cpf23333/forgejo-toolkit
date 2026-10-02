@@ -3,56 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueEditCommentMutationRequest,
-  IssueEditCommentMutationResponse,
-  IssueEditCommentPathParams,
-  IssueEditComment403,
-  IssueEditComment404,
-  IssueEditComment423,
-  IssueEditComment500,
-} from '../types/IssueEditComment';
-
-function getIssueEditCommentUrl(
-  owner: IssueEditCommentPathParams['owner'],
-  repo: IssueEditCommentPathParams['repo'],
-  id: IssueEditCommentPathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueEditCommentOptions, IssueEditCommentResponses } from '../types/IssueEditComment';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a comment
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
-export async function issueEditComment(
-  owner: IssueEditCommentPathParams['owner'],
-  repo: IssueEditCommentPathParams['repo'],
-  id: IssueEditCommentPathParams['id'],
-  data: IssueEditCommentMutationRequest,
-  config: Partial<RequestConfig<IssueEditCommentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditComment<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditCommentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditCommentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditCommentMutationResponse,
-    ResponseErrorConfig<IssueEditComment403 | IssueEditComment404 | IssueEditComment423 | IssueEditComment500>,
-    IssueEditCommentMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditCommentUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditCommentResponses, ThrowOnError>>;
 }

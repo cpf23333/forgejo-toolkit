@@ -5,5 +5,6 @@
 
 /**
  * @description ActivityStream OrderedCollection of activities
+ * @type object
  */
 export type ForgeOutbox = object;

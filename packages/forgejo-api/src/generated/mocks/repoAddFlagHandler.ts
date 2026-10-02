@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoAddFlagMutationResponse, RepoAddFlag403, RepoAddFlag404 } from '../types/RepoAddFlag';
+import type { RepoAddFlagResponse, RepoAddFlagStatus403, RepoAddFlagStatus404 } from '../types/RepoAddFlag';
 import { http } from 'msw';
 
-export function repoAddFlagHandlerResponse204(data?: RepoAddFlagMutationResponse) {
+export function repoAddFlagHandlerResponse204(data?: RepoAddFlagResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoAddFlagHandlerResponse403(data: RepoAddFlag403) {
+export function repoAddFlagHandlerResponse403(data: RepoAddFlagStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function repoAddFlagHandlerResponse403(data: RepoAddFlag403) {
   });
 }
 
-export function repoAddFlagHandlerResponse404(data: RepoAddFlag404) {
+export function repoAddFlagHandlerResponse404(data: RepoAddFlagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

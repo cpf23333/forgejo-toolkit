@@ -5,6 +5,7 @@
 
 /**
  * @description MarkdownOption markdown options
+ * @type object
  */
 export type MarkdownOption = {
   /**

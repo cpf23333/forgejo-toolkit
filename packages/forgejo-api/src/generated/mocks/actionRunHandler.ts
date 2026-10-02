@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActionRunQueryResponse, ActionRun400, ActionRun403, ActionRun404 } from '../types/ActionRun';
+import type { ActionRunResponse, ActionRunStatus400, ActionRunStatus403, ActionRunStatus404 } from '../types/ActionRun';
 import { http } from 'msw';
 
-export function actionRunHandlerResponse200(data: ActionRunQueryResponse) {
+export function actionRunHandlerResponse200(data: ActionRunResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function actionRunHandlerResponse200(data: ActionRunQueryResponse) {
   });
 }
 
-export function actionRunHandlerResponse400(data: ActionRun400) {
+export function actionRunHandlerResponse400(data: ActionRunStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function actionRunHandlerResponse400(data: ActionRun400) {
   });
 }
 
-export function actionRunHandlerResponse403(data: ActionRun403) {
+export function actionRunHandlerResponse403(data: ActionRunStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -33,7 +33,7 @@ export function actionRunHandlerResponse403(data: ActionRun403) {
   });
 }
 
-export function actionRunHandlerResponse404(data: ActionRun404) {
+export function actionRunHandlerResponse404(data: ActionRunStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -43,9 +43,7 @@ export function actionRunHandlerResponse404(data: ActionRun404) {
 }
 
 export function actionRunHandler(
-  data?:
-    | ActionRunQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: ActionRunResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runs/:run_id`, function handler(info) {
     if (typeof data === 'function') return data(info);

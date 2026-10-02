@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListHooksQueryResponse,
-  UserListHooksQueryParams,
-  UserListHooks401,
-  UserListHooks403,
-} from '../types/UserListHooks';
-
-function getUserListHooksUrl() {
-  const res = { method: 'GET', url: `/user/hooks` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListHooksOptions, UserListHooksResponses } from '../types/UserListHooks';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the authenticated user's webhooks
  * {@link /user/hooks}
  */
-export async function userListHooks(
-  params?: UserListHooksQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListHooks<ThrowOnError extends boolean = true>(
+  options: Options<UserListHooksOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserListHooksResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserListHooksQueryResponse,
-    ResponseErrorConfig<UserListHooks401 | UserListHooks403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserListHooksUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/hooks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListHooksResponses, ThrowOnError>>;
 }

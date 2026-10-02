@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteOrgSecretMutationResponse,
-  DeleteOrgSecretPathParams,
-  DeleteOrgSecret400,
-  DeleteOrgSecret404,
-} from '../types/DeleteOrgSecret';
-
-function getDeleteOrgSecretUrl(
-  org: DeleteOrgSecretPathParams['org'],
-  secretname: DeleteOrgSecretPathParams['secretname'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/orgs/${org}/actions/secrets/${secretname}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteOrgSecretOptions, DeleteOrgSecretResponses } from '../types/DeleteOrgSecret';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a secret in an organization
  * {@link /orgs/:org/actions/secrets/:secretname}
  */
-export async function deleteOrgSecret(
-  org: DeleteOrgSecretPathParams['org'],
-  secretname: DeleteOrgSecretPathParams['secretname'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteOrgSecret<ThrowOnError extends boolean = true>(
+  options: Options<DeleteOrgSecretOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteOrgSecretResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteOrgSecretMutationResponse,
-    ResponseErrorConfig<DeleteOrgSecret400 | DeleteOrgSecret404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteOrgSecretUrl(org, secretname).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/actions/secrets/{secretname}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteOrgSecretResponses, ThrowOnError>>;
 }

@@ -3,37 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetLanguagesQueryResponse,
-  RepoGetLanguagesPathParams,
-  RepoGetLanguages404,
-} from '../types/RepoGetLanguages';
-
-function getRepoGetLanguagesUrl(owner: RepoGetLanguagesPathParams['owner'], repo: RepoGetLanguagesPathParams['repo']) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/languages` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetLanguagesOptions, RepoGetLanguagesResponses } from '../types/RepoGetLanguages';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get languages and number of bytes of code written
  * {@link /repos/:owner/:repo/languages}
  */
-export async function repoGetLanguages(
-  owner: RepoGetLanguagesPathParams['owner'],
-  repo: RepoGetLanguagesPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetLanguages<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetLanguagesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetLanguagesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetLanguagesQueryResponse, ResponseErrorConfig<RepoGetLanguages404>, unknown>({
-    method: 'GET',
-    url: getRepoGetLanguagesUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/languages',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetLanguagesResponses, ThrowOnError>>;
 }

@@ -5,7 +5,7 @@
 
 import type { BlockedUser } from './BlockedUser';
 
-export type OrgListBlockedUsersPathParams = {
+export type OrgListBlockedUsersPath = {
   /**
    * @description name of the org
    * @type string
@@ -13,7 +13,7 @@ export type OrgListBlockedUsersPathParams = {
   org: string;
 };
 
-export type OrgListBlockedUsersQueryParams = {
+export type OrgListBlockedUsersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -26,16 +26,32 @@ export type OrgListBlockedUsersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description BlockedUserList
- */
-export type OrgListBlockedUsers200 = BlockedUser[];
+export type OrgListBlockedUsersStatus200Json = BlockedUser[];
 
-export type OrgListBlockedUsersQueryResponse = OrgListBlockedUsers200;
+export type OrgListBlockedUsersStatus200Html = BlockedUser[];
 
-export type OrgListBlockedUsersQuery = {
-  Response: OrgListBlockedUsers200;
-  PathParams: OrgListBlockedUsersPathParams;
-  QueryParams: OrgListBlockedUsersQueryParams;
-  Errors: any;
+export type OrgListBlockedUsersStatus200 = OrgListBlockedUsersStatus200Json | OrgListBlockedUsersStatus200Html;
+
+export type OrgListBlockedUsersOptions = {
+  body?: never;
+  path: OrgListBlockedUsersPath;
+  query?: OrgListBlockedUsersQuery;
+  headers?: never;
 };
+
+export type OrgListBlockedUsersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListBlockedUsersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListBlockedUsersStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListBlockedUsersResponse = OrgListBlockedUsersStatus200;

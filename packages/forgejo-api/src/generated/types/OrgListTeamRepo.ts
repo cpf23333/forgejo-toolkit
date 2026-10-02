@@ -6,10 +6,12 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type OrgListTeamRepoPathParams = {
+export type OrgListTeamRepoPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -25,19 +27,54 @@ export type OrgListTeamRepoPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type OrgListTeamRepo200 = Repository;
+export type OrgListTeamRepoStatus200Json = Repository;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type OrgListTeamRepo404 = APINotFound;
+export type OrgListTeamRepoStatus200Html = Repository;
 
-export type OrgListTeamRepoQueryResponse = OrgListTeamRepo200;
+export type OrgListTeamRepoStatus200 = OrgListTeamRepoStatus200Json | OrgListTeamRepoStatus200Html;
 
-export type OrgListTeamRepoQuery = {
-  Response: OrgListTeamRepo200;
-  PathParams: OrgListTeamRepoPathParams;
-  Errors: OrgListTeamRepo404;
+export type OrgListTeamRepoStatus404Json = APINotFound;
+
+export type OrgListTeamRepoStatus404Html = APINotFound;
+
+export type OrgListTeamRepoStatus404 = OrgListTeamRepoStatus404Json | OrgListTeamRepoStatus404Html;
+
+export type OrgListTeamRepoOptions = {
+  body?: never;
+  path: OrgListTeamRepoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgListTeamRepoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamRepoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamRepoStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamRepoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamRepoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamRepoResponse = OrgListTeamRepoStatus200 | OrgListTeamRepoStatus404;

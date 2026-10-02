@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RepoGetHookQueryResponse, RepoGetHookPathParams, RepoGetHook404 } from '../types/RepoGetHook';
-
-function getRepoGetHookUrl(
-  owner: RepoGetHookPathParams['owner'],
-  repo: RepoGetHookPathParams['repo'],
-  id: RepoGetHookPathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/hooks/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetHookOptions, RepoGetHookResponses } from '../types/RepoGetHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a hook
  * {@link /repos/:owner/:repo/hooks/:id}
  */
-export async function repoGetHook(
-  owner: RepoGetHookPathParams['owner'],
-  repo: RepoGetHookPathParams['repo'],
-  id: RepoGetHookPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetHook<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetHookQueryResponse, ResponseErrorConfig<RepoGetHook404>, unknown>({
-    method: 'GET',
-    url: getRepoGetHookUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetHookResponses, ThrowOnError>>;
 }

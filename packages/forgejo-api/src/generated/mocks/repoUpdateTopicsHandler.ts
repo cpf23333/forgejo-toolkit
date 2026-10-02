@@ -4,19 +4,21 @@
  */
 
 import type {
-  RepoUpdateTopicsMutationResponse,
-  RepoUpdateTopics404,
-  RepoUpdateTopics422,
+  RepoUpdateTopicsResponse,
+  RepoUpdateTopicsStatus404,
+  RepoUpdateTopicsStatus422,
+  RepoUpdateTopicsBody,
 } from '../types/RepoUpdateTopics';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoUpdateTopicsHandlerResponse204(data?: RepoUpdateTopicsMutationResponse) {
+export function repoUpdateTopicsHandlerResponse204(data?: RepoUpdateTopicsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoUpdateTopicsHandlerResponse404(data: RepoUpdateTopics404) {
+export function repoUpdateTopicsHandlerResponse404(data: RepoUpdateTopicsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,7 +27,7 @@ export function repoUpdateTopicsHandlerResponse404(data: RepoUpdateTopics404) {
   });
 }
 
-export function repoUpdateTopicsHandlerResponse422(data: RepoUpdateTopics422) {
+export function repoUpdateTopicsHandlerResponse422(data: RepoUpdateTopicsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -35,15 +37,9 @@ export function repoUpdateTopicsHandlerResponse422(data: RepoUpdateTopics422) {
 }
 
 export function repoUpdateTopicsHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, RepoUpdateTopicsBody>,
 ) {
-  return http.put(`/repos/:owner/:repo/topics`, function handler(info) {
+  return http.put<Record<string, string>, RepoUpdateTopicsBody>(`/repos/:owner/:repo/topics`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

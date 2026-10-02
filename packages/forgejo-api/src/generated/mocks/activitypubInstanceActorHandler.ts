@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubInstanceActorQueryResponse } from '../types/ActivitypubInstanceActor';
+import type { ActivitypubInstanceActorResponse } from '../types/ActivitypubInstanceActor';
 import { http } from 'msw';
 
-export function activitypubInstanceActorHandlerResponse200(data: ActivitypubInstanceActorQueryResponse) {
+export function activitypubInstanceActorHandlerResponse200(data: ActivitypubInstanceActorResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function activitypubInstanceActorHandlerResponse200(data: ActivitypubInst
 
 export function activitypubInstanceActorHandler(
   data?:
-    | ActivitypubInstanceActorQueryResponse
+    | ActivitypubInstanceActorResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/activitypub/actor`, function handler(info) {

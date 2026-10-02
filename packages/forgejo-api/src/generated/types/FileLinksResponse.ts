@@ -5,18 +5,10 @@
 
 /**
  * @description FileLinksResponse contains the links for a repo\'s file
+ * @type object
  */
 export type FileLinksResponse = {
-  /**
-   * @type string | undefined
-   */
   git?: string;
-  /**
-   * @type string | undefined
-   */
   html?: string;
-  /**
-   * @type string | undefined
-   */
   self?: string;
 };

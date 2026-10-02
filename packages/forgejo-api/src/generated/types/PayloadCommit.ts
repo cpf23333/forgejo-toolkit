@@ -8,11 +8,9 @@ import type { PayloadUser } from './PayloadUser';
 
 /**
  * @description PayloadCommit represents a commit
+ * @type object
  */
 export type PayloadCommit = {
-  /**
-   * @type array | undefined
-   */
   added?: string[];
   /**
    * @description PayloadUser represents the author or committer of a commit
@@ -29,25 +27,15 @@ export type PayloadCommit = {
    * @type string | undefined
    */
   id?: string;
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type array | undefined
-   */
   modified?: string[];
-  /**
-   * @type array | undefined
-   */
   removed?: string[];
   /**
-   * @type string | undefined, date-time
-   */
-  timestamp?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  timestamp?: string;
   url?: string;
   /**
    * @description PayloadCommitVerification represents the GPG verification of a commit

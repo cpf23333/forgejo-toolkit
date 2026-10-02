@@ -4,15 +4,17 @@
  */
 
 import type {
-  UserCurrentPostGPGKeyMutationResponse,
-  UserCurrentPostGPGKey401,
-  UserCurrentPostGPGKey403,
-  UserCurrentPostGPGKey404,
-  UserCurrentPostGPGKey422,
+  UserCurrentPostGPGKeyResponse,
+  UserCurrentPostGPGKeyStatus401,
+  UserCurrentPostGPGKeyStatus403,
+  UserCurrentPostGPGKeyStatus404,
+  UserCurrentPostGPGKeyStatus422,
+  UserCurrentPostGPGKeyBody,
 } from '../types/UserCurrentPostGPGKey';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userCurrentPostGPGKeyHandlerResponse201(data: UserCurrentPostGPGKeyMutationResponse) {
+export function userCurrentPostGPGKeyHandlerResponse201(data: UserCurrentPostGPGKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function userCurrentPostGPGKeyHandlerResponse201(data: UserCurrentPostGPG
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse401(data: UserCurrentPostGPGKey401) {
+export function userCurrentPostGPGKeyHandlerResponse401(data: UserCurrentPostGPGKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -30,7 +32,7 @@ export function userCurrentPostGPGKeyHandlerResponse401(data: UserCurrentPostGPG
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse403(data: UserCurrentPostGPGKey403) {
+export function userCurrentPostGPGKeyHandlerResponse403(data: UserCurrentPostGPGKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function userCurrentPostGPGKeyHandlerResponse403(data: UserCurrentPostGPG
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse404(data: UserCurrentPostGPGKey404) {
+export function userCurrentPostGPGKeyHandlerResponse404(data: UserCurrentPostGPGKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,7 +50,7 @@ export function userCurrentPostGPGKeyHandlerResponse404(data: UserCurrentPostGPG
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse422(data: UserCurrentPostGPGKey422) {
+export function userCurrentPostGPGKeyHandlerResponse422(data: UserCurrentPostGPGKeyStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,11 +60,9 @@ export function userCurrentPostGPGKeyHandlerResponse422(data: UserCurrentPostGPG
 }
 
 export function userCurrentPostGPGKeyHandler(
-  data?:
-    | UserCurrentPostGPGKeyMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: UserCurrentPostGPGKeyResponse | HttpResponseResolver<Record<string, string>, UserCurrentPostGPGKeyBody>,
 ) {
-  return http.post(`/user/gpg_keys`, function handler(info) {
+  return http.post<Record<string, string>, UserCurrentPostGPGKeyBody>(`/user/gpg_keys`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

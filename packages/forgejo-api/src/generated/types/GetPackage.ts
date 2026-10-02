@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Package } from './Package';
 
-export type GetPackagePathParams = {
+export type GetPackagePath = {
   /**
    * @description owner of the package
    * @type string
@@ -30,19 +30,54 @@ export type GetPackagePathParams = {
 };
 
 /**
- * @description Package
+ * @description Package represents a package
+ * @type object
  */
-export type GetPackage200 = Package;
+export type GetPackageStatus200Json = Package;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Package represents a package
+ * @type object
  */
-export type GetPackage404 = APINotFound;
+export type GetPackageStatus200Html = Package;
 
-export type GetPackageQueryResponse = GetPackage200;
+export type GetPackageStatus200 = GetPackageStatus200Json | GetPackageStatus200Html;
 
-export type GetPackageQuery = {
-  Response: GetPackage200;
-  PathParams: GetPackagePathParams;
-  Errors: GetPackage404;
+export type GetPackageStatus404Json = APINotFound;
+
+export type GetPackageStatus404Html = APINotFound;
+
+export type GetPackageStatus404 = GetPackageStatus404Json | GetPackageStatus404Html;
+
+export type GetPackageOptions = {
+  body?: never;
+  path: GetPackagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetPackageResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetPackageStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetPackageStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetPackageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetPackageStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetPackageResponse = GetPackageStatus200 | GetPackageStatus404;

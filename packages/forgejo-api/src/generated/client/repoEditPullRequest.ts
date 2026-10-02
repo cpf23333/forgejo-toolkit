@@ -3,63 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditPullRequestMutationRequest,
-  RepoEditPullRequestMutationResponse,
-  RepoEditPullRequestPathParams,
-  RepoEditPullRequest403,
-  RepoEditPullRequest404,
-  RepoEditPullRequest409,
-  RepoEditPullRequest412,
-  RepoEditPullRequest422,
-} from '../types/RepoEditPullRequest';
-
-function getRepoEditPullRequestUrl(
-  owner: RepoEditPullRequestPathParams['owner'],
-  repo: RepoEditPullRequestPathParams['repo'],
-  index: RepoEditPullRequestPathParams['index'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/pulls/${index}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditPullRequestOptions, RepoEditPullRequestResponses } from '../types/RepoEditPullRequest';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a pull request. If using deadline only the date will be taken into account, and time of day ignored.
  * {@link /repos/:owner/:repo/pulls/:index}
  */
-export async function repoEditPullRequest(
-  owner: RepoEditPullRequestPathParams['owner'],
-  repo: RepoEditPullRequestPathParams['repo'],
-  index: RepoEditPullRequestPathParams['index'],
-  data?: RepoEditPullRequestMutationRequest,
-  config: Partial<RequestConfig<RepoEditPullRequestMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditPullRequest<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditPullRequestOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditPullRequestResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditPullRequestMutationResponse,
-    ResponseErrorConfig<
-      | RepoEditPullRequest403
-      | RepoEditPullRequest404
-      | RepoEditPullRequest409
-      | RepoEditPullRequest412
-      | RepoEditPullRequest422
-    >,
-    RepoEditPullRequestMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditPullRequestUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/pulls/{index}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditPullRequestResponses, ThrowOnError>>;
 }

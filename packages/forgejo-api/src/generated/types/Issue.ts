@@ -13,56 +13,49 @@ import type { User } from './User';
 
 /**
  * @description Issue represents an issue in a repository
+ * @type object
  */
 export type Issue = {
-  /**
-   * @type array | undefined
-   */
   assets?: Attachment[];
   /**
    * @description User represents a user
    * @type object | undefined
    */
   assignee?: User;
-  /**
-   * @type array | undefined
-   */
   assignees?: User[];
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   closed_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   comments?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  due_date?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  due_date?: string;
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   is_locked?: boolean;
-  /**
-   * @type array | undefined
-   */
   labels?: Label[];
   /**
    * @description Milestone milestone is a collection of issues on one repository
@@ -70,19 +63,22 @@ export type Issue = {
    */
   milestone?: Milestone;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   number?: number;
-  /**
-   * @type string | undefined
-   */
   original_author?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   original_author_id?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   pin_order?: number;
   /**
@@ -90,9 +86,6 @@ export type Issue = {
    * @type object | undefined
    */
   pull_request?: PullRequestMeta;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
   /**
    * @description RepositoryMeta basic repository information
@@ -104,17 +97,13 @@ export type Issue = {
    * @type string | undefined
    */
   state?: StateType;
-  /**
-   * @type string | undefined
-   */
   title?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
   /**
    * @description User represents a user

@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RegisterOrgRunnerMutationRequest,
-  RegisterOrgRunnerMutationResponse,
-  RegisterOrgRunnerPathParams,
-  RegisterOrgRunner400,
-  RegisterOrgRunner401,
-  RegisterOrgRunner404,
-} from '../types/RegisterOrgRunner';
-
-function getRegisterOrgRunnerUrl(org: RegisterOrgRunnerPathParams['org']) {
-  const res = { method: 'POST', url: `/orgs/${org}/actions/runners` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RegisterOrgRunnerOptions, RegisterOrgRunnerResponses } from '../types/RegisterOrgRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Register a new organization-level runner
  * {@link /orgs/:org/actions/runners}
  */
-export async function registerOrgRunner(
-  org: RegisterOrgRunnerPathParams['org'],
-  data: RegisterOrgRunnerMutationRequest,
-  config: Partial<RequestConfig<RegisterOrgRunnerMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function registerOrgRunner<ThrowOnError extends boolean = true>(
+  options: Options<RegisterOrgRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RegisterOrgRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RegisterOrgRunnerMutationResponse,
-    ResponseErrorConfig<RegisterOrgRunner400 | RegisterOrgRunner401 | RegisterOrgRunner404>,
-    RegisterOrgRunnerMutationRequest
-  >({
-    method: 'POST',
-    url: getRegisterOrgRunnerUrl(org).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RegisterOrgRunnerResponses, ThrowOnError>>;
 }

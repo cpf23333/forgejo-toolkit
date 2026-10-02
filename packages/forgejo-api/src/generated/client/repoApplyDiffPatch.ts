@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoApplyDiffPatchMutationRequest,
-  RepoApplyDiffPatchMutationResponse,
-  RepoApplyDiffPatchPathParams,
-  RepoApplyDiffPatch404,
-  RepoApplyDiffPatch413,
-  RepoApplyDiffPatch423,
-} from '../types/RepoApplyDiffPatch';
-
-function getRepoApplyDiffPatchUrl(
-  owner: RepoApplyDiffPatchPathParams['owner'],
-  repo: RepoApplyDiffPatchPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/diffpatch` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoApplyDiffPatchOptions, RepoApplyDiffPatchResponses } from '../types/RepoApplyDiffPatch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Apply diff patch to repository
  * {@link /repos/:owner/:repo/diffpatch}
  */
-export async function repoApplyDiffPatch(
-  owner: RepoApplyDiffPatchPathParams['owner'],
-  repo: RepoApplyDiffPatchPathParams['repo'],
-  data: RepoApplyDiffPatchMutationRequest,
-  config: Partial<RequestConfig<RepoApplyDiffPatchMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoApplyDiffPatch<ThrowOnError extends boolean = true>(
+  options: Options<RepoApplyDiffPatchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoApplyDiffPatchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoApplyDiffPatchMutationResponse,
-    ResponseErrorConfig<RepoApplyDiffPatch404 | RepoApplyDiffPatch413 | RepoApplyDiffPatch423>,
-    RepoApplyDiffPatchMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoApplyDiffPatchUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/diffpatch',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoApplyDiffPatchResponses, ThrowOnError>>;
 }

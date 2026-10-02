@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoSearchRunJobsQueryResponse, RepoSearchRunJobs403 } from '../types/RepoSearchRunJobs';
+import type { RepoSearchRunJobsResponse, RepoSearchRunJobsStatus403 } from '../types/RepoSearchRunJobs';
 import { http } from 'msw';
 
-export function repoSearchRunJobsHandlerResponse200(data: RepoSearchRunJobsQueryResponse) {
+export function repoSearchRunJobsHandlerResponse200(data: RepoSearchRunJobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoSearchRunJobsHandlerResponse200(data: RepoSearchRunJobsQuery
   });
 }
 
-export function repoSearchRunJobsHandlerResponse403(data: RepoSearchRunJobs403) {
+export function repoSearchRunJobsHandlerResponse403(data: RepoSearchRunJobsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function repoSearchRunJobsHandlerResponse403(data: RepoSearchRunJobs403) 
 
 export function repoSearchRunJobsHandler(
   data?:
-    | RepoSearchRunJobsQueryResponse
+    | RepoSearchRunJobsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runners/jobs`, function handler(info) {

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListKeysQueryResponse, RepoListKeys404 } from '../types/RepoListKeys';
+import type { RepoListKeysResponse, RepoListKeysStatus404 } from '../types/RepoListKeys';
 import { http } from 'msw';
 
-export function repoListKeysHandlerResponse200(data: RepoListKeysQueryResponse) {
+export function repoListKeysHandlerResponse200(data: RepoListKeysResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListKeysHandlerResponse200(data: RepoListKeysQueryResponse) 
   });
 }
 
-export function repoListKeysHandlerResponse404(data: RepoListKeys404) {
+export function repoListKeysHandlerResponse404(data: RepoListKeysStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function repoListKeysHandlerResponse404(data: RepoListKeys404) {
 }
 
 export function repoListKeysHandler(
-  data?:
-    | RepoListKeysQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoListKeysResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/keys`, function handler(info) {
     if (typeof data === 'function') return data(info);

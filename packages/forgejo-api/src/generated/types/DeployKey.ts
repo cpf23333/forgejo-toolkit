@@ -7,43 +7,35 @@ import type { Repository } from './Repository';
 
 /**
  * @description DeployKey a deploy key
+ * @type object
  */
 export type DeployKey = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type string | undefined
-   */
   fingerprint?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   key?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   key_id?: number;
-  /**
-   * @type boolean | undefined
-   */
   read_only?: boolean;
   /**
    * @description Repository represents a repository
    * @type object | undefined
    */
   repository?: Repository;
-  /**
-   * @type string | undefined
-   */
   title?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type AdminSearchRunJobsQueryParams = {
+export type AdminSearchRunJobsQuery = {
   /**
    * @description a comma separated list of run job labels to search for
    * @type string | undefined
@@ -14,20 +14,51 @@ export type AdminSearchRunJobsQueryParams = {
   labels?: string;
 };
 
-/**
- * @description RunJobList is a list of action run jobs
- */
-export type AdminSearchRunJobs200 = ActionRunJob[];
+export type AdminSearchRunJobsStatus200Json = ActionRunJob[];
+
+export type AdminSearchRunJobsStatus200Html = ActionRunJob[];
+
+export type AdminSearchRunJobsStatus200 = AdminSearchRunJobsStatus200Json | AdminSearchRunJobsStatus200Html;
+
+export type AdminSearchRunJobsStatus403Json = APIForbiddenError;
+
+export type AdminSearchRunJobsStatus403Html = APIForbiddenError;
+
+export type AdminSearchRunJobsStatus403 = AdminSearchRunJobsStatus403Json | AdminSearchRunJobsStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @deprecated
+ * @type object
  */
-export type AdminSearchRunJobs403 = APIForbiddenError;
-
-export type AdminSearchRunJobsQueryResponse = AdminSearchRunJobs200;
-
-export type AdminSearchRunJobsQuery = {
-  Response: AdminSearchRunJobs200;
-  QueryParams: AdminSearchRunJobsQueryParams;
-  Errors: AdminSearchRunJobs403;
+export type AdminSearchRunJobsOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminSearchRunJobsQuery;
+  headers?: never;
 };
+
+export type AdminSearchRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchRunJobsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchRunJobsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminSearchRunJobsResponse = AdminSearchRunJobsStatus200 | AdminSearchRunJobsStatus403;

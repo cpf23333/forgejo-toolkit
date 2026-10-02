@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { Attachment } from './Attachment';
 
-export type IssueListIssueCommentAttachmentsPathParams = {
+export type IssueListIssueCommentAttachmentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,68 @@ export type IssueListIssueCommentAttachmentsPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description AttachmentList
- */
-export type IssueListIssueCommentAttachments200 = Attachment[];
+export type IssueListIssueCommentAttachmentsStatus200Json = Attachment[];
+
+export type IssueListIssueCommentAttachmentsStatus200Html = Attachment[];
+
+export type IssueListIssueCommentAttachmentsStatus200 =
+  | IssueListIssueCommentAttachmentsStatus200Json
+  | IssueListIssueCommentAttachmentsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueListIssueCommentAttachments404 = APIError;
+export type IssueListIssueCommentAttachmentsStatus404Json = APIError;
 
-export type IssueListIssueCommentAttachmentsQueryResponse = IssueListIssueCommentAttachments200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueListIssueCommentAttachmentsStatus404Html = APIError;
 
-export type IssueListIssueCommentAttachmentsQuery = {
-  Response: IssueListIssueCommentAttachments200;
-  PathParams: IssueListIssueCommentAttachmentsPathParams;
-  Errors: IssueListIssueCommentAttachments404;
+export type IssueListIssueCommentAttachmentsStatus404 =
+  | IssueListIssueCommentAttachmentsStatus404Json
+  | IssueListIssueCommentAttachmentsStatus404Html;
+
+export type IssueListIssueCommentAttachmentsOptions = {
+  body?: never;
+  path: IssueListIssueCommentAttachmentsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueListIssueCommentAttachmentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueCommentAttachmentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueCommentAttachmentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueCommentAttachmentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueCommentAttachmentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueListIssueCommentAttachmentsResponse =
+  | IssueListIssueCommentAttachmentsStatus200
+  | IssueListIssueCommentAttachmentsStatus404;

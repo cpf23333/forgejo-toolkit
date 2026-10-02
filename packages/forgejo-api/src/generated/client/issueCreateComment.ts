@@ -3,56 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueCreateCommentMutationRequest,
-  IssueCreateCommentMutationResponse,
-  IssueCreateCommentPathParams,
-  IssueCreateComment403,
-  IssueCreateComment404,
-  IssueCreateComment423,
-  IssueCreateComment500,
-} from '../types/IssueCreateComment';
-
-function getIssueCreateCommentUrl(
-  owner: IssueCreateCommentPathParams['owner'],
-  repo: IssueCreateCommentPathParams['repo'],
-  index: IssueCreateCommentPathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/comments` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueCreateCommentOptions, IssueCreateCommentResponses } from '../types/IssueCreateComment';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a comment to an issue
  * {@link /repos/:owner/:repo/issues/:index/comments}
  */
-export async function issueCreateComment(
-  owner: IssueCreateCommentPathParams['owner'],
-  repo: IssueCreateCommentPathParams['repo'],
-  index: IssueCreateCommentPathParams['index'],
-  data: IssueCreateCommentMutationRequest,
-  config: Partial<RequestConfig<IssueCreateCommentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCreateComment<ThrowOnError extends boolean = true>(
+  options: Options<IssueCreateCommentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCreateCommentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueCreateCommentMutationResponse,
-    ResponseErrorConfig<IssueCreateComment403 | IssueCreateComment404 | IssueCreateComment423 | IssueCreateComment500>,
-    IssueCreateCommentMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueCreateCommentUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/comments',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCreateCommentResponses, ThrowOnError>>;
 }

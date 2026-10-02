@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetOrgRunnersQueryResponse, GetOrgRunners400, GetOrgRunners404 } from '../types/GetOrgRunners';
+import type { GetOrgRunnersResponse, GetOrgRunnersStatus400, GetOrgRunnersStatus404 } from '../types/GetOrgRunners';
 import { http } from 'msw';
 
-export function getOrgRunnersHandlerResponse200(data: GetOrgRunnersQueryResponse) {
+export function getOrgRunnersHandlerResponse200(data: GetOrgRunnersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getOrgRunnersHandlerResponse200(data: GetOrgRunnersQueryResponse
   });
 }
 
-export function getOrgRunnersHandlerResponse400(data: GetOrgRunners400) {
+export function getOrgRunnersHandlerResponse400(data: GetOrgRunnersStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function getOrgRunnersHandlerResponse400(data: GetOrgRunners400) {
   });
 }
 
-export function getOrgRunnersHandlerResponse404(data: GetOrgRunners404) {
+export function getOrgRunnersHandlerResponse404(data: GetOrgRunnersStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function getOrgRunnersHandlerResponse404(data: GetOrgRunners404) {
 
 export function getOrgRunnersHandler(
   data?:
-    | GetOrgRunnersQueryResponse
+    | GetOrgRunnersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/runners`, function handler(info) {

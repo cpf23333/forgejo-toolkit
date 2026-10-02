@@ -3,10 +3,15 @@
  * Do not edit manually.
  */
 
-import type { DispatchWorkflowMutationResponse, DispatchWorkflow404 } from '../types/DispatchWorkflow';
+import type {
+  DispatchWorkflowResponse,
+  DispatchWorkflowStatus404,
+  DispatchWorkflowBody,
+} from '../types/DispatchWorkflow';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function dispatchWorkflowHandlerResponse201(data: DispatchWorkflowMutationResponse) {
+export function dispatchWorkflowHandlerResponse201(data: DispatchWorkflowResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,13 +20,13 @@ export function dispatchWorkflowHandlerResponse201(data: DispatchWorkflowMutatio
   });
 }
 
-export function dispatchWorkflowHandlerResponse204(data?: DispatchWorkflowMutationResponse) {
+export function dispatchWorkflowHandlerResponse204(data?: DispatchWorkflowResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function dispatchWorkflowHandlerResponse404(data: DispatchWorkflow404) {
+export function dispatchWorkflowHandlerResponse404(data: DispatchWorkflowStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -31,18 +36,19 @@ export function dispatchWorkflowHandlerResponse404(data: DispatchWorkflow404) {
 }
 
 export function dispatchWorkflowHandler(
-  data?:
-    | DispatchWorkflowMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: DispatchWorkflowResponse | HttpResponseResolver<Record<string, string>, DispatchWorkflowBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, DispatchWorkflowBody>(
+    `/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

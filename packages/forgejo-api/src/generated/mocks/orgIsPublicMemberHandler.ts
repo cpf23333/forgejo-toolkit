@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgIsPublicMemberQueryResponse, OrgIsPublicMember404 } from '../types/OrgIsPublicMember';
+import type { OrgIsPublicMemberResponse, OrgIsPublicMemberStatus404 } from '../types/OrgIsPublicMember';
 import { http } from 'msw';
 
-export function orgIsPublicMemberHandlerResponse204(data?: OrgIsPublicMemberQueryResponse) {
+export function orgIsPublicMemberHandlerResponse204(data?: OrgIsPublicMemberResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgIsPublicMemberHandlerResponse404(data?: OrgIsPublicMember404) {
+export function orgIsPublicMemberHandlerResponse404(data?: OrgIsPublicMemberStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListActivityFeedsQueryResponse, RepoListActivityFeeds404 } from '../types/RepoListActivityFeeds';
+import type { RepoListActivityFeedsResponse, RepoListActivityFeedsStatus404 } from '../types/RepoListActivityFeeds';
 import { http } from 'msw';
 
-export function repoListActivityFeedsHandlerResponse200(data: RepoListActivityFeedsQueryResponse) {
+export function repoListActivityFeedsHandlerResponse200(data: RepoListActivityFeedsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListActivityFeedsHandlerResponse200(data: RepoListActivityFe
   });
 }
 
-export function repoListActivityFeedsHandlerResponse404(data: RepoListActivityFeeds404) {
+export function repoListActivityFeedsHandlerResponse404(data: RepoListActivityFeedsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListActivityFeedsHandlerResponse404(data: RepoListActivityFe
 
 export function repoListActivityFeedsHandler(
   data?:
-    | RepoListActivityFeedsQueryResponse
+    | RepoListActivityFeedsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/activities/feeds`, function handler(info) {

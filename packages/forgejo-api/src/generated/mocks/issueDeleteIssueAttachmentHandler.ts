@@ -4,19 +4,19 @@
  */
 
 import type {
-  IssueDeleteIssueAttachmentMutationResponse,
-  IssueDeleteIssueAttachment404,
-  IssueDeleteIssueAttachment423,
+  IssueDeleteIssueAttachmentResponse,
+  IssueDeleteIssueAttachmentStatus404,
+  IssueDeleteIssueAttachmentStatus423,
 } from '../types/IssueDeleteIssueAttachment';
 import { http } from 'msw';
 
-export function issueDeleteIssueAttachmentHandlerResponse204(data?: IssueDeleteIssueAttachmentMutationResponse) {
+export function issueDeleteIssueAttachmentHandlerResponse204(data?: IssueDeleteIssueAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteIssueAttachmentHandlerResponse404(data: IssueDeleteIssueAttachment404) {
+export function issueDeleteIssueAttachmentHandlerResponse404(data: IssueDeleteIssueAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,7 +25,7 @@ export function issueDeleteIssueAttachmentHandlerResponse404(data: IssueDeleteIs
   });
 }
 
-export function issueDeleteIssueAttachmentHandlerResponse423(data: IssueDeleteIssueAttachment423) {
+export function issueDeleteIssueAttachmentHandlerResponse423(data: IssueDeleteIssueAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

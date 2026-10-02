@@ -6,10 +6,12 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type OrgListTeamMemberPathParams = {
+export type OrgListTeamMemberPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -20,19 +22,54 @@ export type OrgListTeamMemberPathParams = {
 };
 
 /**
- * @description User
+ * @description User represents a user
+ * @type object
  */
-export type OrgListTeamMember200 = User;
+export type OrgListTeamMemberStatus200Json = User;
 
 /**
- * @description APINotFound is a not found error response
+ * @description User represents a user
+ * @type object
  */
-export type OrgListTeamMember404 = APINotFound;
+export type OrgListTeamMemberStatus200Html = User;
 
-export type OrgListTeamMemberQueryResponse = OrgListTeamMember200;
+export type OrgListTeamMemberStatus200 = OrgListTeamMemberStatus200Json | OrgListTeamMemberStatus200Html;
 
-export type OrgListTeamMemberQuery = {
-  Response: OrgListTeamMember200;
-  PathParams: OrgListTeamMemberPathParams;
-  Errors: OrgListTeamMember404;
+export type OrgListTeamMemberStatus404Json = APINotFound;
+
+export type OrgListTeamMemberStatus404Html = APINotFound;
+
+export type OrgListTeamMemberStatus404 = OrgListTeamMemberStatus404Json | OrgListTeamMemberStatus404Html;
+
+export type OrgListTeamMemberOptions = {
+  body?: never;
+  path: OrgListTeamMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgListTeamMemberResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamMemberStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamMemberStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamMemberResponse = OrgListTeamMemberStatus200 | OrgListTeamMemberStatus404;

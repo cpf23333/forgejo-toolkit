@@ -5,7 +5,7 @@
 
 import type { RegistrationToken } from './RegistrationToken';
 
-export type OrgGetRunnerRegistrationTokenPathParams = {
+export type OrgGetRunnerRegistrationTokenPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,13 +15,44 @@ export type OrgGetRunnerRegistrationTokenPathParams = {
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
-export type OrgGetRunnerRegistrationToken200 = RegistrationToken;
+export type OrgGetRunnerRegistrationTokenStatus200Json = RegistrationToken;
 
-export type OrgGetRunnerRegistrationTokenQueryResponse = OrgGetRunnerRegistrationToken200;
+/**
+ * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
+ */
+export type OrgGetRunnerRegistrationTokenStatus200Html = RegistrationToken;
 
-export type OrgGetRunnerRegistrationTokenQuery = {
-  Response: OrgGetRunnerRegistrationToken200;
-  PathParams: OrgGetRunnerRegistrationTokenPathParams;
-  Errors: any;
+export type OrgGetRunnerRegistrationTokenStatus200 =
+  | OrgGetRunnerRegistrationTokenStatus200Json
+  | OrgGetRunnerRegistrationTokenStatus200Html;
+
+/**
+ * @deprecated
+ * @type object
+ */
+export type OrgGetRunnerRegistrationTokenOptions = {
+  body?: never;
+  path: OrgGetRunnerRegistrationTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetRunnerRegistrationTokenResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetRunnerRegistrationTokenStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetRunnerRegistrationTokenStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetRunnerRegistrationTokenResponse = OrgGetRunnerRegistrationTokenStatus200;

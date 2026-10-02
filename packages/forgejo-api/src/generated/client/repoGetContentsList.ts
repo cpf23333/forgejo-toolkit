@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetContentsListQueryResponse,
-  RepoGetContentsListPathParams,
-  RepoGetContentsListQueryParams,
-  RepoGetContentsList404,
-} from '../types/RepoGetContentsList';
-
-function getRepoGetContentsListUrl(
-  owner: RepoGetContentsListPathParams['owner'],
-  repo: RepoGetContentsListPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/contents` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetContentsListOptions, RepoGetContentsListResponses } from '../types/RepoGetContentsList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets the metadata of all the entries of the root dir
  * {@link /repos/:owner/:repo/contents}
  */
-export async function repoGetContentsList(
-  owner: RepoGetContentsListPathParams['owner'],
-  repo: RepoGetContentsListPathParams['repo'],
-  params?: RepoGetContentsListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetContentsList<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetContentsListOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetContentsListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetContentsListQueryResponse, ResponseErrorConfig<RepoGetContentsList404>, unknown>({
-    method: 'GET',
-    url: getRepoGetContentsListUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/contents',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetContentsListResponses, ThrowOnError>>;
 }

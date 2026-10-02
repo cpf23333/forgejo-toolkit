@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListActivityFeedsQueryResponse, UserListActivityFeeds404 } from '../types/UserListActivityFeeds';
+import type { UserListActivityFeedsResponse, UserListActivityFeedsStatus404 } from '../types/UserListActivityFeeds';
 import { http } from 'msw';
 
-export function userListActivityFeedsHandlerResponse200(data: UserListActivityFeedsQueryResponse) {
+export function userListActivityFeedsHandlerResponse200(data: UserListActivityFeedsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListActivityFeedsHandlerResponse200(data: UserListActivityFe
   });
 }
 
-export function userListActivityFeedsHandlerResponse404(data: UserListActivityFeeds404) {
+export function userListActivityFeedsHandlerResponse404(data: UserListActivityFeedsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListActivityFeedsHandlerResponse404(data: UserListActivityFe
 
 export function userListActivityFeedsHandler(
   data?:
-    | UserListActivityFeedsQueryResponse
+    | UserListActivityFeedsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/activities/feeds`, function handler(info) {

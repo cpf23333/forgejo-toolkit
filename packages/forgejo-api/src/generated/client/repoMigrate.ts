@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoMigrateMutationRequest,
-  RepoMigrateMutationResponse,
-  RepoMigrate403,
-  RepoMigrate409,
-  RepoMigrate413,
-  RepoMigrate422,
-} from '../types/RepoMigrate';
-
-function getRepoMigrateUrl() {
-  const res = { method: 'POST', url: `/repos/migrate` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoMigrateOptions, RepoMigrateResponses } from '../types/RepoMigrate';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Migrate a remote git repository
  * {@link /repos/migrate}
  */
-export async function repoMigrate(
-  data: RepoMigrateMutationRequest,
-  config: Partial<RequestConfig<RepoMigrateMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoMigrate<ThrowOnError extends boolean = true>(
+  options: Options<RepoMigrateOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoMigrateResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoMigrateMutationResponse,
-    ResponseErrorConfig<RepoMigrate403 | RepoMigrate409 | RepoMigrate413 | RepoMigrate422>,
-    RepoMigrateMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoMigrateUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/migrate',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoMigrateResponses, ThrowOnError>>;
 }

@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssueCreateLabelMutationResponse,
-  IssueCreateLabel404,
-  IssueCreateLabel422,
+  IssueCreateLabelResponse,
+  IssueCreateLabelStatus404,
+  IssueCreateLabelStatus422,
+  IssueCreateLabelBody,
 } from '../types/IssueCreateLabel';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateLabelHandlerResponse201(data: IssueCreateLabelMutationResponse) {
+export function issueCreateLabelHandlerResponse201(data: IssueCreateLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,7 +21,7 @@ export function issueCreateLabelHandlerResponse201(data: IssueCreateLabelMutatio
   });
 }
 
-export function issueCreateLabelHandlerResponse404(data: IssueCreateLabel404) {
+export function issueCreateLabelHandlerResponse404(data: IssueCreateLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,7 +30,7 @@ export function issueCreateLabelHandlerResponse404(data: IssueCreateLabel404) {
   });
 }
 
-export function issueCreateLabelHandlerResponse422(data: IssueCreateLabel422) {
+export function issueCreateLabelHandlerResponse422(data: IssueCreateLabelStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,11 +40,9 @@ export function issueCreateLabelHandlerResponse422(data: IssueCreateLabel422) {
 }
 
 export function issueCreateLabelHandler(
-  data?:
-    | IssueCreateLabelMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueCreateLabelResponse | HttpResponseResolver<Record<string, string>, IssueCreateLabelBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/labels`, function handler(info) {
+  return http.post<Record<string, string>, IssueCreateLabelBody>(`/repos/:owner/:repo/labels`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

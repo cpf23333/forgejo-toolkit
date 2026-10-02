@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type OrgListPublicMembersPathParams = {
+export type OrgListPublicMembersPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListPublicMembersPathParams = {
   org: string;
 };
 
-export type OrgListPublicMembersQueryParams = {
+export type OrgListPublicMembersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListPublicMembersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type OrgListPublicMembers200 = User[];
+export type OrgListPublicMembersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListPublicMembers404 = APINotFound;
+export type OrgListPublicMembersStatus200Html = User[];
 
-export type OrgListPublicMembersQueryResponse = OrgListPublicMembers200;
+export type OrgListPublicMembersStatus200 = OrgListPublicMembersStatus200Json | OrgListPublicMembersStatus200Html;
 
-export type OrgListPublicMembersQuery = {
-  Response: OrgListPublicMembers200;
-  PathParams: OrgListPublicMembersPathParams;
-  QueryParams: OrgListPublicMembersQueryParams;
-  Errors: OrgListPublicMembers404;
+export type OrgListPublicMembersStatus404Json = APINotFound;
+
+export type OrgListPublicMembersStatus404Html = APINotFound;
+
+export type OrgListPublicMembersStatus404 = OrgListPublicMembersStatus404Json | OrgListPublicMembersStatus404Html;
+
+export type OrgListPublicMembersOptions = {
+  body?: never;
+  path: OrgListPublicMembersPath;
+  query?: OrgListPublicMembersQuery;
+  headers?: never;
 };
+
+export type OrgListPublicMembersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListPublicMembersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListPublicMembersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListPublicMembersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListPublicMembersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListPublicMembersResponse = OrgListPublicMembersStatus200 | OrgListPublicMembersStatus404;

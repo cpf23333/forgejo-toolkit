@@ -5,14 +5,19 @@
 
 /**
  * @description CommitDateOptions store dates for GIT_AUTHOR_DATE and GIT_COMMITTER_DATE
+ * @type object
  */
 export type CommitDateOptions = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   author?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   committer?: string;
 };

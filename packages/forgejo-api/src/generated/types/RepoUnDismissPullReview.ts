@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { PullReview } from './PullReview';
 
-export type RepoUnDismissPullReviewPathParams = {
+export type RepoUnDismissPullReviewPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,40 +21,111 @@ export type RepoUnDismissPullReviewPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description PullReview
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoUnDismissPullReview200 = PullReview;
+export type RepoUnDismissPullReviewStatus200Json = PullReview;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoUnDismissPullReview403 = APIForbiddenError;
+export type RepoUnDismissPullReviewStatus200Html = PullReview;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoUnDismissPullReview404 = APINotFound;
+export type RepoUnDismissPullReviewStatus200 =
+  | RepoUnDismissPullReviewStatus200Json
+  | RepoUnDismissPullReviewStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoUnDismissPullReview422 = APIValidationError;
+export type RepoUnDismissPullReviewStatus403Json = APIForbiddenError;
 
-export type RepoUnDismissPullReviewMutationResponse = RepoUnDismissPullReview200;
+export type RepoUnDismissPullReviewStatus403Html = APIForbiddenError;
 
-export type RepoUnDismissPullReviewMutation = {
-  Response: RepoUnDismissPullReview200;
-  PathParams: RepoUnDismissPullReviewPathParams;
-  Errors: RepoUnDismissPullReview403 | RepoUnDismissPullReview404 | RepoUnDismissPullReview422;
+export type RepoUnDismissPullReviewStatus403 =
+  | RepoUnDismissPullReviewStatus403Json
+  | RepoUnDismissPullReviewStatus403Html;
+
+export type RepoUnDismissPullReviewStatus404Json = APINotFound;
+
+export type RepoUnDismissPullReviewStatus404Html = APINotFound;
+
+export type RepoUnDismissPullReviewStatus404 =
+  | RepoUnDismissPullReviewStatus404Json
+  | RepoUnDismissPullReviewStatus404Html;
+
+export type RepoUnDismissPullReviewStatus422Json = APIValidationError;
+
+export type RepoUnDismissPullReviewStatus422Html = APIValidationError;
+
+export type RepoUnDismissPullReviewStatus422 =
+  | RepoUnDismissPullReviewStatus422Json
+  | RepoUnDismissPullReviewStatus422Html;
+
+export type RepoUnDismissPullReviewOptions = {
+  body?: never;
+  path: RepoUnDismissPullReviewPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoUnDismissPullReviewResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoUnDismissPullReviewStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUnDismissPullReviewStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoUnDismissPullReviewStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUnDismissPullReviewStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUnDismissPullReviewStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUnDismissPullReviewStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoUnDismissPullReviewStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUnDismissPullReviewStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoUnDismissPullReviewResponse =
+  | RepoUnDismissPullReviewStatus200
+  | RepoUnDismissPullReviewStatus403
+  | RepoUnDismissPullReviewStatus404
+  | RepoUnDismissPullReviewStatus422;

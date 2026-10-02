@@ -5,58 +5,45 @@
 
 /**
  * @description ActionTask represents a ActionTask
+ * @type object
  */
 export type ActionTask = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type string | undefined
-   */
   display_title?: string;
-  /**
-   * @type string | undefined
-   */
   event?: string;
-  /**
-   * @type string | undefined
-   */
   head_branch?: string;
-  /**
-   * @type string | undefined
-   */
   head_sha?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   run_number?: number;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   run_started_at?: string;
-  /**
-   * @type string | undefined
-   */
   status?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
-  /**
-   * @type string | undefined
-   */
   workflow_id?: string;
 };

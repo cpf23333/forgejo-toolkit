@@ -4,20 +4,20 @@
  */
 
 import type {
-  DownloadActionArtifactQueryResponse,
-  DownloadActionArtifact400,
-  DownloadActionArtifact403,
-  DownloadActionArtifact404,
+  DownloadActionArtifactResponse,
+  DownloadActionArtifactStatus400,
+  DownloadActionArtifactStatus403,
+  DownloadActionArtifactStatus404,
 } from '../types/DownloadActionArtifact';
 import { http } from 'msw';
 
-export function downloadActionArtifactHandlerResponse200(data?: DownloadActionArtifactQueryResponse) {
+export function downloadActionArtifactHandlerResponse200(data?: DownloadActionArtifactResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function downloadActionArtifactHandlerResponse400(data: DownloadActionArtifact400) {
+export function downloadActionArtifactHandlerResponse400(data: DownloadActionArtifactStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function downloadActionArtifactHandlerResponse400(data: DownloadActionArt
   });
 }
 
-export function downloadActionArtifactHandlerResponse403(data: DownloadActionArtifact403) {
+export function downloadActionArtifactHandlerResponse403(data: DownloadActionArtifactStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function downloadActionArtifactHandlerResponse403(data: DownloadActionArt
   });
 }
 
-export function downloadActionArtifactHandlerResponse404(data: DownloadActionArtifact404) {
+export function downloadActionArtifactHandlerResponse404(data: DownloadActionArtifactStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

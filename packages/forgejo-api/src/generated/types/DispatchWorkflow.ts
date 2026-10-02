@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { DispatchWorkflowOption } from './DispatchWorkflowOption';
 import type { DispatchWorkflowRun } from './DispatchWorkflowRun';
 
-export type DispatchWorkflowPathParams = {
+export type DispatchWorkflowPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,27 +26,66 @@ export type DispatchWorkflowPathParams = {
 };
 
 /**
- * @description DispatchWorkflowRun is a Workflow Run after dispatching
+ * @description DispatchWorkflowRun represents a workflow run
+ * @type object
  */
-export type DispatchWorkflow201 = DispatchWorkflowRun;
+export type DispatchWorkflowStatus201Json = DispatchWorkflowRun;
 
 /**
- * @description APIEmpty is an empty response
+ * @description DispatchWorkflowRun represents a workflow run
+ * @type object
  */
-export type DispatchWorkflow204 = any;
+export type DispatchWorkflowStatus201Html = DispatchWorkflowRun;
+
+export type DispatchWorkflowStatus201 = DispatchWorkflowStatus201Json | DispatchWorkflowStatus201Html;
+
+export type DispatchWorkflowStatus204 = unknown;
+
+export type DispatchWorkflowStatus404Json = APINotFound;
+
+export type DispatchWorkflowStatus404Html = APINotFound;
+
+export type DispatchWorkflowStatus404 = DispatchWorkflowStatus404Json | DispatchWorkflowStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description DispatchWorkflowOption options when dispatching a workflow
+ * @type object | undefined
  */
-export type DispatchWorkflow404 = APINotFound;
+export type DispatchWorkflowBody = DispatchWorkflowOption | undefined;
 
-export type DispatchWorkflowMutationRequest = DispatchWorkflowOption;
-
-export type DispatchWorkflowMutationResponse = DispatchWorkflow201 | DispatchWorkflow204;
-
-export type DispatchWorkflowMutation = {
-  Response: DispatchWorkflow201 | DispatchWorkflow204;
-  Request: DispatchWorkflowMutationRequest;
-  PathParams: DispatchWorkflowPathParams;
-  Errors: DispatchWorkflow404;
+export type DispatchWorkflowOptions = {
+  body: DispatchWorkflowBody;
+  path: DispatchWorkflowPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DispatchWorkflowResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: DispatchWorkflowStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DispatchWorkflowStatus201Html;
+      };
+  '204': DispatchWorkflowStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DispatchWorkflowStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DispatchWorkflowStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DispatchWorkflowResponse =
+  | DispatchWorkflowStatus201
+  | DispatchWorkflowStatus204
+  | DispatchWorkflowStatus404;

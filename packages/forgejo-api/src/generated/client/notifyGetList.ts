@@ -3,30 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { NotifyGetListQueryResponse, NotifyGetListQueryParams } from '../types/NotifyGetList';
-
-function getNotifyGetListUrl() {
-  const res = { method: 'GET', url: `/notifications` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { NotifyGetListOptions, NotifyGetListResponses } from '../types/NotifyGetList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List users's notification threads
  * {@link /notifications}
  */
-export async function notifyGetList(
-  params?: NotifyGetListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function notifyGetList<ThrowOnError extends boolean = true>(
+  options: Options<NotifyGetListOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<NotifyGetListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<NotifyGetListQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getNotifyGetListUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/notifications',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      styles: {
+        query: { 'status-types': { style: 'form', explode: true }, 'subject-type': { style: 'form', explode: true } },
+      },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<NotifyGetListResponses, ThrowOnError>>;
 }

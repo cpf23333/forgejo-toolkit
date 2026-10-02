@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListPackagesQueryResponse, ListPackages404 } from '../types/ListPackages';
+import type { ListPackagesResponse, ListPackagesStatus404 } from '../types/ListPackages';
 import { http } from 'msw';
 
-export function listPackagesHandlerResponse200(data: ListPackagesQueryResponse) {
+export function listPackagesHandlerResponse200(data: ListPackagesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function listPackagesHandlerResponse200(data: ListPackagesQueryResponse) 
   });
 }
 
-export function listPackagesHandlerResponse404(data: ListPackages404) {
+export function listPackagesHandlerResponse404(data: ListPackagesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function listPackagesHandlerResponse404(data: ListPackages404) {
 }
 
 export function listPackagesHandler(
-  data?:
-    | ListPackagesQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: ListPackagesResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/packages/:owner`, function handler(info) {
     if (typeof data === 'function') return data(info);

@@ -7,31 +7,71 @@ import type { APINotFound } from './APINotFound';
 import type { EditTeamOption } from './EditTeamOption';
 import type { Team } from './Team';
 
-export type OrgEditTeamPathParams = {
+export type OrgEditTeamPath = {
   /**
    * @description id of the team to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Team
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgEditTeam200 = Team;
+export type OrgEditTeamStatus200Json = Team;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgEditTeam404 = APINotFound;
+export type OrgEditTeamStatus200Html = Team;
 
-export type OrgEditTeamMutationRequest = EditTeamOption;
+export type OrgEditTeamStatus200 = OrgEditTeamStatus200Json | OrgEditTeamStatus200Html;
 
-export type OrgEditTeamMutationResponse = OrgEditTeam200;
+export type OrgEditTeamStatus404Json = APINotFound;
 
-export type OrgEditTeamMutation = {
-  Response: OrgEditTeam200;
-  Request: OrgEditTeamMutationRequest;
-  PathParams: OrgEditTeamPathParams;
-  Errors: OrgEditTeam404;
+export type OrgEditTeamStatus404Html = APINotFound;
+
+export type OrgEditTeamStatus404 = OrgEditTeamStatus404Json | OrgEditTeamStatus404Html;
+
+/**
+ * @description EditTeamOption options for editing a team
+ * @type object | undefined
+ */
+export type OrgEditTeamBody = EditTeamOption | undefined;
+
+export type OrgEditTeamOptions = {
+  body: OrgEditTeamBody;
+  path: OrgEditTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgEditTeamResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgEditTeamStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditTeamStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgEditTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditTeamStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgEditTeamResponse = OrgEditTeamStatus200 | OrgEditTeamStatus404;

@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoDismissPullReviewMutationResponse,
-  RepoDismissPullReview403,
-  RepoDismissPullReview404,
-  RepoDismissPullReview422,
+  RepoDismissPullReviewResponse,
+  RepoDismissPullReviewStatus403,
+  RepoDismissPullReviewStatus404,
+  RepoDismissPullReviewStatus422,
+  RepoDismissPullReviewBody,
 } from '../types/RepoDismissPullReview';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoDismissPullReviewHandlerResponse200(data: RepoDismissPullReviewMutationResponse) {
+export function repoDismissPullReviewHandlerResponse200(data: RepoDismissPullReviewResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function repoDismissPullReviewHandlerResponse200(data: RepoDismissPullRev
   });
 }
 
-export function repoDismissPullReviewHandlerResponse403(data: RepoDismissPullReview403) {
+export function repoDismissPullReviewHandlerResponse403(data: RepoDismissPullReviewStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +31,7 @@ export function repoDismissPullReviewHandlerResponse403(data: RepoDismissPullRev
   });
 }
 
-export function repoDismissPullReviewHandlerResponse404(data: RepoDismissPullReview404) {
+export function repoDismissPullReviewHandlerResponse404(data: RepoDismissPullReviewStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +40,7 @@ export function repoDismissPullReviewHandlerResponse404(data: RepoDismissPullRev
   });
 }
 
-export function repoDismissPullReviewHandlerResponse422(data: RepoDismissPullReview422) {
+export function repoDismissPullReviewHandlerResponse422(data: RepoDismissPullReviewStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,18 +50,19 @@ export function repoDismissPullReviewHandlerResponse422(data: RepoDismissPullRev
 }
 
 export function repoDismissPullReviewHandler(
-  data?:
-    | RepoDismissPullReviewMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoDismissPullReviewResponse | HttpResponseResolver<Record<string, string>, RepoDismissPullReviewBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id/dismissals`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoDismissPullReviewBody>(
+    `/repos/:owner/:repo/pulls/:index/reviews/:id/dismissals`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

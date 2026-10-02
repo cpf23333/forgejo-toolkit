@@ -3,23 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetRunnerRegistrationTokenQueryResponse,
-  RepoGetRunnerRegistrationTokenPathParams,
+  RepoGetRunnerRegistrationTokenOptions,
+  RepoGetRunnerRegistrationTokenResponses,
 } from '../types/RepoGetRunnerRegistrationToken';
-
-function getRepoGetRunnerRegistrationTokenUrl(
-  owner: RepoGetRunnerRegistrationTokenPathParams['owner'],
-  repo: RepoGetRunnerRegistrationTokenPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runners/registration-token` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description This operation has been deprecated in Forgejo 15. Use the web UI or [`/repos/{owner}/{repo}/actions/runners`](#/repository/registerRepoRunner) instead.
@@ -27,17 +16,25 @@ function getRepoGetRunnerRegistrationTokenUrl(
  * {@link /repos/:owner/:repo/actions/runners/registration-token}
  * @deprecated
  */
-export async function repoGetRunnerRegistrationToken(
-  owner: RepoGetRunnerRegistrationTokenPathParams['owner'],
-  repo: RepoGetRunnerRegistrationTokenPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetRunnerRegistrationToken<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetRunnerRegistrationTokenOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetRunnerRegistrationTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetRunnerRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getRepoGetRunnerRegistrationTokenUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runners/registration-token',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetRunnerRegistrationTokenResponses, ThrowOnError>>;
 }

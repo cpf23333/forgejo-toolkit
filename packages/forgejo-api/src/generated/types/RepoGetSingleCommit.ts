@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Commit } from './Commit';
 
-export type RepoGetSingleCommitPathParams = {
+export type RepoGetSingleCommitPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type RepoGetSingleCommitPathParams = {
   sha: string;
 };
 
-export type RepoGetSingleCommitQueryParams = {
+export type RepoGetSingleCommitQuery = {
   /**
    * @description include diff stats for every commit (disable for speedup, default \'true\')
    * @type boolean | undefined
@@ -43,27 +43,65 @@ export type RepoGetSingleCommitQueryParams = {
   files?: boolean;
 };
 
-/**
- * Commit contains information generated from a Git commit.
- * @description Commit
- */
-export type RepoGetSingleCommit200 = Commit;
+export type RepoGetSingleCommitStatus200Json = Commit;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetSingleCommit404 = APINotFound;
+export type RepoGetSingleCommitStatus200Html = Commit;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoGetSingleCommit422 = APIValidationError;
+export type RepoGetSingleCommitStatus200 = RepoGetSingleCommitStatus200Json | RepoGetSingleCommitStatus200Html;
 
-export type RepoGetSingleCommitQueryResponse = RepoGetSingleCommit200;
+export type RepoGetSingleCommitStatus404Json = APINotFound;
 
-export type RepoGetSingleCommitQuery = {
-  Response: RepoGetSingleCommit200;
-  PathParams: RepoGetSingleCommitPathParams;
-  QueryParams: RepoGetSingleCommitQueryParams;
-  Errors: RepoGetSingleCommit404 | RepoGetSingleCommit422;
+export type RepoGetSingleCommitStatus404Html = APINotFound;
+
+export type RepoGetSingleCommitStatus404 = RepoGetSingleCommitStatus404Json | RepoGetSingleCommitStatus404Html;
+
+export type RepoGetSingleCommitStatus422Json = APIValidationError;
+
+export type RepoGetSingleCommitStatus422Html = APIValidationError;
+
+export type RepoGetSingleCommitStatus422 = RepoGetSingleCommitStatus422Json | RepoGetSingleCommitStatus422Html;
+
+export type RepoGetSingleCommitOptions = {
+  body?: never;
+  path: RepoGetSingleCommitPath;
+  query?: RepoGetSingleCommitQuery;
+  headers?: never;
 };
+
+export type RepoGetSingleCommitResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetSingleCommitStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetSingleCommitStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetSingleCommitStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetSingleCommitStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoGetSingleCommitStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetSingleCommitStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetSingleCommitResponse =
+  | RepoGetSingleCommitStatus200
+  | RepoGetSingleCommitStatus404
+  | RepoGetSingleCommitStatus422;

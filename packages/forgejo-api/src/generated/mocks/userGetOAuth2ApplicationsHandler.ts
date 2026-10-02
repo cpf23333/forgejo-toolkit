@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserGetOAuth2ApplicationsQueryResponse,
-  UserGetOAuth2Applications401,
-  UserGetOAuth2Applications403,
+  UserGetOAuth2ApplicationsResponse,
+  UserGetOAuth2ApplicationsStatus401,
+  UserGetOAuth2ApplicationsStatus403,
 } from '../types/UserGetOAuth2Applications';
 import { http } from 'msw';
 
-export function userGetOAuth2ApplicationsHandlerResponse200(data: UserGetOAuth2ApplicationsQueryResponse) {
+export function userGetOAuth2ApplicationsHandlerResponse200(data: UserGetOAuth2ApplicationsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userGetOAuth2ApplicationsHandlerResponse200(data: UserGetOAuth2A
   });
 }
 
-export function userGetOAuth2ApplicationsHandlerResponse401(data: UserGetOAuth2Applications401) {
+export function userGetOAuth2ApplicationsHandlerResponse401(data: UserGetOAuth2ApplicationsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userGetOAuth2ApplicationsHandlerResponse401(data: UserGetOAuth2A
   });
 }
 
-export function userGetOAuth2ApplicationsHandlerResponse403(data: UserGetOAuth2Applications403) {
+export function userGetOAuth2ApplicationsHandlerResponse403(data: UserGetOAuth2ApplicationsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userGetOAuth2ApplicationsHandlerResponse403(data: UserGetOAuth2A
 
 export function userGetOAuth2ApplicationsHandler(
   data?:
-    | UserGetOAuth2ApplicationsQueryResponse
+    | UserGetOAuth2ApplicationsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/applications/oauth2`, function handler(info) {

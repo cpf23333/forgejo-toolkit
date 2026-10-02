@@ -7,6 +7,7 @@ import type { CreateQuotaRuleOptions } from './CreateQuotaRuleOptions';
 
 /**
  * @description CreateQutaGroupOptions represents the options for creating a quota group
+ * @type object
  */
 export type CreateQuotaGroupOptions = {
   /**

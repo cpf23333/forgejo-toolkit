@@ -8,36 +8,22 @@ import type { StateType } from './StateType';
 
 /**
  * @description NotificationSubject contains the notification subject (Issue/Pull/Commit)
+ * @type object
  */
 export type NotificationSubject = {
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type string | undefined
-   */
   latest_comment_html_url?: string;
-  /**
-   * @type string | undefined
-   */
   latest_comment_url?: string;
   /**
    * @description StateType issue state type
    * @type string | undefined
    */
   state?: StateType;
-  /**
-   * @type string | undefined
-   */
   title?: string;
   /**
    * @description NotifySubjectType represent type of notification subject
    * @type string | undefined
    */
   type?: NotifySubjectType;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

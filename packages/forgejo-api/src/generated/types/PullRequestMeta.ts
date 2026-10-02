@@ -5,22 +5,16 @@
 
 /**
  * @description PullRequestMeta PR info if an issue is a PR
+ * @type object
  */
 export type PullRequestMeta = {
-  /**
-   * @type boolean | undefined
-   */
   draft?: boolean;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type boolean | undefined
-   */
   merged?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   merged_at?: string;
 };

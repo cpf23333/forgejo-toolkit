@@ -14,6 +14,7 @@ export type ChangeFileOperationOperationEnumKey =
 
 /**
  * @description ChangeFileOperation for creating, updating or deleting a file
+ * @type object
  */
 export type ChangeFileOperation = {
   /**

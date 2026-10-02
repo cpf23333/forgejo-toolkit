@@ -4,19 +4,19 @@
  */
 
 import type {
-  DeleteRepoVariableMutationResponse,
-  DeleteRepoVariable400,
-  DeleteRepoVariable404,
+  DeleteRepoVariableResponse,
+  DeleteRepoVariableStatus400,
+  DeleteRepoVariableStatus404,
 } from '../types/DeleteRepoVariable';
 import { http } from 'msw';
 
-export function deleteRepoVariableHandlerResponse204(data?: DeleteRepoVariableMutationResponse) {
+export function deleteRepoVariableHandlerResponse204(data?: DeleteRepoVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteRepoVariableHandlerResponse400(data: DeleteRepoVariable400) {
+export function deleteRepoVariableHandlerResponse400(data: DeleteRepoVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function deleteRepoVariableHandlerResponse400(data: DeleteRepoVariable400
   });
 }
 
-export function deleteRepoVariableHandlerResponse404(data: DeleteRepoVariable404) {
+export function deleteRepoVariableHandlerResponse404(data: DeleteRepoVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

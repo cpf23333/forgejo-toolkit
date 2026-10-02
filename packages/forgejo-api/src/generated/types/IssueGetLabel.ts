@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Label } from './Label';
 
-export type IssueGetLabelPathParams = {
+export type IssueGetLabelPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type IssueGetLabelPathParams = {
   repo: string;
   /**
    * @description id of the label to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueGetLabel200 = Label;
+export type IssueGetLabelStatus200Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type IssueGetLabel404 = APINotFound;
+export type IssueGetLabelStatus200Html = Label;
 
-export type IssueGetLabelQueryResponse = IssueGetLabel200;
+export type IssueGetLabelStatus200 = IssueGetLabelStatus200Json | IssueGetLabelStatus200Html;
 
-export type IssueGetLabelQuery = {
-  Response: IssueGetLabel200;
-  PathParams: IssueGetLabelPathParams;
-  Errors: IssueGetLabel404;
+export type IssueGetLabelStatus404Json = APINotFound;
+
+export type IssueGetLabelStatus404Html = APINotFound;
+
+export type IssueGetLabelStatus404 = IssueGetLabelStatus404Json | IssueGetLabelStatus404Html;
+
+export type IssueGetLabelOptions = {
+  body?: never;
+  path: IssueGetLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetLabelResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetLabelStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetLabelStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetLabelStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetLabelResponse = IssueGetLabelStatus200 | IssueGetLabelStatus404;

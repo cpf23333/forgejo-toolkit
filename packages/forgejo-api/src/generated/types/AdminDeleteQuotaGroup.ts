@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminDeleteQuotaGroupPathParams = {
+export type AdminDeleteQuotaGroupPath = {
   /**
    * @description quota group to delete
    * @type string
@@ -15,30 +15,77 @@ export type AdminDeleteQuotaGroupPathParams = {
   quotagroup: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteQuotaGroup204 = any;
+export type AdminDeleteQuotaGroupStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteQuotaGroup400 = APIError;
+export type AdminDeleteQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteQuotaGroup403 = APIForbiddenError;
+export type AdminDeleteQuotaGroupStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminDeleteQuotaGroup404 = APINotFound;
+export type AdminDeleteQuotaGroupStatus400 = AdminDeleteQuotaGroupStatus400Json | AdminDeleteQuotaGroupStatus400Html;
 
-export type AdminDeleteQuotaGroupMutationResponse = AdminDeleteQuotaGroup204;
+export type AdminDeleteQuotaGroupStatus403Json = APIForbiddenError;
 
-export type AdminDeleteQuotaGroupMutation = {
-  Response: AdminDeleteQuotaGroup204;
-  PathParams: AdminDeleteQuotaGroupPathParams;
-  Errors: AdminDeleteQuotaGroup400 | AdminDeleteQuotaGroup403 | AdminDeleteQuotaGroup404;
+export type AdminDeleteQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminDeleteQuotaGroupStatus403 = AdminDeleteQuotaGroupStatus403Json | AdminDeleteQuotaGroupStatus403Html;
+
+export type AdminDeleteQuotaGroupStatus404Json = APINotFound;
+
+export type AdminDeleteQuotaGroupStatus404Html = APINotFound;
+
+export type AdminDeleteQuotaGroupStatus404 = AdminDeleteQuotaGroupStatus404Json | AdminDeleteQuotaGroupStatus404Html;
+
+export type AdminDeleteQuotaGroupOptions = {
+  body?: never;
+  path: AdminDeleteQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteQuotaGroupResponses = {
+  '204': AdminDeleteQuotaGroupStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaGroupStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteQuotaGroupResponse =
+  | AdminDeleteQuotaGroupStatus204
+  | AdminDeleteQuotaGroupStatus400
+  | AdminDeleteQuotaGroupStatus403
+  | AdminDeleteQuotaGroupStatus404;

@@ -3,29 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { AdminDeleteHookMutationResponse, AdminDeleteHookPathParams } from '../types/AdminDeleteHook';
-
-function getAdminDeleteHookUrl(id: AdminDeleteHookPathParams['id']) {
-  const res = { method: 'DELETE', url: `/admin/hooks/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminDeleteHookOptions, AdminDeleteHookResponses } from '../types/AdminDeleteHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a hook
  * {@link /admin/hooks/:id}
  */
-export async function adminDeleteHook(
-  id: AdminDeleteHookPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminDeleteHook<ThrowOnError extends boolean = true>(
+  options: Options<AdminDeleteHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminDeleteHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminDeleteHookMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'DELETE',
-    url: getAdminDeleteHookUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminDeleteHookResponses, ThrowOnError>>;
 }

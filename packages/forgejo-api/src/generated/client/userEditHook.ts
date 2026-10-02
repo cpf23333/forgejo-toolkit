@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserEditHookMutationRequest,
-  UserEditHookMutationResponse,
-  UserEditHookPathParams,
-  UserEditHook401,
-  UserEditHook403,
-} from '../types/UserEditHook';
-
-function getUserEditHookUrl(id: UserEditHookPathParams['id']) {
-  const res = { method: 'PATCH', url: `/user/hooks/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserEditHookOptions, UserEditHookResponses } from '../types/UserEditHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a hook
  * {@link /user/hooks/:id}
  */
-export async function userEditHook(
-  id: UserEditHookPathParams['id'],
-  data?: UserEditHookMutationRequest,
-  config: Partial<RequestConfig<UserEditHookMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userEditHook<ThrowOnError extends boolean = true>(
+  options: Options<UserEditHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserEditHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserEditHookMutationResponse,
-    ResponseErrorConfig<UserEditHook401 | UserEditHook403>,
-    UserEditHookMutationRequest
-  >({
-    method: 'PATCH',
-    url: getUserEditHookUrl(id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/user/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserEditHookResponses, ThrowOnError>>;
 }

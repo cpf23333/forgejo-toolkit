@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-export type OrgIsMemberPathParams = {
+export type OrgIsMemberPath = {
   /**
    * @description name of the organization
    * @type string
@@ -16,25 +16,26 @@ export type OrgIsMemberPathParams = {
   username: string;
 };
 
-/**
- * @description user is a member
- */
-export type OrgIsMember204 = any;
+export type OrgIsMemberStatus204 = unknown;
 
-/**
- * @description redirection to /orgs/{org}/public_members/{username}
- */
-export type OrgIsMember303 = any;
+export type OrgIsMemberStatus303 = unknown;
 
-/**
- * @description user is not a member
- */
-export type OrgIsMember404 = any;
+export type OrgIsMemberStatus404 = unknown;
 
-export type OrgIsMemberQueryResponse = OrgIsMember204;
-
-export type OrgIsMemberQuery = {
-  Response: OrgIsMember204;
-  PathParams: OrgIsMemberPathParams;
-  Errors: OrgIsMember404;
+export type OrgIsMemberOptions = {
+  body?: never;
+  path: OrgIsMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgIsMemberResponses = {
+  '204': OrgIsMemberStatus204;
+  '303': OrgIsMemberStatus303;
+  '404': OrgIsMemberStatus404;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgIsMemberResponse = OrgIsMemberStatus204 | OrgIsMemberStatus303 | OrgIsMemberStatus404;

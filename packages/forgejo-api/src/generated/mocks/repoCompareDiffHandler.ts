@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoCompareDiffQueryResponse, RepoCompareDiff404 } from '../types/RepoCompareDiff';
+import type { RepoCompareDiffResponse, RepoCompareDiffStatus404 } from '../types/RepoCompareDiff';
 import { http } from 'msw';
 
-export function repoCompareDiffHandlerResponse200(data: RepoCompareDiffQueryResponse) {
+export function repoCompareDiffHandlerResponse200(data: RepoCompareDiffResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoCompareDiffHandlerResponse200(data: RepoCompareDiffQueryResp
   });
 }
 
-export function repoCompareDiffHandlerResponse404(data: RepoCompareDiff404) {
+export function repoCompareDiffHandlerResponse404(data: RepoCompareDiffStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoCompareDiffHandlerResponse404(data: RepoCompareDiff404) {
 
 export function repoCompareDiffHandler(
   data?:
-    | RepoCompareDiffQueryResponse
+    | RepoCompareDiffResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/compare/:basehead`, function handler(info) {

@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeletePathParams = {
+export type OrgDeletePath = {
   /**
    * @description organization that is to be deleted
    * @type string
@@ -13,20 +13,35 @@ export type OrgDeletePathParams = {
   org: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgDelete204 = any;
+export type OrgDeleteStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDelete404 = APINotFound;
+export type OrgDeleteStatus404Json = APINotFound;
 
-export type OrgDeleteMutationResponse = OrgDelete204;
+export type OrgDeleteStatus404Html = APINotFound;
 
-export type OrgDeleteMutation = {
-  Response: OrgDelete204;
-  PathParams: OrgDeletePathParams;
-  Errors: OrgDelete404;
+export type OrgDeleteStatus404 = OrgDeleteStatus404Json | OrgDeleteStatus404Html;
+
+export type OrgDeleteOptions = {
+  body?: never;
+  path: OrgDeletePath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteResponses = {
+  '204': OrgDeleteStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteResponse = OrgDeleteStatus204 | OrgDeleteStatus404;

@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { CreateRepoOption } from './CreateRepoOption';
 import type { Repository } from './Repository';
 
-export type CreateOrgRepoPathParams = {
+export type CreateOrgRepoPath = {
   /**
    * @description name of organization
    * @type string
@@ -18,32 +18,102 @@ export type CreateOrgRepoPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateOrgRepo201 = Repository;
+export type CreateOrgRepoStatus201Json = Repository;
 
 /**
- * @description APIError is error format response
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateOrgRepo400 = APIError;
+export type CreateOrgRepoStatus201Html = Repository;
+
+export type CreateOrgRepoStatus201 = CreateOrgRepoStatus201Json | CreateOrgRepoStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateOrgRepo403 = APIForbiddenError;
+export type CreateOrgRepoStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateOrgRepo404 = APINotFound;
+export type CreateOrgRepoStatus400Html = APIError;
 
-export type CreateOrgRepoMutationRequest = CreateRepoOption;
+export type CreateOrgRepoStatus400 = CreateOrgRepoStatus400Json | CreateOrgRepoStatus400Html;
 
-export type CreateOrgRepoMutationResponse = CreateOrgRepo201;
+export type CreateOrgRepoStatus403Json = APIForbiddenError;
 
-export type CreateOrgRepoMutation = {
-  Response: CreateOrgRepo201;
-  Request: CreateOrgRepoMutationRequest;
-  PathParams: CreateOrgRepoPathParams;
-  Errors: CreateOrgRepo400 | CreateOrgRepo403 | CreateOrgRepo404;
+export type CreateOrgRepoStatus403Html = APIForbiddenError;
+
+export type CreateOrgRepoStatus403 = CreateOrgRepoStatus403Json | CreateOrgRepoStatus403Html;
+
+export type CreateOrgRepoStatus404Json = APINotFound;
+
+export type CreateOrgRepoStatus404Html = APINotFound;
+
+export type CreateOrgRepoStatus404 = CreateOrgRepoStatus404Json | CreateOrgRepoStatus404Html;
+
+/**
+ * @description CreateRepoOption options when creating repository
+ * @type object | undefined
+ */
+export type CreateOrgRepoBody = CreateRepoOption | undefined;
+
+export type CreateOrgRepoOptions = {
+  body: CreateOrgRepoBody;
+  path: CreateOrgRepoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateOrgRepoResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateOrgRepoResponse =
+  | CreateOrgRepoStatus201
+  | CreateOrgRepoStatus400
+  | CreateOrgRepoStatus403
+  | CreateOrgRepoStatus404;

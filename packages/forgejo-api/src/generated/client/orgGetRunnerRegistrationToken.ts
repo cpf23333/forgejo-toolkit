@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  OrgGetRunnerRegistrationTokenQueryResponse,
-  OrgGetRunnerRegistrationTokenPathParams,
+  OrgGetRunnerRegistrationTokenOptions,
+  OrgGetRunnerRegistrationTokenResponses,
 } from '../types/OrgGetRunnerRegistrationToken';
-
-function getOrgGetRunnerRegistrationTokenUrl(org: OrgGetRunnerRegistrationTokenPathParams['org']) {
-  const res = {
-    method: 'GET',
-    url: `/orgs/${org}/actions/runners/registration-token` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description This operation has been deprecated in Forgejo 15. Use the web UI or [`/orgs/{org}/actions/runners`](#/organization/registerOrgRunner) instead.
@@ -24,16 +16,25 @@ function getOrgGetRunnerRegistrationTokenUrl(org: OrgGetRunnerRegistrationTokenP
  * {@link /orgs/:org/actions/runners/registration-token}
  * @deprecated
  */
-export async function orgGetRunnerRegistrationToken(
-  org: OrgGetRunnerRegistrationTokenPathParams['org'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgGetRunnerRegistrationToken<ThrowOnError extends boolean = true>(
+  options: Options<OrgGetRunnerRegistrationTokenOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgGetRunnerRegistrationTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgGetRunnerRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getOrgGetRunnerRegistrationTokenUrl(org).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/actions/runners/registration-token',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgGetRunnerRegistrationTokenResponses, ThrowOnError>>;
 }

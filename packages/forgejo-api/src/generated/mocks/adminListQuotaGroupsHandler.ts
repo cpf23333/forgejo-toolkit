@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminListQuotaGroupsQueryResponse, AdminListQuotaGroups403 } from '../types/AdminListQuotaGroups';
+import type { AdminListQuotaGroupsResponse, AdminListQuotaGroupsStatus403 } from '../types/AdminListQuotaGroups';
 import { http } from 'msw';
 
-export function adminListQuotaGroupsHandlerResponse200(data: AdminListQuotaGroupsQueryResponse) {
+export function adminListQuotaGroupsHandlerResponse200(data: AdminListQuotaGroupsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminListQuotaGroupsHandlerResponse200(data: AdminListQuotaGroup
   });
 }
 
-export function adminListQuotaGroupsHandlerResponse403(data: AdminListQuotaGroups403) {
+export function adminListQuotaGroupsHandlerResponse403(data: AdminListQuotaGroupsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminListQuotaGroupsHandlerResponse403(data: AdminListQuotaGroup
 
 export function adminListQuotaGroupsHandler(
   data?:
-    | AdminListQuotaGroupsQueryResponse
+    | AdminListQuotaGroupsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/groups`, function handler(info) {

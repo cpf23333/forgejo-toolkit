@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeleteMilestonePathParams = {
+export type IssueDeleteMilestonePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,25 +18,42 @@ export type IssueDeleteMilestonePathParams = {
   repo: string;
   /**
    * @description the milestone to delete, identified by ID and if not available by name
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteMilestone204 = any;
+export type IssueDeleteMilestoneStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteMilestone404 = APINotFound;
+export type IssueDeleteMilestoneStatus404Json = APINotFound;
 
-export type IssueDeleteMilestoneMutationResponse = IssueDeleteMilestone204;
+export type IssueDeleteMilestoneStatus404Html = APINotFound;
 
-export type IssueDeleteMilestoneMutation = {
-  Response: IssueDeleteMilestone204;
-  PathParams: IssueDeleteMilestonePathParams;
-  Errors: IssueDeleteMilestone404;
+export type IssueDeleteMilestoneStatus404 = IssueDeleteMilestoneStatus404Json | IssueDeleteMilestoneStatus404Html;
+
+export type IssueDeleteMilestoneOptions = {
+  body?: never;
+  path: IssueDeleteMilestonePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteMilestoneResponses = {
+  '204': IssueDeleteMilestoneStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteMilestoneStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteMilestoneStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteMilestoneResponse = IssueDeleteMilestoneStatus204 | IssueDeleteMilestoneStatus404;

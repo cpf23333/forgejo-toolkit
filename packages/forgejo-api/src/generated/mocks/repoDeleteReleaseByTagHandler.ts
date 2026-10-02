@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoDeleteReleaseByTagMutationResponse,
-  RepoDeleteReleaseByTag404,
-  RepoDeleteReleaseByTag422,
+  RepoDeleteReleaseByTagResponse,
+  RepoDeleteReleaseByTagStatus404,
+  RepoDeleteReleaseByTagStatus422,
 } from '../types/RepoDeleteReleaseByTag';
 import { http } from 'msw';
 
-export function repoDeleteReleaseByTagHandlerResponse204(data?: RepoDeleteReleaseByTagMutationResponse) {
+export function repoDeleteReleaseByTagHandlerResponse204(data?: RepoDeleteReleaseByTagResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteReleaseByTagHandlerResponse404(data: RepoDeleteReleaseByTag404) {
+export function repoDeleteReleaseByTagHandlerResponse404(data: RepoDeleteReleaseByTagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,7 +25,7 @@ export function repoDeleteReleaseByTagHandlerResponse404(data: RepoDeleteRelease
   });
 }
 
-export function repoDeleteReleaseByTagHandlerResponse422(data: RepoDeleteReleaseByTag422) {
+export function repoDeleteReleaseByTagHandlerResponse422(data: RepoDeleteReleaseByTagStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

@@ -9,6 +9,7 @@ import type { Identity } from './Identity';
 
 /**
  * @description ChangeFilesOptions options for creating, updating or deleting multiple files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
 export type ChangeFilesOptions = {
   /**

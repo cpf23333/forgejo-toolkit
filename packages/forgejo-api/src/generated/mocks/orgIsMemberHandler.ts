@@ -3,16 +3,22 @@
  * Do not edit manually.
  */
 
-import type { OrgIsMemberQueryResponse, OrgIsMember404 } from '../types/OrgIsMember';
+import type { OrgIsMemberResponse, OrgIsMemberStatus303, OrgIsMemberStatus404 } from '../types/OrgIsMember';
 import { http } from 'msw';
 
-export function orgIsMemberHandlerResponse204(data?: OrgIsMemberQueryResponse) {
+export function orgIsMemberHandlerResponse204(data?: OrgIsMemberResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgIsMemberHandlerResponse404(data?: OrgIsMember404) {
+export function orgIsMemberHandlerResponse303(data?: OrgIsMemberStatus303) {
+  return new Response(JSON.stringify(data), {
+    status: 303,
+  });
+}
+
+export function orgIsMemberHandlerResponse404(data?: OrgIsMemberStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });

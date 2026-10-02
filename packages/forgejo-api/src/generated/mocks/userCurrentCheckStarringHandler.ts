@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentCheckStarringQueryResponse,
-  UserCurrentCheckStarring401,
-  UserCurrentCheckStarring403,
-  UserCurrentCheckStarring404,
+  UserCurrentCheckStarringResponse,
+  UserCurrentCheckStarringStatus401,
+  UserCurrentCheckStarringStatus403,
+  UserCurrentCheckStarringStatus404,
 } from '../types/UserCurrentCheckStarring';
 import { http } from 'msw';
 
-export function userCurrentCheckStarringHandlerResponse204(data?: UserCurrentCheckStarringQueryResponse) {
+export function userCurrentCheckStarringHandlerResponse204(data?: UserCurrentCheckStarringResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentCheckStarringHandlerResponse401(data: UserCurrentCheckStarring401) {
+export function userCurrentCheckStarringHandlerResponse401(data: UserCurrentCheckStarringStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentCheckStarringHandlerResponse401(data: UserCurrentChec
   });
 }
 
-export function userCurrentCheckStarringHandlerResponse403(data: UserCurrentCheckStarring403) {
+export function userCurrentCheckStarringHandlerResponse403(data: UserCurrentCheckStarringStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentCheckStarringHandlerResponse403(data: UserCurrentChec
   });
 }
 
-export function userCurrentCheckStarringHandlerResponse404(data: UserCurrentCheckStarring404) {
+export function userCurrentCheckStarringHandlerResponse404(data: UserCurrentCheckStarringStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

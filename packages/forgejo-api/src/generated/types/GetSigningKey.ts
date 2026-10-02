@@ -3,14 +3,32 @@
  * Do not edit manually.
  */
 
-/**
- * @description GPG armored public key
- */
-export type GetSigningKey200 = string;
+export type GetSigningKeyStatus200Json = string;
 
-export type GetSigningKeyQueryResponse = GetSigningKey200;
+export type GetSigningKeyStatus200Html = string;
 
-export type GetSigningKeyQuery = {
-  Response: GetSigningKey200;
-  Errors: any;
+export type GetSigningKeyStatus200 = GetSigningKeyStatus200Json | GetSigningKeyStatus200Html;
+
+export type GetSigningKeyOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetSigningKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetSigningKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetSigningKeyStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetSigningKeyResponse = GetSigningKeyStatus200;

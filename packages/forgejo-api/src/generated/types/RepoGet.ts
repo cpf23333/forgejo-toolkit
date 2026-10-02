@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type RepoGetPathParams = {
+export type RepoGetPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,19 +20,54 @@ export type RepoGetPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoGet200 = Repository;
+export type RepoGetStatus200Json = Repository;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoGet404 = APINotFound;
+export type RepoGetStatus200Html = Repository;
 
-export type RepoGetQueryResponse = RepoGet200;
+export type RepoGetStatus200 = RepoGetStatus200Json | RepoGetStatus200Html;
 
-export type RepoGetQuery = {
-  Response: RepoGet200;
-  PathParams: RepoGetPathParams;
-  Errors: RepoGet404;
+export type RepoGetStatus404Json = APINotFound;
+
+export type RepoGetStatus404Html = APINotFound;
+
+export type RepoGetStatus404 = RepoGetStatus404Json | RepoGetStatus404Html;
+
+export type RepoGetOptions = {
+  body?: never;
+  path: RepoGetPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetResponse = RepoGetStatus200 | RepoGetStatus404;

@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListReposQueryResponse,
-  OrgListReposPathParams,
-  OrgListReposQueryParams,
-  OrgListRepos404,
-} from '../types/OrgListRepos';
-
-function getOrgListReposUrl(org: OrgListReposPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/repos` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListReposOptions, OrgListReposResponses } from '../types/OrgListRepos';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an organization's repos
  * {@link /orgs/:org/repos}
  */
-export async function orgListRepos(
-  org: OrgListReposPathParams['org'],
-  params?: OrgListReposQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListRepos<ThrowOnError extends boolean = true>(
+  options: Options<OrgListReposOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListReposResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListReposQueryResponse, ResponseErrorConfig<OrgListRepos404>, unknown>({
-    method: 'GET',
-    url: getOrgListReposUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListReposResponses, ThrowOnError>>;
 }

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Secret } from './Secret';
 
-export type RepoListActionsSecretsPathParams = {
+export type RepoListActionsSecretsPath = {
   /**
    * @description owner of the repository
    * @type string
@@ -19,7 +19,7 @@ export type RepoListActionsSecretsPathParams = {
   repo: string;
 };
 
-export type RepoListActionsSecretsQueryParams = {
+export type RepoListActionsSecretsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListActionsSecretsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description SecretList
- */
-export type RepoListActionsSecrets200 = Secret[];
+export type RepoListActionsSecretsStatus200Json = Secret[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListActionsSecrets404 = APINotFound;
+export type RepoListActionsSecretsStatus200Html = Secret[];
 
-export type RepoListActionsSecretsQueryResponse = RepoListActionsSecrets200;
+export type RepoListActionsSecretsStatus200 = RepoListActionsSecretsStatus200Json | RepoListActionsSecretsStatus200Html;
 
-export type RepoListActionsSecretsQuery = {
-  Response: RepoListActionsSecrets200;
-  PathParams: RepoListActionsSecretsPathParams;
-  QueryParams: RepoListActionsSecretsQueryParams;
-  Errors: RepoListActionsSecrets404;
+export type RepoListActionsSecretsStatus404Json = APINotFound;
+
+export type RepoListActionsSecretsStatus404Html = APINotFound;
+
+export type RepoListActionsSecretsStatus404 = RepoListActionsSecretsStatus404Json | RepoListActionsSecretsStatus404Html;
+
+export type RepoListActionsSecretsOptions = {
+  body?: never;
+  path: RepoListActionsSecretsPath;
+  query?: RepoListActionsSecretsQuery;
+  headers?: never;
 };
+
+export type RepoListActionsSecretsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListActionsSecretsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListActionsSecretsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListActionsSecretsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListActionsSecretsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListActionsSecretsResponse = RepoListActionsSecretsStatus200 | RepoListActionsSecretsStatus404;

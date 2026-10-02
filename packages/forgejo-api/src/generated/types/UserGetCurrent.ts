@@ -8,23 +8,69 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { User } from './User';
 
 /**
- * @description User
+ * @description User represents a user
+ * @type object
  */
-export type UserGetCurrent200 = User;
+export type UserGetCurrentStatus200Json = User;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description User represents a user
+ * @type object
  */
-export type UserGetCurrent401 = APIUnauthorizedError;
+export type UserGetCurrentStatus200Html = User;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetCurrent403 = APIForbiddenError;
+export type UserGetCurrentStatus200 = UserGetCurrentStatus200Json | UserGetCurrentStatus200Html;
 
-export type UserGetCurrentQueryResponse = UserGetCurrent200;
+export type UserGetCurrentStatus401Json = APIUnauthorizedError;
 
-export type UserGetCurrentQuery = {
-  Response: UserGetCurrent200;
-  Errors: UserGetCurrent401 | UserGetCurrent403;
+export type UserGetCurrentStatus401Html = APIUnauthorizedError;
+
+export type UserGetCurrentStatus401 = UserGetCurrentStatus401Json | UserGetCurrentStatus401Html;
+
+export type UserGetCurrentStatus403Json = APIForbiddenError;
+
+export type UserGetCurrentStatus403Html = APIForbiddenError;
+
+export type UserGetCurrentStatus403 = UserGetCurrentStatus403Json | UserGetCurrentStatus403Html;
+
+export type UserGetCurrentOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetCurrentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetCurrentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetCurrentStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetCurrentStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetCurrentStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetCurrentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetCurrentStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetCurrentResponse = UserGetCurrentStatus200 | UserGetCurrentStatus401 | UserGetCurrentStatus403;

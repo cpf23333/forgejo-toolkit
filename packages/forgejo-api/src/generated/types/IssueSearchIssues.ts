@@ -7,24 +7,22 @@ import type { APIError } from './APIError';
 import type { APIValidationError } from './APIValidationError';
 import type { Issue } from './Issue';
 
-export const issueSearchIssuesQueryParamsStateEnum = {
+export const issueSearchIssuesState = {
   open: 'open',
   closed: 'closed',
   all: 'all',
 } as const;
 
-export type IssueSearchIssuesQueryParamsStateEnumKey =
-  (typeof issueSearchIssuesQueryParamsStateEnum)[keyof typeof issueSearchIssuesQueryParamsStateEnum];
+export type IssueSearchIssuesStateKey = (typeof issueSearchIssuesState)[keyof typeof issueSearchIssuesState];
 
-export const issueSearchIssuesQueryParamsTypeEnum = {
+export const issueSearchIssuesType = {
   issues: 'issues',
   pulls: 'pulls',
 } as const;
 
-export type IssueSearchIssuesQueryParamsTypeEnumKey =
-  (typeof issueSearchIssuesQueryParamsTypeEnum)[keyof typeof issueSearchIssuesQueryParamsTypeEnum];
+export type IssueSearchIssuesTypeKey = (typeof issueSearchIssuesType)[keyof typeof issueSearchIssuesType];
 
-export const issueSearchIssuesQueryParamsSortEnum = {
+export const issueSearchIssuesSort = {
   relevance: 'relevance',
   latest: 'latest',
   oldest: 'oldest',
@@ -36,16 +34,15 @@ export const issueSearchIssuesQueryParamsSortEnum = {
   farduedate: 'farduedate',
 } as const;
 
-export type IssueSearchIssuesQueryParamsSortEnumKey =
-  (typeof issueSearchIssuesQueryParamsSortEnum)[keyof typeof issueSearchIssuesQueryParamsSortEnum];
+export type IssueSearchIssuesSortKey = (typeof issueSearchIssuesSort)[keyof typeof issueSearchIssuesSort];
 
-export type IssueSearchIssuesQueryParams = {
+export type IssueSearchIssuesQuery = {
   /**
    * @description State of the issue
-   * @default "open"
+   * @default 'open'
    * @type string | undefined
    */
-  state?: IssueSearchIssuesQueryParamsStateEnumKey;
+  state?: IssueSearchIssuesStateKey;
   /**
    * @description Comma-separated list of label names. Fetch only issues that have any of these labels. Non existent labels are discarded.
    * @type string | undefined
@@ -63,22 +60,28 @@ export type IssueSearchIssuesQueryParams = {
   q?: string;
   /**
    * @description Repository ID to prioritize in the results
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   priority_repo_id?: number;
   /**
    * @description Filter by issue type
    * @type string | undefined
    */
-  type?: IssueSearchIssuesQueryParamsTypeEnumKey;
+  type?: IssueSearchIssuesTypeKey;
   /**
    * @description Only show issues updated after the given time (RFC 3339 format)
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show issues updated before the given time (RFC 3339 format)
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -136,31 +139,79 @@ export type IssueSearchIssuesQueryParams = {
   limit?: number;
   /**
    * @description Type of sort
-   * @default "latest"
+   * @default 'latest'
    * @type string | undefined
    */
-  sort?: IssueSearchIssuesQueryParamsSortEnumKey;
+  sort?: IssueSearchIssuesSortKey;
+};
+
+export type IssueSearchIssuesStatus200Json = Issue[];
+
+export type IssueSearchIssuesStatus200Html = Issue[];
+
+export type IssueSearchIssuesStatus200 = IssueSearchIssuesStatus200Json | IssueSearchIssuesStatus200Html;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueSearchIssuesStatus400Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueSearchIssuesStatus400Html = APIError;
+
+export type IssueSearchIssuesStatus400 = IssueSearchIssuesStatus400Json | IssueSearchIssuesStatus400Html;
+
+export type IssueSearchIssuesStatus422Json = APIValidationError;
+
+export type IssueSearchIssuesStatus422Html = APIValidationError;
+
+export type IssueSearchIssuesStatus422 = IssueSearchIssuesStatus422Json | IssueSearchIssuesStatus422Html;
+
+export type IssueSearchIssuesOptions = {
+  body?: never;
+  path?: never;
+  query?: IssueSearchIssuesQuery;
+  headers?: never;
+};
+
+export type IssueSearchIssuesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueSearchIssuesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueSearchIssuesStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: IssueSearchIssuesStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueSearchIssuesStatus400Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueSearchIssuesStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueSearchIssuesStatus422Html;
+      };
 };
 
 /**
- * @description IssueList
+ * @description Union of all possible responses
  */
-export type IssueSearchIssues200 = Issue[];
-
-/**
- * @description APIError is error format response
- */
-export type IssueSearchIssues400 = APIError;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueSearchIssues422 = APIValidationError;
-
-export type IssueSearchIssuesQueryResponse = IssueSearchIssues200;
-
-export type IssueSearchIssuesQuery = {
-  Response: IssueSearchIssues200;
-  QueryParams: IssueSearchIssuesQueryParams;
-  Errors: IssueSearchIssues400 | IssueSearchIssues422;
-};
+export type IssueSearchIssuesResponse =
+  | IssueSearchIssuesStatus200
+  | IssueSearchIssuesStatus400
+  | IssueSearchIssuesStatus422;

@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RegisterAdminRunnerMutationRequest,
-  RegisterAdminRunnerMutationResponse,
-  RegisterAdminRunner400,
-  RegisterAdminRunner401,
-  RegisterAdminRunner404,
-} from '../types/RegisterAdminRunner';
-
-function getRegisterAdminRunnerUrl() {
-  const res = { method: 'POST', url: `/admin/actions/runners` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RegisterAdminRunnerOptions, RegisterAdminRunnerResponses } from '../types/RegisterAdminRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Register a new global runner
  * {@link /admin/actions/runners}
  */
-export async function registerAdminRunner(
-  data: RegisterAdminRunnerMutationRequest,
-  config: Partial<RequestConfig<RegisterAdminRunnerMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function registerAdminRunner<ThrowOnError extends boolean = true>(
+  options: Options<RegisterAdminRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RegisterAdminRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RegisterAdminRunnerMutationResponse,
-    ResponseErrorConfig<RegisterAdminRunner400 | RegisterAdminRunner401 | RegisterAdminRunner404>,
-    RegisterAdminRunnerMutationRequest
-  >({
-    method: 'POST',
-    url: getRegisterAdminRunnerUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/actions/runners',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RegisterAdminRunnerResponses, ThrowOnError>>;
 }

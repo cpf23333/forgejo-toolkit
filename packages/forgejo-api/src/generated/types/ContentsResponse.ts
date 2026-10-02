@@ -7,6 +7,7 @@ import type { FileLinksResponse } from './FileLinksResponse';
 
 /**
  * @description ContentsResponse contains information about a repo\'s entry\'s (dir, file, symlink, submodule) metadata and content
+ * @type object
  */
 export type ContentsResponse = {
   /**
@@ -19,45 +20,28 @@ export type ContentsResponse = {
    * @type string | undefined
    */
   content?: string;
-  /**
-   * @type string | undefined
-   */
   download_url?: string;
   /**
    * @description `encoding` is populated when `type` is `file`, otherwise null
    * @type string | undefined
    */
   encoding?: string;
-  /**
-   * @type string | undefined
-   */
   git_url?: string;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type string | undefined
-   */
   last_commit_sha?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   last_commit_when?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   path?: string;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
   /**
@@ -75,8 +59,5 @@ export type ContentsResponse = {
    * @type string | undefined
    */
   type?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

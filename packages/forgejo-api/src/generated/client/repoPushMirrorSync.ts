@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoPushMirrorSyncMutationResponse,
-  RepoPushMirrorSyncPathParams,
-  RepoPushMirrorSync400,
-  RepoPushMirrorSync403,
-  RepoPushMirrorSync404,
-  RepoPushMirrorSync413,
-} from '../types/RepoPushMirrorSync';
-
-function getRepoPushMirrorSyncUrl(
-  owner: RepoPushMirrorSyncPathParams['owner'],
-  repo: RepoPushMirrorSyncPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/push_mirrors-sync` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoPushMirrorSyncOptions, RepoPushMirrorSyncResponses } from '../types/RepoPushMirrorSync';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Sync all push mirrored repository
  * {@link /repos/:owner/:repo/push_mirrors-sync}
  */
-export async function repoPushMirrorSync(
-  owner: RepoPushMirrorSyncPathParams['owner'],
-  repo: RepoPushMirrorSyncPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoPushMirrorSync<ThrowOnError extends boolean = true>(
+  options: Options<RepoPushMirrorSyncOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoPushMirrorSyncResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoPushMirrorSyncMutationResponse,
-    ResponseErrorConfig<RepoPushMirrorSync400 | RepoPushMirrorSync403 | RepoPushMirrorSync404 | RepoPushMirrorSync413>,
-    unknown
-  >({
-    method: 'POST',
-    url: getRepoPushMirrorSyncUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/push_mirrors-sync',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoPushMirrorSyncResponses, ThrowOnError>>;
 }

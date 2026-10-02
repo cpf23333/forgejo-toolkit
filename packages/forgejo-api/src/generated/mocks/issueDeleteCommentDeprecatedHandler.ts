@@ -4,19 +4,19 @@
  */
 
 import type {
-  IssueDeleteCommentDeprecatedMutationResponse,
-  IssueDeleteCommentDeprecated403,
-  IssueDeleteCommentDeprecated500,
+  IssueDeleteCommentDeprecatedResponse,
+  IssueDeleteCommentDeprecatedStatus403,
+  IssueDeleteCommentDeprecatedStatus500,
 } from '../types/IssueDeleteCommentDeprecated';
 import { http } from 'msw';
 
-export function issueDeleteCommentDeprecatedHandlerResponse204(data?: IssueDeleteCommentDeprecatedMutationResponse) {
+export function issueDeleteCommentDeprecatedHandlerResponse204(data?: IssueDeleteCommentDeprecatedResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteCommentDeprecatedHandlerResponse403(data: IssueDeleteCommentDeprecated403) {
+export function issueDeleteCommentDeprecatedHandlerResponse403(data: IssueDeleteCommentDeprecatedStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function issueDeleteCommentDeprecatedHandlerResponse403(data: IssueDelete
   });
 }
 
-export function issueDeleteCommentDeprecatedHandlerResponse500(data: IssueDeleteCommentDeprecated500) {
+export function issueDeleteCommentDeprecatedHandlerResponse500(data: IssueDeleteCommentDeprecatedStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {

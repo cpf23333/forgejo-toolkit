@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { CreateMilestoneOption } from './CreateMilestoneOption';
 import type { Milestone } from './Milestone';
 
-export type IssueCreateMilestonePathParams = {
+export type IssueCreateMilestonePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,22 +21,60 @@ export type IssueCreateMilestonePathParams = {
 };
 
 /**
- * @description Milestone
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueCreateMilestone201 = Milestone;
+export type IssueCreateMilestoneStatus201Json = Milestone;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueCreateMilestone404 = APINotFound;
+export type IssueCreateMilestoneStatus201Html = Milestone;
 
-export type IssueCreateMilestoneMutationRequest = CreateMilestoneOption;
+export type IssueCreateMilestoneStatus201 = IssueCreateMilestoneStatus201Json | IssueCreateMilestoneStatus201Html;
 
-export type IssueCreateMilestoneMutationResponse = IssueCreateMilestone201;
+export type IssueCreateMilestoneStatus404Json = APINotFound;
 
-export type IssueCreateMilestoneMutation = {
-  Response: IssueCreateMilestone201;
-  Request: IssueCreateMilestoneMutationRequest;
-  PathParams: IssueCreateMilestonePathParams;
-  Errors: IssueCreateMilestone404;
+export type IssueCreateMilestoneStatus404Html = APINotFound;
+
+export type IssueCreateMilestoneStatus404 = IssueCreateMilestoneStatus404Json | IssueCreateMilestoneStatus404Html;
+
+/**
+ * @description CreateMilestoneOption options for creating a milestone
+ * @type object | undefined
+ */
+export type IssueCreateMilestoneBody = CreateMilestoneOption | undefined;
+
+export type IssueCreateMilestoneOptions = {
+  body: IssueCreateMilestoneBody;
+  path: IssueCreateMilestonePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateMilestoneResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateMilestoneStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateMilestoneStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateMilestoneStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateMilestoneStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateMilestoneResponse = IssueCreateMilestoneStatus201 | IssueCreateMilestoneStatus404;

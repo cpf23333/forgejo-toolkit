@@ -6,15 +6,17 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type OrgListTeamReposPathParams = {
+export type OrgListTeamReposPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type OrgListTeamReposQueryParams = {
+export type OrgListTeamReposQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +29,47 @@ export type OrgListTeamReposQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type OrgListTeamRepos200 = Repository[];
+export type OrgListTeamReposStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListTeamRepos404 = APINotFound;
+export type OrgListTeamReposStatus200Html = Repository[];
 
-export type OrgListTeamReposQueryResponse = OrgListTeamRepos200;
+export type OrgListTeamReposStatus200 = OrgListTeamReposStatus200Json | OrgListTeamReposStatus200Html;
 
-export type OrgListTeamReposQuery = {
-  Response: OrgListTeamRepos200;
-  PathParams: OrgListTeamReposPathParams;
-  QueryParams: OrgListTeamReposQueryParams;
-  Errors: OrgListTeamRepos404;
+export type OrgListTeamReposStatus404Json = APINotFound;
+
+export type OrgListTeamReposStatus404Html = APINotFound;
+
+export type OrgListTeamReposStatus404 = OrgListTeamReposStatus404Json | OrgListTeamReposStatus404Html;
+
+export type OrgListTeamReposOptions = {
+  body?: never;
+  path: OrgListTeamReposPath;
+  query?: OrgListTeamReposQuery;
+  headers?: never;
 };
+
+export type OrgListTeamReposResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamReposStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamReposStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamReposStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamReposStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamReposResponse = OrgListTeamReposStatus200 | OrgListTeamReposStatus404;

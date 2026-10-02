@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { IssueGetIssueQueryResponse, IssueGetIssue404 } from '../types/IssueGetIssue';
+import type { IssueGetIssueResponse, IssueGetIssueStatus404 } from '../types/IssueGetIssue';
 import { http } from 'msw';
 
-export function issueGetIssueHandlerResponse200(data: IssueGetIssueQueryResponse) {
+export function issueGetIssueHandlerResponse200(data: IssueGetIssueResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function issueGetIssueHandlerResponse200(data: IssueGetIssueQueryResponse
   });
 }
 
-export function issueGetIssueHandlerResponse404(data: IssueGetIssue404) {
+export function issueGetIssueHandlerResponse404(data: IssueGetIssueStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function issueGetIssueHandlerResponse404(data: IssueGetIssue404) {
 
 export function issueGetIssueHandler(
   data?:
-    | IssueGetIssueQueryResponse
+    | IssueGetIssueResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index`, function handler(info) {

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminAdoptRepositoryPathParams = {
+export type AdminAdoptRepositoryPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,53 @@ export type AdminAdoptRepositoryPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminAdoptRepository204 = any;
+export type AdminAdoptRepositoryStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminAdoptRepository403 = APIForbiddenError;
+export type AdminAdoptRepositoryStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminAdoptRepository404 = APINotFound;
+export type AdminAdoptRepositoryStatus403Html = APIForbiddenError;
 
-export type AdminAdoptRepositoryMutationResponse = AdminAdoptRepository204;
+export type AdminAdoptRepositoryStatus403 = AdminAdoptRepositoryStatus403Json | AdminAdoptRepositoryStatus403Html;
 
-export type AdminAdoptRepositoryMutation = {
-  Response: AdminAdoptRepository204;
-  PathParams: AdminAdoptRepositoryPathParams;
-  Errors: AdminAdoptRepository403 | AdminAdoptRepository404;
+export type AdminAdoptRepositoryStatus404Json = APINotFound;
+
+export type AdminAdoptRepositoryStatus404Html = APINotFound;
+
+export type AdminAdoptRepositoryStatus404 = AdminAdoptRepositoryStatus404Json | AdminAdoptRepositoryStatus404Html;
+
+export type AdminAdoptRepositoryOptions = {
+  body?: never;
+  path: AdminAdoptRepositoryPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminAdoptRepositoryResponses = {
+  '204': AdminAdoptRepositoryStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminAdoptRepositoryStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAdoptRepositoryStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminAdoptRepositoryStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminAdoptRepositoryStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminAdoptRepositoryResponse =
+  | AdminAdoptRepositoryStatus204
+  | AdminAdoptRepositoryStatus403
+  | AdminAdoptRepositoryStatus404;

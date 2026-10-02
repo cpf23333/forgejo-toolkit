@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserTrackedTimesQueryResponse,
-  UserTrackedTimes400,
-  UserTrackedTimes403,
-  UserTrackedTimes404,
+  UserTrackedTimesResponse,
+  UserTrackedTimesStatus400,
+  UserTrackedTimesStatus403,
+  UserTrackedTimesStatus404,
 } from '../types/UserTrackedTimes';
 import { http } from 'msw';
 
-export function userTrackedTimesHandlerResponse200(data: UserTrackedTimesQueryResponse) {
+export function userTrackedTimesHandlerResponse200(data: UserTrackedTimesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userTrackedTimesHandlerResponse200(data: UserTrackedTimesQueryRe
   });
 }
 
-export function userTrackedTimesHandlerResponse400(data: UserTrackedTimes400) {
+export function userTrackedTimesHandlerResponse400(data: UserTrackedTimesStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function userTrackedTimesHandlerResponse400(data: UserTrackedTimes400) {
   });
 }
 
-export function userTrackedTimesHandlerResponse403(data: UserTrackedTimes403) {
+export function userTrackedTimesHandlerResponse403(data: UserTrackedTimesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userTrackedTimesHandlerResponse403(data: UserTrackedTimes403) {
   });
 }
 
-export function userTrackedTimesHandlerResponse404(data: UserTrackedTimes404) {
+export function userTrackedTimesHandlerResponse404(data: UserTrackedTimesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function userTrackedTimesHandlerResponse404(data: UserTrackedTimes404) {
 
 export function userTrackedTimesHandler(
   data?:
-    | UserTrackedTimesQueryResponse
+    | UserTrackedTimesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/times/:user`, function handler(info) {

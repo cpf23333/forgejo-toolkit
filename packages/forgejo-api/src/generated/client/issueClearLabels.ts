@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueClearLabelsMutationRequest,
-  IssueClearLabelsMutationResponse,
-  IssueClearLabelsPathParams,
-  IssueClearLabels403,
-  IssueClearLabels404,
-} from '../types/IssueClearLabels';
-
-function getIssueClearLabelsUrl(
-  owner: IssueClearLabelsPathParams['owner'],
-  repo: IssueClearLabelsPathParams['repo'],
-  index: IssueClearLabelsPathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/labels` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueClearLabelsOptions, IssueClearLabelsResponses } from '../types/IssueClearLabels';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove all labels from an issue
  * {@link /repos/:owner/:repo/issues/:index/labels}
  */
-export async function issueClearLabels(
-  owner: IssueClearLabelsPathParams['owner'],
-  repo: IssueClearLabelsPathParams['repo'],
-  index: IssueClearLabelsPathParams['index'],
-  data?: IssueClearLabelsMutationRequest,
-  config: Partial<RequestConfig<IssueClearLabelsMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueClearLabels<ThrowOnError extends boolean = true>(
+  options: Options<IssueClearLabelsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueClearLabelsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueClearLabelsMutationResponse,
-    ResponseErrorConfig<IssueClearLabels403 | IssueClearLabels404>,
-    IssueClearLabelsMutationRequest
-  >({
-    method: 'DELETE',
-    url: getIssueClearLabelsUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/labels',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueClearLabelsResponses, ThrowOnError>>;
 }

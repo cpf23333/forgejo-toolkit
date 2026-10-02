@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListCollaboratorsQueryResponse, RepoListCollaborators404 } from '../types/RepoListCollaborators';
+import type { RepoListCollaboratorsResponse, RepoListCollaboratorsStatus404 } from '../types/RepoListCollaborators';
 import { http } from 'msw';
 
-export function repoListCollaboratorsHandlerResponse200(data: RepoListCollaboratorsQueryResponse) {
+export function repoListCollaboratorsHandlerResponse200(data: RepoListCollaboratorsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListCollaboratorsHandlerResponse200(data: RepoListCollaborat
   });
 }
 
-export function repoListCollaboratorsHandlerResponse404(data: RepoListCollaborators404) {
+export function repoListCollaboratorsHandlerResponse404(data: RepoListCollaboratorsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListCollaboratorsHandlerResponse404(data: RepoListCollaborat
 
 export function repoListCollaboratorsHandler(
   data?:
-    | RepoListCollaboratorsQueryResponse
+    | RepoListCollaboratorsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/collaborators`, function handler(info) {

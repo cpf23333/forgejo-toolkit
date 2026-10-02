@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Activity } from './Activity';
 
-export type RepoListActivityFeedsPathParams = {
+export type RepoListActivityFeedsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,10 +19,12 @@ export type RepoListActivityFeedsPathParams = {
   repo: string;
 };
 
-export type RepoListActivityFeedsQueryParams = {
+export type RepoListActivityFeedsQuery = {
   /**
    * @description the date of the activities to be found
-   * @type string | undefined, date
+   *
+   * Format: `date`
+   * @type string | undefined
    */
   date?: string;
   /**
@@ -37,21 +39,47 @@ export type RepoListActivityFeedsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActivityFeedsList
- */
-export type RepoListActivityFeeds200 = Activity[];
+export type RepoListActivityFeedsStatus200Json = Activity[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListActivityFeeds404 = APINotFound;
+export type RepoListActivityFeedsStatus200Html = Activity[];
 
-export type RepoListActivityFeedsQueryResponse = RepoListActivityFeeds200;
+export type RepoListActivityFeedsStatus200 = RepoListActivityFeedsStatus200Json | RepoListActivityFeedsStatus200Html;
 
-export type RepoListActivityFeedsQuery = {
-  Response: RepoListActivityFeeds200;
-  PathParams: RepoListActivityFeedsPathParams;
-  QueryParams: RepoListActivityFeedsQueryParams;
-  Errors: RepoListActivityFeeds404;
+export type RepoListActivityFeedsStatus404Json = APINotFound;
+
+export type RepoListActivityFeedsStatus404Html = APINotFound;
+
+export type RepoListActivityFeedsStatus404 = RepoListActivityFeedsStatus404Json | RepoListActivityFeedsStatus404Html;
+
+export type RepoListActivityFeedsOptions = {
+  body?: never;
+  path: RepoListActivityFeedsPath;
+  query?: RepoListActivityFeedsQuery;
+  headers?: never;
 };
+
+export type RepoListActivityFeedsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListActivityFeedsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListActivityFeedsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListActivityFeedsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListActivityFeedsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListActivityFeedsResponse = RepoListActivityFeedsStatus200 | RepoListActivityFeedsStatus404;

@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditReleaseMutationRequest,
-  RepoEditReleaseMutationResponse,
-  RepoEditReleasePathParams,
-  RepoEditRelease404,
-} from '../types/RepoEditRelease';
-
-function getRepoEditReleaseUrl(
-  owner: RepoEditReleasePathParams['owner'],
-  repo: RepoEditReleasePathParams['repo'],
-  id: RepoEditReleasePathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/releases/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditReleaseOptions, RepoEditReleaseResponses } from '../types/RepoEditRelease';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a release
  * {@link /repos/:owner/:repo/releases/:id}
  */
-export async function repoEditRelease(
-  owner: RepoEditReleasePathParams['owner'],
-  repo: RepoEditReleasePathParams['repo'],
-  id: RepoEditReleasePathParams['id'],
-  data?: RepoEditReleaseMutationRequest,
-  config: Partial<RequestConfig<RepoEditReleaseMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditRelease<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditReleaseOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditReleaseResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditReleaseMutationResponse,
-    ResponseErrorConfig<RepoEditRelease404>,
-    RepoEditReleaseMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditReleaseUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/releases/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditReleaseResponses, ThrowOnError>>;
 }

@@ -4,20 +4,20 @@
  */
 
 import type {
-  RepoDeleteBranchMutationResponse,
-  RepoDeleteBranch403,
-  RepoDeleteBranch404,
-  RepoDeleteBranch423,
+  RepoDeleteBranchResponse,
+  RepoDeleteBranchStatus403,
+  RepoDeleteBranchStatus404,
+  RepoDeleteBranchStatus423,
 } from '../types/RepoDeleteBranch';
 import { http } from 'msw';
 
-export function repoDeleteBranchHandlerResponse204(data?: RepoDeleteBranchMutationResponse) {
+export function repoDeleteBranchHandlerResponse204(data?: RepoDeleteBranchResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteBranchHandlerResponse403(data: RepoDeleteBranch403) {
+export function repoDeleteBranchHandlerResponse403(data: RepoDeleteBranchStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function repoDeleteBranchHandlerResponse403(data: RepoDeleteBranch403) {
   });
 }
 
-export function repoDeleteBranchHandlerResponse404(data: RepoDeleteBranch404) {
+export function repoDeleteBranchHandlerResponse404(data: RepoDeleteBranchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function repoDeleteBranchHandlerResponse404(data: RepoDeleteBranch404) {
   });
 }
 
-export function repoDeleteBranchHandlerResponse423(data: RepoDeleteBranch423) {
+export function repoDeleteBranchHandlerResponse423(data: RepoDeleteBranchStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

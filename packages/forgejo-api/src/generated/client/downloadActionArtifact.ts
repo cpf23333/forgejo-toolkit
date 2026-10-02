@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DownloadActionArtifactQueryResponse,
-  DownloadActionArtifactPathParams,
-  DownloadActionArtifact400,
-  DownloadActionArtifact403,
-  DownloadActionArtifact404,
-} from '../types/DownloadActionArtifact';
-
-function getDownloadActionArtifactUrl(
-  owner: DownloadActionArtifactPathParams['owner'],
-  repo: DownloadActionArtifactPathParams['repo'],
-  artifact_id: DownloadActionArtifactPathParams['artifact_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/artifacts/${artifact_id}/zip` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DownloadActionArtifactOptions, DownloadActionArtifactResponses } from '../types/DownloadActionArtifact';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Download an artifact
  * {@link /repos/:owner/:repo/actions/artifacts/:artifact_id/zip}
  */
-export async function downloadActionArtifact(
-  owner: DownloadActionArtifactPathParams['owner'],
-  repo: DownloadActionArtifactPathParams['repo'],
-  artifact_id: DownloadActionArtifactPathParams['artifact_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function downloadActionArtifact<ThrowOnError extends boolean = true>(
+  options: Options<DownloadActionArtifactOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DownloadActionArtifactResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DownloadActionArtifactQueryResponse,
-    ResponseErrorConfig<DownloadActionArtifact400 | DownloadActionArtifact403 | DownloadActionArtifact404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getDownloadActionArtifactUrl(owner, repo, artifact_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DownloadActionArtifactResponses, ThrowOnError>>;
 }

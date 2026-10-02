@@ -3,20 +3,13 @@
  * Do not edit manually.
  */
 
-/**
- * RegisterRunnerResponse contains the details of the just registered runner.
- */
 export type RegisterRunnerResponse = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   token?: string;
-  /**
-   * @type string | undefined
-   */
   uuid?: string;
 };

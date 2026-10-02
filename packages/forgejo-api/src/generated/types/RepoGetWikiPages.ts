@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { WikiPageMetaData } from './WikiPageMetaData';
 
-export type RepoGetWikiPagesPathParams = {
+export type RepoGetWikiPagesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoGetWikiPagesPathParams = {
   repo: string;
 };
 
-export type RepoGetWikiPagesQueryParams = {
+export type RepoGetWikiPagesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoGetWikiPagesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description WikiPageList
- */
-export type RepoGetWikiPages200 = WikiPageMetaData[];
+export type RepoGetWikiPagesStatus200Json = WikiPageMetaData[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetWikiPages404 = APINotFound;
+export type RepoGetWikiPagesStatus200Html = WikiPageMetaData[];
 
-export type RepoGetWikiPagesQueryResponse = RepoGetWikiPages200;
+export type RepoGetWikiPagesStatus200 = RepoGetWikiPagesStatus200Json | RepoGetWikiPagesStatus200Html;
 
-export type RepoGetWikiPagesQuery = {
-  Response: RepoGetWikiPages200;
-  PathParams: RepoGetWikiPagesPathParams;
-  QueryParams: RepoGetWikiPagesQueryParams;
-  Errors: RepoGetWikiPages404;
+export type RepoGetWikiPagesStatus404Json = APINotFound;
+
+export type RepoGetWikiPagesStatus404Html = APINotFound;
+
+export type RepoGetWikiPagesStatus404 = RepoGetWikiPagesStatus404Json | RepoGetWikiPagesStatus404Html;
+
+export type RepoGetWikiPagesOptions = {
+  body?: never;
+  path: RepoGetWikiPagesPath;
+  query?: RepoGetWikiPagesQuery;
+  headers?: never;
 };
+
+export type RepoGetWikiPagesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetWikiPagesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetWikiPagesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetWikiPagesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetWikiPagesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetWikiPagesResponse = RepoGetWikiPagesStatus200 | RepoGetWikiPagesStatus404;

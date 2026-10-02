@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgDeleteAvatarMutationResponse, OrgDeleteAvatar404 } from '../types/OrgDeleteAvatar';
+import type { OrgDeleteAvatarResponse, OrgDeleteAvatarStatus404 } from '../types/OrgDeleteAvatar';
 import { http } from 'msw';
 
-export function orgDeleteAvatarHandlerResponse204(data?: OrgDeleteAvatarMutationResponse) {
+export function orgDeleteAvatarHandlerResponse204(data?: OrgDeleteAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgDeleteAvatarHandlerResponse404(data: OrgDeleteAvatar404) {
+export function orgDeleteAvatarHandlerResponse404(data: OrgDeleteAvatarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

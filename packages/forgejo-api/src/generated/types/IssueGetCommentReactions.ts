@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { Reaction } from './Reaction';
 
-export type IssueGetCommentReactionsPathParams = {
+export type IssueGetCommentReactionsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,30 +20,78 @@ export type IssueGetCommentReactionsPathParams = {
   repo: string;
   /**
    * @description id of the comment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description ReactionListWithoutPagination - Reactions for a specific comment (no pagination headers)
- */
-export type IssueGetCommentReactions200 = Reaction[];
+export type IssueGetCommentReactionsStatus200Json = Reaction[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueGetCommentReactions403 = APIForbiddenError;
+export type IssueGetCommentReactionsStatus200Html = Reaction[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetCommentReactions404 = APINotFound;
+export type IssueGetCommentReactionsStatus200 =
+  | IssueGetCommentReactionsStatus200Json
+  | IssueGetCommentReactionsStatus200Html;
 
-export type IssueGetCommentReactionsQueryResponse = IssueGetCommentReactions200;
+export type IssueGetCommentReactionsStatus403Json = APIForbiddenError;
 
-export type IssueGetCommentReactionsQuery = {
-  Response: IssueGetCommentReactions200;
-  PathParams: IssueGetCommentReactionsPathParams;
-  Errors: IssueGetCommentReactions403 | IssueGetCommentReactions404;
+export type IssueGetCommentReactionsStatus403Html = APIForbiddenError;
+
+export type IssueGetCommentReactionsStatus403 =
+  | IssueGetCommentReactionsStatus403Json
+  | IssueGetCommentReactionsStatus403Html;
+
+export type IssueGetCommentReactionsStatus404Json = APINotFound;
+
+export type IssueGetCommentReactionsStatus404Html = APINotFound;
+
+export type IssueGetCommentReactionsStatus404 =
+  | IssueGetCommentReactionsStatus404Json
+  | IssueGetCommentReactionsStatus404Html;
+
+export type IssueGetCommentReactionsOptions = {
+  body?: never;
+  path: IssueGetCommentReactionsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetCommentReactionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentReactionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentReactionsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentReactionsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentReactionsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentReactionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentReactionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetCommentReactionsResponse =
+  | IssueGetCommentReactionsStatus200
+  | IssueGetCommentReactionsStatus403
+  | IssueGetCommentReactionsStatus404;

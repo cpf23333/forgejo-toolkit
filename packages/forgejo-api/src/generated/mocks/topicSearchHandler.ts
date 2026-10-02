@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { TopicSearchQueryResponse, TopicSearch403, TopicSearch404 } from '../types/TopicSearch';
+import type { TopicSearchResponse, TopicSearchStatus403, TopicSearchStatus404 } from '../types/TopicSearch';
 import { http } from 'msw';
 
-export function topicSearchHandlerResponse200(data: TopicSearchQueryResponse) {
+export function topicSearchHandlerResponse200(data: TopicSearchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function topicSearchHandlerResponse200(data: TopicSearchQueryResponse) {
   });
 }
 
-export function topicSearchHandlerResponse403(data: TopicSearch403) {
+export function topicSearchHandlerResponse403(data: TopicSearchStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +24,7 @@ export function topicSearchHandlerResponse403(data: TopicSearch403) {
   });
 }
 
-export function topicSearchHandlerResponse404(data: TopicSearch404) {
+export function topicSearchHandlerResponse404(data: TopicSearchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -34,9 +34,7 @@ export function topicSearchHandlerResponse404(data: TopicSearch404) {
 }
 
 export function topicSearchHandler(
-  data?:
-    | TopicSearchQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: TopicSearchResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/topics/search`, function handler(info) {
     if (typeof data === 'function') return data(info);

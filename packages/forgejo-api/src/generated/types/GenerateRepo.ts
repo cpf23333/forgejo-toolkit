@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { GenerateRepoOption } from './GenerateRepoOption';
 import type { Repository } from './Repository';
 
-export type GenerateRepoPathParams = {
+export type GenerateRepoPath = {
   /**
    * @description name of the template repository owner
    * @type string
@@ -23,42 +23,102 @@ export type GenerateRepoPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type GenerateRepo201 = Repository;
+export type GenerateRepoStatus201Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type GenerateRepo403 = APIForbiddenError;
+export type GenerateRepoStatus201Html = Repository;
+
+export type GenerateRepoStatus201 = GenerateRepoStatus201Json | GenerateRepoStatus201Html;
+
+export type GenerateRepoStatus403Json = APIForbiddenError;
+
+export type GenerateRepoStatus403Html = APIForbiddenError;
+
+export type GenerateRepoStatus403 = GenerateRepoStatus403Json | GenerateRepoStatus403Html;
+
+export type GenerateRepoStatus404Json = APINotFound;
+
+export type GenerateRepoStatus404Html = APINotFound;
+
+export type GenerateRepoStatus404 = GenerateRepoStatus404Json | GenerateRepoStatus404Html;
+
+export type GenerateRepoStatus409 = unknown;
+
+export type GenerateRepoStatus413 = unknown;
+
+export type GenerateRepoStatus422Json = APIValidationError;
+
+export type GenerateRepoStatus422Html = APIValidationError;
+
+export type GenerateRepoStatus422 = GenerateRepoStatus422Json | GenerateRepoStatus422Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description GenerateRepoOption options when creating repository using a template
+ * @type object | undefined
  */
-export type GenerateRepo404 = APINotFound;
+export type GenerateRepoBody = GenerateRepoOption | undefined;
 
-/**
- * @description The repository with the same name already exists.
- */
-export type GenerateRepo409 = any;
-
-/**
- * @description QuotaExceeded
- */
-export type GenerateRepo413 = any;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type GenerateRepo422 = APIValidationError;
-
-export type GenerateRepoMutationRequest = GenerateRepoOption;
-
-export type GenerateRepoMutationResponse = GenerateRepo201;
-
-export type GenerateRepoMutation = {
-  Response: GenerateRepo201;
-  Request: GenerateRepoMutationRequest;
-  PathParams: GenerateRepoPathParams;
-  Errors: GenerateRepo403 | GenerateRepo404 | GenerateRepo409 | GenerateRepo413 | GenerateRepo422;
+export type GenerateRepoOptions = {
+  body: GenerateRepoBody;
+  path: GenerateRepoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GenerateRepoResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: GenerateRepoStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GenerateRepoStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: GenerateRepoStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GenerateRepoStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GenerateRepoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GenerateRepoStatus404Html;
+      };
+  '409': GenerateRepoStatus409;
+  '413': GenerateRepoStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: GenerateRepoStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GenerateRepoStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GenerateRepoResponse =
+  | GenerateRepoStatus201
+  | GenerateRepoStatus403
+  | GenerateRepoStatus404
+  | GenerateRepoStatus409
+  | GenerateRepoStatus413
+  | GenerateRepoStatus422;

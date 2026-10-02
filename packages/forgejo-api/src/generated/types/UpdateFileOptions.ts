@@ -8,6 +8,7 @@ import type { Identity } from './Identity';
 
 /**
  * @description UpdateFileOptions options for updating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
 export type UpdateFileOptions = {
   /**

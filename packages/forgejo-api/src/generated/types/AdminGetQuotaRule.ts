@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
-export type AdminGetQuotaRulePathParams = {
+export type AdminGetQuotaRulePath = {
   /**
    * @description quota rule to query
    * @type string
@@ -17,29 +17,96 @@ export type AdminGetQuotaRulePathParams = {
 };
 
 /**
- * @description QuotaRuleInfo
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminGetQuotaRule200 = QuotaRuleInfo;
+export type AdminGetQuotaRuleStatus200Json = QuotaRuleInfo;
 
 /**
- * @description APIError is error format response
+ * @description QuotaRuleInfo contains information about a quota rule
+ * @type object
  */
-export type AdminGetQuotaRule400 = APIError;
+export type AdminGetQuotaRuleStatus200Html = QuotaRuleInfo;
+
+export type AdminGetQuotaRuleStatus200 = AdminGetQuotaRuleStatus200Json | AdminGetQuotaRuleStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetQuotaRule403 = APIForbiddenError;
+export type AdminGetQuotaRuleStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetQuotaRule404 = APINotFound;
+export type AdminGetQuotaRuleStatus400Html = APIError;
 
-export type AdminGetQuotaRuleQueryResponse = AdminGetQuotaRule200;
+export type AdminGetQuotaRuleStatus400 = AdminGetQuotaRuleStatus400Json | AdminGetQuotaRuleStatus400Html;
 
-export type AdminGetQuotaRuleQuery = {
-  Response: AdminGetQuotaRule200;
-  PathParams: AdminGetQuotaRulePathParams;
-  Errors: AdminGetQuotaRule400 | AdminGetQuotaRule403 | AdminGetQuotaRule404;
+export type AdminGetQuotaRuleStatus403Json = APIForbiddenError;
+
+export type AdminGetQuotaRuleStatus403Html = APIForbiddenError;
+
+export type AdminGetQuotaRuleStatus403 = AdminGetQuotaRuleStatus403Json | AdminGetQuotaRuleStatus403Html;
+
+export type AdminGetQuotaRuleStatus404Json = APINotFound;
+
+export type AdminGetQuotaRuleStatus404Html = APINotFound;
+
+export type AdminGetQuotaRuleStatus404 = AdminGetQuotaRuleStatus404Json | AdminGetQuotaRuleStatus404Html;
+
+export type AdminGetQuotaRuleOptions = {
+  body?: never;
+  path: AdminGetQuotaRulePath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminGetQuotaRuleResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaRuleStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaRuleStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaRuleStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaRuleStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaRuleStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaRuleStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminGetQuotaRuleStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetQuotaRuleStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetQuotaRuleResponse =
+  | AdminGetQuotaRuleStatus200
+  | AdminGetQuotaRuleStatus400
+  | AdminGetQuotaRuleStatus403
+  | AdminGetQuotaRuleStatus404;

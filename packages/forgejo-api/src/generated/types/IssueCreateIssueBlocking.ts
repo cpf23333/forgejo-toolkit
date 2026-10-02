@@ -6,7 +6,7 @@
 import type { Issue } from './Issue';
 import type { IssueMeta } from './IssueMeta';
 
-export type IssueCreateIssueBlockingPathParams = {
+export type IssueCreateIssueBlockingPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,28 +19,66 @@ export type IssueCreateIssueBlockingPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssueBlocking201 = Issue;
+export type IssueCreateIssueBlockingStatus201Json = Issue;
 
 /**
- * @description the issue does not exist
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssueBlocking404 = any;
+export type IssueCreateIssueBlockingStatus201Html = Issue;
 
-export type IssueCreateIssueBlockingMutationRequest = IssueMeta;
+export type IssueCreateIssueBlockingStatus201 =
+  | IssueCreateIssueBlockingStatus201Json
+  | IssueCreateIssueBlockingStatus201Html;
 
-export type IssueCreateIssueBlockingMutationResponse = IssueCreateIssueBlocking201;
+export type IssueCreateIssueBlockingStatus404 = unknown;
 
-export type IssueCreateIssueBlockingMutation = {
-  Response: IssueCreateIssueBlocking201;
-  Request: IssueCreateIssueBlockingMutationRequest;
-  PathParams: IssueCreateIssueBlockingPathParams;
-  Errors: IssueCreateIssueBlocking404;
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueCreateIssueBlockingBodyJson = IssueMeta | undefined;
+
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueCreateIssueBlockingBodyPlain = IssueMeta | undefined;
+
+export type IssueCreateIssueBlockingBody = IssueCreateIssueBlockingBodyJson | IssueCreateIssueBlockingBodyPlain;
+
+export type IssueCreateIssueBlockingOptions = {
+  body: IssueCreateIssueBlockingBody;
+  path: IssueCreateIssueBlockingPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateIssueBlockingResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueBlockingStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueBlockingStatus201Html;
+      };
+  '404': IssueCreateIssueBlockingStatus404;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateIssueBlockingResponse = IssueCreateIssueBlockingStatus201 | IssueCreateIssueBlockingStatus404;

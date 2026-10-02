@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type RepoGetAssigneesPathParams = {
+export type RepoGetAssigneesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoGetAssigneesPathParams = {
   repo: string;
 };
 
-/**
- * @description UserList
- */
-export type RepoGetAssignees200 = User[];
+export type RepoGetAssigneesStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetAssignees404 = APINotFound;
+export type RepoGetAssigneesStatus200Html = User[];
 
-export type RepoGetAssigneesQueryResponse = RepoGetAssignees200;
+export type RepoGetAssigneesStatus200 = RepoGetAssigneesStatus200Json | RepoGetAssigneesStatus200Html;
 
-export type RepoGetAssigneesQuery = {
-  Response: RepoGetAssignees200;
-  PathParams: RepoGetAssigneesPathParams;
-  Errors: RepoGetAssignees404;
+export type RepoGetAssigneesStatus404Json = APINotFound;
+
+export type RepoGetAssigneesStatus404Html = APINotFound;
+
+export type RepoGetAssigneesStatus404 = RepoGetAssigneesStatus404Json | RepoGetAssigneesStatus404Html;
+
+export type RepoGetAssigneesOptions = {
+  body?: never;
+  path: RepoGetAssigneesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetAssigneesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetAssigneesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetAssigneesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetAssigneesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetAssigneesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetAssigneesResponse = RepoGetAssigneesStatus200 | RepoGetAssigneesStatus404;

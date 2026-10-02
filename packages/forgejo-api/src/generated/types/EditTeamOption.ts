@@ -14,33 +14,21 @@ export type EditTeamOptionPermissionEnumKey =
 
 /**
  * @description EditTeamOption options for editing a team
+ * @type object
  */
 export type EditTeamOption = {
-  /**
-   * @type boolean | undefined
-   */
   can_create_org_repo?: boolean;
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type boolean | undefined
-   */
   includes_all_repositories?: boolean;
-  /**
-   * @type string
-   */
   name: string;
-  /**
-   * @type string | undefined
-   */
   permission?: EditTeamOptionPermissionEnumKey;
   /**
+   * @example ["repo.code","repo.issues","repo.ext_issues","repo.wiki","repo.pulls","repo.releases","repo.projects","repo.ext_wiki"]
    * @type array | undefined
    */
   units?: string[];
   /**
+   * @example {"repo.actions":"none","repo.code":"read","repo.ext_issues":"none","repo.ext_wiki":"none","repo.issues":"write","repo.packages":"none","repo.projects":"none","repo.pulls":"owner","repo.releases":"none","repo.wiki":"admin"}
    * @type object | undefined
    */
   units_map?: {

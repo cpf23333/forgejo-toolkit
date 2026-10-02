@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullReview } from './PullReview';
 
-export type RepoListPullReviewsPathParams = {
+export type RepoListPullReviewsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,12 +19,14 @@ export type RepoListPullReviewsPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type RepoListPullReviewsQueryParams = {
+export type RepoListPullReviewsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -37,21 +39,47 @@ export type RepoListPullReviewsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description PullReviewList
- */
-export type RepoListPullReviews200 = PullReview[];
+export type RepoListPullReviewsStatus200Json = PullReview[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListPullReviews404 = APINotFound;
+export type RepoListPullReviewsStatus200Html = PullReview[];
 
-export type RepoListPullReviewsQueryResponse = RepoListPullReviews200;
+export type RepoListPullReviewsStatus200 = RepoListPullReviewsStatus200Json | RepoListPullReviewsStatus200Html;
 
-export type RepoListPullReviewsQuery = {
-  Response: RepoListPullReviews200;
-  PathParams: RepoListPullReviewsPathParams;
-  QueryParams: RepoListPullReviewsQueryParams;
-  Errors: RepoListPullReviews404;
+export type RepoListPullReviewsStatus404Json = APINotFound;
+
+export type RepoListPullReviewsStatus404Html = APINotFound;
+
+export type RepoListPullReviewsStatus404 = RepoListPullReviewsStatus404Json | RepoListPullReviewsStatus404Html;
+
+export type RepoListPullReviewsOptions = {
+  body?: never;
+  path: RepoListPullReviewsPath;
+  query?: RepoListPullReviewsQuery;
+  headers?: never;
 };
+
+export type RepoListPullReviewsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullReviewsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullReviewsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullReviewsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullReviewsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListPullReviewsResponse = RepoListPullReviewsStatus200 | RepoListPullReviewsStatus404;

@@ -6,13 +6,41 @@
 import type { ForgeOutbox } from './ForgeOutbox';
 
 /**
- * @description Outbox
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
  */
-export type ActivitypubInstanceActorOutbox200 = ForgeOutbox;
+export type ActivitypubInstanceActorOutboxStatus200Json = ForgeOutbox;
 
-export type ActivitypubInstanceActorOutboxMutationResponse = ActivitypubInstanceActorOutbox200;
+/**
+ * @description ActivityStream OrderedCollection of activities
+ * @type object
+ */
+export type ActivitypubInstanceActorOutboxStatus200Html = ForgeOutbox;
 
-export type ActivitypubInstanceActorOutboxMutation = {
-  Response: ActivitypubInstanceActorOutbox200;
-  Errors: any;
+export type ActivitypubInstanceActorOutboxStatus200 =
+  | ActivitypubInstanceActorOutboxStatus200Json
+  | ActivitypubInstanceActorOutboxStatus200Html;
+
+export type ActivitypubInstanceActorOutboxOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubInstanceActorOutboxResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubInstanceActorOutboxStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubInstanceActorOutboxStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubInstanceActorOutboxResponse = ActivitypubInstanceActorOutboxStatus200;

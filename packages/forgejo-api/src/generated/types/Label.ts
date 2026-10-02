@@ -5,34 +5,31 @@
 
 /**
  * @description Label a label to an issue or a pr
+ * @type object
  */
 export type Label = {
   /**
+   * @example 00aabb
    * @type string | undefined
    */
   color?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
+   * @example false
    * @type boolean | undefined
    */
   exclusive?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
+   * @example false
    * @type boolean | undefined
    */
   is_archived?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

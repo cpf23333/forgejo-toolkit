@@ -5,7 +5,7 @@
 
 import type { Hook } from './Hook';
 
-export type AdminListHooksQueryParams = {
+export type AdminListHooksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -18,15 +18,32 @@ export type AdminListHooksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description HookListWithoutPagination - Hooks without pagination headers
- */
-export type AdminListHooks200 = Hook[];
+export type AdminListHooksStatus200Json = Hook[];
 
-export type AdminListHooksQueryResponse = AdminListHooks200;
+export type AdminListHooksStatus200Html = Hook[];
 
-export type AdminListHooksQuery = {
-  Response: AdminListHooks200;
-  QueryParams: AdminListHooksQueryParams;
-  Errors: any;
+export type AdminListHooksStatus200 = AdminListHooksStatus200Json | AdminListHooksStatus200Html;
+
+export type AdminListHooksOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminListHooksQuery;
+  headers?: never;
 };
+
+export type AdminListHooksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListHooksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListHooksStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListHooksResponse = AdminListHooksStatus200;

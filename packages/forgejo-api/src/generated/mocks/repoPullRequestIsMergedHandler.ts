@@ -4,18 +4,18 @@
  */
 
 import type {
-  RepoPullRequestIsMergedQueryResponse,
-  RepoPullRequestIsMerged404,
+  RepoPullRequestIsMergedResponse,
+  RepoPullRequestIsMergedStatus404,
 } from '../types/RepoPullRequestIsMerged';
 import { http } from 'msw';
 
-export function repoPullRequestIsMergedHandlerResponse204(data?: RepoPullRequestIsMergedQueryResponse) {
+export function repoPullRequestIsMergedHandlerResponse204(data?: RepoPullRequestIsMergedResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoPullRequestIsMergedHandlerResponse404(data?: RepoPullRequestIsMerged404) {
+export function repoPullRequestIsMergedHandlerResponse404(data?: RepoPullRequestIsMergedStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });

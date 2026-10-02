@@ -5,7 +5,7 @@
 
 import type { RegistrationToken } from './RegistrationToken';
 
-export type RepoGetRunnerRegistrationTokenPathParams = {
+export type RepoGetRunnerRegistrationTokenPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,13 +20,44 @@ export type RepoGetRunnerRegistrationTokenPathParams = {
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
-export type RepoGetRunnerRegistrationToken200 = RegistrationToken;
+export type RepoGetRunnerRegistrationTokenStatus200Json = RegistrationToken;
 
-export type RepoGetRunnerRegistrationTokenQueryResponse = RepoGetRunnerRegistrationToken200;
+/**
+ * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
+ */
+export type RepoGetRunnerRegistrationTokenStatus200Html = RegistrationToken;
 
-export type RepoGetRunnerRegistrationTokenQuery = {
-  Response: RepoGetRunnerRegistrationToken200;
-  PathParams: RepoGetRunnerRegistrationTokenPathParams;
-  Errors: any;
+export type RepoGetRunnerRegistrationTokenStatus200 =
+  | RepoGetRunnerRegistrationTokenStatus200Json
+  | RepoGetRunnerRegistrationTokenStatus200Html;
+
+/**
+ * @deprecated
+ * @type object
+ */
+export type RepoGetRunnerRegistrationTokenOptions = {
+  body?: never;
+  path: RepoGetRunnerRegistrationTokenPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetRunnerRegistrationTokenResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRunnerRegistrationTokenStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRunnerRegistrationTokenStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetRunnerRegistrationTokenResponse = RepoGetRunnerRegistrationTokenStatus200;

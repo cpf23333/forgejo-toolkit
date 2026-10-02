@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteUserVariableMutationResponse,
-  DeleteUserVariablePathParams,
-  DeleteUserVariable400,
-  DeleteUserVariable401,
-  DeleteUserVariable403,
-  DeleteUserVariable404,
-} from '../types/DeleteUserVariable';
-
-function getDeleteUserVariableUrl(variablename: DeleteUserVariablePathParams['variablename']) {
-  const res = {
-    method: 'DELETE',
-    url: `/user/actions/variables/${variablename}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteUserVariableOptions, DeleteUserVariableResponses } from '../types/DeleteUserVariable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a user-level variable which is created by current doer
  * {@link /user/actions/variables/:variablename}
  */
-export async function deleteUserVariable(
-  variablename: DeleteUserVariablePathParams['variablename'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteUserVariable<ThrowOnError extends boolean = true>(
+  options: Options<DeleteUserVariableOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteUserVariableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteUserVariableMutationResponse,
-    ResponseErrorConfig<DeleteUserVariable400 | DeleteUserVariable401 | DeleteUserVariable403 | DeleteUserVariable404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteUserVariableUrl(variablename).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/actions/variables/{variablename}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteUserVariableResponses, ThrowOnError>>;
 }

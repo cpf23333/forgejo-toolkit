@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIValidationError } from './APIValidationError';
 import type { DeleteEmailOption } from './DeleteEmailOption';
 
-export type AdminDeleteUserEmailsPathParams = {
+export type AdminDeleteUserEmailsPath = {
   /**
    * @description username of user to delete email addresses from
    * @type string
@@ -15,28 +15,67 @@ export type AdminDeleteUserEmailsPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteUserEmails204 = any;
+export type AdminDeleteUserEmailsStatus204 = unknown;
+
+export type AdminDeleteUserEmailsStatus403Json = APIForbiddenError;
+
+export type AdminDeleteUserEmailsStatus403Html = APIForbiddenError;
+
+export type AdminDeleteUserEmailsStatus403 = AdminDeleteUserEmailsStatus403Json | AdminDeleteUserEmailsStatus403Html;
+
+export type AdminDeleteUserEmailsStatus422Json = APIValidationError;
+
+export type AdminDeleteUserEmailsStatus422Html = APIValidationError;
+
+export type AdminDeleteUserEmailsStatus422 = AdminDeleteUserEmailsStatus422Json | AdminDeleteUserEmailsStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description DeleteEmailOption options when deleting email addresses
+ * @type object | undefined
  */
-export type AdminDeleteUserEmails403 = APIForbiddenError;
+export type AdminDeleteUserEmailsBodyJson = DeleteEmailOption | undefined;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description DeleteEmailOption options when deleting email addresses
+ * @type object | undefined
  */
-export type AdminDeleteUserEmails422 = APIValidationError;
+export type AdminDeleteUserEmailsBodyPlain = DeleteEmailOption | undefined;
 
-export type AdminDeleteUserEmailsMutationRequest = DeleteEmailOption;
+export type AdminDeleteUserEmailsBody = AdminDeleteUserEmailsBodyJson | AdminDeleteUserEmailsBodyPlain;
 
-export type AdminDeleteUserEmailsMutationResponse = AdminDeleteUserEmails204;
-
-export type AdminDeleteUserEmailsMutation = {
-  Response: AdminDeleteUserEmails204;
-  Request: AdminDeleteUserEmailsMutationRequest;
-  PathParams: AdminDeleteUserEmailsPathParams;
-  Errors: AdminDeleteUserEmails403 | AdminDeleteUserEmails422;
+export type AdminDeleteUserEmailsOptions = {
+  body: AdminDeleteUserEmailsBody;
+  path: AdminDeleteUserEmailsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteUserEmailsResponses = {
+  '204': AdminDeleteUserEmailsStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserEmailsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserEmailsStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteUserEmailsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteUserEmailsStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteUserEmailsResponse =
+  | AdminDeleteUserEmailsStatus204
+  | AdminDeleteUserEmailsStatus403
+  | AdminDeleteUserEmailsStatus422;

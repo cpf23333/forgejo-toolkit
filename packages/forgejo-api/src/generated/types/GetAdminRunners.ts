@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetAdminRunnersQueryParams = {
+export type GetAdminRunnersQuery = {
   /**
    * @description whether to include all visible runners (true) or only those that are directly owned by the instance (false)
    * @type boolean | undefined
@@ -25,25 +25,70 @@ export type GetAdminRunnersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionRunnerList is a list of Forgejo Action runners
- */
-export type GetAdminRunners200 = ActionRunner[];
+export type GetAdminRunnersStatus200Json = ActionRunner[];
+
+export type GetAdminRunnersStatus200Html = ActionRunner[];
+
+export type GetAdminRunnersStatus200 = GetAdminRunnersStatus200Json | GetAdminRunnersStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetAdminRunners400 = APIError;
+export type GetAdminRunnersStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetAdminRunners404 = APINotFound;
+export type GetAdminRunnersStatus400Html = APIError;
 
-export type GetAdminRunnersQueryResponse = GetAdminRunners200;
+export type GetAdminRunnersStatus400 = GetAdminRunnersStatus400Json | GetAdminRunnersStatus400Html;
 
-export type GetAdminRunnersQuery = {
-  Response: GetAdminRunners200;
-  QueryParams: GetAdminRunnersQueryParams;
-  Errors: GetAdminRunners400 | GetAdminRunners404;
+export type GetAdminRunnersStatus404Json = APINotFound;
+
+export type GetAdminRunnersStatus404Html = APINotFound;
+
+export type GetAdminRunnersStatus404 = GetAdminRunnersStatus404Json | GetAdminRunnersStatus404Html;
+
+export type GetAdminRunnersOptions = {
+  body?: never;
+  path?: never;
+  query?: GetAdminRunnersQuery;
+  headers?: never;
 };
+
+export type GetAdminRunnersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnersStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnersStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnersStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetAdminRunnersResponse = GetAdminRunnersStatus200 | GetAdminRunnersStatus400 | GetAdminRunnersStatus404;

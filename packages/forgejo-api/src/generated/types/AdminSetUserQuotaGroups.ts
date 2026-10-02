@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { SetUserQuotaGroupsOptions } from './SetUserQuotaGroupsOptions';
 
-export type AdminSetUserQuotaGroupsPathParams = {
+export type AdminSetUserQuotaGroupsPath = {
   /**
    * @description username of the user to modify the quota groups from
    * @type string
@@ -17,45 +17,115 @@ export type AdminSetUserQuotaGroupsPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminSetUserQuotaGroups204 = any;
+export type AdminSetUserQuotaGroupsStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminSetUserQuotaGroups400 = APIError;
+export type AdminSetUserQuotaGroupsStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminSetUserQuotaGroups403 = APIForbiddenError;
+export type AdminSetUserQuotaGroupsStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminSetUserQuotaGroups404 = APINotFound;
+export type AdminSetUserQuotaGroupsStatus400 =
+  | AdminSetUserQuotaGroupsStatus400Json
+  | AdminSetUserQuotaGroupsStatus400Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type AdminSetUserQuotaGroups422 = APIValidationError;
+export type AdminSetUserQuotaGroupsStatus403Json = APIForbiddenError;
+
+export type AdminSetUserQuotaGroupsStatus403Html = APIForbiddenError;
+
+export type AdminSetUserQuotaGroupsStatus403 =
+  | AdminSetUserQuotaGroupsStatus403Json
+  | AdminSetUserQuotaGroupsStatus403Html;
+
+export type AdminSetUserQuotaGroupsStatus404Json = APINotFound;
+
+export type AdminSetUserQuotaGroupsStatus404Html = APINotFound;
+
+export type AdminSetUserQuotaGroupsStatus404 =
+  | AdminSetUserQuotaGroupsStatus404Json
+  | AdminSetUserQuotaGroupsStatus404Html;
+
+export type AdminSetUserQuotaGroupsStatus422Json = APIValidationError;
+
+export type AdminSetUserQuotaGroupsStatus422Html = APIValidationError;
+
+export type AdminSetUserQuotaGroupsStatus422 =
+  | AdminSetUserQuotaGroupsStatus422Json
+  | AdminSetUserQuotaGroupsStatus422Html;
 
 /**
  * @description list of groups that the user should be a member of
+ * @type object
  */
-export type AdminSetUserQuotaGroupsMutationRequest = SetUserQuotaGroupsOptions;
+export type AdminSetUserQuotaGroupsBodyJson = SetUserQuotaGroupsOptions;
 
-export type AdminSetUserQuotaGroupsMutationResponse = AdminSetUserQuotaGroups204;
+/**
+ * @description list of groups that the user should be a member of
+ * @type object
+ */
+export type AdminSetUserQuotaGroupsBodyPlain = SetUserQuotaGroupsOptions;
 
-export type AdminSetUserQuotaGroupsMutation = {
-  Response: AdminSetUserQuotaGroups204;
-  Request: AdminSetUserQuotaGroupsMutationRequest;
-  PathParams: AdminSetUserQuotaGroupsPathParams;
-  Errors:
-    | AdminSetUserQuotaGroups400
-    | AdminSetUserQuotaGroups403
-    | AdminSetUserQuotaGroups404
-    | AdminSetUserQuotaGroups422;
+export type AdminSetUserQuotaGroupsBody = AdminSetUserQuotaGroupsBodyJson | AdminSetUserQuotaGroupsBodyPlain;
+
+export type AdminSetUserQuotaGroupsOptions = {
+  body: AdminSetUserQuotaGroupsBody;
+  path: AdminSetUserQuotaGroupsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminSetUserQuotaGroupsResponses = {
+  '204': AdminSetUserQuotaGroupsStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminSetUserQuotaGroupsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSetUserQuotaGroupsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminSetUserQuotaGroupsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSetUserQuotaGroupsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminSetUserQuotaGroupsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSetUserQuotaGroupsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminSetUserQuotaGroupsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSetUserQuotaGroupsStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminSetUserQuotaGroupsResponse =
+  | AdminSetUserQuotaGroupsStatus204
+  | AdminSetUserQuotaGroupsStatus400
+  | AdminSetUserQuotaGroupsStatus403
+  | AdminSetUserQuotaGroupsStatus404
+  | AdminSetUserQuotaGroupsStatus422;

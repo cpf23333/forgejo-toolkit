@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditIssueOption } from './EditIssueOption';
 import type { Issue } from './Issue';
 
-export type IssueEditIssuePathParams = {
+export type IssueEditIssuePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,38 +22,110 @@ export type IssueEditIssuePathParams = {
   repo: string;
   /**
    * @description index of the issue to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueEditIssue201 = Issue;
+export type IssueEditIssueStatus201Json = Issue;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueEditIssue403 = APIForbiddenError;
+export type IssueEditIssueStatus201Html = Issue;
+
+export type IssueEditIssueStatus201 = IssueEditIssueStatus201Json | IssueEditIssueStatus201Html;
+
+export type IssueEditIssueStatus403Json = APIForbiddenError;
+
+export type IssueEditIssueStatus403Html = APIForbiddenError;
+
+export type IssueEditIssueStatus403 = IssueEditIssueStatus403Json | IssueEditIssueStatus403Html;
+
+export type IssueEditIssueStatus404Json = APINotFound;
+
+export type IssueEditIssueStatus404Html = APINotFound;
+
+export type IssueEditIssueStatus404 = IssueEditIssueStatus404Json | IssueEditIssueStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssue404 = APINotFound;
+export type IssueEditIssueStatus412Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssue412 = APIError;
+export type IssueEditIssueStatus412Html = APIError;
 
-export type IssueEditIssueMutationRequest = EditIssueOption;
+export type IssueEditIssueStatus412 = IssueEditIssueStatus412Json | IssueEditIssueStatus412Html;
 
-export type IssueEditIssueMutationResponse = IssueEditIssue201;
+/**
+ * @description EditIssueOption options for editing an issue
+ * @type object | undefined
+ */
+export type IssueEditIssueBody = EditIssueOption | undefined;
 
-export type IssueEditIssueMutation = {
-  Response: IssueEditIssue201;
-  Request: IssueEditIssueMutationRequest;
-  PathParams: IssueEditIssuePathParams;
-  Errors: IssueEditIssue403 | IssueEditIssue404 | IssueEditIssue412;
+export type IssueEditIssueOptions = {
+  body: IssueEditIssueBody;
+  path: IssueEditIssuePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditIssueResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueStatus404Html;
+      };
+  '412':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueStatus412Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueStatus412Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditIssueResponse =
+  | IssueEditIssueStatus201
+  | IssueEditIssueStatus403
+  | IssueEditIssueStatus404
+  | IssueEditIssueStatus412;

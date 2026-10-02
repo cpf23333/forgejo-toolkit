@@ -5,6 +5,7 @@
 
 /**
  * @description EditIssueOption options for editing an issue
+ * @type object
  */
 export type EditIssueOption = {
   /**
@@ -12,40 +13,28 @@ export type EditIssueOption = {
    * @type string | undefined
    */
   assignee?: string;
-  /**
-   * @type array | undefined
-   */
   assignees?: string[];
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   milestone?: number;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
-  /**
-   * @type string | undefined
-   */
   state?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
-  /**
-   * @type boolean | undefined
-   */
   unset_due_date?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

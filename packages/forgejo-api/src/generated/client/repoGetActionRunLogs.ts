@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetActionRunLogsQueryResponse,
-  RepoGetActionRunLogsPathParams,
-  RepoGetActionRunLogs401,
-  RepoGetActionRunLogs403,
-  RepoGetActionRunLogs404,
-} from '../types/RepoGetActionRunLogs';
-
-function getRepoGetActionRunLogsUrl(
-  owner: RepoGetActionRunLogsPathParams['owner'],
-  repo: RepoGetActionRunLogsPathParams['repo'],
-  run_id: RepoGetActionRunLogsPathParams['run_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}/logs` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetActionRunLogsOptions, RepoGetActionRunLogsResponses } from '../types/RepoGetActionRunLogs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Download a ZIP of plaintext logs for every job in an action run
  * {@link /repos/:owner/:repo/actions/runs/:run_id/logs}
  */
-export async function repoGetActionRunLogs(
-  owner: RepoGetActionRunLogsPathParams['owner'],
-  repo: RepoGetActionRunLogsPathParams['repo'],
-  run_id: RepoGetActionRunLogsPathParams['run_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetActionRunLogs<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetActionRunLogsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetActionRunLogsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetActionRunLogsQueryResponse,
-    ResponseErrorConfig<RepoGetActionRunLogs401 | RepoGetActionRunLogs403 | RepoGetActionRunLogs404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetActionRunLogsUrl(owner, repo, run_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}/logs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetActionRunLogsResponses, ThrowOnError>>;
 }

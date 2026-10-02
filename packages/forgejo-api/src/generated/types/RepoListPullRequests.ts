@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { PullRequest } from './PullRequest';
 
-export type RepoListPullRequestsPathParams = {
+export type RepoListPullRequestsPath = {
   /**
    * @description Owner of the repo
    * @type string
@@ -20,16 +20,15 @@ export type RepoListPullRequestsPathParams = {
   repo: string;
 };
 
-export const repoListPullRequestsQueryParamsStateEnum = {
+export const repoListPullRequestsState = {
   open: 'open',
   closed: 'closed',
   all: 'all',
 } as const;
 
-export type RepoListPullRequestsQueryParamsStateEnumKey =
-  (typeof repoListPullRequestsQueryParamsStateEnum)[keyof typeof repoListPullRequestsQueryParamsStateEnum];
+export type RepoListPullRequestsStateKey = (typeof repoListPullRequestsState)[keyof typeof repoListPullRequestsState];
 
-export const repoListPullRequestsQueryParamsSortEnum = {
+export const repoListPullRequestsSort = {
   oldest: 'oldest',
   recentupdate: 'recentupdate',
   recentclose: 'recentclose',
@@ -39,24 +38,25 @@ export const repoListPullRequestsQueryParamsSortEnum = {
   priority: 'priority',
 } as const;
 
-export type RepoListPullRequestsQueryParamsSortEnumKey =
-  (typeof repoListPullRequestsQueryParamsSortEnum)[keyof typeof repoListPullRequestsQueryParamsSortEnum];
+export type RepoListPullRequestsSortKey = (typeof repoListPullRequestsSort)[keyof typeof repoListPullRequestsSort];
 
-export type RepoListPullRequestsQueryParams = {
+export type RepoListPullRequestsQuery = {
   /**
    * @description State of pull request
-   * @default "open"
+   * @default 'open'
    * @type string | undefined
    */
-  state?: RepoListPullRequestsQueryParamsStateEnumKey;
+  state?: RepoListPullRequestsStateKey;
   /**
    * @description Type of sort
    * @type string | undefined
    */
-  sort?: RepoListPullRequestsQueryParamsSortEnumKey;
+  sort?: RepoListPullRequestsSortKey;
   /**
    * @description ID of the milestone
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   milestone?: number;
   /**
@@ -94,31 +94,97 @@ export type RepoListPullRequestsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description PullRequestList
- */
-export type RepoListPullRequests200 = PullRequest[];
+export type RepoListPullRequestsStatus200Json = PullRequest[];
+
+export type RepoListPullRequestsStatus200Html = PullRequest[];
+
+export type RepoListPullRequestsStatus200 = RepoListPullRequestsStatus200Json | RepoListPullRequestsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListPullRequests400 = APIError;
+export type RepoListPullRequestsStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListPullRequests404 = APINotFound;
+export type RepoListPullRequestsStatus400Html = APIError;
+
+export type RepoListPullRequestsStatus400 = RepoListPullRequestsStatus400Json | RepoListPullRequestsStatus400Html;
+
+export type RepoListPullRequestsStatus404Json = APINotFound;
+
+export type RepoListPullRequestsStatus404Html = APINotFound;
+
+export type RepoListPullRequestsStatus404 = RepoListPullRequestsStatus404Json | RepoListPullRequestsStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoListPullRequests500 = APIError;
+export type RepoListPullRequestsStatus500Json = APIError;
 
-export type RepoListPullRequestsQueryResponse = RepoListPullRequests200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoListPullRequestsStatus500Html = APIError;
 
-export type RepoListPullRequestsQuery = {
-  Response: RepoListPullRequests200;
-  PathParams: RepoListPullRequestsPathParams;
-  QueryParams: RepoListPullRequestsQueryParams;
-  Errors: RepoListPullRequests400 | RepoListPullRequests404 | RepoListPullRequests500;
+export type RepoListPullRequestsStatus500 = RepoListPullRequestsStatus500Json | RepoListPullRequestsStatus500Html;
+
+export type RepoListPullRequestsOptions = {
+  body?: never;
+  path: RepoListPullRequestsPath;
+  query?: RepoListPullRequestsQuery;
+  headers?: never;
 };
+
+export type RepoListPullRequestsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullRequestsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullRequestsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullRequestsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullRequestsStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullRequestsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullRequestsStatus404Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: RepoListPullRequestsStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListPullRequestsStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListPullRequestsResponse =
+  | RepoListPullRequestsStatus200
+  | RepoListPullRequestsStatus400
+  | RepoListPullRequestsStatus404
+  | RepoListPullRequestsStatus500;

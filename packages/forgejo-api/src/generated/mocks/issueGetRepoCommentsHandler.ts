@@ -4,14 +4,14 @@
  */
 
 import type {
-  IssueGetRepoCommentsQueryResponse,
-  IssueGetRepoComments404,
-  IssueGetRepoComments422,
-  IssueGetRepoComments500,
+  IssueGetRepoCommentsResponse,
+  IssueGetRepoCommentsStatus404,
+  IssueGetRepoCommentsStatus422,
+  IssueGetRepoCommentsStatus500,
 } from '../types/IssueGetRepoComments';
 import { http } from 'msw';
 
-export function issueGetRepoCommentsHandlerResponse200(data: IssueGetRepoCommentsQueryResponse) {
+export function issueGetRepoCommentsHandlerResponse200(data: IssueGetRepoCommentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function issueGetRepoCommentsHandlerResponse200(data: IssueGetRepoComment
   });
 }
 
-export function issueGetRepoCommentsHandlerResponse404(data: IssueGetRepoComments404) {
+export function issueGetRepoCommentsHandlerResponse404(data: IssueGetRepoCommentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueGetRepoCommentsHandlerResponse404(data: IssueGetRepoComment
   });
 }
 
-export function issueGetRepoCommentsHandlerResponse422(data: IssueGetRepoComments422) {
+export function issueGetRepoCommentsHandlerResponse422(data: IssueGetRepoCommentsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,7 +38,7 @@ export function issueGetRepoCommentsHandlerResponse422(data: IssueGetRepoComment
   });
 }
 
-export function issueGetRepoCommentsHandlerResponse500(data: IssueGetRepoComments500) {
+export function issueGetRepoCommentsHandlerResponse500(data: IssueGetRepoCommentsStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
@@ -49,7 +49,7 @@ export function issueGetRepoCommentsHandlerResponse500(data: IssueGetRepoComment
 
 export function issueGetRepoCommentsHandler(
   data?:
-    | IssueGetRepoCommentsQueryResponse
+    | IssueGetRepoCommentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/comments`, function handler(info) {

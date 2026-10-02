@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentGetKeyQueryResponse,
-  UserCurrentGetKeyPathParams,
-  UserCurrentGetKey401,
-  UserCurrentGetKey403,
-  UserCurrentGetKey404,
-} from '../types/UserCurrentGetKey';
-
-function getUserCurrentGetKeyUrl(id: UserCurrentGetKeyPathParams['id']) {
-  const res = { method: 'GET', url: `/user/keys/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentGetKeyOptions, UserCurrentGetKeyResponses } from '../types/UserCurrentGetKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a public key
  * {@link /user/keys/:id}
  */
-export async function userCurrentGetKey(
-  id: UserCurrentGetKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentGetKey<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentGetKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentGetKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentGetKeyQueryResponse,
-    ResponseErrorConfig<UserCurrentGetKey401 | UserCurrentGetKey403 | UserCurrentGetKey404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentGetKeyUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentGetKeyResponses, ThrowOnError>>;
 }

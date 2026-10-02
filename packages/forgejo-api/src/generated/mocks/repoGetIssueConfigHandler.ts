@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetIssueConfigQueryResponse, RepoGetIssueConfig404 } from '../types/RepoGetIssueConfig';
+import type { RepoGetIssueConfigResponse, RepoGetIssueConfigStatus404 } from '../types/RepoGetIssueConfig';
 import { http } from 'msw';
 
-export function repoGetIssueConfigHandlerResponse200(data: RepoGetIssueConfigQueryResponse) {
+export function repoGetIssueConfigHandlerResponse200(data: RepoGetIssueConfigResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetIssueConfigHandlerResponse200(data: RepoGetIssueConfigQue
   });
 }
 
-export function repoGetIssueConfigHandlerResponse404(data: RepoGetIssueConfig404) {
+export function repoGetIssueConfigHandlerResponse404(data: RepoGetIssueConfigStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetIssueConfigHandlerResponse404(data: RepoGetIssueConfig404
 
 export function repoGetIssueConfigHandler(
   data?:
-    | RepoGetIssueConfigQueryResponse
+    | RepoGetIssueConfigResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issue_config`, function handler(info) {

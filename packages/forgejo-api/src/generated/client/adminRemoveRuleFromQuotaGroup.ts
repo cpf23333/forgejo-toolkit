@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminRemoveRuleFromQuotaGroupMutationResponse,
-  AdminRemoveRuleFromQuotaGroupPathParams,
-  AdminRemoveRuleFromQuotaGroup400,
-  AdminRemoveRuleFromQuotaGroup403,
-  AdminRemoveRuleFromQuotaGroup404,
+  AdminRemoveRuleFromQuotaGroupOptions,
+  AdminRemoveRuleFromQuotaGroupResponses,
 } from '../types/AdminRemoveRuleFromQuotaGroup';
-
-function getAdminRemoveRuleFromQuotaGroupUrl(
-  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams['quotagroup'],
-  quotarule: AdminRemoveRuleFromQuotaGroupPathParams['quotarule'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/admin/quota/groups/${quotagroup}/rules/${quotarule}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Removes a rule from a quota group
  * {@link /admin/quota/groups/:quotagroup/rules/:quotarule}
  */
-export async function adminRemoveRuleFromQuotaGroup(
-  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams['quotagroup'],
-  quotarule: AdminRemoveRuleFromQuotaGroupPathParams['quotarule'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminRemoveRuleFromQuotaGroup<ThrowOnError extends boolean = true>(
+  options: Options<AdminRemoveRuleFromQuotaGroupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminRemoveRuleFromQuotaGroupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminRemoveRuleFromQuotaGroupMutationResponse,
-    ResponseErrorConfig<
-      AdminRemoveRuleFromQuotaGroup400 | AdminRemoveRuleFromQuotaGroup403 | AdminRemoveRuleFromQuotaGroup404
-    >,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getAdminRemoveRuleFromQuotaGroupUrl(quotagroup, quotarule).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/quota/groups/{quotagroup}/rules/{quotarule}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminRemoveRuleFromQuotaGroupResponses, ThrowOnError>>;
 }

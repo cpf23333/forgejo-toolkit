@@ -4,21 +4,23 @@
  */
 
 import type {
-  AdminSetUserQuotaGroupsMutationResponse,
-  AdminSetUserQuotaGroups400,
-  AdminSetUserQuotaGroups403,
-  AdminSetUserQuotaGroups404,
-  AdminSetUserQuotaGroups422,
+  AdminSetUserQuotaGroupsResponse,
+  AdminSetUserQuotaGroupsStatus400,
+  AdminSetUserQuotaGroupsStatus403,
+  AdminSetUserQuotaGroupsStatus404,
+  AdminSetUserQuotaGroupsStatus422,
+  AdminSetUserQuotaGroupsBody,
 } from '../types/AdminSetUserQuotaGroups';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminSetUserQuotaGroupsHandlerResponse204(data?: AdminSetUserQuotaGroupsMutationResponse) {
+export function adminSetUserQuotaGroupsHandlerResponse204(data?: AdminSetUserQuotaGroupsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminSetUserQuotaGroupsHandlerResponse400(data: AdminSetUserQuotaGroups400) {
+export function adminSetUserQuotaGroupsHandlerResponse400(data: AdminSetUserQuotaGroupsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -27,7 +29,7 @@ export function adminSetUserQuotaGroupsHandlerResponse400(data: AdminSetUserQuot
   });
 }
 
-export function adminSetUserQuotaGroupsHandlerResponse403(data: AdminSetUserQuotaGroups403) {
+export function adminSetUserQuotaGroupsHandlerResponse403(data: AdminSetUserQuotaGroupsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -36,7 +38,7 @@ export function adminSetUserQuotaGroupsHandlerResponse403(data: AdminSetUserQuot
   });
 }
 
-export function adminSetUserQuotaGroupsHandlerResponse404(data: AdminSetUserQuotaGroups404) {
+export function adminSetUserQuotaGroupsHandlerResponse404(data: AdminSetUserQuotaGroupsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -45,7 +47,7 @@ export function adminSetUserQuotaGroupsHandlerResponse404(data: AdminSetUserQuot
   });
 }
 
-export function adminSetUserQuotaGroupsHandlerResponse422(data: AdminSetUserQuotaGroups422) {
+export function adminSetUserQuotaGroupsHandlerResponse422(data: AdminSetUserQuotaGroupsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -61,13 +63,16 @@ export function adminSetUserQuotaGroupsHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, AdminSetUserQuotaGroupsBody>,
 ) {
-  return http.post(`/admin/users/:username/quota/groups`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, AdminSetUserQuotaGroupsBody>(
+    `/admin/users/:username/quota/groups`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

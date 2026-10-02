@@ -5,16 +5,21 @@
 
 /**
  * @description QuotaUsedSizeAssetsAttachments represents the size-based attachment quota usage of a user
+ * @type object
  */
 export type QuotaUsedSizeAssetsAttachments = {
   /**
    * @description Storage size used for the user\'s issue & comment attachments
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   issues?: number;
   /**
    * @description Storage size used for the user\'s release attachments
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   releases?: number;
 };

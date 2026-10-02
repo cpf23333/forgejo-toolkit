@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UnlinkPackageMutationResponse, UnlinkPackage404 } from '../types/UnlinkPackage';
+import type { UnlinkPackageResponse, UnlinkPackageStatus404 } from '../types/UnlinkPackage';
 import { http } from 'msw';
 
-export function unlinkPackageHandlerResponse201(data?: UnlinkPackageMutationResponse) {
+export function unlinkPackageHandlerResponse201(data?: UnlinkPackageResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function unlinkPackageHandlerResponse404(data: UnlinkPackage404) {
+export function unlinkPackageHandlerResponse404(data: UnlinkPackageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

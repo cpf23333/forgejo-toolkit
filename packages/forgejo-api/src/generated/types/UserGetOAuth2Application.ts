@@ -8,39 +8,99 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { OAuth2Application } from './OAuth2Application';
 
-export type UserGetOAuth2ApplicationPathParams = {
+export type UserGetOAuth2ApplicationPath = {
   /**
    * @description Application ID to be found
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * OAuth2Application represents an OAuth2 application.
- * @description OAuth2Application
- */
-export type UserGetOAuth2Application200 = OAuth2Application;
+export type UserGetOAuth2ApplicationStatus200Json = OAuth2Application;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserGetOAuth2Application401 = APIUnauthorizedError;
+export type UserGetOAuth2ApplicationStatus200Html = OAuth2Application;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetOAuth2Application403 = APIForbiddenError;
+export type UserGetOAuth2ApplicationStatus200 =
+  | UserGetOAuth2ApplicationStatus200Json
+  | UserGetOAuth2ApplicationStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserGetOAuth2Application404 = APINotFound;
+export type UserGetOAuth2ApplicationStatus401Json = APIUnauthorizedError;
 
-export type UserGetOAuth2ApplicationQueryResponse = UserGetOAuth2Application200;
+export type UserGetOAuth2ApplicationStatus401Html = APIUnauthorizedError;
 
-export type UserGetOAuth2ApplicationQuery = {
-  Response: UserGetOAuth2Application200;
-  PathParams: UserGetOAuth2ApplicationPathParams;
-  Errors: UserGetOAuth2Application401 | UserGetOAuth2Application403 | UserGetOAuth2Application404;
+export type UserGetOAuth2ApplicationStatus401 =
+  | UserGetOAuth2ApplicationStatus401Json
+  | UserGetOAuth2ApplicationStatus401Html;
+
+export type UserGetOAuth2ApplicationStatus403Json = APIForbiddenError;
+
+export type UserGetOAuth2ApplicationStatus403Html = APIForbiddenError;
+
+export type UserGetOAuth2ApplicationStatus403 =
+  | UserGetOAuth2ApplicationStatus403Json
+  | UserGetOAuth2ApplicationStatus403Html;
+
+export type UserGetOAuth2ApplicationStatus404Json = APINotFound;
+
+export type UserGetOAuth2ApplicationStatus404Html = APINotFound;
+
+export type UserGetOAuth2ApplicationStatus404 =
+  | UserGetOAuth2ApplicationStatus404Json
+  | UserGetOAuth2ApplicationStatus404Html;
+
+export type UserGetOAuth2ApplicationOptions = {
+  body?: never;
+  path: UserGetOAuth2ApplicationPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetOAuth2ApplicationResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserGetOAuth2ApplicationStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetOAuth2ApplicationStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetOAuth2ApplicationResponse =
+  | UserGetOAuth2ApplicationStatus200
+  | UserGetOAuth2ApplicationStatus401
+  | UserGetOAuth2ApplicationStatus403
+  | UserGetOAuth2ApplicationStatus404;

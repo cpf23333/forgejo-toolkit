@@ -5,6 +5,7 @@
 
 /**
  * @description SetUserQuotaGroupsOptions represents the quota groups of a user
+ * @type object
  */
 export type SetUserQuotaGroupsOptions = {
   /**

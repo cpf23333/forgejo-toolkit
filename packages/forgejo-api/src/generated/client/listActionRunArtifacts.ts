@@ -3,51 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ListActionRunArtifactsQueryResponse,
-  ListActionRunArtifactsPathParams,
-  ListActionRunArtifactsQueryParams,
-  ListActionRunArtifacts400,
-  ListActionRunArtifacts403,
-  ListActionRunArtifacts404,
-} from '../types/ListActionRunArtifacts';
-
-function getListActionRunArtifactsUrl(
-  owner: ListActionRunArtifactsPathParams['owner'],
-  repo: ListActionRunArtifactsPathParams['repo'],
-  run_id: ListActionRunArtifactsPathParams['run_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}/artifacts` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ListActionRunArtifactsOptions, ListActionRunArtifactsResponses } from '../types/ListActionRunArtifacts';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List artifacts of a workflow run
  * {@link /repos/:owner/:repo/actions/runs/:run_id/artifacts}
  */
-export async function listActionRunArtifacts(
-  owner: ListActionRunArtifactsPathParams['owner'],
-  repo: ListActionRunArtifactsPathParams['repo'],
-  run_id: ListActionRunArtifactsPathParams['run_id'],
-  params?: ListActionRunArtifactsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function listActionRunArtifacts<ThrowOnError extends boolean = true>(
+  options: Options<ListActionRunArtifactsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ListActionRunArtifactsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    ListActionRunArtifactsQueryResponse,
-    ResponseErrorConfig<ListActionRunArtifacts400 | ListActionRunArtifacts403 | ListActionRunArtifacts404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getListActionRunArtifactsUrl(owner, repo, run_id).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}/artifacts',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ListActionRunArtifactsResponses, ThrowOnError>>;
 }

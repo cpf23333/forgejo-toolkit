@@ -5,26 +5,24 @@
 
 /**
  * @description EditLabelOption options for editing a label
+ * @type object
  */
 export type EditLabelOption = {
   /**
+   * @example #00aabb
    * @type string | undefined
    */
   color?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
+   * @example false
    * @type boolean | undefined
    */
   exclusive?: boolean;
   /**
+   * @example false
    * @type boolean | undefined
    */
   is_archived?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
 };

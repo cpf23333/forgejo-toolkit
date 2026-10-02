@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { AnnotatedTag } from './AnnotatedTag';
 
-export type GetAnnotatedTagPathParams = {
+export type GetAnnotatedTagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,24 +26,77 @@ export type GetAnnotatedTagPathParams = {
 };
 
 /**
- * @description AnnotatedTag
+ * @description AnnotatedTag represents an annotated tag
+ * @type object
  */
-export type GetAnnotatedTag200 = AnnotatedTag;
+export type GetAnnotatedTagStatus200Json = AnnotatedTag;
 
 /**
- * @description APIError is error format response
+ * @description AnnotatedTag represents an annotated tag
+ * @type object
  */
-export type GetAnnotatedTag400 = APIError;
+export type GetAnnotatedTagStatus200Html = AnnotatedTag;
+
+export type GetAnnotatedTagStatus200 = GetAnnotatedTagStatus200Json | GetAnnotatedTagStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetAnnotatedTag404 = APINotFound;
+export type GetAnnotatedTagStatus400Json = APIError;
 
-export type GetAnnotatedTagQueryResponse = GetAnnotatedTag200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetAnnotatedTagStatus400Html = APIError;
 
-export type GetAnnotatedTagQuery = {
-  Response: GetAnnotatedTag200;
-  PathParams: GetAnnotatedTagPathParams;
-  Errors: GetAnnotatedTag400 | GetAnnotatedTag404;
+export type GetAnnotatedTagStatus400 = GetAnnotatedTagStatus400Json | GetAnnotatedTagStatus400Html;
+
+export type GetAnnotatedTagStatus404Json = APINotFound;
+
+export type GetAnnotatedTagStatus404Html = APINotFound;
+
+export type GetAnnotatedTagStatus404 = GetAnnotatedTagStatus404Json | GetAnnotatedTagStatus404Html;
+
+export type GetAnnotatedTagOptions = {
+  body?: never;
+  path: GetAnnotatedTagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetAnnotatedTagResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetAnnotatedTagStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAnnotatedTagStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetAnnotatedTagStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAnnotatedTagStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetAnnotatedTagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAnnotatedTagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetAnnotatedTagResponse = GetAnnotatedTagStatus200 | GetAnnotatedTagStatus400 | GetAnnotatedTagStatus404;

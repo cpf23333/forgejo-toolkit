@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { IssueGetIssueQueryResponse, IssueGetIssuePathParams, IssueGetIssue404 } from '../types/IssueGetIssue';
-
-function getIssueGetIssueUrl(
-  owner: IssueGetIssuePathParams['owner'],
-  repo: IssueGetIssuePathParams['repo'],
-  index: IssueGetIssuePathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueGetIssueOptions, IssueGetIssueResponses } from '../types/IssueGetIssue';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get an issue
  * {@link /repos/:owner/:repo/issues/:index}
  */
-export async function issueGetIssue(
-  owner: IssueGetIssuePathParams['owner'],
-  repo: IssueGetIssuePathParams['repo'],
-  index: IssueGetIssuePathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetIssue<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetIssueOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetIssueResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<IssueGetIssueQueryResponse, ResponseErrorConfig<IssueGetIssue404>, unknown>({
-    method: 'GET',
-    url: getIssueGetIssueUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetIssueResponses, ThrowOnError>>;
 }

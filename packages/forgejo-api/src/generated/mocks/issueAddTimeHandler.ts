@@ -4,14 +4,16 @@
  */
 
 import type {
-  IssueAddTimeMutationResponse,
-  IssueAddTime400,
-  IssueAddTime403,
-  IssueAddTime404,
+  IssueAddTimeResponse,
+  IssueAddTimeStatus400,
+  IssueAddTimeStatus403,
+  IssueAddTimeStatus404,
+  IssueAddTimeBody,
 } from '../types/IssueAddTime';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueAddTimeHandlerResponse200(data: IssueAddTimeMutationResponse) {
+export function issueAddTimeHandlerResponse200(data: IssueAddTimeResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function issueAddTimeHandlerResponse200(data: IssueAddTimeMutationRespons
   });
 }
 
-export function issueAddTimeHandlerResponse400(data: IssueAddTime400) {
+export function issueAddTimeHandlerResponse400(data: IssueAddTimeStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function issueAddTimeHandlerResponse400(data: IssueAddTime400) {
   });
 }
 
-export function issueAddTimeHandlerResponse403(data: IssueAddTime403) {
+export function issueAddTimeHandlerResponse403(data: IssueAddTimeStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function issueAddTimeHandlerResponse403(data: IssueAddTime403) {
   });
 }
 
-export function issueAddTimeHandlerResponse404(data: IssueAddTime404) {
+export function issueAddTimeHandlerResponse404(data: IssueAddTimeStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,18 +50,19 @@ export function issueAddTimeHandlerResponse404(data: IssueAddTime404) {
 }
 
 export function issueAddTimeHandler(
-  data?:
-    | IssueAddTimeMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueAddTimeResponse | HttpResponseResolver<Record<string, string>, IssueAddTimeBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/times`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueAddTimeBody>(
+    `/repos/:owner/:repo/issues/:index/times`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

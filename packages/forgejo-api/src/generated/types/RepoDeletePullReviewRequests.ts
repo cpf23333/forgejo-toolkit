@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { PullReviewRequestOptions } from './PullReviewRequestOptions';
 
-export type RepoDeletePullReviewRequestsPathParams = {
+export type RepoDeletePullReviewRequestsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,38 +21,98 @@ export type RepoDeletePullReviewRequestsPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeletePullReviewRequests204 = any;
+export type RepoDeletePullReviewRequestsStatus204 = unknown;
+
+export type RepoDeletePullReviewRequestsStatus403Json = APIForbiddenError;
+
+export type RepoDeletePullReviewRequestsStatus403Html = APIForbiddenError;
+
+export type RepoDeletePullReviewRequestsStatus403 =
+  | RepoDeletePullReviewRequestsStatus403Json
+  | RepoDeletePullReviewRequestsStatus403Html;
+
+export type RepoDeletePullReviewRequestsStatus404Json = APINotFound;
+
+export type RepoDeletePullReviewRequestsStatus404Html = APINotFound;
+
+export type RepoDeletePullReviewRequestsStatus404 =
+  | RepoDeletePullReviewRequestsStatus404Json
+  | RepoDeletePullReviewRequestsStatus404Html;
+
+export type RepoDeletePullReviewRequestsStatus422Json = APIValidationError;
+
+export type RepoDeletePullReviewRequestsStatus422Html = APIValidationError;
+
+export type RepoDeletePullReviewRequestsStatus422 =
+  | RepoDeletePullReviewRequestsStatus422Json
+  | RepoDeletePullReviewRequestsStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullReviewRequestOptions are options to add or remove pull review requests
+ * @type object
  */
-export type RepoDeletePullReviewRequests403 = APIForbiddenError;
+export type RepoDeletePullReviewRequestsBodyJson = PullReviewRequestOptions;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullReviewRequestOptions are options to add or remove pull review requests
+ * @type object
  */
-export type RepoDeletePullReviewRequests404 = APINotFound;
+export type RepoDeletePullReviewRequestsBodyPlain = PullReviewRequestOptions;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoDeletePullReviewRequests422 = APIValidationError;
+export type RepoDeletePullReviewRequestsBody =
+  | RepoDeletePullReviewRequestsBodyJson
+  | RepoDeletePullReviewRequestsBodyPlain;
 
-export type RepoDeletePullReviewRequestsMutationRequest = PullReviewRequestOptions;
-
-export type RepoDeletePullReviewRequestsMutationResponse = RepoDeletePullReviewRequests204;
-
-export type RepoDeletePullReviewRequestsMutation = {
-  Response: RepoDeletePullReviewRequests204;
-  Request: RepoDeletePullReviewRequestsMutationRequest;
-  PathParams: RepoDeletePullReviewRequestsPathParams;
-  Errors: RepoDeletePullReviewRequests403 | RepoDeletePullReviewRequests404 | RepoDeletePullReviewRequests422;
+export type RepoDeletePullReviewRequestsOptions = {
+  body: RepoDeletePullReviewRequestsBody;
+  path: RepoDeletePullReviewRequestsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeletePullReviewRequestsResponses = {
+  '204': RepoDeletePullReviewRequestsStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewRequestsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewRequestsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewRequestsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewRequestsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewRequestsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewRequestsStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeletePullReviewRequestsResponse =
+  | RepoDeletePullReviewRequestsStatus204
+  | RepoDeletePullReviewRequestsStatus403
+  | RepoDeletePullReviewRequestsStatus404
+  | RepoDeletePullReviewRequestsStatus422;

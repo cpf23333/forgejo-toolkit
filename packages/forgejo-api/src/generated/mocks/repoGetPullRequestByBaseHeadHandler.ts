@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetPullRequestByBaseHeadQueryResponse,
-  RepoGetPullRequestByBaseHead404,
+  RepoGetPullRequestByBaseHeadResponse,
+  RepoGetPullRequestByBaseHeadStatus404,
 } from '../types/RepoGetPullRequestByBaseHead';
 import { http } from 'msw';
 
-export function repoGetPullRequestByBaseHeadHandlerResponse200(data: RepoGetPullRequestByBaseHeadQueryResponse) {
+export function repoGetPullRequestByBaseHeadHandlerResponse200(data: RepoGetPullRequestByBaseHeadResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetPullRequestByBaseHeadHandlerResponse200(data: RepoGetPull
   });
 }
 
-export function repoGetPullRequestByBaseHeadHandlerResponse404(data: RepoGetPullRequestByBaseHead404) {
+export function repoGetPullRequestByBaseHeadHandlerResponse404(data: RepoGetPullRequestByBaseHeadStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetPullRequestByBaseHeadHandlerResponse404(data: RepoGetPull
 
 export function repoGetPullRequestByBaseHeadHandler(
   data?:
-    | RepoGetPullRequestByBaseHeadQueryResponse
+    | RepoGetPullRequestByBaseHeadResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:base/:head`, function handler(info) {

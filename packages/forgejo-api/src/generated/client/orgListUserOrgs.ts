@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListUserOrgsQueryResponse,
-  OrgListUserOrgsPathParams,
-  OrgListUserOrgsQueryParams,
-  OrgListUserOrgs404,
-} from '../types/OrgListUserOrgs';
-
-function getOrgListUserOrgsUrl(username: OrgListUserOrgsPathParams['username']) {
-  const res = { method: 'GET', url: `/users/${username}/orgs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListUserOrgsOptions, OrgListUserOrgsResponses } from '../types/OrgListUserOrgs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a user's organizations
  * {@link /users/:username/orgs}
  */
-export async function orgListUserOrgs(
-  username: OrgListUserOrgsPathParams['username'],
-  params?: OrgListUserOrgsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListUserOrgs<ThrowOnError extends boolean = true>(
+  options: Options<OrgListUserOrgsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListUserOrgsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListUserOrgsQueryResponse, ResponseErrorConfig<OrgListUserOrgs404>, unknown>({
-    method: 'GET',
-    url: getOrgListUserOrgsUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/orgs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListUserOrgsResponses, ThrowOnError>>;
 }

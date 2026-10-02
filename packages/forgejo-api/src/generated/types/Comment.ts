@@ -8,6 +8,7 @@ import type { User } from './User';
 
 /**
  * @description Comment represents a comment on a commit or issue
+ * @type object
  */
 export type Comment = {
   /**
@@ -22,7 +23,9 @@ export type Comment = {
   body?: string;
   /**
    * @description The time of the comment\'s creation
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
@@ -32,7 +35,9 @@ export type Comment = {
   html_url?: string;
   /**
    * @description The identifier of the comment
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -47,7 +52,9 @@ export type Comment = {
   original_author?: string;
   /**
    * @description The ID of the original author that posted the comment if it was not posted locally, else 0
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   original_author_id?: number;
   /**
@@ -57,7 +64,9 @@ export type Comment = {
   pull_request_url?: string;
   /**
    * @description The time of the comment\'s update
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
   /**

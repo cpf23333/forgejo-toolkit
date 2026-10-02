@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminGetActionRunJobsQueryResponse,
-  AdminGetActionRunJobsQueryParams,
-  AdminGetActionRunJobs403,
-} from '../types/AdminGetActionRunJobs';
-
-function getAdminGetActionRunJobsUrl() {
-  const res = { method: 'GET', url: `/admin/actions/runners/jobs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminGetActionRunJobsOptions, AdminGetActionRunJobsResponses } from '../types/AdminGetActionRunJobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get action run jobs
  * {@link /admin/actions/runners/jobs}
  */
-export async function adminGetActionRunJobs(
-  params?: AdminGetActionRunJobsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminGetActionRunJobs<ThrowOnError extends boolean = true>(
+  options: Options<AdminGetActionRunJobsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminGetActionRunJobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminGetActionRunJobsQueryResponse, ResponseErrorConfig<AdminGetActionRunJobs403>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getAdminGetActionRunJobsUrl().url.toString(),
-      params,
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/admin/actions/runners/jobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminGetActionRunJobsResponses, ThrowOnError>>;
 }

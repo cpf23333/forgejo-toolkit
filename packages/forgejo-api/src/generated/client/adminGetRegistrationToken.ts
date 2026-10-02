@@ -3,17 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { AdminGetRegistrationTokenQueryResponse } from '../types/AdminGetRegistrationToken';
-
-function getAdminGetRegistrationTokenUrl() {
-  const res = {
-    method: 'GET',
-    url: `/admin/runners/registration-token` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type {
+  AdminGetRegistrationTokenOptions,
+  AdminGetRegistrationTokenResponses,
+} from '../types/AdminGetRegistrationToken';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description This operation has been deprecated in Forgejo 15. Use the web UI or [`/admin/actions/runners`](#/admin/registerAdminRunner) instead.
@@ -21,13 +16,25 @@ function getAdminGetRegistrationTokenUrl() {
  * {@link /admin/runners/registration-token}
  * @deprecated
  */
-export async function adminGetRegistrationToken(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminGetRegistrationToken<ThrowOnError extends boolean = true>(
+  options: Options<AdminGetRegistrationTokenOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminGetRegistrationTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminGetRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getAdminGetRegistrationTokenUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/runners/registration-token',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminGetRegistrationTokenResponses, ThrowOnError>>;
 }

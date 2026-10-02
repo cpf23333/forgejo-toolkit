@@ -3,10 +3,15 @@
  * Do not edit manually.
  */
 
-import type { RepoConvertMutationResponse, RepoConvert403, RepoConvert404, RepoConvert422 } from '../types/RepoConvert';
+import type {
+  RepoConvertResponse,
+  RepoConvertStatus403,
+  RepoConvertStatus404,
+  RepoConvertStatus422,
+} from '../types/RepoConvert';
 import { http } from 'msw';
 
-export function repoConvertHandlerResponse200(data: RepoConvertMutationResponse) {
+export function repoConvertHandlerResponse200(data: RepoConvertResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +20,7 @@ export function repoConvertHandlerResponse200(data: RepoConvertMutationResponse)
   });
 }
 
-export function repoConvertHandlerResponse403(data: RepoConvert403) {
+export function repoConvertHandlerResponse403(data: RepoConvertStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +29,7 @@ export function repoConvertHandlerResponse403(data: RepoConvert403) {
   });
 }
 
-export function repoConvertHandlerResponse404(data: RepoConvert404) {
+export function repoConvertHandlerResponse404(data: RepoConvertStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -33,7 +38,7 @@ export function repoConvertHandlerResponse404(data: RepoConvert404) {
   });
 }
 
-export function repoConvertHandlerResponse422(data: RepoConvert422) {
+export function repoConvertHandlerResponse422(data: RepoConvertStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -43,9 +48,7 @@ export function repoConvertHandlerResponse422(data: RepoConvert422) {
 }
 
 export function repoConvertHandler(
-  data?:
-    | RepoConvertMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoConvertResponse | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/convert`, function handler(info) {
     if (typeof data === 'function') return data(info);

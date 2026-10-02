@@ -6,13 +6,39 @@
 import type { GeneralAPISettings } from './GeneralAPISettings';
 
 /**
- * @description GeneralAPISettings
+ * @description GeneralAPISettings contains global api settings exposed by it
+ * @type object
  */
-export type GetGeneralAPISettings200 = GeneralAPISettings;
+export type GetGeneralAPISettingsStatus200Json = GeneralAPISettings;
 
-export type GetGeneralAPISettingsQueryResponse = GetGeneralAPISettings200;
+/**
+ * @description GeneralAPISettings contains global api settings exposed by it
+ * @type object
+ */
+export type GetGeneralAPISettingsStatus200Html = GeneralAPISettings;
 
-export type GetGeneralAPISettingsQuery = {
-  Response: GetGeneralAPISettings200;
-  Errors: any;
+export type GetGeneralAPISettingsStatus200 = GetGeneralAPISettingsStatus200Json | GetGeneralAPISettingsStatus200Html;
+
+export type GetGeneralAPISettingsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetGeneralAPISettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetGeneralAPISettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGeneralAPISettingsStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetGeneralAPISettingsResponse = GetGeneralAPISettingsStatus200;

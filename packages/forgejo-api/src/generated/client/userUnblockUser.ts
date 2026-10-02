@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserUnblockUserMutationResponse,
-  UserUnblockUserPathParams,
-  UserUnblockUser401,
-  UserUnblockUser403,
-  UserUnblockUser404,
-  UserUnblockUser422,
-} from '../types/UserUnblockUser';
-
-function getUserUnblockUserUrl(username: UserUnblockUserPathParams['username']) {
-  const res = { method: 'PUT', url: `/user/unblock/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserUnblockUserOptions, UserUnblockUserResponses } from '../types/UserUnblockUser';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unblocks a user from the doer
  * {@link /user/unblock/:username}
  */
-export async function userUnblockUser(
-  username: UserUnblockUserPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userUnblockUser<ThrowOnError extends boolean = true>(
+  options: Options<UserUnblockUserOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserUnblockUserResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserUnblockUserMutationResponse,
-    ResponseErrorConfig<UserUnblockUser401 | UserUnblockUser403 | UserUnblockUser404 | UserUnblockUser422>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getUserUnblockUserUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/user/unblock/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserUnblockUserResponses, ThrowOnError>>;
 }

@@ -5,18 +5,10 @@
 
 /**
  * @description Permission represents a set of permissions
+ * @type object
  */
 export type Permission = {
-  /**
-   * @type boolean | undefined
-   */
   admin?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   pull?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   push?: boolean;
 };

@@ -9,11 +9,9 @@ import type { PayloadCommitVerification } from './PayloadCommitVerification';
 
 /**
  * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
 export type FileResponse = {
-  /**
-   * @type object | undefined
-   */
   commit?: FileCommitResponse;
   /**
    * @description ContentsResponse contains information about a repo\'s entry\'s (dir, file, symlink, submodule) metadata and content

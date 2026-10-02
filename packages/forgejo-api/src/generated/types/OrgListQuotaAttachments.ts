@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { QuotaUsedAttachmentList } from './QuotaUsedAttachmentList';
 
-export type OrgListQuotaAttachmentsPathParams = {
+export type OrgListQuotaAttachmentsPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,7 +15,7 @@ export type OrgListQuotaAttachmentsPathParams = {
   org: string;
 };
 
-export type OrgListQuotaAttachmentsQueryParams = {
+export type OrgListQuotaAttachmentsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -29,25 +29,78 @@ export type OrgListQuotaAttachmentsQueryParams = {
 };
 
 /**
- * @description QuotaUsedAttachmentList
+ * @description QuotaUsedAttachmentList represents a list of attachment counting towards a user\'s quota
+ * @type array
  */
-export type OrgListQuotaAttachments200 = QuotaUsedAttachmentList;
+export type OrgListQuotaAttachmentsStatus200Json = QuotaUsedAttachmentList;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description QuotaUsedAttachmentList represents a list of attachment counting towards a user\'s quota
+ * @type array
  */
-export type OrgListQuotaAttachments403 = APIForbiddenError;
+export type OrgListQuotaAttachmentsStatus200Html = QuotaUsedAttachmentList;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListQuotaAttachments404 = APINotFound;
+export type OrgListQuotaAttachmentsStatus200 =
+  | OrgListQuotaAttachmentsStatus200Json
+  | OrgListQuotaAttachmentsStatus200Html;
 
-export type OrgListQuotaAttachmentsQueryResponse = OrgListQuotaAttachments200;
+export type OrgListQuotaAttachmentsStatus403Json = APIForbiddenError;
 
-export type OrgListQuotaAttachmentsQuery = {
-  Response: OrgListQuotaAttachments200;
-  PathParams: OrgListQuotaAttachmentsPathParams;
-  QueryParams: OrgListQuotaAttachmentsQueryParams;
-  Errors: OrgListQuotaAttachments403 | OrgListQuotaAttachments404;
+export type OrgListQuotaAttachmentsStatus403Html = APIForbiddenError;
+
+export type OrgListQuotaAttachmentsStatus403 =
+  | OrgListQuotaAttachmentsStatus403Json
+  | OrgListQuotaAttachmentsStatus403Html;
+
+export type OrgListQuotaAttachmentsStatus404Json = APINotFound;
+
+export type OrgListQuotaAttachmentsStatus404Html = APINotFound;
+
+export type OrgListQuotaAttachmentsStatus404 =
+  | OrgListQuotaAttachmentsStatus404Json
+  | OrgListQuotaAttachmentsStatus404Html;
+
+export type OrgListQuotaAttachmentsOptions = {
+  body?: never;
+  path: OrgListQuotaAttachmentsPath;
+  query?: OrgListQuotaAttachmentsQuery;
+  headers?: never;
 };
+
+export type OrgListQuotaAttachmentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaAttachmentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaAttachmentsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaAttachmentsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaAttachmentsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListQuotaAttachmentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListQuotaAttachmentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListQuotaAttachmentsResponse =
+  | OrgListQuotaAttachmentsStatus200
+  | OrgListQuotaAttachmentsStatus403
+  | OrgListQuotaAttachmentsStatus404;

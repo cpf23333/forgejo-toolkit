@@ -14,39 +14,19 @@ export type CreateOrgOptionVisibilityEnumKey =
 
 /**
  * @description CreateOrgOption options for creating an organization
+ * @type object
  */
 export type CreateOrgOption = {
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type string | undefined
-   */
   email?: string;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
-  /**
-   * @type string | undefined
-   */
   location?: string;
-  /**
-   * @type boolean | undefined
-   */
   repo_admin_change_team_access?: boolean;
-  /**
-   * @type string
-   */
   username: string;
   /**
    * @description possible values are `public` (default), `limited` or `private`
    * @type string | undefined
    */
   visibility?: CreateOrgOptionVisibilityEnumKey;
-  /**
-   * @type string | undefined
-   */
   website?: string;
 };

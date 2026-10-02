@@ -5,10 +5,13 @@
 
 /**
  * @description PayloadUser represents the author or committer of a commit
+ * @type object
  */
 export type PayloadUser = {
   /**
-   * @type string | undefined, email
+   * @description
+   * Format: `email`
+   * @type string | undefined
    */
   email?: string;
   /**
@@ -16,8 +19,5 @@ export type PayloadUser = {
    * @type string | undefined
    */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   username?: string;
 };

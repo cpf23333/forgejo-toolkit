@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoListFlagsPathParams = {
+export type RepoListFlagsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoListFlagsPathParams = {
   repo: string;
 };
 
-/**
- * @description StringSlice
- */
-export type RepoListFlags200 = string[];
+export type RepoListFlagsStatus200Json = string[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoListFlags403 = APIForbiddenError;
+export type RepoListFlagsStatus200Html = string[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListFlags404 = APINotFound;
+export type RepoListFlagsStatus200 = RepoListFlagsStatus200Json | RepoListFlagsStatus200Html;
 
-export type RepoListFlagsQueryResponse = RepoListFlags200;
+export type RepoListFlagsStatus403Json = APIForbiddenError;
 
-export type RepoListFlagsQuery = {
-  Response: RepoListFlags200;
-  PathParams: RepoListFlagsPathParams;
-  Errors: RepoListFlags403 | RepoListFlags404;
+export type RepoListFlagsStatus403Html = APIForbiddenError;
+
+export type RepoListFlagsStatus403 = RepoListFlagsStatus403Json | RepoListFlagsStatus403Html;
+
+export type RepoListFlagsStatus404Json = APINotFound;
+
+export type RepoListFlagsStatus404Html = APINotFound;
+
+export type RepoListFlagsStatus404 = RepoListFlagsStatus404Json | RepoListFlagsStatus404Html;
+
+export type RepoListFlagsOptions = {
+  body?: never;
+  path: RepoListFlagsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListFlagsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListFlagsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListFlagsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoListFlagsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListFlagsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListFlagsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListFlagsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListFlagsResponse = RepoListFlagsStatus200 | RepoListFlagsStatus403 | RepoListFlagsStatus404;

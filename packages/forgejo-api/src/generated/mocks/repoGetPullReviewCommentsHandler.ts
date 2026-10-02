@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetPullReviewCommentsQueryResponse,
-  RepoGetPullReviewComments404,
+  RepoGetPullReviewCommentsResponse,
+  RepoGetPullReviewCommentsStatus404,
 } from '../types/RepoGetPullReviewComments';
 import { http } from 'msw';
 
-export function repoGetPullReviewCommentsHandlerResponse200(data: RepoGetPullReviewCommentsQueryResponse) {
+export function repoGetPullReviewCommentsHandlerResponse200(data: RepoGetPullReviewCommentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetPullReviewCommentsHandlerResponse200(data: RepoGetPullRev
   });
 }
 
-export function repoGetPullReviewCommentsHandlerResponse404(data: RepoGetPullReviewComments404) {
+export function repoGetPullReviewCommentsHandlerResponse404(data: RepoGetPullReviewCommentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetPullReviewCommentsHandlerResponse404(data: RepoGetPullRev
 
 export function repoGetPullReviewCommentsHandler(
   data?:
-    | RepoGetPullReviewCommentsQueryResponse
+    | RepoGetPullReviewCommentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index/reviews/:id/comments`, function handler(info) {

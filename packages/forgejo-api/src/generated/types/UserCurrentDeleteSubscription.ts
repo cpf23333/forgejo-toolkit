@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type UserCurrentDeleteSubscriptionPathParams = {
+export type UserCurrentDeleteSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,20 +18,39 @@ export type UserCurrentDeleteSubscriptionPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentDeleteSubscription204 = any;
+export type UserCurrentDeleteSubscriptionStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentDeleteSubscription404 = APINotFound;
+export type UserCurrentDeleteSubscriptionStatus404Json = APINotFound;
 
-export type UserCurrentDeleteSubscriptionMutationResponse = UserCurrentDeleteSubscription204;
+export type UserCurrentDeleteSubscriptionStatus404Html = APINotFound;
 
-export type UserCurrentDeleteSubscriptionMutation = {
-  Response: UserCurrentDeleteSubscription204;
-  PathParams: UserCurrentDeleteSubscriptionPathParams;
-  Errors: UserCurrentDeleteSubscription404;
+export type UserCurrentDeleteSubscriptionStatus404 =
+  | UserCurrentDeleteSubscriptionStatus404Json
+  | UserCurrentDeleteSubscriptionStatus404Html;
+
+export type UserCurrentDeleteSubscriptionOptions = {
+  body?: never;
+  path: UserCurrentDeleteSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentDeleteSubscriptionResponses = {
+  '204': UserCurrentDeleteSubscriptionStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteSubscriptionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteSubscriptionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentDeleteSubscriptionResponse =
+  | UserCurrentDeleteSubscriptionStatus204
+  | UserCurrentDeleteSubscriptionStatus404;

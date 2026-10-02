@@ -8,32 +8,83 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { DeleteEmailOption } from './DeleteEmailOption';
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserDeleteEmail204 = any;
+export type UserDeleteEmailStatus204 = unknown;
+
+export type UserDeleteEmailStatus401Json = APIUnauthorizedError;
+
+export type UserDeleteEmailStatus401Html = APIUnauthorizedError;
+
+export type UserDeleteEmailStatus401 = UserDeleteEmailStatus401Json | UserDeleteEmailStatus401Html;
+
+export type UserDeleteEmailStatus403Json = APIForbiddenError;
+
+export type UserDeleteEmailStatus403Html = APIForbiddenError;
+
+export type UserDeleteEmailStatus403 = UserDeleteEmailStatus403Json | UserDeleteEmailStatus403Html;
+
+export type UserDeleteEmailStatus404Json = APINotFound;
+
+export type UserDeleteEmailStatus404Html = APINotFound;
+
+export type UserDeleteEmailStatus404 = UserDeleteEmailStatus404Json | UserDeleteEmailStatus404Html;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description DeleteEmailOption options when deleting email addresses
+ * @type object | undefined
  */
-export type UserDeleteEmail401 = APIUnauthorizedError;
+export type UserDeleteEmailBodyJson = DeleteEmailOption | undefined;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description DeleteEmailOption options when deleting email addresses
+ * @type object | undefined
  */
-export type UserDeleteEmail403 = APIForbiddenError;
+export type UserDeleteEmailBodyPlain = DeleteEmailOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserDeleteEmail404 = APINotFound;
+export type UserDeleteEmailBody = UserDeleteEmailBodyJson | UserDeleteEmailBodyPlain;
 
-export type UserDeleteEmailMutationRequest = DeleteEmailOption;
-
-export type UserDeleteEmailMutationResponse = UserDeleteEmail204;
-
-export type UserDeleteEmailMutation = {
-  Response: UserDeleteEmail204;
-  Request: UserDeleteEmailMutationRequest;
-  Errors: UserDeleteEmail401 | UserDeleteEmail403 | UserDeleteEmail404;
+export type UserDeleteEmailOptions = {
+  body: UserDeleteEmailBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserDeleteEmailResponses = {
+  '204': UserDeleteEmailStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteEmailStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteEmailStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteEmailStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteEmailStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteEmailStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteEmailStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserDeleteEmailResponse =
+  | UserDeleteEmailStatus204
+  | UserDeleteEmailStatus401
+  | UserDeleteEmailStatus403
+  | UserDeleteEmailStatus404;

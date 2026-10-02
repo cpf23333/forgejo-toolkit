@@ -4,32 +4,32 @@
  */
 
 import type {
-  RepoGetActionJobLogsQueryResponse,
-  RepoGetActionJobLogs401,
-  RepoGetActionJobLogs403,
-  RepoGetActionJobLogs404,
+  RepoGetActionJobLogsResponse,
+  RepoGetActionJobLogsStatus401,
+  RepoGetActionJobLogsStatus403,
+  RepoGetActionJobLogsStatus404,
 } from '../types/RepoGetActionJobLogs';
 import { http } from 'msw';
 
-export function repoGetActionJobLogsHandlerResponse200(data: RepoGetActionJobLogsQueryResponse) {
+export function repoGetActionJobLogsHandlerResponse200(data: RepoGetActionJobLogsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetActionJobLogsHandlerResponse206(data: RepoGetActionJobLogsQueryResponse) {
+export function repoGetActionJobLogsHandlerResponse206(data: RepoGetActionJobLogsResponse) {
   return new Response(JSON.stringify(data), {
     status: 206,
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetActionJobLogsHandlerResponse401(data: RepoGetActionJobLogs401) {
+export function repoGetActionJobLogsHandlerResponse401(data: RepoGetActionJobLogsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +38,7 @@ export function repoGetActionJobLogsHandlerResponse401(data: RepoGetActionJobLog
   });
 }
 
-export function repoGetActionJobLogsHandlerResponse403(data: RepoGetActionJobLogs403) {
+export function repoGetActionJobLogsHandlerResponse403(data: RepoGetActionJobLogsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -47,7 +47,7 @@ export function repoGetActionJobLogsHandlerResponse403(data: RepoGetActionJobLog
   });
 }
 
-export function repoGetActionJobLogsHandlerResponse404(data: RepoGetActionJobLogs404) {
+export function repoGetActionJobLogsHandlerResponse404(data: RepoGetActionJobLogsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -58,7 +58,7 @@ export function repoGetActionJobLogsHandlerResponse404(data: RepoGetActionJobLog
 
 export function repoGetActionJobLogsHandler(
   data?:
-    | RepoGetActionJobLogsQueryResponse
+    | RepoGetActionJobLogsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/jobs/:job_id/logs`, function handler(info) {
@@ -67,7 +67,7 @@ export function repoGetActionJobLogsHandler(
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
     });
   });

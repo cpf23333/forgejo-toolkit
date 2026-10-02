@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoRemoveNoteMutationResponse,
-  RepoRemoveNotePathParams,
-  RepoRemoveNote404,
-  RepoRemoveNote422,
-} from '../types/RepoRemoveNote';
-
-function getRepoRemoveNoteUrl(
-  owner: RepoRemoveNotePathParams['owner'],
-  repo: RepoRemoveNotePathParams['repo'],
-  sha: RepoRemoveNotePathParams['sha'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/git/notes/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoRemoveNoteOptions, RepoRemoveNoteResponses } from '../types/RepoRemoveNote';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Removes a note corresponding to a single commit from a repository
  * {@link /repos/:owner/:repo/git/notes/:sha}
  */
-export async function repoRemoveNote(
-  owner: RepoRemoveNotePathParams['owner'],
-  repo: RepoRemoveNotePathParams['repo'],
-  sha: RepoRemoveNotePathParams['sha'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoRemoveNote<ThrowOnError extends boolean = true>(
+  options: Options<RepoRemoveNoteOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoRemoveNoteResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoRemoveNoteMutationResponse,
-    ResponseErrorConfig<RepoRemoveNote404 | RepoRemoveNote422>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoRemoveNoteUrl(owner, repo, sha).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/git/notes/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoRemoveNoteResponses, ThrowOnError>>;
 }

@@ -5,10 +5,8 @@
 
 /**
  * @description EditReactionOption contain the reaction type
+ * @type object
  */
 export type EditReactionOption = {
-  /**
-   * @type string | undefined
-   */
   content?: string;
 };

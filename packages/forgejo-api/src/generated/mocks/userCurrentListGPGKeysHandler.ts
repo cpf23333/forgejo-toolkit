@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserCurrentListGPGKeysQueryResponse,
-  UserCurrentListGPGKeys401,
-  UserCurrentListGPGKeys403,
+  UserCurrentListGPGKeysResponse,
+  UserCurrentListGPGKeysStatus401,
+  UserCurrentListGPGKeysStatus403,
 } from '../types/UserCurrentListGPGKeys';
 import { http } from 'msw';
 
-export function userCurrentListGPGKeysHandlerResponse200(data: UserCurrentListGPGKeysQueryResponse) {
+export function userCurrentListGPGKeysHandlerResponse200(data: UserCurrentListGPGKeysResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userCurrentListGPGKeysHandlerResponse200(data: UserCurrentListGP
   });
 }
 
-export function userCurrentListGPGKeysHandlerResponse401(data: UserCurrentListGPGKeys401) {
+export function userCurrentListGPGKeysHandlerResponse401(data: UserCurrentListGPGKeysStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userCurrentListGPGKeysHandlerResponse401(data: UserCurrentListGP
   });
 }
 
-export function userCurrentListGPGKeysHandlerResponse403(data: UserCurrentListGPGKeys403) {
+export function userCurrentListGPGKeysHandlerResponse403(data: UserCurrentListGPGKeysStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userCurrentListGPGKeysHandlerResponse403(data: UserCurrentListGP
 
 export function userCurrentListGPGKeysHandler(
   data?:
-    | UserCurrentListGPGKeysQueryResponse
+    | UserCurrentListGPGKeysResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_keys`, function handler(info) {

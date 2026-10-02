@@ -5,22 +5,21 @@
 
 /**
  * @description GeneralAttachmentSettings contains global Attachment settings exposed by API
+ * @type object
  */
 export type GeneralAttachmentSettings = {
-  /**
-   * @type string | undefined
-   */
   allowed_types?: string;
-  /**
-   * @type boolean | undefined
-   */
   enabled?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   max_files?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   max_size?: number;
 };

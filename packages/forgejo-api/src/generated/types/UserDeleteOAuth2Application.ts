@@ -7,38 +7,85 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserDeleteOAuth2ApplicationPathParams = {
+export type UserDeleteOAuth2ApplicationPath = {
   /**
    * @description token to be deleted
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserDeleteOAuth2Application204 = any;
+export type UserDeleteOAuth2ApplicationStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserDeleteOAuth2Application401 = APIUnauthorizedError;
+export type UserDeleteOAuth2ApplicationStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserDeleteOAuth2Application403 = APIForbiddenError;
+export type UserDeleteOAuth2ApplicationStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserDeleteOAuth2Application404 = APINotFound;
+export type UserDeleteOAuth2ApplicationStatus401 =
+  | UserDeleteOAuth2ApplicationStatus401Json
+  | UserDeleteOAuth2ApplicationStatus401Html;
 
-export type UserDeleteOAuth2ApplicationMutationResponse = UserDeleteOAuth2Application204;
+export type UserDeleteOAuth2ApplicationStatus403Json = APIForbiddenError;
 
-export type UserDeleteOAuth2ApplicationMutation = {
-  Response: UserDeleteOAuth2Application204;
-  PathParams: UserDeleteOAuth2ApplicationPathParams;
-  Errors: UserDeleteOAuth2Application401 | UserDeleteOAuth2Application403 | UserDeleteOAuth2Application404;
+export type UserDeleteOAuth2ApplicationStatus403Html = APIForbiddenError;
+
+export type UserDeleteOAuth2ApplicationStatus403 =
+  | UserDeleteOAuth2ApplicationStatus403Json
+  | UserDeleteOAuth2ApplicationStatus403Html;
+
+export type UserDeleteOAuth2ApplicationStatus404Json = APINotFound;
+
+export type UserDeleteOAuth2ApplicationStatus404Html = APINotFound;
+
+export type UserDeleteOAuth2ApplicationStatus404 =
+  | UserDeleteOAuth2ApplicationStatus404Json
+  | UserDeleteOAuth2ApplicationStatus404Html;
+
+export type UserDeleteOAuth2ApplicationOptions = {
+  body?: never;
+  path: UserDeleteOAuth2ApplicationPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserDeleteOAuth2ApplicationResponses = {
+  '204': UserDeleteOAuth2ApplicationStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteOAuth2ApplicationStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteOAuth2ApplicationStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteOAuth2ApplicationStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteOAuth2ApplicationStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteOAuth2ApplicationStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteOAuth2ApplicationStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserDeleteOAuth2ApplicationResponse =
+  | UserDeleteOAuth2ApplicationStatus204
+  | UserDeleteOAuth2ApplicationStatus401
+  | UserDeleteOAuth2ApplicationStatus403
+  | UserDeleteOAuth2ApplicationStatus404;

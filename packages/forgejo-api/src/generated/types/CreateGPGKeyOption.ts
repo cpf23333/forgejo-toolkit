@@ -5,6 +5,7 @@
 
 /**
  * @description CreateGPGKeyOption options create user GPG key
+ * @type object
  */
 export type CreateGPGKeyOption = {
   /**
@@ -12,8 +13,5 @@ export type CreateGPGKeyOption = {
    * @type string
    */
   armored_public_key: string;
-  /**
-   * @type string | undefined
-   */
   armored_signature?: string;
 };

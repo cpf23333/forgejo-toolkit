@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentDeleteFollowMutationResponse,
-  UserCurrentDeleteFollow401,
-  UserCurrentDeleteFollow403,
-  UserCurrentDeleteFollow404,
+  UserCurrentDeleteFollowResponse,
+  UserCurrentDeleteFollowStatus401,
+  UserCurrentDeleteFollowStatus403,
+  UserCurrentDeleteFollowStatus404,
 } from '../types/UserCurrentDeleteFollow';
 import { http } from 'msw';
 
-export function userCurrentDeleteFollowHandlerResponse204(data?: UserCurrentDeleteFollowMutationResponse) {
+export function userCurrentDeleteFollowHandlerResponse204(data?: UserCurrentDeleteFollowResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse401(data: UserCurrentDeleteFollow401) {
+export function userCurrentDeleteFollowHandlerResponse401(data: UserCurrentDeleteFollowStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentDeleteFollowHandlerResponse401(data: UserCurrentDelet
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse403(data: UserCurrentDeleteFollow403) {
+export function userCurrentDeleteFollowHandlerResponse403(data: UserCurrentDeleteFollowStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentDeleteFollowHandlerResponse403(data: UserCurrentDelet
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse404(data: UserCurrentDeleteFollow404) {
+export function userCurrentDeleteFollowHandlerResponse404(data: UserCurrentDeleteFollowStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

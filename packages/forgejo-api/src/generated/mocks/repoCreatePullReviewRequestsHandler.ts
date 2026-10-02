@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoCreatePullReviewRequestsMutationResponse,
-  RepoCreatePullReviewRequests403,
-  RepoCreatePullReviewRequests404,
-  RepoCreatePullReviewRequests422,
+  RepoCreatePullReviewRequestsResponse,
+  RepoCreatePullReviewRequestsStatus403,
+  RepoCreatePullReviewRequestsStatus404,
+  RepoCreatePullReviewRequestsStatus422,
+  RepoCreatePullReviewRequestsBody,
 } from '../types/RepoCreatePullReviewRequests';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreatePullReviewRequestsHandlerResponse201(data: RepoCreatePullReviewRequestsMutationResponse) {
+export function repoCreatePullReviewRequestsHandlerResponse201(data: RepoCreatePullReviewRequestsResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function repoCreatePullReviewRequestsHandlerResponse201(data: RepoCreateP
   });
 }
 
-export function repoCreatePullReviewRequestsHandlerResponse403(data: RepoCreatePullReviewRequests403) {
+export function repoCreatePullReviewRequestsHandlerResponse403(data: RepoCreatePullReviewRequestsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +31,7 @@ export function repoCreatePullReviewRequestsHandlerResponse403(data: RepoCreateP
   });
 }
 
-export function repoCreatePullReviewRequestsHandlerResponse404(data: RepoCreatePullReviewRequests404) {
+export function repoCreatePullReviewRequestsHandlerResponse404(data: RepoCreatePullReviewRequestsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +40,7 @@ export function repoCreatePullReviewRequestsHandlerResponse404(data: RepoCreateP
   });
 }
 
-export function repoCreatePullReviewRequestsHandlerResponse422(data: RepoCreatePullReviewRequests422) {
+export function repoCreatePullReviewRequestsHandlerResponse422(data: RepoCreatePullReviewRequestsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,17 +51,20 @@ export function repoCreatePullReviewRequestsHandlerResponse422(data: RepoCreateP
 
 export function repoCreatePullReviewRequestsHandler(
   data?:
-    | RepoCreatePullReviewRequestsMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | RepoCreatePullReviewRequestsResponse
+    | HttpResponseResolver<Record<string, string>, RepoCreatePullReviewRequestsBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/pulls/:index/requested_reviewers`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreatePullReviewRequestsBody>(
+    `/repos/:owner/:repo/pulls/:index/requested_reviewers`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

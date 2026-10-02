@@ -5,18 +5,10 @@
 
 /**
  * @description LicensesListEntry is used for the API
+ * @type object
  */
 export type LicensesTemplateListEntry = {
-  /**
-   * @type string | undefined
-   */
   key?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

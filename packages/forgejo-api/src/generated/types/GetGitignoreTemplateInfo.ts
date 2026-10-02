@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { GitignoreTemplateInfo } from './GitignoreTemplateInfo';
 
-export type GetGitignoreTemplateInfoPathParams = {
+export type GetGitignoreTemplateInfoPath = {
   /**
    * @description name of the template
    * @type string
@@ -15,19 +15,58 @@ export type GetGitignoreTemplateInfoPathParams = {
 };
 
 /**
- * @description GitignoreTemplateInfo
+ * @description GitignoreTemplateInfo name and text of a gitignore template
+ * @type object
  */
-export type GetGitignoreTemplateInfo200 = GitignoreTemplateInfo;
+export type GetGitignoreTemplateInfoStatus200Json = GitignoreTemplateInfo;
 
 /**
- * @description APINotFound is a not found error response
+ * @description GitignoreTemplateInfo name and text of a gitignore template
+ * @type object
  */
-export type GetGitignoreTemplateInfo404 = APINotFound;
+export type GetGitignoreTemplateInfoStatus200Html = GitignoreTemplateInfo;
 
-export type GetGitignoreTemplateInfoQueryResponse = GetGitignoreTemplateInfo200;
+export type GetGitignoreTemplateInfoStatus200 =
+  | GetGitignoreTemplateInfoStatus200Json
+  | GetGitignoreTemplateInfoStatus200Html;
 
-export type GetGitignoreTemplateInfoQuery = {
-  Response: GetGitignoreTemplateInfo200;
-  PathParams: GetGitignoreTemplateInfoPathParams;
-  Errors: GetGitignoreTemplateInfo404;
+export type GetGitignoreTemplateInfoStatus404Json = APINotFound;
+
+export type GetGitignoreTemplateInfoStatus404Html = APINotFound;
+
+export type GetGitignoreTemplateInfoStatus404 =
+  | GetGitignoreTemplateInfoStatus404Json
+  | GetGitignoreTemplateInfoStatus404Html;
+
+export type GetGitignoreTemplateInfoOptions = {
+  body?: never;
+  path: GetGitignoreTemplateInfoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetGitignoreTemplateInfoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetGitignoreTemplateInfoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGitignoreTemplateInfoStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetGitignoreTemplateInfoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGitignoreTemplateInfoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetGitignoreTemplateInfoResponse = GetGitignoreTemplateInfoStatus200 | GetGitignoreTemplateInfoStatus404;

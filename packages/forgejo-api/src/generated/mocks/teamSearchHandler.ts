@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { TeamSearchQueryResponse, TeamSearch404 } from '../types/TeamSearch';
+import type { TeamSearchResponse, TeamSearchStatus404 } from '../types/TeamSearch';
 import { http } from 'msw';
 
-export function teamSearchHandlerResponse200(data: TeamSearchQueryResponse) {
+export function teamSearchHandlerResponse200(data: TeamSearchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function teamSearchHandlerResponse200(data: TeamSearchQueryResponse) {
   });
 }
 
-export function teamSearchHandlerResponse404(data: TeamSearch404) {
+export function teamSearchHandlerResponse404(data: TeamSearchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function teamSearchHandlerResponse404(data: TeamSearch404) {
 }
 
 export function teamSearchHandler(
-  data?:
-    | TeamSearchQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: TeamSearchResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/teams/search`, function handler(info) {
     if (typeof data === 'function') return data(info);

@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetPullRequestQueryResponse,
-  RepoGetPullRequestPathParams,
-  RepoGetPullRequest404,
-} from '../types/RepoGetPullRequest';
-
-function getRepoGetPullRequestUrl(
-  owner: RepoGetPullRequestPathParams['owner'],
-  repo: RepoGetPullRequestPathParams['repo'],
-  index: RepoGetPullRequestPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetPullRequestOptions, RepoGetPullRequestResponses } from '../types/RepoGetPullRequest';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a pull request
  * {@link /repos/:owner/:repo/pulls/:index}
  */
-export async function repoGetPullRequest(
-  owner: RepoGetPullRequestPathParams['owner'],
-  repo: RepoGetPullRequestPathParams['repo'],
-  index: RepoGetPullRequestPathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetPullRequest<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetPullRequestOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetPullRequestResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetPullRequestQueryResponse, ResponseErrorConfig<RepoGetPullRequest404>, unknown>({
-    method: 'GET',
-    url: getRepoGetPullRequestUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetPullRequestResponses, ThrowOnError>>;
 }

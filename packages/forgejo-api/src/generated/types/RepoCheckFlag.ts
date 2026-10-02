@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoCheckFlagPathParams = {
+export type RepoCheckFlagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoCheckFlagPathParams = {
   flag: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoCheckFlag204 = any;
+export type RepoCheckFlagStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoCheckFlag403 = APIForbiddenError;
+export type RepoCheckFlagStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoCheckFlag404 = APINotFound;
+export type RepoCheckFlagStatus403Html = APIForbiddenError;
 
-export type RepoCheckFlagQueryResponse = RepoCheckFlag204;
+export type RepoCheckFlagStatus403 = RepoCheckFlagStatus403Json | RepoCheckFlagStatus403Html;
 
-export type RepoCheckFlagQuery = {
-  Response: RepoCheckFlag204;
-  PathParams: RepoCheckFlagPathParams;
-  Errors: RepoCheckFlag403 | RepoCheckFlag404;
+export type RepoCheckFlagStatus404Json = APINotFound;
+
+export type RepoCheckFlagStatus404Html = APINotFound;
+
+export type RepoCheckFlagStatus404 = RepoCheckFlagStatus404Json | RepoCheckFlagStatus404Html;
+
+export type RepoCheckFlagOptions = {
+  body?: never;
+  path: RepoCheckFlagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCheckFlagResponses = {
+  '204': RepoCheckFlagStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckFlagStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckFlagStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckFlagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckFlagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCheckFlagResponse = RepoCheckFlagStatus204 | RepoCheckFlagStatus403 | RepoCheckFlagStatus404;

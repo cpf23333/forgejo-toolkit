@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoEditTagProtectionMutationResponse,
-  RepoEditTagProtection404,
-  RepoEditTagProtection422,
-  RepoEditTagProtection423,
+  RepoEditTagProtectionResponse,
+  RepoEditTagProtectionStatus404,
+  RepoEditTagProtectionStatus422,
+  RepoEditTagProtectionStatus423,
+  RepoEditTagProtectionBody,
 } from '../types/RepoEditTagProtection';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditTagProtectionHandlerResponse200(data: RepoEditTagProtectionMutationResponse) {
+export function repoEditTagProtectionHandlerResponse200(data: RepoEditTagProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function repoEditTagProtectionHandlerResponse200(data: RepoEditTagProtect
   });
 }
 
-export function repoEditTagProtectionHandlerResponse404(data: RepoEditTagProtection404) {
+export function repoEditTagProtectionHandlerResponse404(data: RepoEditTagProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +31,7 @@ export function repoEditTagProtectionHandlerResponse404(data: RepoEditTagProtect
   });
 }
 
-export function repoEditTagProtectionHandlerResponse422(data: RepoEditTagProtection422) {
+export function repoEditTagProtectionHandlerResponse422(data: RepoEditTagProtectionStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,7 +40,7 @@ export function repoEditTagProtectionHandlerResponse422(data: RepoEditTagProtect
   });
 }
 
-export function repoEditTagProtectionHandlerResponse423(data: RepoEditTagProtection423) {
+export function repoEditTagProtectionHandlerResponse423(data: RepoEditTagProtectionStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -48,18 +50,19 @@ export function repoEditTagProtectionHandlerResponse423(data: RepoEditTagProtect
 }
 
 export function repoEditTagProtectionHandler(
-  data?:
-    | RepoEditTagProtectionMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoEditTagProtectionResponse | HttpResponseResolver<Record<string, string>, RepoEditTagProtectionBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/tag_protections/:id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoEditTagProtectionBody>(
+    `/repos/:owner/:repo/tag_protections/:id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

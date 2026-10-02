@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditMilestoneOption } from './EditMilestoneOption';
 import type { Milestone } from './Milestone';
 
-export type IssueEditMilestonePathParams = {
+export type IssueEditMilestonePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,28 +20,68 @@ export type IssueEditMilestonePathParams = {
   repo: string;
   /**
    * @description the milestone to edit, identified by ID and if not available by name
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Milestone
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueEditMilestone200 = Milestone;
+export type IssueEditMilestoneStatus200Json = Milestone;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueEditMilestone404 = APINotFound;
+export type IssueEditMilestoneStatus200Html = Milestone;
 
-export type IssueEditMilestoneMutationRequest = EditMilestoneOption;
+export type IssueEditMilestoneStatus200 = IssueEditMilestoneStatus200Json | IssueEditMilestoneStatus200Html;
 
-export type IssueEditMilestoneMutationResponse = IssueEditMilestone200;
+export type IssueEditMilestoneStatus404Json = APINotFound;
 
-export type IssueEditMilestoneMutation = {
-  Response: IssueEditMilestone200;
-  Request: IssueEditMilestoneMutationRequest;
-  PathParams: IssueEditMilestonePathParams;
-  Errors: IssueEditMilestone404;
+export type IssueEditMilestoneStatus404Html = APINotFound;
+
+export type IssueEditMilestoneStatus404 = IssueEditMilestoneStatus404Json | IssueEditMilestoneStatus404Html;
+
+/**
+ * @description EditMilestoneOption options for editing a milestone
+ * @type object | undefined
+ */
+export type IssueEditMilestoneBody = EditMilestoneOption | undefined;
+
+export type IssueEditMilestoneOptions = {
+  body: IssueEditMilestoneBody;
+  path: IssueEditMilestonePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditMilestoneResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueEditMilestoneStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditMilestoneStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditMilestoneStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditMilestoneStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditMilestoneResponse = IssueEditMilestoneStatus200 | IssueEditMilestoneStatus404;

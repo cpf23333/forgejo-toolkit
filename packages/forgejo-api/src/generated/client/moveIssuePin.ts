@@ -3,49 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  MoveIssuePinMutationResponse,
-  MoveIssuePinPathParams,
-  MoveIssuePin403,
-  MoveIssuePin404,
-} from '../types/MoveIssuePin';
-
-function getMoveIssuePinUrl(
-  owner: MoveIssuePinPathParams['owner'],
-  repo: MoveIssuePinPathParams['repo'],
-  index: MoveIssuePinPathParams['index'],
-  position: MoveIssuePinPathParams['position'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/${index}/pin/${position}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { MoveIssuePinOptions, MoveIssuePinResponses } from '../types/MoveIssuePin';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Moves the Pin to the given Position
  * {@link /repos/:owner/:repo/issues/:index/pin/:position}
  */
-export async function moveIssuePin(
-  owner: MoveIssuePinPathParams['owner'],
-  repo: MoveIssuePinPathParams['repo'],
-  index: MoveIssuePinPathParams['index'],
-  position: MoveIssuePinPathParams['position'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function moveIssuePin<ThrowOnError extends boolean = true>(
+  options: Options<MoveIssuePinOptions, ThrowOnError>,
+): Promise<UnwrappedResult<MoveIssuePinResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    MoveIssuePinMutationResponse,
-    ResponseErrorConfig<MoveIssuePin403 | MoveIssuePin404>,
-    unknown
-  >({
-    method: 'PATCH',
-    url: getMoveIssuePinUrl(owner, repo, index, position).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/{index}/pin/{position}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<MoveIssuePinResponses, ThrowOnError>>;
 }

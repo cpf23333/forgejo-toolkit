@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { ContentsResponse } from './ContentsResponse';
 
-export type RepoGetContentsListPathParams = {
+export type RepoGetContentsListPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoGetContentsListPathParams = {
   repo: string;
 };
 
-export type RepoGetContentsListQueryParams = {
+export type RepoGetContentsListQuery = {
   /**
    * @description The name of the commit/branch/tag. Default the repository’s default branch (usually master)
    * @type string | undefined
@@ -27,21 +27,47 @@ export type RepoGetContentsListQueryParams = {
   ref?: string;
 };
 
-/**
- * @description ContentsListResponse
- */
-export type RepoGetContentsList200 = ContentsResponse[];
+export type RepoGetContentsListStatus200Json = ContentsResponse[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetContentsList404 = APINotFound;
+export type RepoGetContentsListStatus200Html = ContentsResponse[];
 
-export type RepoGetContentsListQueryResponse = RepoGetContentsList200;
+export type RepoGetContentsListStatus200 = RepoGetContentsListStatus200Json | RepoGetContentsListStatus200Html;
 
-export type RepoGetContentsListQuery = {
-  Response: RepoGetContentsList200;
-  PathParams: RepoGetContentsListPathParams;
-  QueryParams: RepoGetContentsListQueryParams;
-  Errors: RepoGetContentsList404;
+export type RepoGetContentsListStatus404Json = APINotFound;
+
+export type RepoGetContentsListStatus404Html = APINotFound;
+
+export type RepoGetContentsListStatus404 = RepoGetContentsListStatus404Json | RepoGetContentsListStatus404Html;
+
+export type RepoGetContentsListOptions = {
+  body?: never;
+  path: RepoGetContentsListPath;
+  query?: RepoGetContentsListQuery;
+  headers?: never;
 };
+
+export type RepoGetContentsListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetContentsListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetContentsListStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetContentsListStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetContentsListStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetContentsListResponse = RepoGetContentsListStatus200 | RepoGetContentsListStatus404;

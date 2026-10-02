@@ -7,58 +7,35 @@ import type { GPGKeyEmail } from './GPGKeyEmail';
 
 /**
  * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
 export type GPGKey = {
-  /**
-   * @type boolean | undefined
-   */
   can_certify?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   can_encrypt_comms?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   can_encrypt_storage?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   can_sign?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type array | undefined
-   */
   emails?: GPGKeyEmail[];
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   expires_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   key_id?: string;
-  /**
-   * @type string | undefined
-   */
   primary_key_id?: string;
-  /**
-   * @type string | undefined
-   */
   public_key?: string;
-  /**
-   * @type array | undefined
-   */
   subkeys?: GPGKey[];
-  /**
-   * @type boolean | undefined
-   */
   verified?: boolean;
 };

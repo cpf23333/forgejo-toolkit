@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeleteSubscriptionPathParams = {
+export type IssueDeleteSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,7 +18,9 @@ export type IssueDeleteSubscriptionPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
@@ -28,30 +30,47 @@ export type IssueDeleteSubscriptionPathParams = {
   user: string;
 };
 
-/**
- * @description Already unsubscribed
- */
-export type IssueDeleteSubscription200 = any;
+export type IssueDeleteSubscriptionStatus200 = unknown;
 
-/**
- * @description Successfully Unsubscribed
- */
-export type IssueDeleteSubscription201 = any;
+export type IssueDeleteSubscriptionStatus201 = unknown;
 
-/**
- * @description User can only subscribe itself if he is no admin
- */
-export type IssueDeleteSubscription304 = any;
+export type IssueDeleteSubscriptionStatus304 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteSubscription404 = APINotFound;
+export type IssueDeleteSubscriptionStatus404Json = APINotFound;
 
-export type IssueDeleteSubscriptionMutationResponse = IssueDeleteSubscription200 | IssueDeleteSubscription201;
+export type IssueDeleteSubscriptionStatus404Html = APINotFound;
 
-export type IssueDeleteSubscriptionMutation = {
-  Response: IssueDeleteSubscription200 | IssueDeleteSubscription201;
-  PathParams: IssueDeleteSubscriptionPathParams;
-  Errors: IssueDeleteSubscription404;
+export type IssueDeleteSubscriptionStatus404 =
+  | IssueDeleteSubscriptionStatus404Json
+  | IssueDeleteSubscriptionStatus404Html;
+
+export type IssueDeleteSubscriptionOptions = {
+  body?: never;
+  path: IssueDeleteSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteSubscriptionResponses = {
+  '200': IssueDeleteSubscriptionStatus200;
+  '201': IssueDeleteSubscriptionStatus201;
+  '304': IssueDeleteSubscriptionStatus304;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteSubscriptionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteSubscriptionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteSubscriptionResponse =
+  | IssueDeleteSubscriptionStatus200
+  | IssueDeleteSubscriptionStatus201
+  | IssueDeleteSubscriptionStatus304
+  | IssueDeleteSubscriptionStatus404;

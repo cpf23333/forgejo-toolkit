@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralAPISettingsQueryResponse } from '../types/GetGeneralAPISettings';
+import type { GetGeneralAPISettingsResponse } from '../types/GetGeneralAPISettings';
 import { http } from 'msw';
 
-export function getGeneralAPISettingsHandlerResponse200(data: GetGeneralAPISettingsQueryResponse) {
+export function getGeneralAPISettingsHandlerResponse200(data: GetGeneralAPISettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function getGeneralAPISettingsHandlerResponse200(data: GetGeneralAPISetti
 
 export function getGeneralAPISettingsHandler(
   data?:
-    | GetGeneralAPISettingsQueryResponse
+    | GetGeneralAPISettingsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/api`, function handler(info) {

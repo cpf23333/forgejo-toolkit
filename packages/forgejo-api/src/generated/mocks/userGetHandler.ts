@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetQueryResponse, UserGet404 } from '../types/UserGet';
+import type { UserGetResponse, UserGetStatus404 } from '../types/UserGet';
 import { http } from 'msw';
 
-export function userGetHandlerResponse200(data: UserGetQueryResponse) {
+export function userGetHandlerResponse200(data: UserGetResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetHandlerResponse200(data: UserGetQueryResponse) {
   });
 }
 
-export function userGetHandlerResponse404(data: UserGet404) {
+export function userGetHandlerResponse404(data: UserGetStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,7 +25,7 @@ export function userGetHandlerResponse404(data: UserGet404) {
 }
 
 export function userGetHandler(
-  data?: UserGetQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: UserGetResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username`, function handler(info) {
     if (typeof data === 'function') return data(info);

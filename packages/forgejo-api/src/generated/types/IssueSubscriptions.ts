@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type IssueSubscriptionsPathParams = {
+export type IssueSubscriptionsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,12 +19,14 @@ export type IssueSubscriptionsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueSubscriptionsQueryParams = {
+export type IssueSubscriptionsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -37,21 +39,47 @@ export type IssueSubscriptionsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type IssueSubscriptions200 = User[];
+export type IssueSubscriptionsStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueSubscriptions404 = APINotFound;
+export type IssueSubscriptionsStatus200Html = User[];
 
-export type IssueSubscriptionsQueryResponse = IssueSubscriptions200;
+export type IssueSubscriptionsStatus200 = IssueSubscriptionsStatus200Json | IssueSubscriptionsStatus200Html;
 
-export type IssueSubscriptionsQuery = {
-  Response: IssueSubscriptions200;
-  PathParams: IssueSubscriptionsPathParams;
-  QueryParams: IssueSubscriptionsQueryParams;
-  Errors: IssueSubscriptions404;
+export type IssueSubscriptionsStatus404Json = APINotFound;
+
+export type IssueSubscriptionsStatus404Html = APINotFound;
+
+export type IssueSubscriptionsStatus404 = IssueSubscriptionsStatus404Json | IssueSubscriptionsStatus404Html;
+
+export type IssueSubscriptionsOptions = {
+  body?: never;
+  path: IssueSubscriptionsPath;
+  query?: IssueSubscriptionsQuery;
+  headers?: never;
 };
+
+export type IssueSubscriptionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueSubscriptionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueSubscriptionsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueSubscriptionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueSubscriptionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueSubscriptionsResponse = IssueSubscriptionsStatus200 | IssueSubscriptionsStatus404;

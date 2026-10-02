@@ -7,11 +7,9 @@ import type { RepoTargetOption } from './RepoTargetOption';
 
 /**
  * @description CreateAccessTokenOption options when create access token
+ * @type object
  */
 export type CreateAccessTokenOption = {
-  /**
-   * @type string
-   */
   name: string;
   /**
    * @description If provided and not-empty, creates an access token with access only to specified repositories.
@@ -19,6 +17,7 @@ export type CreateAccessTokenOption = {
    */
   repositories?: RepoTargetOption[];
   /**
+   * @example ["all","read:activitypub","read:issue","write:misc","read:notification","read:organization","read:package","read:repository","read:user"]
    * @type array | undefined
    */
   scopes?: string[];

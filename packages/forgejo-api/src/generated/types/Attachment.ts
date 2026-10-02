@@ -12,38 +12,35 @@ export type AttachmentTypeEnumKey = (typeof attachmentTypeEnum)[keyof typeof att
 
 /**
  * @description Attachment a generic attachment
+ * @type object
  */
 export type Attachment = {
-  /**
-   * @type string | undefined
-   */
   browser_download_url?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   download_count?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
-  /**
-   * @type string | undefined
-   */
   type?: AttachmentTypeEnumKey;
-  /**
-   * @type string | undefined
-   */
   uuid?: string;
 };

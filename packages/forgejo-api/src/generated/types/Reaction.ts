@@ -7,14 +7,14 @@ import type { User } from './User';
 
 /**
  * @description Reaction contain one reaction
+ * @type object
  */
 export type Reaction = {
-  /**
-   * @type string | undefined
-   */
   content?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**

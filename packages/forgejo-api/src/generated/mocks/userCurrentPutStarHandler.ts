@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentPutStarMutationResponse,
-  UserCurrentPutStar401,
-  UserCurrentPutStar403,
-  UserCurrentPutStar404,
+  UserCurrentPutStarResponse,
+  UserCurrentPutStarStatus401,
+  UserCurrentPutStarStatus403,
+  UserCurrentPutStarStatus404,
 } from '../types/UserCurrentPutStar';
 import { http } from 'msw';
 
-export function userCurrentPutStarHandlerResponse204(data?: UserCurrentPutStarMutationResponse) {
+export function userCurrentPutStarHandlerResponse204(data?: UserCurrentPutStarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentPutStarHandlerResponse401(data: UserCurrentPutStar401) {
+export function userCurrentPutStarHandlerResponse401(data: UserCurrentPutStarStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentPutStarHandlerResponse401(data: UserCurrentPutStar401
   });
 }
 
-export function userCurrentPutStarHandlerResponse403(data: UserCurrentPutStar403) {
+export function userCurrentPutStarHandlerResponse403(data: UserCurrentPutStarStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentPutStarHandlerResponse403(data: UserCurrentPutStar403
   });
 }
 
-export function userCurrentPutStarHandlerResponse404(data: UserCurrentPutStar404) {
+export function userCurrentPutStarHandlerResponse404(data: UserCurrentPutStarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

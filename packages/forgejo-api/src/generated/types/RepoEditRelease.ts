@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditReleaseOption } from './EditReleaseOption';
 import type { Release } from './Release';
 
-export type RepoEditReleasePathParams = {
+export type RepoEditReleasePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,28 +20,68 @@ export type RepoEditReleasePathParams = {
   repo: string;
   /**
    * @description id of the release to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Release
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoEditRelease200 = Release;
+export type RepoEditReleaseStatus200Json = Release;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoEditRelease404 = APINotFound;
+export type RepoEditReleaseStatus200Html = Release;
 
-export type RepoEditReleaseMutationRequest = EditReleaseOption;
+export type RepoEditReleaseStatus200 = RepoEditReleaseStatus200Json | RepoEditReleaseStatus200Html;
 
-export type RepoEditReleaseMutationResponse = RepoEditRelease200;
+export type RepoEditReleaseStatus404Json = APINotFound;
 
-export type RepoEditReleaseMutation = {
-  Response: RepoEditRelease200;
-  Request: RepoEditReleaseMutationRequest;
-  PathParams: RepoEditReleasePathParams;
-  Errors: RepoEditRelease404;
+export type RepoEditReleaseStatus404Html = APINotFound;
+
+export type RepoEditReleaseStatus404 = RepoEditReleaseStatus404Json | RepoEditReleaseStatus404Html;
+
+/**
+ * @description EditReleaseOption options when editing a release
+ * @type object | undefined
+ */
+export type RepoEditReleaseBody = EditReleaseOption | undefined;
+
+export type RepoEditReleaseOptions = {
+  body: RepoEditReleaseBody;
+  path: RepoEditReleasePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoEditReleaseResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoEditReleaseStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditReleaseStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoEditReleaseStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoEditReleaseStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoEditReleaseResponse = RepoEditReleaseStatus200 | RepoEditReleaseStatus404;

@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoUpdateAvatarMutationRequest,
-  RepoUpdateAvatarMutationResponse,
-  RepoUpdateAvatarPathParams,
-  RepoUpdateAvatar404,
-} from '../types/RepoUpdateAvatar';
-
-function getRepoUpdateAvatarUrl(owner: RepoUpdateAvatarPathParams['owner'], repo: RepoUpdateAvatarPathParams['repo']) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/avatar` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoUpdateAvatarOptions, RepoUpdateAvatarResponses } from '../types/RepoUpdateAvatar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a repository's avatar
  * {@link /repos/:owner/:repo/avatar}
  */
-export async function repoUpdateAvatar(
-  owner: RepoUpdateAvatarPathParams['owner'],
-  repo: RepoUpdateAvatarPathParams['repo'],
-  data?: RepoUpdateAvatarMutationRequest,
-  config: Partial<RequestConfig<RepoUpdateAvatarMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoUpdateAvatar<ThrowOnError extends boolean = true>(
+  options: Options<RepoUpdateAvatarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoUpdateAvatarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoUpdateAvatarMutationResponse,
-    ResponseErrorConfig<RepoUpdateAvatar404>,
-    RepoUpdateAvatarMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoUpdateAvatarUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/avatar',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoUpdateAvatarResponses, ThrowOnError>>;
 }

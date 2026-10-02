@@ -5,26 +5,44 @@
 
 import type { ForgeLike } from './ForgeLike';
 
-export type ActivitypubRepositoryInboxPathParams = {
+export type ActivitypubRepositoryInboxPath = {
   /**
    * @description repository ID of the repo
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   'repository-id': number;
 };
 
+export type ActivitypubRepositoryInboxStatus204 = unknown;
+
 /**
- * @description APIEmpty is an empty response
+ * @description ForgeLike activity data type
+ * @type object | undefined
  */
-export type ActivitypubRepositoryInbox204 = any;
+export type ActivitypubRepositoryInboxBodyJson = ForgeLike | undefined;
 
-export type ActivitypubRepositoryInboxMutationRequest = ForgeLike;
+/**
+ * @description ForgeLike activity data type
+ * @type object | undefined
+ */
+export type ActivitypubRepositoryInboxBodyPlain = ForgeLike | undefined;
 
-export type ActivitypubRepositoryInboxMutationResponse = ActivitypubRepositoryInbox204;
+export type ActivitypubRepositoryInboxBody = ActivitypubRepositoryInboxBodyJson | ActivitypubRepositoryInboxBodyPlain;
 
-export type ActivitypubRepositoryInboxMutation = {
-  Response: ActivitypubRepositoryInbox204;
-  Request: ActivitypubRepositoryInboxMutationRequest;
-  PathParams: ActivitypubRepositoryInboxPathParams;
-  Errors: any;
+export type ActivitypubRepositoryInboxOptions = {
+  body: ActivitypubRepositoryInboxBody;
+  path: ActivitypubRepositoryInboxPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubRepositoryInboxResponses = {
+  '204': ActivitypubRepositoryInboxStatus204;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubRepositoryInboxResponse = ActivitypubRepositoryInboxStatus204;

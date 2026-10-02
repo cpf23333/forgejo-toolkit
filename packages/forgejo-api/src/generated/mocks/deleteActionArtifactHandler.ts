@@ -4,20 +4,20 @@
  */
 
 import type {
-  DeleteActionArtifactMutationResponse,
-  DeleteActionArtifact400,
-  DeleteActionArtifact403,
-  DeleteActionArtifact404,
+  DeleteActionArtifactResponse,
+  DeleteActionArtifactStatus400,
+  DeleteActionArtifactStatus403,
+  DeleteActionArtifactStatus404,
 } from '../types/DeleteActionArtifact';
 import { http } from 'msw';
 
-export function deleteActionArtifactHandlerResponse204(data?: DeleteActionArtifactMutationResponse) {
+export function deleteActionArtifactHandlerResponse204(data?: DeleteActionArtifactResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteActionArtifactHandlerResponse400(data: DeleteActionArtifact400) {
+export function deleteActionArtifactHandlerResponse400(data: DeleteActionArtifactStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function deleteActionArtifactHandlerResponse400(data: DeleteActionArtifac
   });
 }
 
-export function deleteActionArtifactHandlerResponse403(data: DeleteActionArtifact403) {
+export function deleteActionArtifactHandlerResponse403(data: DeleteActionArtifactStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function deleteActionArtifactHandlerResponse403(data: DeleteActionArtifac
   });
 }
 
-export function deleteActionArtifactHandlerResponse404(data: DeleteActionArtifact404) {
+export function deleteActionArtifactHandlerResponse404(data: DeleteActionArtifactStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

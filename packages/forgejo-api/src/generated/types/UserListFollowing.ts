@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type UserListFollowingPathParams = {
+export type UserListFollowingPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListFollowingPathParams = {
   username: string;
 };
 
-export type UserListFollowingQueryParams = {
+export type UserListFollowingQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type UserListFollowingQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type UserListFollowing200 = User[];
+export type UserListFollowingStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListFollowing404 = APINotFound;
+export type UserListFollowingStatus200Html = User[];
 
-export type UserListFollowingQueryResponse = UserListFollowing200;
+export type UserListFollowingStatus200 = UserListFollowingStatus200Json | UserListFollowingStatus200Html;
 
-export type UserListFollowingQuery = {
-  Response: UserListFollowing200;
-  PathParams: UserListFollowingPathParams;
-  QueryParams: UserListFollowingQueryParams;
-  Errors: UserListFollowing404;
+export type UserListFollowingStatus404Json = APINotFound;
+
+export type UserListFollowingStatus404Html = APINotFound;
+
+export type UserListFollowingStatus404 = UserListFollowingStatus404Json | UserListFollowingStatus404Html;
+
+export type UserListFollowingOptions = {
+  body?: never;
+  path: UserListFollowingPath;
+  query?: UserListFollowingQuery;
+  headers?: never;
 };
+
+export type UserListFollowingResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListFollowingStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListFollowingStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListFollowingStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListFollowingStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListFollowingResponse = UserListFollowingStatus200 | UserListFollowingStatus404;

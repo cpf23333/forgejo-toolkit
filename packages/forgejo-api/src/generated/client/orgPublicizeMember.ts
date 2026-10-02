@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgPublicizeMemberMutationResponse,
-  OrgPublicizeMemberPathParams,
-  OrgPublicizeMember403,
-  OrgPublicizeMember404,
-} from '../types/OrgPublicizeMember';
-
-function getOrgPublicizeMemberUrl(
-  org: OrgPublicizeMemberPathParams['org'],
-  username: OrgPublicizeMemberPathParams['username'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/orgs/${org}/public_members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgPublicizeMemberOptions, OrgPublicizeMemberResponses } from '../types/OrgPublicizeMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Publicize a user's membership
  * {@link /orgs/:org/public_members/:username}
  */
-export async function orgPublicizeMember(
-  org: OrgPublicizeMemberPathParams['org'],
-  username: OrgPublicizeMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgPublicizeMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgPublicizeMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgPublicizeMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    OrgPublicizeMemberMutationResponse,
-    ResponseErrorConfig<OrgPublicizeMember403 | OrgPublicizeMember404>,
-    unknown
-  >({
-    method: 'PUT',
-    url: getOrgPublicizeMemberUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/orgs/{org}/public_members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgPublicizeMemberResponses, ThrowOnError>>;
 }

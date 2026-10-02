@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { OrgEditTeamMutationResponse, OrgEditTeam404 } from '../types/OrgEditTeam';
+import type { OrgEditTeamResponse, OrgEditTeamStatus404, OrgEditTeamBody } from '../types/OrgEditTeam';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgEditTeamHandlerResponse200(data: OrgEditTeamMutationResponse) {
+export function orgEditTeamHandlerResponse200(data: OrgEditTeamResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +16,7 @@ export function orgEditTeamHandlerResponse200(data: OrgEditTeamMutationResponse)
   });
 }
 
-export function orgEditTeamHandlerResponse404(data: OrgEditTeam404) {
+export function orgEditTeamHandlerResponse404(data: OrgEditTeamStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,11 +26,9 @@ export function orgEditTeamHandlerResponse404(data: OrgEditTeam404) {
 }
 
 export function orgEditTeamHandler(
-  data?:
-    | OrgEditTeamMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgEditTeamResponse | HttpResponseResolver<Record<string, string>, OrgEditTeamBody>,
 ) {
-  return http.patch(`/teams/:id`, function handler(info) {
+  return http.patch<Record<string, string>, OrgEditTeamBody>(`/teams/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -5,6 +5,7 @@
 
 /**
  * @description CreateEmailOption options when creating email addresses
+ * @type object
  */
 export type CreateEmailOption = {
   /**

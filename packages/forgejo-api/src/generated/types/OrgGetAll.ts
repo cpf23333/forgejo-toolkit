@@ -5,7 +5,7 @@
 
 import type { Organization } from './Organization';
 
-export type OrgGetAllQueryParams = {
+export type OrgGetAllQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -18,15 +18,32 @@ export type OrgGetAllQueryParams = {
   limit?: number;
 };
 
-/**
- * @description OrganizationList
- */
-export type OrgGetAll200 = Organization[];
+export type OrgGetAllStatus200Json = Organization[];
 
-export type OrgGetAllQueryResponse = OrgGetAll200;
+export type OrgGetAllStatus200Html = Organization[];
 
-export type OrgGetAllQuery = {
-  Response: OrgGetAll200;
-  QueryParams: OrgGetAllQueryParams;
-  Errors: any;
+export type OrgGetAllStatus200 = OrgGetAllStatus200Json | OrgGetAllStatus200Html;
+
+export type OrgGetAllOptions = {
+  body?: never;
+  path?: never;
+  query?: OrgGetAllQuery;
+  headers?: never;
 };
+
+export type OrgGetAllResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetAllStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetAllStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetAllResponse = OrgGetAllStatus200;

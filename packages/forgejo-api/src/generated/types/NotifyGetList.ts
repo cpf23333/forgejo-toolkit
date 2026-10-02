@@ -5,16 +5,16 @@
 
 import type { NotificationThread } from './NotificationThread';
 
-export const notifyGetListQueryParamsSubjectTypeEnum = {
+export const notifyGetListSubjectTypeEnum = {
   issue: 'issue',
   pull: 'pull',
   repository: 'repository',
 } as const;
 
-export type NotifyGetListQueryParamsSubjectTypeEnumKey =
-  (typeof notifyGetListQueryParamsSubjectTypeEnum)[keyof typeof notifyGetListQueryParamsSubjectTypeEnum];
+export type NotifyGetListSubjectTypeEnumKey =
+  (typeof notifyGetListSubjectTypeEnum)[keyof typeof notifyGetListSubjectTypeEnum];
 
-export type NotifyGetListQueryParams = {
+export type NotifyGetListQuery = {
   /**
    * @description If true, show notifications marked as read. Default value is false
    * @type boolean | undefined
@@ -29,15 +29,19 @@ export type NotifyGetListQueryParams = {
    * @description filter notifications by subject type
    * @type array | undefined
    */
-  'subject-type'?: NotifyGetListQueryParamsSubjectTypeEnumKey[];
+  'subject-type'?: NotifyGetListSubjectTypeEnumKey[];
   /**
    * @description Only show notifications updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show notifications updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -52,15 +56,32 @@ export type NotifyGetListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description NotificationThreadList
- */
-export type NotifyGetList200 = NotificationThread[];
+export type NotifyGetListStatus200Json = NotificationThread[];
 
-export type NotifyGetListQueryResponse = NotifyGetList200;
+export type NotifyGetListStatus200Html = NotificationThread[];
 
-export type NotifyGetListQuery = {
-  Response: NotifyGetList200;
-  QueryParams: NotifyGetListQueryParams;
-  Errors: any;
+export type NotifyGetListStatus200 = NotifyGetListStatus200Json | NotifyGetListStatus200Html;
+
+export type NotifyGetListOptions = {
+  body?: never;
+  path?: never;
+  query?: NotifyGetListQuery;
+  headers?: never;
 };
+
+export type NotifyGetListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: NotifyGetListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyGetListStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyGetListResponse = NotifyGetListStatus200;

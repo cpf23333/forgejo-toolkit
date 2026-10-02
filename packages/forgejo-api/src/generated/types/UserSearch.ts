@@ -5,7 +5,7 @@
 
 import type { User } from './User';
 
-export const userSearchQueryParamsSortEnum = {
+export const userSearchSort = {
   oldest: 'oldest',
   newest: 'newest',
   alphabetically: 'alphabetically',
@@ -14,10 +14,9 @@ export const userSearchQueryParamsSortEnum = {
   leastupdate: 'leastupdate',
 } as const;
 
-export type UserSearchQueryParamsSortEnumKey =
-  (typeof userSearchQueryParamsSortEnum)[keyof typeof userSearchQueryParamsSortEnum];
+export type UserSearchSortKey = (typeof userSearchSort)[keyof typeof userSearchSort];
 
-export type UserSearchQueryParams = {
+export type UserSearchQuery = {
   /**
    * @description keyword
    * @type string | undefined
@@ -25,14 +24,16 @@ export type UserSearchQueryParams = {
   q?: string;
   /**
    * @description ID of the user to search for
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   uid?: number;
   /**
    * @description sort order of results
    * @type string | undefined
    */
-  sort?: UserSearchQueryParamsSortEnumKey;
+  sort?: UserSearchSortKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -45,25 +46,38 @@ export type UserSearchQueryParams = {
   limit?: number;
 };
 
-/**
- * UserSearchResults
- * @description SearchResults of a successful search
- */
-export type UserSearch200 = {
-  /**
-   * @type array | undefined
-   */
+export type UserSearchStatus200Json = {
   data?: User[];
-  /**
-   * @type boolean | undefined
-   */
   ok?: boolean;
 };
 
-export type UserSearchQueryResponse = UserSearch200;
-
-export type UserSearchQuery = {
-  Response: UserSearch200;
-  QueryParams: UserSearchQueryParams;
-  Errors: any;
+export type UserSearchStatus200Html = {
+  data?: User[];
+  ok?: boolean;
 };
+
+export type UserSearchStatus200 = UserSearchStatus200Json | UserSearchStatus200Html;
+
+export type UserSearchOptions = {
+  body?: never;
+  path?: never;
+  query?: UserSearchQuery;
+  headers?: never;
+};
+
+export type UserSearchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserSearchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserSearchStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserSearchResponse = UserSearchStatus200;

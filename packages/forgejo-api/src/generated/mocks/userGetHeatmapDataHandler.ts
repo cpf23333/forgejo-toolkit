@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetHeatmapDataQueryResponse, UserGetHeatmapData404 } from '../types/UserGetHeatmapData';
+import type { UserGetHeatmapDataResponse, UserGetHeatmapDataStatus404 } from '../types/UserGetHeatmapData';
 import { http } from 'msw';
 
-export function userGetHeatmapDataHandlerResponse200(data: UserGetHeatmapDataQueryResponse) {
+export function userGetHeatmapDataHandlerResponse200(data: UserGetHeatmapDataResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetHeatmapDataHandlerResponse200(data: UserGetHeatmapDataQue
   });
 }
 
-export function userGetHeatmapDataHandlerResponse404(data: UserGetHeatmapData404) {
+export function userGetHeatmapDataHandlerResponse404(data: UserGetHeatmapDataStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userGetHeatmapDataHandlerResponse404(data: UserGetHeatmapData404
 
 export function userGetHeatmapDataHandler(
   data?:
-    | UserGetHeatmapDataQueryResponse
+    | UserGetHeatmapDataResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/heatmap`, function handler(info) {

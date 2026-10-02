@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminListHooksQueryResponse } from '../types/AdminListHooks';
+import type { AdminListHooksResponse } from '../types/AdminListHooks';
 import { http } from 'msw';
 
-export function adminListHooksHandlerResponse200(data: AdminListHooksQueryResponse) {
+export function adminListHooksHandlerResponse200(data: AdminListHooksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function adminListHooksHandlerResponse200(data: AdminListHooksQueryRespon
 
 export function adminListHooksHandler(
   data?:
-    | AdminListHooksQueryResponse
+    | AdminListHooksResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/hooks`, function handler(info) {

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { UpdateUserAvatarOption } from './UpdateUserAvatarOption';
 
-export type OrgUpdateAvatarPathParams = {
+export type OrgUpdateAvatarPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,23 +14,49 @@ export type OrgUpdateAvatarPathParams = {
   org: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgUpdateAvatar204 = any;
+export type OrgUpdateAvatarStatus204 = unknown;
+
+export type OrgUpdateAvatarStatus404Json = APINotFound;
+
+export type OrgUpdateAvatarStatus404Html = APINotFound;
+
+export type OrgUpdateAvatarStatus404 = OrgUpdateAvatarStatus404Json | OrgUpdateAvatarStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description UpdateUserAvatarUserOption options when updating the user avatar
+ * @type object | undefined
  */
-export type OrgUpdateAvatar404 = APINotFound;
+export type OrgUpdateAvatarBodyJson = UpdateUserAvatarOption | undefined;
 
-export type OrgUpdateAvatarMutationRequest = UpdateUserAvatarOption;
+/**
+ * @description UpdateUserAvatarUserOption options when updating the user avatar
+ * @type object | undefined
+ */
+export type OrgUpdateAvatarBodyPlain = UpdateUserAvatarOption | undefined;
 
-export type OrgUpdateAvatarMutationResponse = OrgUpdateAvatar204;
+export type OrgUpdateAvatarBody = OrgUpdateAvatarBodyJson | OrgUpdateAvatarBodyPlain;
 
-export type OrgUpdateAvatarMutation = {
-  Response: OrgUpdateAvatar204;
-  Request: OrgUpdateAvatarMutationRequest;
-  PathParams: OrgUpdateAvatarPathParams;
-  Errors: OrgUpdateAvatar404;
+export type OrgUpdateAvatarOptions = {
+  body: OrgUpdateAvatarBody;
+  path: OrgUpdateAvatarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgUpdateAvatarResponses = {
+  '204': OrgUpdateAvatarStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgUpdateAvatarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgUpdateAvatarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgUpdateAvatarResponse = OrgUpdateAvatarStatus204 | OrgUpdateAvatarStatus404;

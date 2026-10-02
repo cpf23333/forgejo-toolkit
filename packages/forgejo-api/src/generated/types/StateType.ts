@@ -5,5 +5,6 @@
 
 /**
  * @description StateType issue state type
+ * @type string
  */
 export type StateType = string;

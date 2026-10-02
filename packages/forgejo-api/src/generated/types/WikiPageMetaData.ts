@@ -7,23 +7,15 @@ import type { WikiCommit } from './WikiCommit';
 
 /**
  * @description WikiPageMetaData wiki page meta information
+ * @type object
  */
 export type WikiPageMetaData = {
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
    * @description WikiCommit page commit/revision
    * @type object | undefined
    */
   last_commit?: WikiCommit;
-  /**
-   * @type string | undefined
-   */
   sub_url?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

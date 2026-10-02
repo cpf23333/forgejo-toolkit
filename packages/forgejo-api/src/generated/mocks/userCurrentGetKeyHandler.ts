@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserCurrentGetKeyQueryResponse,
-  UserCurrentGetKey401,
-  UserCurrentGetKey403,
-  UserCurrentGetKey404,
+  UserCurrentGetKeyResponse,
+  UserCurrentGetKeyStatus401,
+  UserCurrentGetKeyStatus403,
+  UserCurrentGetKeyStatus404,
 } from '../types/UserCurrentGetKey';
 import { http } from 'msw';
 
-export function userCurrentGetKeyHandlerResponse200(data: UserCurrentGetKeyQueryResponse) {
+export function userCurrentGetKeyHandlerResponse200(data: UserCurrentGetKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userCurrentGetKeyHandlerResponse200(data: UserCurrentGetKeyQuery
   });
 }
 
-export function userCurrentGetKeyHandlerResponse401(data: UserCurrentGetKey401) {
+export function userCurrentGetKeyHandlerResponse401(data: UserCurrentGetKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function userCurrentGetKeyHandlerResponse401(data: UserCurrentGetKey401) 
   });
 }
 
-export function userCurrentGetKeyHandlerResponse403(data: UserCurrentGetKey403) {
+export function userCurrentGetKeyHandlerResponse403(data: UserCurrentGetKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userCurrentGetKeyHandlerResponse403(data: UserCurrentGetKey403) 
   });
 }
 
-export function userCurrentGetKeyHandlerResponse404(data: UserCurrentGetKey404) {
+export function userCurrentGetKeyHandlerResponse404(data: UserCurrentGetKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function userCurrentGetKeyHandlerResponse404(data: UserCurrentGetKey404) 
 
 export function userCurrentGetKeyHandler(
   data?:
-    | UserCurrentGetKeyQueryResponse
+    | UserCurrentGetKeyResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/keys/:id`, function handler(info) {

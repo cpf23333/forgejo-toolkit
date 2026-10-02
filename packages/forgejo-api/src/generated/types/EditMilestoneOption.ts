@@ -5,22 +5,16 @@
 
 /**
  * @description EditMilestoneOption options for editing a milestone
+ * @type object
  */
 export type EditMilestoneOption = {
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_on?: string;
-  /**
-   * @type string | undefined
-   */
   state?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

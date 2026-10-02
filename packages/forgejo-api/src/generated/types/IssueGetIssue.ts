@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Issue } from './Issue';
 
-export type IssueGetIssuePathParams = {
+export type IssueGetIssuePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type IssueGetIssuePathParams = {
   repo: string;
   /**
    * @description index of the issue to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueGetIssue200 = Issue;
+export type IssueGetIssueStatus200Json = Issue;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueGetIssue404 = APINotFound;
+export type IssueGetIssueStatus200Html = Issue;
 
-export type IssueGetIssueQueryResponse = IssueGetIssue200;
+export type IssueGetIssueStatus200 = IssueGetIssueStatus200Json | IssueGetIssueStatus200Html;
 
-export type IssueGetIssueQuery = {
-  Response: IssueGetIssue200;
-  PathParams: IssueGetIssuePathParams;
-  Errors: IssueGetIssue404;
+export type IssueGetIssueStatus404Json = APINotFound;
+
+export type IssueGetIssueStatus404Html = APINotFound;
+
+export type IssueGetIssueStatus404 = IssueGetIssueStatus404Json | IssueGetIssueStatus404Html;
+
+export type IssueGetIssueOptions = {
+  body?: never;
+  path: IssueGetIssuePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetIssueResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetIssueResponse = IssueGetIssueStatus200 | IssueGetIssueStatus404;

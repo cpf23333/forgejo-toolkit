@@ -7,14 +7,14 @@ import type { WikiCommit } from './WikiCommit';
 
 /**
  * @description WikiCommitList commit/revision list
+ * @type object
  */
 export type WikiCommitList = {
-  /**
-   * @type array | undefined
-   */
   commits?: WikiCommit[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   count?: number;
 };

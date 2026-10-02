@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoDeleteReleasePathParams = {
+export type RepoDeleteReleasePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,60 @@ export type RepoDeleteReleasePathParams = {
   repo: string;
   /**
    * @description id of the release to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteRelease204 = any;
+export type RepoDeleteReleaseStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteRelease404 = APINotFound;
+export type RepoDeleteReleaseStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoDeleteRelease422 = APIValidationError;
+export type RepoDeleteReleaseStatus404Html = APINotFound;
 
-export type RepoDeleteReleaseMutationResponse = RepoDeleteRelease204;
+export type RepoDeleteReleaseStatus404 = RepoDeleteReleaseStatus404Json | RepoDeleteReleaseStatus404Html;
 
-export type RepoDeleteReleaseMutation = {
-  Response: RepoDeleteRelease204;
-  PathParams: RepoDeleteReleasePathParams;
-  Errors: RepoDeleteRelease404 | RepoDeleteRelease422;
+export type RepoDeleteReleaseStatus422Json = APIValidationError;
+
+export type RepoDeleteReleaseStatus422Html = APIValidationError;
+
+export type RepoDeleteReleaseStatus422 = RepoDeleteReleaseStatus422Json | RepoDeleteReleaseStatus422Html;
+
+export type RepoDeleteReleaseOptions = {
+  body?: never;
+  path: RepoDeleteReleasePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteReleaseResponses = {
+  '204': RepoDeleteReleaseStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteReleaseStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteReleaseStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteReleaseStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteReleaseStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteReleaseResponse =
+  | RepoDeleteReleaseStatus204
+  | RepoDeleteReleaseStatus404
+  | RepoDeleteReleaseStatus422;

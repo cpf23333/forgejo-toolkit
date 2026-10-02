@@ -5,6 +5,7 @@
 
 /**
  * @description CreateKeyOption options when creating a key
+ * @type object
  */
 export type CreateKeyOption = {
   /**

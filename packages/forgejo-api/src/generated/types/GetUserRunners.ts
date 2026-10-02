@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetUserRunnersQueryParams = {
+export type GetUserRunnersQuery = {
   /**
    * @description whether to include all visible runners (true) or only those that are directly owned by the user (false)
    * @type boolean | undefined
@@ -26,30 +26,89 @@ export type GetUserRunnersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActionRunnerList is a list of Forgejo Action runners
- */
-export type GetUserRunners200 = ActionRunner[];
+export type GetUserRunnersStatus200Json = ActionRunner[];
+
+export type GetUserRunnersStatus200Html = ActionRunner[];
+
+export type GetUserRunnersStatus200 = GetUserRunnersStatus200Json | GetUserRunnersStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetUserRunners400 = APIError;
+export type GetUserRunnersStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetUserRunners401 = APIUnauthorizedError;
+export type GetUserRunnersStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type GetUserRunners404 = APINotFound;
+export type GetUserRunnersStatus400 = GetUserRunnersStatus400Json | GetUserRunnersStatus400Html;
 
-export type GetUserRunnersQueryResponse = GetUserRunners200;
+export type GetUserRunnersStatus401Json = APIUnauthorizedError;
 
-export type GetUserRunnersQuery = {
-  Response: GetUserRunners200;
-  QueryParams: GetUserRunnersQueryParams;
-  Errors: GetUserRunners400 | GetUserRunners401 | GetUserRunners404;
+export type GetUserRunnersStatus401Html = APIUnauthorizedError;
+
+export type GetUserRunnersStatus401 = GetUserRunnersStatus401Json | GetUserRunnersStatus401Html;
+
+export type GetUserRunnersStatus404Json = APINotFound;
+
+export type GetUserRunnersStatus404Html = APINotFound;
+
+export type GetUserRunnersStatus404 = GetUserRunnersStatus404Json | GetUserRunnersStatus404Html;
+
+export type GetUserRunnersOptions = {
+  body?: never;
+  path?: never;
+  query?: GetUserRunnersQuery;
+  headers?: never;
 };
+
+export type GetUserRunnersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetUserRunnersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserRunnersStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetUserRunnersStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserRunnersStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: GetUserRunnersStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserRunnersStatus401Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetUserRunnersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserRunnersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetUserRunnersResponse =
+  | GetUserRunnersStatus200
+  | GetUserRunnersStatus400
+  | GetUserRunnersStatus401
+  | GetUserRunnersStatus404;

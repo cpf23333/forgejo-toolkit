@@ -5,18 +5,10 @@
 
 /**
  * @description GitHook represents a Git repository hook
+ * @type object
  */
 export type GitHook = {
-  /**
-   * @type string | undefined
-   */
   content?: string;
-  /**
-   * @type boolean | undefined
-   */
   is_active?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
 };

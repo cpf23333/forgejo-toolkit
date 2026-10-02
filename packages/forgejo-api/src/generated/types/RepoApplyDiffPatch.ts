@@ -8,7 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { FileResponse } from './FileResponse';
 import type { UpdateFileOptions } from './UpdateFileOptions';
 
-export type RepoApplyDiffPatchPathParams = {
+export type RepoApplyDiffPatchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,32 +22,82 @@ export type RepoApplyDiffPatchPathParams = {
 };
 
 /**
- * @description FileResponse
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoApplyDiffPatch200 = FileResponse;
+export type RepoApplyDiffPatchStatus200Json = FileResponse;
 
 /**
- * @description APINotFound is a not found error response
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoApplyDiffPatch404 = APINotFound;
+export type RepoApplyDiffPatchStatus200Html = FileResponse;
+
+export type RepoApplyDiffPatchStatus200 = RepoApplyDiffPatchStatus200Json | RepoApplyDiffPatchStatus200Html;
+
+export type RepoApplyDiffPatchStatus404Json = APINotFound;
+
+export type RepoApplyDiffPatchStatus404Html = APINotFound;
+
+export type RepoApplyDiffPatchStatus404 = RepoApplyDiffPatchStatus404Json | RepoApplyDiffPatchStatus404Html;
+
+export type RepoApplyDiffPatchStatus413 = unknown;
+
+export type RepoApplyDiffPatchStatus423Json = APIRepoArchivedError;
+
+export type RepoApplyDiffPatchStatus423Html = APIRepoArchivedError;
+
+export type RepoApplyDiffPatchStatus423 = RepoApplyDiffPatchStatus423Json | RepoApplyDiffPatchStatus423Html;
 
 /**
- * @description QuotaExceeded
+ * @description UpdateFileOptions options for updating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
-export type RepoApplyDiffPatch413 = any;
+export type RepoApplyDiffPatchBody = UpdateFileOptions;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoApplyDiffPatch423 = APIRepoArchivedError;
-
-export type RepoApplyDiffPatchMutationRequest = UpdateFileOptions;
-
-export type RepoApplyDiffPatchMutationResponse = RepoApplyDiffPatch200;
-
-export type RepoApplyDiffPatchMutation = {
-  Response: RepoApplyDiffPatch200;
-  Request: RepoApplyDiffPatchMutationRequest;
-  PathParams: RepoApplyDiffPatchPathParams;
-  Errors: RepoApplyDiffPatch404 | RepoApplyDiffPatch413 | RepoApplyDiffPatch423;
+export type RepoApplyDiffPatchOptions = {
+  body: RepoApplyDiffPatchBody;
+  path: RepoApplyDiffPatchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoApplyDiffPatchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoApplyDiffPatchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoApplyDiffPatchStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoApplyDiffPatchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoApplyDiffPatchStatus404Html;
+      };
+  '413': RepoApplyDiffPatchStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoApplyDiffPatchStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoApplyDiffPatchStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoApplyDiffPatchResponse =
+  | RepoApplyDiffPatchStatus200
+  | RepoApplyDiffPatchStatus404
+  | RepoApplyDiffPatchStatus413
+  | RepoApplyDiffPatchStatus423;

@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteAvatarPathParams = {
+export type RepoDeleteAvatarPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,20 +18,35 @@ export type RepoDeleteAvatarPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteAvatar204 = any;
+export type RepoDeleteAvatarStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteAvatar404 = APINotFound;
+export type RepoDeleteAvatarStatus404Json = APINotFound;
 
-export type RepoDeleteAvatarMutationResponse = RepoDeleteAvatar204;
+export type RepoDeleteAvatarStatus404Html = APINotFound;
 
-export type RepoDeleteAvatarMutation = {
-  Response: RepoDeleteAvatar204;
-  PathParams: RepoDeleteAvatarPathParams;
-  Errors: RepoDeleteAvatar404;
+export type RepoDeleteAvatarStatus404 = RepoDeleteAvatarStatus404Json | RepoDeleteAvatarStatus404Html;
+
+export type RepoDeleteAvatarOptions = {
+  body?: never;
+  path: RepoDeleteAvatarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteAvatarResponses = {
+  '204': RepoDeleteAvatarStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteAvatarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteAvatarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteAvatarResponse = RepoDeleteAvatarStatus204 | RepoDeleteAvatarStatus404;

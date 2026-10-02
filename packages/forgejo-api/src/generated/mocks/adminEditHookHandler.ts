@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { AdminEditHookMutationResponse } from '../types/AdminEditHook';
+import type { AdminEditHookResponse, AdminEditHookBody } from '../types/AdminEditHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminEditHookHandlerResponse200(data: AdminEditHookMutationResponse) {
+export function adminEditHookHandlerResponse200(data: AdminEditHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -16,11 +17,9 @@ export function adminEditHookHandlerResponse200(data: AdminEditHookMutationRespo
 }
 
 export function adminEditHookHandler(
-  data?:
-    | AdminEditHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminEditHookResponse | HttpResponseResolver<Record<string, string>, AdminEditHookBody>,
 ) {
-  return http.patch(`/admin/hooks/:id`, function handler(info) {
+  return http.patch<Record<string, string>, AdminEditHookBody>(`/admin/hooks/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { PullReview } from './PullReview';
 import type { SubmitPullReviewOptions } from './SubmitPullReviewOptions';
 
-export type RepoSubmitPullReviewPathParams = {
+export type RepoSubmitPullReviewPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,38 +21,101 @@ export type RepoSubmitPullReviewPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description PullReview
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoSubmitPullReview200 = PullReview;
+export type RepoSubmitPullReviewStatus200Json = PullReview;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoSubmitPullReview404 = APINotFound;
+export type RepoSubmitPullReviewStatus200Html = PullReview;
+
+export type RepoSubmitPullReviewStatus200 = RepoSubmitPullReviewStatus200Json | RepoSubmitPullReviewStatus200Html;
+
+export type RepoSubmitPullReviewStatus404Json = APINotFound;
+
+export type RepoSubmitPullReviewStatus404Html = APINotFound;
+
+export type RepoSubmitPullReviewStatus404 = RepoSubmitPullReviewStatus404Json | RepoSubmitPullReviewStatus404Html;
+
+export type RepoSubmitPullReviewStatus422Json = APIValidationError;
+
+export type RepoSubmitPullReviewStatus422Html = APIValidationError;
+
+export type RepoSubmitPullReviewStatus422 = RepoSubmitPullReviewStatus422Json | RepoSubmitPullReviewStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description SubmitPullReviewOptions are options to submit a pending pull review
+ * @type object
  */
-export type RepoSubmitPullReview422 = APIValidationError;
+export type RepoSubmitPullReviewBodyJson = SubmitPullReviewOptions;
 
-export type RepoSubmitPullReviewMutationRequest = SubmitPullReviewOptions;
+/**
+ * @description SubmitPullReviewOptions are options to submit a pending pull review
+ * @type object
+ */
+export type RepoSubmitPullReviewBodyPlain = SubmitPullReviewOptions;
 
-export type RepoSubmitPullReviewMutationResponse = RepoSubmitPullReview200;
+export type RepoSubmitPullReviewBody = RepoSubmitPullReviewBodyJson | RepoSubmitPullReviewBodyPlain;
 
-export type RepoSubmitPullReviewMutation = {
-  Response: RepoSubmitPullReview200;
-  Request: RepoSubmitPullReviewMutationRequest;
-  PathParams: RepoSubmitPullReviewPathParams;
-  Errors: RepoSubmitPullReview404 | RepoSubmitPullReview422;
+export type RepoSubmitPullReviewOptions = {
+  body: RepoSubmitPullReviewBody;
+  path: RepoSubmitPullReviewPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSubmitPullReviewResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSubmitPullReviewStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSubmitPullReviewStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoSubmitPullReviewStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSubmitPullReviewStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoSubmitPullReviewStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSubmitPullReviewStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSubmitPullReviewResponse =
+  | RepoSubmitPullReviewStatus200
+  | RepoSubmitPullReviewStatus404
+  | RepoSubmitPullReviewStatus422;

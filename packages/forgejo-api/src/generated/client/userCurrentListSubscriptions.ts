@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentListSubscriptionsQueryResponse,
-  UserCurrentListSubscriptionsQueryParams,
-  UserCurrentListSubscriptions401,
-  UserCurrentListSubscriptions403,
+  UserCurrentListSubscriptionsOptions,
+  UserCurrentListSubscriptionsResponses,
 } from '../types/UserCurrentListSubscriptions';
-
-function getUserCurrentListSubscriptionsUrl() {
-  const res = { method: 'GET', url: `/user/subscriptions` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List repositories watched by the authenticated user
  * {@link /user/subscriptions}
  */
-export async function userCurrentListSubscriptions(
-  params?: UserCurrentListSubscriptionsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentListSubscriptions<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentListSubscriptionsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentListSubscriptionsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentListSubscriptionsQueryResponse,
-    ResponseErrorConfig<UserCurrentListSubscriptions401 | UserCurrentListSubscriptions403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentListSubscriptionsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/subscriptions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentListSubscriptionsResponses, ThrowOnError>>;
 }

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { LabelTemplate } from './LabelTemplate';
 
-export type GetLabelTemplateInfoPathParams = {
+export type GetLabelTemplateInfoPath = {
   /**
    * @description name of the template
    * @type string
@@ -14,20 +14,47 @@ export type GetLabelTemplateInfoPathParams = {
   name: string;
 };
 
-/**
- * @description LabelTemplateInfo
- */
-export type GetLabelTemplateInfo200 = LabelTemplate[];
+export type GetLabelTemplateInfoStatus200Json = LabelTemplate[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type GetLabelTemplateInfo404 = APINotFound;
+export type GetLabelTemplateInfoStatus200Html = LabelTemplate[];
 
-export type GetLabelTemplateInfoQueryResponse = GetLabelTemplateInfo200;
+export type GetLabelTemplateInfoStatus200 = GetLabelTemplateInfoStatus200Json | GetLabelTemplateInfoStatus200Html;
 
-export type GetLabelTemplateInfoQuery = {
-  Response: GetLabelTemplateInfo200;
-  PathParams: GetLabelTemplateInfoPathParams;
-  Errors: GetLabelTemplateInfo404;
+export type GetLabelTemplateInfoStatus404Json = APINotFound;
+
+export type GetLabelTemplateInfoStatus404Html = APINotFound;
+
+export type GetLabelTemplateInfoStatus404 = GetLabelTemplateInfoStatus404Json | GetLabelTemplateInfoStatus404Html;
+
+export type GetLabelTemplateInfoOptions = {
+  body?: never;
+  path: GetLabelTemplateInfoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetLabelTemplateInfoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetLabelTemplateInfoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetLabelTemplateInfoStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetLabelTemplateInfoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetLabelTemplateInfoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetLabelTemplateInfoResponse = GetLabelTemplateInfoStatus200 | GetLabelTemplateInfoStatus404;

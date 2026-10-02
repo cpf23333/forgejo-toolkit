@@ -3,19 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoGetRawFileOrLFSQueryResponse, RepoGetRawFileOrLFS404 } from '../types/RepoGetRawFileOrLFS';
+import type { RepoGetRawFileOrLFSResponse, RepoGetRawFileOrLFSStatus404 } from '../types/RepoGetRawFileOrLFS';
 import { http } from 'msw';
 
-export function repoGetRawFileOrLFSHandlerResponse200(data: RepoGetRawFileOrLFSQueryResponse) {
+export function repoGetRawFileOrLFSHandlerResponse200(data?: RepoGetRawFileOrLFSResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-    },
   });
 }
 
-export function repoGetRawFileOrLFSHandlerResponse404(data: RepoGetRawFileOrLFS404) {
+export function repoGetRawFileOrLFSHandlerResponse404(data: RepoGetRawFileOrLFSStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +23,11 @@ export function repoGetRawFileOrLFSHandlerResponse404(data: RepoGetRawFileOrLFS4
 
 export function repoGetRawFileOrLFSHandler(
   data?:
-    | RepoGetRawFileOrLFSQueryResponse
+    | string
+    | number
+    | boolean
+    | null
+    | object
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/media/:filepath`, function handler(info) {
@@ -34,9 +35,6 @@ export function repoGetRawFileOrLFSHandler(
 
     return new Response(JSON.stringify(data), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
     });
   });
 }

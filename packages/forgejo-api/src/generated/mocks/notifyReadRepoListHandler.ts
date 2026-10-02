@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { NotifyReadRepoListMutationResponse } from '../types/NotifyReadRepoList';
+import type { NotifyReadRepoListResponse } from '../types/NotifyReadRepoList';
 import { http } from 'msw';
 
-export function notifyReadRepoListHandlerResponse205(data: NotifyReadRepoListMutationResponse) {
+export function notifyReadRepoListHandlerResponse205(data: NotifyReadRepoListResponse) {
   return new Response(JSON.stringify(data), {
     status: 205,
     headers: {
@@ -17,7 +17,7 @@ export function notifyReadRepoListHandlerResponse205(data: NotifyReadRepoListMut
 
 export function notifyReadRepoListHandler(
   data?:
-    | NotifyReadRepoListMutationResponse
+    | NotifyReadRepoListResponse
     | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/notifications`, function handler(info) {

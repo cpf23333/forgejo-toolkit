@@ -4,14 +4,14 @@
  */
 
 import type {
-  AdminGetQuotaRuleQueryResponse,
-  AdminGetQuotaRule400,
-  AdminGetQuotaRule403,
-  AdminGetQuotaRule404,
+  AdminGetQuotaRuleResponse,
+  AdminGetQuotaRuleStatus400,
+  AdminGetQuotaRuleStatus403,
+  AdminGetQuotaRuleStatus404,
 } from '../types/AdminGetQuotaRule';
 import { http } from 'msw';
 
-export function adminGetQuotaRuleHandlerResponse200(data: AdminGetQuotaRuleQueryResponse) {
+export function adminGetQuotaRuleHandlerResponse200(data: AdminGetQuotaRuleResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function adminGetQuotaRuleHandlerResponse200(data: AdminGetQuotaRuleQuery
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse400(data: AdminGetQuotaRule400) {
+export function adminGetQuotaRuleHandlerResponse400(data: AdminGetQuotaRuleStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function adminGetQuotaRuleHandlerResponse400(data: AdminGetQuotaRule400) 
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse403(data: AdminGetQuotaRule403) {
+export function adminGetQuotaRuleHandlerResponse403(data: AdminGetQuotaRuleStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function adminGetQuotaRuleHandlerResponse403(data: AdminGetQuotaRule403) 
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse404(data: AdminGetQuotaRule404) {
+export function adminGetQuotaRuleHandlerResponse404(data: AdminGetQuotaRuleStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function adminGetQuotaRuleHandlerResponse404(data: AdminGetQuotaRule404) 
 
 export function adminGetQuotaRuleHandler(
   data?:
-    | AdminGetQuotaRuleQueryResponse
+    | AdminGetQuotaRuleResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/rules/:quotarule`, function handler(info) {

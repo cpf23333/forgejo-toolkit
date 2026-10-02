@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentDeleteKeyMutationResponse,
-  UserCurrentDeleteKeyPathParams,
-  UserCurrentDeleteKey401,
-  UserCurrentDeleteKey403,
-  UserCurrentDeleteKey404,
-} from '../types/UserCurrentDeleteKey';
-
-function getUserCurrentDeleteKeyUrl(id: UserCurrentDeleteKeyPathParams['id']) {
-  const res = { method: 'DELETE', url: `/user/keys/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentDeleteKeyOptions, UserCurrentDeleteKeyResponses } from '../types/UserCurrentDeleteKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a public key
  * {@link /user/keys/:id}
  */
-export async function userCurrentDeleteKey(
-  id: UserCurrentDeleteKeyPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentDeleteKey<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentDeleteKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentDeleteKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentDeleteKeyMutationResponse,
-    ResponseErrorConfig<UserCurrentDeleteKey401 | UserCurrentDeleteKey403 | UserCurrentDeleteKey404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserCurrentDeleteKeyUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/keys/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentDeleteKeyResponses, ThrowOnError>>;
 }

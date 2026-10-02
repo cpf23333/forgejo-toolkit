@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListTeamsQueryResponse,
-  RepoListTeamsPathParams,
-  RepoListTeams404,
-  RepoListTeams405,
-} from '../types/RepoListTeams';
-
-function getRepoListTeamsUrl(owner: RepoListTeamsPathParams['owner'], repo: RepoListTeamsPathParams['repo']) {
-  const res = { method: 'GET', url: `/repos/${owner}/${repo}/teams` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListTeamsOptions, RepoListTeamsResponses } from '../types/RepoListTeams';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repository's teams
  * {@link /repos/:owner/:repo/teams}
  */
-export async function repoListTeams(
-  owner: RepoListTeamsPathParams['owner'],
-  repo: RepoListTeamsPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListTeams<ThrowOnError extends boolean = true>(
+  options: Options<RepoListTeamsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListTeamsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListTeamsQueryResponse,
-    ResponseErrorConfig<RepoListTeams404 | RepoListTeams405>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListTeamsUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/teams',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListTeamsResponses, ThrowOnError>>;
 }

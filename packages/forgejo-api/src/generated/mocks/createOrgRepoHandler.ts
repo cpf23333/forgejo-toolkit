@@ -4,14 +4,16 @@
  */
 
 import type {
-  CreateOrgRepoMutationResponse,
-  CreateOrgRepo400,
-  CreateOrgRepo403,
-  CreateOrgRepo404,
+  CreateOrgRepoResponse,
+  CreateOrgRepoStatus400,
+  CreateOrgRepoStatus403,
+  CreateOrgRepoStatus404,
+  CreateOrgRepoBody,
 } from '../types/CreateOrgRepo';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function createOrgRepoHandlerResponse201(data: CreateOrgRepoMutationResponse) {
+export function createOrgRepoHandlerResponse201(data: CreateOrgRepoResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function createOrgRepoHandlerResponse201(data: CreateOrgRepoMutationRespo
   });
 }
 
-export function createOrgRepoHandlerResponse400(data: CreateOrgRepo400) {
+export function createOrgRepoHandlerResponse400(data: CreateOrgRepoStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function createOrgRepoHandlerResponse400(data: CreateOrgRepo400) {
   });
 }
 
-export function createOrgRepoHandlerResponse403(data: CreateOrgRepo403) {
+export function createOrgRepoHandlerResponse403(data: CreateOrgRepoStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function createOrgRepoHandlerResponse403(data: CreateOrgRepo403) {
   });
 }
 
-export function createOrgRepoHandlerResponse404(data: CreateOrgRepo404) {
+export function createOrgRepoHandlerResponse404(data: CreateOrgRepoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,11 +50,9 @@ export function createOrgRepoHandlerResponse404(data: CreateOrgRepo404) {
 }
 
 export function createOrgRepoHandler(
-  data?:
-    | CreateOrgRepoMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: CreateOrgRepoResponse | HttpResponseResolver<Record<string, string>, CreateOrgRepoBody>,
 ) {
-  return http.post(`/orgs/:org/repos`, function handler(info) {
+  return http.post<Record<string, string>, CreateOrgRepoBody>(`/orgs/:org/repos`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

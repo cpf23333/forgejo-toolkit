@@ -17,4 +17,12 @@
   },
   "include": ["src/**/*", "mcp/**/*"],
   "exclude": ["node_modules", "out", "webview"]
+  // The generated client (`@cpf23333-forgejo-toolkit/api`) must stay reachable
+  // only through its package name, never through a relative path here. That is
+  // what keeps it an external-library import: TypeScript still type-checks all of
+  // it (the program holds ~1300 of its files), but excludes it from the emit-path
+  // computation, so `rootDir: "."` never sees it. Adding it to `include`, or
+  // referencing it directly, makes every one of its files violate this rootDir
+  // ("File ... is not under 'rootDir'") — see docs/architecture/api-client.md.
+  // The bundler is `rolldown.config.mjs`; `pnpm check` only type-checks.
 }

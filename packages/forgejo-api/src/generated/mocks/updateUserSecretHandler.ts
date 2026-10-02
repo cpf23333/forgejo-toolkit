@@ -4,27 +4,29 @@
  */
 
 import type {
-  UpdateUserSecretMutationResponse,
-  UpdateUserSecret400,
-  UpdateUserSecret401,
-  UpdateUserSecret403,
-  UpdateUserSecret404,
+  UpdateUserSecretResponse,
+  UpdateUserSecretStatus400,
+  UpdateUserSecretStatus401,
+  UpdateUserSecretStatus403,
+  UpdateUserSecretStatus404,
+  UpdateUserSecretBody,
 } from '../types/UpdateUserSecret';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateUserSecretHandlerResponse201(data?: UpdateUserSecretMutationResponse) {
+export function updateUserSecretHandlerResponse201(data?: UpdateUserSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateUserSecretHandlerResponse204(data?: UpdateUserSecretMutationResponse) {
+export function updateUserSecretHandlerResponse204(data?: UpdateUserSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateUserSecretHandlerResponse400(data: UpdateUserSecret400) {
+export function updateUserSecretHandlerResponse400(data: UpdateUserSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -33,7 +35,7 @@ export function updateUserSecretHandlerResponse400(data: UpdateUserSecret400) {
   });
 }
 
-export function updateUserSecretHandlerResponse401(data: UpdateUserSecret401) {
+export function updateUserSecretHandlerResponse401(data: UpdateUserSecretStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -42,7 +44,7 @@ export function updateUserSecretHandlerResponse401(data: UpdateUserSecret401) {
   });
 }
 
-export function updateUserSecretHandlerResponse403(data: UpdateUserSecret403) {
+export function updateUserSecretHandlerResponse403(data: UpdateUserSecretStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -51,7 +53,7 @@ export function updateUserSecretHandlerResponse403(data: UpdateUserSecret403) {
   });
 }
 
-export function updateUserSecretHandlerResponse404(data: UpdateUserSecret404) {
+export function updateUserSecretHandlerResponse404(data: UpdateUserSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -61,19 +63,16 @@ export function updateUserSecretHandlerResponse404(data: UpdateUserSecret404) {
 }
 
 export function updateUserSecretHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, UpdateUserSecretBody>,
 ) {
-  return http.put(`/user/actions/secrets/:secretname`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, UpdateUserSecretBody>(
+    `/user/actions/secrets/:secretname`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+      });
+    },
+  );
 }

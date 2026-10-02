@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type DeleteUserSecretPathParams = {
+export type DeleteUserSecretPath = {
   /**
    * @description name of the secret
    * @type string
@@ -16,35 +16,93 @@ export type DeleteUserSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description delete one secret of the user
- */
-export type DeleteUserSecret204 = any;
+export type DeleteUserSecretStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserSecret400 = APIError;
+export type DeleteUserSecretStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteUserSecret401 = APIUnauthorizedError;
+export type DeleteUserSecretStatus400Html = APIError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type DeleteUserSecret403 = APIForbiddenError;
+export type DeleteUserSecretStatus400 = DeleteUserSecretStatus400Json | DeleteUserSecretStatus400Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeleteUserSecret404 = APINotFound;
+export type DeleteUserSecretStatus401Json = APIUnauthorizedError;
 
-export type DeleteUserSecretMutationResponse = DeleteUserSecret204;
+export type DeleteUserSecretStatus401Html = APIUnauthorizedError;
 
-export type DeleteUserSecretMutation = {
-  Response: DeleteUserSecret204;
-  PathParams: DeleteUserSecretPathParams;
-  Errors: DeleteUserSecret400 | DeleteUserSecret401 | DeleteUserSecret403 | DeleteUserSecret404;
+export type DeleteUserSecretStatus401 = DeleteUserSecretStatus401Json | DeleteUserSecretStatus401Html;
+
+export type DeleteUserSecretStatus403Json = APIForbiddenError;
+
+export type DeleteUserSecretStatus403Html = APIForbiddenError;
+
+export type DeleteUserSecretStatus403 = DeleteUserSecretStatus403Json | DeleteUserSecretStatus403Html;
+
+export type DeleteUserSecretStatus404Json = APINotFound;
+
+export type DeleteUserSecretStatus404Html = APINotFound;
+
+export type DeleteUserSecretStatus404 = DeleteUserSecretStatus404Json | DeleteUserSecretStatus404Html;
+
+export type DeleteUserSecretOptions = {
+  body?: never;
+  path: DeleteUserSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteUserSecretResponses = {
+  '204': DeleteUserSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserSecretStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserSecretStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserSecretStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserSecretStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserSecretStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteUserSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteUserSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteUserSecretResponse =
+  | DeleteUserSecretStatus204
+  | DeleteUserSecretStatus400
+  | DeleteUserSecretStatus401
+  | DeleteUserSecretStatus403
+  | DeleteUserSecretStatus404;

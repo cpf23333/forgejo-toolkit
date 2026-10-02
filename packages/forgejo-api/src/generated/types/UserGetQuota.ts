@@ -8,23 +8,69 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { QuotaInfo } from './QuotaInfo';
 
 /**
- * @description QuotaInfo
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type UserGetQuota200 = QuotaInfo;
+export type UserGetQuotaStatus200Json = QuotaInfo;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type UserGetQuota401 = APIUnauthorizedError;
+export type UserGetQuotaStatus200Html = QuotaInfo;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetQuota403 = APIForbiddenError;
+export type UserGetQuotaStatus200 = UserGetQuotaStatus200Json | UserGetQuotaStatus200Html;
 
-export type UserGetQuotaQueryResponse = UserGetQuota200;
+export type UserGetQuotaStatus401Json = APIUnauthorizedError;
 
-export type UserGetQuotaQuery = {
-  Response: UserGetQuota200;
-  Errors: UserGetQuota401 | UserGetQuota403;
+export type UserGetQuotaStatus401Html = APIUnauthorizedError;
+
+export type UserGetQuotaStatus401 = UserGetQuotaStatus401Json | UserGetQuotaStatus401Html;
+
+export type UserGetQuotaStatus403Json = APIForbiddenError;
+
+export type UserGetQuotaStatus403Html = APIForbiddenError;
+
+export type UserGetQuotaStatus403 = UserGetQuotaStatus403Json | UserGetQuotaStatus403Html;
+
+export type UserGetQuotaOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetQuotaResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetQuotaStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetQuotaStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetQuotaStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetQuotaStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetQuotaStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetQuotaStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetQuotaResponse = UserGetQuotaStatus200 | UserGetQuotaStatus401 | UserGetQuotaStatus403;

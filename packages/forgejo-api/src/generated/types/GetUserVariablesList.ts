@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { ActionVariable } from './ActionVariable';
 
-export type GetUserVariablesListQueryParams = {
+export type GetUserVariablesListQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -22,35 +22,105 @@ export type GetUserVariablesListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description VariableList
- */
-export type GetUserVariablesList200 = ActionVariable[];
+export type GetUserVariablesListStatus200Json = ActionVariable[];
+
+export type GetUserVariablesListStatus200Html = ActionVariable[];
+
+export type GetUserVariablesListStatus200 = GetUserVariablesListStatus200Json | GetUserVariablesListStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetUserVariablesList400 = APIError;
+export type GetUserVariablesListStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetUserVariablesList401 = APIUnauthorizedError;
+export type GetUserVariablesListStatus400Html = APIError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type GetUserVariablesList403 = APIForbiddenError;
+export type GetUserVariablesListStatus400 = GetUserVariablesListStatus400Json | GetUserVariablesListStatus400Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type GetUserVariablesList404 = APINotFound;
+export type GetUserVariablesListStatus401Json = APIUnauthorizedError;
 
-export type GetUserVariablesListQueryResponse = GetUserVariablesList200;
+export type GetUserVariablesListStatus401Html = APIUnauthorizedError;
 
-export type GetUserVariablesListQuery = {
-  Response: GetUserVariablesList200;
-  QueryParams: GetUserVariablesListQueryParams;
-  Errors: GetUserVariablesList400 | GetUserVariablesList401 | GetUserVariablesList403 | GetUserVariablesList404;
+export type GetUserVariablesListStatus401 = GetUserVariablesListStatus401Json | GetUserVariablesListStatus401Html;
+
+export type GetUserVariablesListStatus403Json = APIForbiddenError;
+
+export type GetUserVariablesListStatus403Html = APIForbiddenError;
+
+export type GetUserVariablesListStatus403 = GetUserVariablesListStatus403Json | GetUserVariablesListStatus403Html;
+
+export type GetUserVariablesListStatus404Json = APINotFound;
+
+export type GetUserVariablesListStatus404Html = APINotFound;
+
+export type GetUserVariablesListStatus404 = GetUserVariablesListStatus404Json | GetUserVariablesListStatus404Html;
+
+export type GetUserVariablesListOptions = {
+  body?: never;
+  path?: never;
+  query?: GetUserVariablesListQuery;
+  headers?: never;
 };
+
+export type GetUserVariablesListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetUserVariablesListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserVariablesListStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetUserVariablesListStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserVariablesListStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: GetUserVariablesListStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserVariablesListStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: GetUserVariablesListStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserVariablesListStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetUserVariablesListStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserVariablesListStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetUserVariablesListResponse =
+  | GetUserVariablesListStatus200
+  | GetUserVariablesListStatus400
+  | GetUserVariablesListStatus401
+  | GetUserVariablesListStatus403
+  | GetUserVariablesListStatus404;

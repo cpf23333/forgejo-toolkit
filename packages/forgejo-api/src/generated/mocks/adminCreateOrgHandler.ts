@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { AdminCreateOrgMutationResponse, AdminCreateOrg403, AdminCreateOrg422 } from '../types/AdminCreateOrg';
+import type {
+  AdminCreateOrgResponse,
+  AdminCreateOrgStatus403,
+  AdminCreateOrgStatus422,
+  AdminCreateOrgBody,
+} from '../types/AdminCreateOrg';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateOrgHandlerResponse201(data: AdminCreateOrgMutationResponse) {
+export function adminCreateOrgHandlerResponse201(data: AdminCreateOrgResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +21,7 @@ export function adminCreateOrgHandlerResponse201(data: AdminCreateOrgMutationRes
   });
 }
 
-export function adminCreateOrgHandlerResponse403(data: AdminCreateOrg403) {
+export function adminCreateOrgHandlerResponse403(data: AdminCreateOrgStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +30,7 @@ export function adminCreateOrgHandlerResponse403(data: AdminCreateOrg403) {
   });
 }
 
-export function adminCreateOrgHandlerResponse422(data: AdminCreateOrg422) {
+export function adminCreateOrgHandlerResponse422(data: AdminCreateOrgStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +40,9 @@ export function adminCreateOrgHandlerResponse422(data: AdminCreateOrg422) {
 }
 
 export function adminCreateOrgHandler(
-  data?:
-    | AdminCreateOrgMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateOrgResponse | HttpResponseResolver<Record<string, string>, AdminCreateOrgBody>,
 ) {
-  return http.post(`/admin/users/:username/orgs`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateOrgBody>(`/admin/users/:username/orgs`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

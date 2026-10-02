@@ -6,13 +6,39 @@
 import type { NotificationCount } from './NotificationCount';
 
 /**
- * @description Number of unread notifications
+ * @description NotificationCount number of unread notifications
+ * @type object
  */
-export type NotifyNewAvailable200 = NotificationCount;
+export type NotifyNewAvailableStatus200Json = NotificationCount;
 
-export type NotifyNewAvailableQueryResponse = NotifyNewAvailable200;
+/**
+ * @description NotificationCount number of unread notifications
+ * @type object
+ */
+export type NotifyNewAvailableStatus200Html = NotificationCount;
 
-export type NotifyNewAvailableQuery = {
-  Response: NotifyNewAvailable200;
-  Errors: any;
+export type NotifyNewAvailableStatus200 = NotifyNewAvailableStatus200Json | NotifyNewAvailableStatus200Html;
+
+export type NotifyNewAvailableOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type NotifyNewAvailableResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: NotifyNewAvailableStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyNewAvailableStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyNewAvailableResponse = NotifyNewAvailableStatus200;

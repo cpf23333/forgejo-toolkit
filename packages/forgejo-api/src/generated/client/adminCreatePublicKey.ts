@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminCreatePublicKeyMutationRequest,
-  AdminCreatePublicKeyMutationResponse,
-  AdminCreatePublicKeyPathParams,
-  AdminCreatePublicKey403,
-  AdminCreatePublicKey422,
-} from '../types/AdminCreatePublicKey';
-
-function getAdminCreatePublicKeyUrl(username: AdminCreatePublicKeyPathParams['username']) {
-  const res = { method: 'POST', url: `/admin/users/${username}/keys` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminCreatePublicKeyOptions, AdminCreatePublicKeyResponses } from '../types/AdminCreatePublicKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add an SSH public key to user's account
  * {@link /admin/users/:username/keys}
  */
-export async function adminCreatePublicKey(
-  username: AdminCreatePublicKeyPathParams['username'],
-  data: AdminCreatePublicKeyMutationRequest,
-  config: Partial<RequestConfig<AdminCreatePublicKeyMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminCreatePublicKey<ThrowOnError extends boolean = true>(
+  options: Options<AdminCreatePublicKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminCreatePublicKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    AdminCreatePublicKeyMutationResponse,
-    ResponseErrorConfig<AdminCreatePublicKey403 | AdminCreatePublicKey422>,
-    AdminCreatePublicKeyMutationRequest
-  >({
-    method: 'POST',
-    url: getAdminCreatePublicKeyUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/users/{username}/keys',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminCreatePublicKeyResponses, ThrowOnError>>;
 }

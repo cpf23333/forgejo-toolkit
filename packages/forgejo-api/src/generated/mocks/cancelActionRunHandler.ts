@@ -3,16 +3,20 @@
  * Do not edit manually.
  */
 
-import type { CancelActionRunMutationResponse, CancelActionRun403, CancelActionRun404 } from '../types/CancelActionRun';
+import type {
+  CancelActionRunResponse,
+  CancelActionRunStatus403,
+  CancelActionRunStatus404,
+} from '../types/CancelActionRun';
 import { http } from 'msw';
 
-export function cancelActionRunHandlerResponse204(data?: CancelActionRunMutationResponse) {
+export function cancelActionRunHandlerResponse204(data?: CancelActionRunResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function cancelActionRunHandlerResponse403(data: CancelActionRun403) {
+export function cancelActionRunHandlerResponse403(data: CancelActionRunStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +25,7 @@ export function cancelActionRunHandlerResponse403(data: CancelActionRun403) {
   });
 }
 
-export function cancelActionRunHandlerResponse404(data: CancelActionRun404) {
+export function cancelActionRunHandlerResponse404(data: CancelActionRunStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -5,20 +5,8 @@
 
 import type { GitObject } from './GitObject';
 
-/**
- * Reference represents a Git reference.
- */
 export type Reference = {
-  /**
-   * @type object | undefined
-   */
   object?: GitObject;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetReleaseAttachmentQueryResponse,
-  RepoGetReleaseAttachmentPathParams,
-  RepoGetReleaseAttachment404,
+  RepoGetReleaseAttachmentOptions,
+  RepoGetReleaseAttachmentResponses,
 } from '../types/RepoGetReleaseAttachment';
-
-function getRepoGetReleaseAttachmentUrl(
-  owner: RepoGetReleaseAttachmentPathParams['owner'],
-  repo: RepoGetReleaseAttachmentPathParams['repo'],
-  id: RepoGetReleaseAttachmentPathParams['id'],
-  attachment_id: RepoGetReleaseAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/releases/${id}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a release attachment
  * {@link /repos/:owner/:repo/releases/:id/assets/:attachment_id}
  */
-export async function repoGetReleaseAttachment(
-  owner: RepoGetReleaseAttachmentPathParams['owner'],
-  repo: RepoGetReleaseAttachmentPathParams['repo'],
-  id: RepoGetReleaseAttachmentPathParams['id'],
-  attachment_id: RepoGetReleaseAttachmentPathParams['attachment_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetReleaseAttachment<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetReleaseAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetReleaseAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetReleaseAttachmentQueryResponse,
-    ResponseErrorConfig<RepoGetReleaseAttachment404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetReleaseAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/releases/{id}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetReleaseAttachmentResponses, ThrowOnError>>;
 }

@@ -7,33 +7,80 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { NotificationThread } from './NotificationThread';
 
-export type NotifyGetThreadPathParams = {
+export type NotifyGetThreadPath = {
   /**
    * @description id of notification thread
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description NotificationThread
+ * @description NotificationThread expose Notification on API
+ * @type object
  */
-export type NotifyGetThread200 = NotificationThread;
+export type NotifyGetThreadStatus200Json = NotificationThread;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description NotificationThread expose Notification on API
+ * @type object
  */
-export type NotifyGetThread403 = APIForbiddenError;
+export type NotifyGetThreadStatus200Html = NotificationThread;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type NotifyGetThread404 = APINotFound;
+export type NotifyGetThreadStatus200 = NotifyGetThreadStatus200Json | NotifyGetThreadStatus200Html;
 
-export type NotifyGetThreadQueryResponse = NotifyGetThread200;
+export type NotifyGetThreadStatus403Json = APIForbiddenError;
 
-export type NotifyGetThreadQuery = {
-  Response: NotifyGetThread200;
-  PathParams: NotifyGetThreadPathParams;
-  Errors: NotifyGetThread403 | NotifyGetThread404;
+export type NotifyGetThreadStatus403Html = APIForbiddenError;
+
+export type NotifyGetThreadStatus403 = NotifyGetThreadStatus403Json | NotifyGetThreadStatus403Html;
+
+export type NotifyGetThreadStatus404Json = APINotFound;
+
+export type NotifyGetThreadStatus404Html = APINotFound;
+
+export type NotifyGetThreadStatus404 = NotifyGetThreadStatus404Json | NotifyGetThreadStatus404Html;
+
+export type NotifyGetThreadOptions = {
+  body?: never;
+  path: NotifyGetThreadPath;
+  query?: never;
+  headers?: never;
 };
+
+export type NotifyGetThreadResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: NotifyGetThreadStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyGetThreadStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: NotifyGetThreadStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyGetThreadStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: NotifyGetThreadStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyGetThreadStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyGetThreadResponse = NotifyGetThreadStatus200 | NotifyGetThreadStatus403 | NotifyGetThreadStatus404;

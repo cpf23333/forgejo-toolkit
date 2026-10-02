@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteReleaseByTagMutationResponse,
-  RepoDeleteReleaseByTagPathParams,
-  RepoDeleteReleaseByTag404,
-  RepoDeleteReleaseByTag422,
-} from '../types/RepoDeleteReleaseByTag';
-
-function getRepoDeleteReleaseByTagUrl(
-  owner: RepoDeleteReleaseByTagPathParams['owner'],
-  repo: RepoDeleteReleaseByTagPathParams['repo'],
-  tag: RepoDeleteReleaseByTagPathParams['tag'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/releases/tags/${tag}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteReleaseByTagOptions, RepoDeleteReleaseByTagResponses } from '../types/RepoDeleteReleaseByTag';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a release by tag name
  * {@link /repos/:owner/:repo/releases/tags/:tag}
  */
-export async function repoDeleteReleaseByTag(
-  owner: RepoDeleteReleaseByTagPathParams['owner'],
-  repo: RepoDeleteReleaseByTagPathParams['repo'],
-  tag: RepoDeleteReleaseByTagPathParams['tag'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteReleaseByTag<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteReleaseByTagOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteReleaseByTagResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeleteReleaseByTagMutationResponse,
-    ResponseErrorConfig<RepoDeleteReleaseByTag404 | RepoDeleteReleaseByTag422>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeleteReleaseByTagUrl(owner, repo, tag).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/releases/tags/{tag}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteReleaseByTagResponses, ThrowOnError>>;
 }

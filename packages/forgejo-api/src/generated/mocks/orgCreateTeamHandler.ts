@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgCreateTeamMutationResponse, OrgCreateTeam404, OrgCreateTeam422 } from '../types/OrgCreateTeam';
+import type {
+  OrgCreateTeamResponse,
+  OrgCreateTeamStatus404,
+  OrgCreateTeamStatus422,
+  OrgCreateTeamBody,
+} from '../types/OrgCreateTeam';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgCreateTeamHandlerResponse201(data: OrgCreateTeamMutationResponse) {
+export function orgCreateTeamHandlerResponse201(data: OrgCreateTeamResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +21,7 @@ export function orgCreateTeamHandlerResponse201(data: OrgCreateTeamMutationRespo
   });
 }
 
-export function orgCreateTeamHandlerResponse404(data: OrgCreateTeam404) {
+export function orgCreateTeamHandlerResponse404(data: OrgCreateTeamStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +30,7 @@ export function orgCreateTeamHandlerResponse404(data: OrgCreateTeam404) {
   });
 }
 
-export function orgCreateTeamHandlerResponse422(data: OrgCreateTeam422) {
+export function orgCreateTeamHandlerResponse422(data: OrgCreateTeamStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +40,9 @@ export function orgCreateTeamHandlerResponse422(data: OrgCreateTeam422) {
 }
 
 export function orgCreateTeamHandler(
-  data?:
-    | OrgCreateTeamMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgCreateTeamResponse | HttpResponseResolver<Record<string, string>, OrgCreateTeamBody>,
 ) {
-  return http.post(`/orgs/:org/teams`, function handler(info) {
+  return http.post<Record<string, string>, OrgCreateTeamBody>(`/orgs/:org/teams`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -5,22 +5,11 @@
 
 /**
  * @description NodeInfoSoftware contains Metadata about server software in use
+ * @type object
  */
 export type NodeInfoSoftware = {
-  /**
-   * @type string | undefined
-   */
   homepage?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   repository?: string;
-  /**
-   * @type string | undefined
-   */
   version?: string;
 };

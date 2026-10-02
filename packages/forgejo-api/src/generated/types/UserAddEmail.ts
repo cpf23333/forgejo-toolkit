@@ -9,32 +9,95 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateEmailOption } from './CreateEmailOption';
 import type { Email } from './Email';
 
-/**
- * @description EmailList
- */
-export type UserAddEmail201 = Email[];
+export type UserAddEmailStatus201Json = Email[];
+
+export type UserAddEmailStatus201Html = Email[];
+
+export type UserAddEmailStatus201 = UserAddEmailStatus201Json | UserAddEmailStatus201Html;
+
+export type UserAddEmailStatus401Json = APIUnauthorizedError;
+
+export type UserAddEmailStatus401Html = APIUnauthorizedError;
+
+export type UserAddEmailStatus401 = UserAddEmailStatus401Json | UserAddEmailStatus401Html;
+
+export type UserAddEmailStatus403Json = APIForbiddenError;
+
+export type UserAddEmailStatus403Html = APIForbiddenError;
+
+export type UserAddEmailStatus403 = UserAddEmailStatus403Json | UserAddEmailStatus403Html;
+
+export type UserAddEmailStatus422Json = APIValidationError;
+
+export type UserAddEmailStatus422Html = APIValidationError;
+
+export type UserAddEmailStatus422 = UserAddEmailStatus422Json | UserAddEmailStatus422Html;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description CreateEmailOption options when creating email addresses
+ * @type object | undefined
  */
-export type UserAddEmail401 = APIUnauthorizedError;
+export type UserAddEmailBodyJson = CreateEmailOption | undefined;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateEmailOption options when creating email addresses
+ * @type object | undefined
  */
-export type UserAddEmail403 = APIForbiddenError;
+export type UserAddEmailBodyPlain = CreateEmailOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type UserAddEmail422 = APIValidationError;
+export type UserAddEmailBody = UserAddEmailBodyJson | UserAddEmailBodyPlain;
 
-export type UserAddEmailMutationRequest = CreateEmailOption;
-
-export type UserAddEmailMutationResponse = UserAddEmail201;
-
-export type UserAddEmailMutation = {
-  Response: UserAddEmail201;
-  Request: UserAddEmailMutationRequest;
-  Errors: UserAddEmail401 | UserAddEmail403 | UserAddEmail422;
+export type UserAddEmailOptions = {
+  body: UserAddEmailBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserAddEmailResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserAddEmailStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserAddEmailStatus201Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserAddEmailStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserAddEmailStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserAddEmailStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserAddEmailStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: UserAddEmailStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserAddEmailStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserAddEmailResponse =
+  | UserAddEmailStatus201
+  | UserAddEmailStatus401
+  | UserAddEmailStatus403
+  | UserAddEmailStatus422;

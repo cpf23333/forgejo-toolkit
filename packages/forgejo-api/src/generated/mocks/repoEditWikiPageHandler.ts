@@ -4,16 +4,18 @@
  */
 
 import type {
-  RepoEditWikiPageMutationResponse,
-  RepoEditWikiPage400,
-  RepoEditWikiPage403,
-  RepoEditWikiPage404,
-  RepoEditWikiPage413,
-  RepoEditWikiPage423,
+  RepoEditWikiPageResponse,
+  RepoEditWikiPageStatus400,
+  RepoEditWikiPageStatus403,
+  RepoEditWikiPageStatus404,
+  RepoEditWikiPageStatus413,
+  RepoEditWikiPageStatus423,
+  RepoEditWikiPageBody,
 } from '../types/RepoEditWikiPage';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditWikiPageHandlerResponse200(data: RepoEditWikiPageMutationResponse) {
+export function repoEditWikiPageHandlerResponse200(data: RepoEditWikiPageResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -22,7 +24,7 @@ export function repoEditWikiPageHandlerResponse200(data: RepoEditWikiPageMutatio
   });
 }
 
-export function repoEditWikiPageHandlerResponse400(data: RepoEditWikiPage400) {
+export function repoEditWikiPageHandlerResponse400(data: RepoEditWikiPageStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function repoEditWikiPageHandlerResponse400(data: RepoEditWikiPage400) {
   });
 }
 
-export function repoEditWikiPageHandlerResponse403(data: RepoEditWikiPage403) {
+export function repoEditWikiPageHandlerResponse403(data: RepoEditWikiPageStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -40,7 +42,7 @@ export function repoEditWikiPageHandlerResponse403(data: RepoEditWikiPage403) {
   });
 }
 
-export function repoEditWikiPageHandlerResponse404(data: RepoEditWikiPage404) {
+export function repoEditWikiPageHandlerResponse404(data: RepoEditWikiPageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,13 +51,13 @@ export function repoEditWikiPageHandlerResponse404(data: RepoEditWikiPage404) {
   });
 }
 
-export function repoEditWikiPageHandlerResponse413(data?: RepoEditWikiPage413) {
+export function repoEditWikiPageHandlerResponse413(data?: RepoEditWikiPageStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoEditWikiPageHandlerResponse423(data: RepoEditWikiPage423) {
+export function repoEditWikiPageHandlerResponse423(data: RepoEditWikiPageStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -65,18 +67,19 @@ export function repoEditWikiPageHandlerResponse423(data: RepoEditWikiPage423) {
 }
 
 export function repoEditWikiPageHandler(
-  data?:
-    | RepoEditWikiPageMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoEditWikiPageResponse | HttpResponseResolver<Record<string, string>, RepoEditWikiPageBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/wiki/page/:pageName`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoEditWikiPageBody>(
+    `/repos/:owner/:repo/wiki/page/:pageName`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

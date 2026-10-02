@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ActivitypubPersonFeedQueryResponse,
-  ActivitypubPersonFeedPathParams,
-  ActivitypubPersonFeed403,
-} from '../types/ActivitypubPersonFeed';
-
-function getActivitypubPersonFeedUrl(userId: ActivitypubPersonFeedPathParams['user-id']) {
-  const res = {
-    method: 'GET',
-    url: `/activitypub/user-id/${userId}/outbox` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ActivitypubPersonFeedOptions, ActivitypubPersonFeedResponses } from '../types/ActivitypubPersonFeed';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the user's recorded activity
- * {@link /activitypub/user-id/:user-id/outbox}
+ * {@link /activitypub/user-id/:userId/outbox}
  */
-export async function activitypubPersonFeed(
-  userId: ActivitypubPersonFeedPathParams['user-id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubPersonFeed<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubPersonFeedOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ActivitypubPersonFeedResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubPersonFeedQueryResponse, ResponseErrorConfig<ActivitypubPersonFeed403>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getActivitypubPersonFeedUrl(userId).url.toString(),
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/activitypub/user-id/{user-id}/outbox',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubPersonFeedResponses, ThrowOnError>>;
 }

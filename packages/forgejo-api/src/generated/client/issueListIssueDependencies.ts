@@ -3,49 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueListIssueDependenciesQueryResponse,
-  IssueListIssueDependenciesPathParams,
-  IssueListIssueDependenciesQueryParams,
-  IssueListIssueDependencies404,
+  IssueListIssueDependenciesOptions,
+  IssueListIssueDependenciesResponses,
 } from '../types/IssueListIssueDependencies';
-
-function getIssueListIssueDependenciesUrl(
-  owner: IssueListIssueDependenciesPathParams['owner'],
-  repo: IssueListIssueDependenciesPathParams['repo'],
-  index: IssueListIssueDependenciesPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/dependencies` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an issue's dependencies, i.e all issues that block this issue.
  * {@link /repos/:owner/:repo/issues/:index/dependencies}
  */
-export async function issueListIssueDependencies(
-  owner: IssueListIssueDependenciesPathParams['owner'],
-  repo: IssueListIssueDependenciesPathParams['repo'],
-  index: IssueListIssueDependenciesPathParams['index'],
-  params?: IssueListIssueDependenciesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueListIssueDependencies<ThrowOnError extends boolean = true>(
+  options: Options<IssueListIssueDependenciesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueListIssueDependenciesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueListIssueDependenciesQueryResponse,
-    ResponseErrorConfig<IssueListIssueDependencies404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueListIssueDependenciesUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/dependencies',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueListIssueDependenciesResponses, ThrowOnError>>;
 }

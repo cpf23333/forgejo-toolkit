@@ -4,19 +4,19 @@
  */
 
 import type {
-  DeleteRepoRunnerMutationResponse,
-  DeleteRepoRunner400,
-  DeleteRepoRunner404,
+  DeleteRepoRunnerResponse,
+  DeleteRepoRunnerStatus400,
+  DeleteRepoRunnerStatus404,
 } from '../types/DeleteRepoRunner';
 import { http } from 'msw';
 
-export function deleteRepoRunnerHandlerResponse204(data?: DeleteRepoRunnerMutationResponse) {
+export function deleteRepoRunnerHandlerResponse204(data?: DeleteRepoRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteRepoRunnerHandlerResponse400(data: DeleteRepoRunner400) {
+export function deleteRepoRunnerHandlerResponse400(data: DeleteRepoRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function deleteRepoRunnerHandlerResponse400(data: DeleteRepoRunner400) {
   });
 }
 
-export function deleteRepoRunnerHandlerResponse404(data: DeleteRepoRunner404) {
+export function deleteRepoRunnerHandlerResponse404(data: DeleteRepoRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -13,22 +13,16 @@ export type CreateMilestoneOptionStateEnumKey =
 
 /**
  * @description CreateMilestoneOption options for creating a milestone
+ * @type object
  */
 export type CreateMilestoneOption = {
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_on?: string;
-  /**
-   * @type string | undefined
-   */
   state?: CreateMilestoneOptionStateEnumKey;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

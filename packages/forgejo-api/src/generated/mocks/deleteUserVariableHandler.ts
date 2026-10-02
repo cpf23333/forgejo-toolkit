@@ -4,27 +4,27 @@
  */
 
 import type {
-  DeleteUserVariableMutationResponse,
-  DeleteUserVariable400,
-  DeleteUserVariable401,
-  DeleteUserVariable403,
-  DeleteUserVariable404,
+  DeleteUserVariableResponse,
+  DeleteUserVariableStatus400,
+  DeleteUserVariableStatus401,
+  DeleteUserVariableStatus403,
+  DeleteUserVariableStatus404,
 } from '../types/DeleteUserVariable';
 import { http } from 'msw';
 
-export function deleteUserVariableHandlerResponse201(data?: DeleteUserVariableMutationResponse) {
+export function deleteUserVariableHandlerResponse201(data?: DeleteUserVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function deleteUserVariableHandlerResponse204(data?: DeleteUserVariableMutationResponse) {
+export function deleteUserVariableHandlerResponse204(data?: DeleteUserVariableResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteUserVariableHandlerResponse400(data: DeleteUserVariable400) {
+export function deleteUserVariableHandlerResponse400(data: DeleteUserVariableStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -33,7 +33,7 @@ export function deleteUserVariableHandlerResponse400(data: DeleteUserVariable400
   });
 }
 
-export function deleteUserVariableHandlerResponse401(data: DeleteUserVariable401) {
+export function deleteUserVariableHandlerResponse401(data: DeleteUserVariableStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -42,7 +42,7 @@ export function deleteUserVariableHandlerResponse401(data: DeleteUserVariable401
   });
 }
 
-export function deleteUserVariableHandlerResponse403(data: DeleteUserVariable403) {
+export function deleteUserVariableHandlerResponse403(data: DeleteUserVariableStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -51,7 +51,7 @@ export function deleteUserVariableHandlerResponse403(data: DeleteUserVariable403
   });
 }
 
-export function deleteUserVariableHandlerResponse404(data: DeleteUserVariable404) {
+export function deleteUserVariableHandlerResponse404(data: DeleteUserVariableStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

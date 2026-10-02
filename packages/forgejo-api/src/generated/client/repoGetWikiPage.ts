@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetWikiPageQueryResponse,
-  RepoGetWikiPagePathParams,
-  RepoGetWikiPage404,
-} from '../types/RepoGetWikiPage';
-
-function getRepoGetWikiPageUrl(
-  owner: RepoGetWikiPagePathParams['owner'],
-  repo: RepoGetWikiPagePathParams['repo'],
-  pageName: RepoGetWikiPagePathParams['pageName'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/wiki/page/${pageName}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetWikiPageOptions, RepoGetWikiPageResponses } from '../types/RepoGetWikiPage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a wiki page
  * {@link /repos/:owner/:repo/wiki/page/:pageName}
  */
-export async function repoGetWikiPage(
-  owner: RepoGetWikiPagePathParams['owner'],
-  repo: RepoGetWikiPagePathParams['repo'],
-  pageName: RepoGetWikiPagePathParams['pageName'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetWikiPage<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetWikiPageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetWikiPageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetWikiPageQueryResponse, ResponseErrorConfig<RepoGetWikiPage404>, unknown>({
-    method: 'GET',
-    url: getRepoGetWikiPageUrl(owner, repo, pageName).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/wiki/page/{pageName}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetWikiPageResponses, ThrowOnError>>;
 }

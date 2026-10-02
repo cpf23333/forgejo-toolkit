@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssueReplaceLabelsMutationResponse,
-  IssueReplaceLabels403,
-  IssueReplaceLabels404,
+  IssueReplaceLabelsResponse,
+  IssueReplaceLabelsStatus403,
+  IssueReplaceLabelsStatus404,
+  IssueReplaceLabelsBody,
 } from '../types/IssueReplaceLabels';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueReplaceLabelsHandlerResponse200(data: IssueReplaceLabelsMutationResponse) {
+export function issueReplaceLabelsHandlerResponse200(data: IssueReplaceLabelsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function issueReplaceLabelsHandlerResponse200(data: IssueReplaceLabelsMut
   });
 }
 
-export function issueReplaceLabelsHandlerResponse403(data: IssueReplaceLabels403) {
+export function issueReplaceLabelsHandlerResponse403(data: IssueReplaceLabelsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +30,7 @@ export function issueReplaceLabelsHandlerResponse403(data: IssueReplaceLabels403
   });
 }
 
-export function issueReplaceLabelsHandlerResponse404(data: IssueReplaceLabels404) {
+export function issueReplaceLabelsHandlerResponse404(data: IssueReplaceLabelsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,18 +40,19 @@ export function issueReplaceLabelsHandlerResponse404(data: IssueReplaceLabels404
 }
 
 export function issueReplaceLabelsHandler(
-  data?:
-    | IssueReplaceLabelsMutationResponse
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueReplaceLabelsResponse | HttpResponseResolver<Record<string, string>, IssueReplaceLabelsBody>,
 ) {
-  return http.put(`/repos/:owner/:repo/issues/:index/labels`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, IssueReplaceLabelsBody>(
+    `/repos/:owner/:repo/issues/:index/labels`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

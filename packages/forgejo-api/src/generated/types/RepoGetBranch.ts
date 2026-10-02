@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Branch } from './Branch';
 
-export type RepoGetBranchPathParams = {
+export type RepoGetBranchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,54 @@ export type RepoGetBranchPathParams = {
 };
 
 /**
- * @description Branch
+ * @description Branch represents a repository branch
+ * @type object
  */
-export type RepoGetBranch200 = Branch;
+export type RepoGetBranchStatus200Json = Branch;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Branch represents a repository branch
+ * @type object
  */
-export type RepoGetBranch404 = APINotFound;
+export type RepoGetBranchStatus200Html = Branch;
 
-export type RepoGetBranchQueryResponse = RepoGetBranch200;
+export type RepoGetBranchStatus200 = RepoGetBranchStatus200Json | RepoGetBranchStatus200Html;
 
-export type RepoGetBranchQuery = {
-  Response: RepoGetBranch200;
-  PathParams: RepoGetBranchPathParams;
-  Errors: RepoGetBranch404;
+export type RepoGetBranchStatus404Json = APINotFound;
+
+export type RepoGetBranchStatus404Html = APINotFound;
+
+export type RepoGetBranchStatus404 = RepoGetBranchStatus404Json | RepoGetBranchStatus404Html;
+
+export type RepoGetBranchOptions = {
+  body?: never;
+  path: RepoGetBranchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetBranchResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetBranchStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetBranchStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetBranchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetBranchStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetBranchResponse = RepoGetBranchStatus200 | RepoGetBranchStatus404;

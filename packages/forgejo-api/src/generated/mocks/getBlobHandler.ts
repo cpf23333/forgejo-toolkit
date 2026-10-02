@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetBlobQueryResponse, GetBlob400, GetBlob404 } from '../types/GetBlob';
+import type { GetBlobResponse, GetBlobStatus400, GetBlobStatus404 } from '../types/GetBlob';
 import { http } from 'msw';
 
-export function getBlobHandlerResponse200(data: GetBlobQueryResponse) {
+export function getBlobHandlerResponse200(data: GetBlobResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getBlobHandlerResponse200(data: GetBlobQueryResponse) {
   });
 }
 
-export function getBlobHandlerResponse400(data: GetBlob400) {
+export function getBlobHandlerResponse400(data: GetBlobStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +24,7 @@ export function getBlobHandlerResponse400(data: GetBlob400) {
   });
 }
 
-export function getBlobHandlerResponse404(data: GetBlob404) {
+export function getBlobHandlerResponse404(data: GetBlobStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -34,7 +34,7 @@ export function getBlobHandlerResponse404(data: GetBlob404) {
 }
 
 export function getBlobHandler(
-  data?: GetBlobQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: GetBlobResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/blobs/:sha`, function handler(info) {
     if (typeof data === 'function') return data(info);

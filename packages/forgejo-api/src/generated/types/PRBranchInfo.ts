@@ -7,15 +7,10 @@ import type { Repository } from './Repository';
 
 /**
  * @description PRBranchInfo information about a branch
+ * @type object
  */
 export type PRBranchInfo = {
-  /**
-   * @type string | undefined
-   */
   label?: string;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
   /**
    * @description Repository represents a repository
@@ -23,11 +18,10 @@ export type PRBranchInfo = {
    */
   repo?: Repository;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_id?: number;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
 };

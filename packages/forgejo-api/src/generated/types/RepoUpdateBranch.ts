@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { UpdateBranchRepoOption } from './UpdateBranchRepoOption';
 
-export type RepoUpdateBranchPathParams = {
+export type RepoUpdateBranchPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,33 +26,75 @@ export type RepoUpdateBranchPathParams = {
   branch: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoUpdateBranch204 = any;
+export type RepoUpdateBranchStatus204 = unknown;
+
+export type RepoUpdateBranchStatus403Json = APIForbiddenError;
+
+export type RepoUpdateBranchStatus403Html = APIForbiddenError;
+
+export type RepoUpdateBranchStatus403 = RepoUpdateBranchStatus403Json | RepoUpdateBranchStatus403Html;
+
+export type RepoUpdateBranchStatus404Json = APINotFound;
+
+export type RepoUpdateBranchStatus404Html = APINotFound;
+
+export type RepoUpdateBranchStatus404 = RepoUpdateBranchStatus404Json | RepoUpdateBranchStatus404Html;
+
+export type RepoUpdateBranchStatus422Json = APIValidationError;
+
+export type RepoUpdateBranchStatus422Html = APIValidationError;
+
+export type RepoUpdateBranchStatus422 = RepoUpdateBranchStatus422Json | RepoUpdateBranchStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description UpdateBranchRepoOption options when updating a branch in a repository
+ * @type object | undefined
  */
-export type RepoUpdateBranch403 = APIForbiddenError;
+export type RepoUpdateBranchBody = UpdateBranchRepoOption | undefined;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoUpdateBranch404 = APINotFound;
-
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoUpdateBranch422 = APIValidationError;
-
-export type RepoUpdateBranchMutationRequest = UpdateBranchRepoOption;
-
-export type RepoUpdateBranchMutationResponse = RepoUpdateBranch204;
-
-export type RepoUpdateBranchMutation = {
-  Response: RepoUpdateBranch204;
-  Request: RepoUpdateBranchMutationRequest;
-  PathParams: RepoUpdateBranchPathParams;
-  Errors: RepoUpdateBranch403 | RepoUpdateBranch404 | RepoUpdateBranch422;
+export type RepoUpdateBranchOptions = {
+  body: RepoUpdateBranchBody;
+  path: RepoUpdateBranchPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoUpdateBranchResponses = {
+  '204': RepoUpdateBranchStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateBranchStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateBranchStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateBranchStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateBranchStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateBranchStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateBranchStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoUpdateBranchResponse =
+  | RepoUpdateBranchStatus204
+  | RepoUpdateBranchStatus403
+  | RepoUpdateBranchStatus404
+  | RepoUpdateBranchStatus422;

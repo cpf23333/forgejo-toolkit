@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  CreateOrgRepoMutationRequest,
-  CreateOrgRepoMutationResponse,
-  CreateOrgRepoPathParams,
-  CreateOrgRepo400,
-  CreateOrgRepo403,
-  CreateOrgRepo404,
-} from '../types/CreateOrgRepo';
-
-function getCreateOrgRepoUrl(org: CreateOrgRepoPathParams['org']) {
-  const res = { method: 'POST', url: `/orgs/${org}/repos` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { CreateOrgRepoOptions, CreateOrgRepoResponses } from '../types/CreateOrgRepo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a repository in an organization
  * {@link /orgs/:org/repos}
  */
-export async function createOrgRepo(
-  org: CreateOrgRepoPathParams['org'],
-  data: CreateOrgRepoMutationRequest,
-  config: Partial<RequestConfig<CreateOrgRepoMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function createOrgRepo<ThrowOnError extends boolean = true>(
+  options: Options<CreateOrgRepoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<CreateOrgRepoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    CreateOrgRepoMutationResponse,
-    ResponseErrorConfig<CreateOrgRepo400 | CreateOrgRepo403 | CreateOrgRepo404>,
-    CreateOrgRepoMutationRequest
-  >({
-    method: 'POST',
-    url: getCreateOrgRepoUrl(org).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<CreateOrgRepoResponses, ThrowOnError>>;
 }

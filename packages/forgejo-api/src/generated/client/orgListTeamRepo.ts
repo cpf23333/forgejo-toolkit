@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListTeamRepoQueryResponse,
-  OrgListTeamRepoPathParams,
-  OrgListTeamRepo404,
-} from '../types/OrgListTeamRepo';
-
-function getOrgListTeamRepoUrl(
-  id: OrgListTeamRepoPathParams['id'],
-  org: OrgListTeamRepoPathParams['org'],
-  repo: OrgListTeamRepoPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/teams/${id}/repos/${org}/${repo}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListTeamRepoOptions, OrgListTeamRepoResponses } from '../types/OrgListTeamRepo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a particular repo of team
  * {@link /teams/:id/repos/:org/:repo}
  */
-export async function orgListTeamRepo(
-  id: OrgListTeamRepoPathParams['id'],
-  org: OrgListTeamRepoPathParams['org'],
-  repo: OrgListTeamRepoPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListTeamRepo<ThrowOnError extends boolean = true>(
+  options: Options<OrgListTeamRepoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListTeamRepoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListTeamRepoQueryResponse, ResponseErrorConfig<OrgListTeamRepo404>, unknown>({
-    method: 'GET',
-    url: getOrgListTeamRepoUrl(id, org, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/teams/{id}/repos/{org}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListTeamRepoResponses, ThrowOnError>>;
 }

@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { EditLabelOption } from './EditLabelOption';
 import type { Label } from './Label';
 
-export type OrgEditLabelPathParams = {
+export type OrgEditLabelPath = {
   /**
    * @description name of the organization
    * @type string
@@ -16,33 +16,83 @@ export type OrgEditLabelPathParams = {
   org: string;
   /**
    * @description id of the label to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgEditLabel200 = Label;
+export type OrgEditLabelStatus200Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgEditLabel404 = APINotFound;
+export type OrgEditLabelStatus200Html = Label;
+
+export type OrgEditLabelStatus200 = OrgEditLabelStatus200Json | OrgEditLabelStatus200Html;
+
+export type OrgEditLabelStatus404Json = APINotFound;
+
+export type OrgEditLabelStatus404Html = APINotFound;
+
+export type OrgEditLabelStatus404 = OrgEditLabelStatus404Json | OrgEditLabelStatus404Html;
+
+export type OrgEditLabelStatus422Json = APIValidationError;
+
+export type OrgEditLabelStatus422Html = APIValidationError;
+
+export type OrgEditLabelStatus422 = OrgEditLabelStatus422Json | OrgEditLabelStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description EditLabelOption options for editing a label
+ * @type object | undefined
  */
-export type OrgEditLabel422 = APIValidationError;
+export type OrgEditLabelBody = EditLabelOption | undefined;
 
-export type OrgEditLabelMutationRequest = EditLabelOption;
-
-export type OrgEditLabelMutationResponse = OrgEditLabel200;
-
-export type OrgEditLabelMutation = {
-  Response: OrgEditLabel200;
-  Request: OrgEditLabelMutationRequest;
-  PathParams: OrgEditLabelPathParams;
-  Errors: OrgEditLabel404 | OrgEditLabel422;
+export type OrgEditLabelOptions = {
+  body: OrgEditLabelBody;
+  path: OrgEditLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgEditLabelResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgEditLabelStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditLabelStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgEditLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditLabelStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgEditLabelStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgEditLabelStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgEditLabelResponse = OrgEditLabelStatus200 | OrgEditLabelStatus404 | OrgEditLabelStatus422;

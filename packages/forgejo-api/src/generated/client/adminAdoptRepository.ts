@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminAdoptRepositoryMutationResponse,
-  AdminAdoptRepositoryPathParams,
-  AdminAdoptRepository403,
-  AdminAdoptRepository404,
-} from '../types/AdminAdoptRepository';
-
-function getAdminAdoptRepositoryUrl(
-  owner: AdminAdoptRepositoryPathParams['owner'],
-  repo: AdminAdoptRepositoryPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/admin/unadopted/${owner}/${repo}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminAdoptRepositoryOptions, AdminAdoptRepositoryResponses } from '../types/AdminAdoptRepository';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Adopt unadopted files as a repository
  * {@link /admin/unadopted/:owner/:repo}
  */
-export async function adminAdoptRepository(
-  owner: AdminAdoptRepositoryPathParams['owner'],
-  repo: AdminAdoptRepositoryPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminAdoptRepository<ThrowOnError extends boolean = true>(
+  options: Options<AdminAdoptRepositoryOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminAdoptRepositoryResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminAdoptRepositoryMutationResponse,
-    ResponseErrorConfig<AdminAdoptRepository403 | AdminAdoptRepository404>,
-    unknown
-  >({
-    method: 'POST',
-    url: getAdminAdoptRepositoryUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/unadopted/{owner}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminAdoptRepositoryResponses, ThrowOnError>>;
 }

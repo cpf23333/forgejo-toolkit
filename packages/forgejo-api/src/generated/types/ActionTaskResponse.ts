@@ -7,14 +7,14 @@ import type { ActionTask } from './ActionTask';
 
 /**
  * @description ActionTaskResponse returns a ActionTask
+ * @type object
  */
 export type ActionTaskResponse = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total_count?: number;
-  /**
-   * @type array | undefined
-   */
   workflow_runs?: ActionTask[];
 };

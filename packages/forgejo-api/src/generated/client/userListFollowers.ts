@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListFollowersQueryResponse,
-  UserListFollowersPathParams,
-  UserListFollowersQueryParams,
-  UserListFollowers404,
-} from '../types/UserListFollowers';
-
-function getUserListFollowersUrl(username: UserListFollowersPathParams['username']) {
-  const res = { method: 'GET', url: `/users/${username}/followers` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListFollowersOptions, UserListFollowersResponses } from '../types/UserListFollowers';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the given user's followers
  * {@link /users/:username/followers}
  */
-export async function userListFollowers(
-  username: UserListFollowersPathParams['username'],
-  params?: UserListFollowersQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListFollowers<ThrowOnError extends boolean = true>(
+  options: Options<UserListFollowersOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserListFollowersResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserListFollowersQueryResponse, ResponseErrorConfig<UserListFollowers404>, unknown>({
-    method: 'GET',
-    url: getUserListFollowersUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/followers',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListFollowersResponses, ThrowOnError>>;
 }

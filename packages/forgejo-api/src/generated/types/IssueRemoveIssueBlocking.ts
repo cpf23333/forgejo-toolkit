@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { Issue } from './Issue';
 import type { IssueMeta } from './IssueMeta';
 
-export type IssueRemoveIssueBlockingPathParams = {
+export type IssueRemoveIssueBlockingPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,28 +20,80 @@ export type IssueRemoveIssueBlockingPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueRemoveIssueBlocking200 = Issue;
+export type IssueRemoveIssueBlockingStatus200Json = Issue;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueRemoveIssueBlocking404 = APINotFound;
+export type IssueRemoveIssueBlockingStatus200Html = Issue;
 
-export type IssueRemoveIssueBlockingMutationRequest = IssueMeta;
+export type IssueRemoveIssueBlockingStatus200 =
+  | IssueRemoveIssueBlockingStatus200Json
+  | IssueRemoveIssueBlockingStatus200Html;
 
-export type IssueRemoveIssueBlockingMutationResponse = IssueRemoveIssueBlocking200;
+export type IssueRemoveIssueBlockingStatus404Json = APINotFound;
 
-export type IssueRemoveIssueBlockingMutation = {
-  Response: IssueRemoveIssueBlocking200;
-  Request: IssueRemoveIssueBlockingMutationRequest;
-  PathParams: IssueRemoveIssueBlockingPathParams;
-  Errors: IssueRemoveIssueBlocking404;
+export type IssueRemoveIssueBlockingStatus404Html = APINotFound;
+
+export type IssueRemoveIssueBlockingStatus404 =
+  | IssueRemoveIssueBlockingStatus404Json
+  | IssueRemoveIssueBlockingStatus404Html;
+
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueRemoveIssueBlockingBodyJson = IssueMeta | undefined;
+
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueRemoveIssueBlockingBodyPlain = IssueMeta | undefined;
+
+export type IssueRemoveIssueBlockingBody = IssueRemoveIssueBlockingBodyJson | IssueRemoveIssueBlockingBodyPlain;
+
+export type IssueRemoveIssueBlockingOptions = {
+  body: IssueRemoveIssueBlockingBody;
+  path: IssueRemoveIssueBlockingPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueRemoveIssueBlockingResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveIssueBlockingStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveIssueBlockingStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveIssueBlockingStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveIssueBlockingStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueRemoveIssueBlockingResponse = IssueRemoveIssueBlockingStatus200 | IssueRemoveIssueBlockingStatus404;

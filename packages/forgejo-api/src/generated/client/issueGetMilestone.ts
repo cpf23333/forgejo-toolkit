@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueGetMilestoneQueryResponse,
-  IssueGetMilestonePathParams,
-  IssueGetMilestone404,
-} from '../types/IssueGetMilestone';
-
-function getIssueGetMilestoneUrl(
-  owner: IssueGetMilestonePathParams['owner'],
-  repo: IssueGetMilestonePathParams['repo'],
-  id: IssueGetMilestonePathParams['id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/milestones/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueGetMilestoneOptions, IssueGetMilestoneResponses } from '../types/IssueGetMilestone';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a milestone
  * {@link /repos/:owner/:repo/milestones/:id}
  */
-export async function issueGetMilestone(
-  owner: IssueGetMilestonePathParams['owner'],
-  repo: IssueGetMilestonePathParams['repo'],
-  id: IssueGetMilestonePathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueGetMilestone<ThrowOnError extends boolean = true>(
+  options: Options<IssueGetMilestoneOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueGetMilestoneResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<IssueGetMilestoneQueryResponse, ResponseErrorConfig<IssueGetMilestone404>, unknown>({
-    method: 'GET',
-    url: getIssueGetMilestoneUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/milestones/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueGetMilestoneResponses, ThrowOnError>>;
 }

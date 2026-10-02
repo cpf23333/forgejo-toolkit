@@ -3,52 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminSetUserQuotaGroupsMutationRequest,
-  AdminSetUserQuotaGroupsMutationResponse,
-  AdminSetUserQuotaGroupsPathParams,
-  AdminSetUserQuotaGroups400,
-  AdminSetUserQuotaGroups403,
-  AdminSetUserQuotaGroups404,
-  AdminSetUserQuotaGroups422,
+  AdminSetUserQuotaGroupsOptions,
+  AdminSetUserQuotaGroupsResponses,
 } from '../types/AdminSetUserQuotaGroups';
-
-function getAdminSetUserQuotaGroupsUrl(username: AdminSetUserQuotaGroupsPathParams['username']) {
-  const res = {
-    method: 'POST',
-    url: `/admin/users/${username}/quota/groups` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Set the user's quota groups to a given list.
  * {@link /admin/users/:username/quota/groups}
  */
-export async function adminSetUserQuotaGroups(
-  username: AdminSetUserQuotaGroupsPathParams['username'],
-  data: AdminSetUserQuotaGroupsMutationRequest,
-  config: Partial<RequestConfig<AdminSetUserQuotaGroupsMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminSetUserQuotaGroups<ThrowOnError extends boolean = true>(
+  options: Options<AdminSetUserQuotaGroupsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminSetUserQuotaGroupsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    AdminSetUserQuotaGroupsMutationResponse,
-    ResponseErrorConfig<
-      AdminSetUserQuotaGroups400 | AdminSetUserQuotaGroups403 | AdminSetUserQuotaGroups404 | AdminSetUserQuotaGroups422
-    >,
-    AdminSetUserQuotaGroupsMutationRequest
-  >({
-    method: 'POST',
-    url: getAdminSetUserQuotaGroupsUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/users/{username}/quota/groups',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminSetUserQuotaGroupsResponses, ThrowOnError>>;
 }

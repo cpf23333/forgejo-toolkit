@@ -8,11 +8,14 @@ import type { QuotaUsedSizeAssetsPackages } from './QuotaUsedSizeAssetsPackages'
 
 /**
  * @description QuotaUsedSizeAssets represents the size-based asset usage of a user
+ * @type object
  */
 export type QuotaUsedSizeAssets = {
   /**
    * @description Storage size used for the user\'s artifacts
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   artifacts?: number;
   /**

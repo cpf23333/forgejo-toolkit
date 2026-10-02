@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentPutFollowMutationResponse,
-  UserCurrentPutFollow401,
-  UserCurrentPutFollow403,
-  UserCurrentPutFollow404,
+  UserCurrentPutFollowResponse,
+  UserCurrentPutFollowStatus401,
+  UserCurrentPutFollowStatus403,
+  UserCurrentPutFollowStatus404,
 } from '../types/UserCurrentPutFollow';
 import { http } from 'msw';
 
-export function userCurrentPutFollowHandlerResponse204(data?: UserCurrentPutFollowMutationResponse) {
+export function userCurrentPutFollowHandlerResponse204(data?: UserCurrentPutFollowResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentPutFollowHandlerResponse401(data: UserCurrentPutFollow401) {
+export function userCurrentPutFollowHandlerResponse401(data: UserCurrentPutFollowStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentPutFollowHandlerResponse401(data: UserCurrentPutFollo
   });
 }
 
-export function userCurrentPutFollowHandlerResponse403(data: UserCurrentPutFollow403) {
+export function userCurrentPutFollowHandlerResponse403(data: UserCurrentPutFollowStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentPutFollowHandlerResponse403(data: UserCurrentPutFollo
   });
 }
 
-export function userCurrentPutFollowHandlerResponse404(data: UserCurrentPutFollow404) {
+export function userCurrentPutFollowHandlerResponse404(data: UserCurrentPutFollowStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

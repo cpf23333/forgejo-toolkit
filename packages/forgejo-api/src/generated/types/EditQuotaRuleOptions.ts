@@ -5,11 +5,14 @@
 
 /**
  * @description EditQuotaRuleOptions represents the options for editing a quota rule
+ * @type object
  */
 export type EditQuotaRuleOptions = {
   /**
    * @description The limit set by the rule
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   limit?: number;
   /**

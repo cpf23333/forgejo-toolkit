@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoAddFlagPathParams = {
+export type RepoAddFlagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,50 @@ export type RepoAddFlagPathParams = {
   flag: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoAddFlag204 = any;
+export type RepoAddFlagStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoAddFlag403 = APIForbiddenError;
+export type RepoAddFlagStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoAddFlag404 = APINotFound;
+export type RepoAddFlagStatus403Html = APIForbiddenError;
 
-export type RepoAddFlagMutationResponse = RepoAddFlag204;
+export type RepoAddFlagStatus403 = RepoAddFlagStatus403Json | RepoAddFlagStatus403Html;
 
-export type RepoAddFlagMutation = {
-  Response: RepoAddFlag204;
-  PathParams: RepoAddFlagPathParams;
-  Errors: RepoAddFlag403 | RepoAddFlag404;
+export type RepoAddFlagStatus404Json = APINotFound;
+
+export type RepoAddFlagStatus404Html = APINotFound;
+
+export type RepoAddFlagStatus404 = RepoAddFlagStatus404Json | RepoAddFlagStatus404Html;
+
+export type RepoAddFlagOptions = {
+  body?: never;
+  path: RepoAddFlagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoAddFlagResponses = {
+  '204': RepoAddFlagStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoAddFlagStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddFlagStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoAddFlagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddFlagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoAddFlagResponse = RepoAddFlagStatus204 | RepoAddFlagStatus403 | RepoAddFlagStatus404;

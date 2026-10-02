@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListTeamRepoQueryResponse, OrgListTeamRepo404 } from '../types/OrgListTeamRepo';
+import type { OrgListTeamRepoResponse, OrgListTeamRepoStatus404 } from '../types/OrgListTeamRepo';
 import { http } from 'msw';
 
-export function orgListTeamRepoHandlerResponse200(data: OrgListTeamRepoQueryResponse) {
+export function orgListTeamRepoHandlerResponse200(data: OrgListTeamRepoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListTeamRepoHandlerResponse200(data: OrgListTeamRepoQueryResp
   });
 }
 
-export function orgListTeamRepoHandlerResponse404(data: OrgListTeamRepo404) {
+export function orgListTeamRepoHandlerResponse404(data: OrgListTeamRepoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListTeamRepoHandlerResponse404(data: OrgListTeamRepo404) {
 
 export function orgListTeamRepoHandler(
   data?:
-    | OrgListTeamRepoQueryResponse
+    | OrgListTeamRepoResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id/repos/:org/:repo`, function handler(info) {

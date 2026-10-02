@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoConvertMutationResponse,
-  RepoConvertPathParams,
-  RepoConvert403,
-  RepoConvert404,
-  RepoConvert422,
-} from '../types/RepoConvert';
-
-function getRepoConvertUrl(owner: RepoConvertPathParams['owner'], repo: RepoConvertPathParams['repo']) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/convert` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoConvertOptions, RepoConvertResponses } from '../types/RepoConvert';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Convert a mirror repo to a normal repo.
  * {@link /repos/:owner/:repo/convert}
  */
-export async function repoConvert(
-  owner: RepoConvertPathParams['owner'],
-  repo: RepoConvertPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoConvert<ThrowOnError extends boolean = true>(
+  options: Options<RepoConvertOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoConvertResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoConvertMutationResponse,
-    ResponseErrorConfig<RepoConvert403 | RepoConvert404 | RepoConvert422>,
-    unknown
-  >({
-    method: 'POST',
-    url: getRepoConvertUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/convert',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoConvertResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { UpdateVariableOption } from './UpdateVariableOption';
 
-export type UpdateOrgVariablePathParams = {
+export type UpdateOrgVariablePath = {
   /**
    * @description name of the organization
    * @type string
@@ -20,36 +20,67 @@ export type UpdateOrgVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when updating an org-level variable
- */
-export type UpdateOrgVariable201 = any;
+export type UpdateOrgVariableStatus201 = unknown;
+
+export type UpdateOrgVariableStatus204 = unknown;
 
 /**
- * @description response when updating an org-level variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateOrgVariable204 = any;
+export type UpdateOrgVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateOrgVariable400 = APIError;
+export type UpdateOrgVariableStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateOrgVariable404 = APINotFound;
+export type UpdateOrgVariableStatus400 = UpdateOrgVariableStatus400Json | UpdateOrgVariableStatus400Html;
 
-/**
- * UpdateVariableOption defines the properties of the variable to update.
- */
-export type UpdateOrgVariableMutationRequest = UpdateVariableOption;
+export type UpdateOrgVariableStatus404Json = APINotFound;
 
-export type UpdateOrgVariableMutationResponse = UpdateOrgVariable201 | UpdateOrgVariable204;
+export type UpdateOrgVariableStatus404Html = APINotFound;
 
-export type UpdateOrgVariableMutation = {
-  Response: UpdateOrgVariable201 | UpdateOrgVariable204;
-  Request: UpdateOrgVariableMutationRequest;
-  PathParams: UpdateOrgVariablePathParams;
-  Errors: UpdateOrgVariable400 | UpdateOrgVariable404;
+export type UpdateOrgVariableStatus404 = UpdateOrgVariableStatus404Json | UpdateOrgVariableStatus404Html;
+
+export type UpdateOrgVariableBody = UpdateVariableOption | undefined;
+
+export type UpdateOrgVariableOptions = {
+  body: UpdateOrgVariableBody;
+  path: UpdateOrgVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateOrgVariableResponses = {
+  '201': UpdateOrgVariableStatus201;
+  '204': UpdateOrgVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateOrgVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateOrgVariableStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateOrgVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateOrgVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateOrgVariableResponse =
+  | UpdateOrgVariableStatus201
+  | UpdateOrgVariableStatus204
+  | UpdateOrgVariableStatus400
+  | UpdateOrgVariableStatus404;

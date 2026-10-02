@@ -3,10 +3,14 @@
  * Do not edit manually.
  */
 
-import type { IssueListIssuesQueryResponse, IssueListIssues404, IssueListIssues422 } from '../types/IssueListIssues';
+import type {
+  IssueListIssuesResponse,
+  IssueListIssuesStatus404,
+  IssueListIssuesStatus422,
+} from '../types/IssueListIssues';
 import { http } from 'msw';
 
-export function issueListIssuesHandlerResponse200(data: IssueListIssuesQueryResponse) {
+export function issueListIssuesHandlerResponse200(data: IssueListIssuesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +19,7 @@ export function issueListIssuesHandlerResponse200(data: IssueListIssuesQueryResp
   });
 }
 
-export function issueListIssuesHandlerResponse404(data: IssueListIssues404) {
+export function issueListIssuesHandlerResponse404(data: IssueListIssuesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +28,7 @@ export function issueListIssuesHandlerResponse404(data: IssueListIssues404) {
   });
 }
 
-export function issueListIssuesHandlerResponse422(data: IssueListIssues422) {
+export function issueListIssuesHandlerResponse422(data: IssueListIssuesStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -35,7 +39,7 @@ export function issueListIssuesHandlerResponse422(data: IssueListIssues422) {
 
 export function issueListIssuesHandler(
   data?:
-    | IssueListIssuesQueryResponse
+    | IssueListIssuesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues`, function handler(info) {

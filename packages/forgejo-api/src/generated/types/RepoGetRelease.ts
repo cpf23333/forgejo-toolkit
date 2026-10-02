@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Release } from './Release';
 
-export type RepoGetReleasePathParams = {
+export type RepoGetReleasePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoGetReleasePathParams = {
   repo: string;
   /**
    * @description id of the release to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Release
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetRelease200 = Release;
+export type RepoGetReleaseStatus200Json = Release;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetRelease404 = APINotFound;
+export type RepoGetReleaseStatus200Html = Release;
 
-export type RepoGetReleaseQueryResponse = RepoGetRelease200;
+export type RepoGetReleaseStatus200 = RepoGetReleaseStatus200Json | RepoGetReleaseStatus200Html;
 
-export type RepoGetReleaseQuery = {
-  Response: RepoGetRelease200;
-  PathParams: RepoGetReleasePathParams;
-  Errors: RepoGetRelease404;
+export type RepoGetReleaseStatus404Json = APINotFound;
+
+export type RepoGetReleaseStatus404Html = APINotFound;
+
+export type RepoGetReleaseStatus404 = RepoGetReleaseStatus404Json | RepoGetReleaseStatus404Html;
+
+export type RepoGetReleaseOptions = {
+  body?: never;
+  path: RepoGetReleasePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetReleaseResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReleaseStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReleaseStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReleaseStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReleaseStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetReleaseResponse = RepoGetReleaseStatus200 | RepoGetReleaseStatus404;

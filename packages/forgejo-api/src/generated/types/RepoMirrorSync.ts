@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoMirrorSyncPathParams = {
+export type RepoMirrorSyncPath = {
   /**
    * @description owner of the repo to sync
    * @type string
@@ -19,30 +19,57 @@ export type RepoMirrorSyncPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoMirrorSync200 = any;
+export type RepoMirrorSyncStatus200 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoMirrorSync403 = APIForbiddenError;
+export type RepoMirrorSyncStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoMirrorSync404 = APINotFound;
+export type RepoMirrorSyncStatus403Html = APIForbiddenError;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoMirrorSync413 = any;
+export type RepoMirrorSyncStatus403 = RepoMirrorSyncStatus403Json | RepoMirrorSyncStatus403Html;
 
-export type RepoMirrorSyncMutationResponse = RepoMirrorSync200;
+export type RepoMirrorSyncStatus404Json = APINotFound;
 
-export type RepoMirrorSyncMutation = {
-  Response: RepoMirrorSync200;
-  PathParams: RepoMirrorSyncPathParams;
-  Errors: RepoMirrorSync403 | RepoMirrorSync404 | RepoMirrorSync413;
+export type RepoMirrorSyncStatus404Html = APINotFound;
+
+export type RepoMirrorSyncStatus404 = RepoMirrorSyncStatus404Json | RepoMirrorSyncStatus404Html;
+
+export type RepoMirrorSyncStatus413 = unknown;
+
+export type RepoMirrorSyncOptions = {
+  body?: never;
+  path: RepoMirrorSyncPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoMirrorSyncResponses = {
+  '200': RepoMirrorSyncStatus200;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoMirrorSyncStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMirrorSyncStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoMirrorSyncStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMirrorSyncStatus404Html;
+      };
+  '413': RepoMirrorSyncStatus413;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoMirrorSyncResponse =
+  | RepoMirrorSyncStatus200
+  | RepoMirrorSyncStatus403
+  | RepoMirrorSyncStatus404
+  | RepoMirrorSyncStatus413;

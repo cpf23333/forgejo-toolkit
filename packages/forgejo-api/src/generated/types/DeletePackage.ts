@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type DeletePackagePathParams = {
+export type DeletePackagePath = {
   /**
    * @description owner of the package
    * @type string
@@ -28,20 +28,35 @@ export type DeletePackagePathParams = {
   version: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type DeletePackage204 = any;
+export type DeletePackageStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DeletePackage404 = APINotFound;
+export type DeletePackageStatus404Json = APINotFound;
 
-export type DeletePackageMutationResponse = DeletePackage204;
+export type DeletePackageStatus404Html = APINotFound;
 
-export type DeletePackageMutation = {
-  Response: DeletePackage204;
-  PathParams: DeletePackagePathParams;
-  Errors: DeletePackage404;
+export type DeletePackageStatus404 = DeletePackageStatus404Json | DeletePackageStatus404Html;
+
+export type DeletePackageOptions = {
+  body?: never;
+  path: DeletePackagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeletePackageResponses = {
+  '204': DeletePackageStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeletePackageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeletePackageStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeletePackageResponse = DeletePackageStatus204 | DeletePackageStatus404;

@@ -7,29 +7,81 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-/**
- * @description APIString is a string response
- */
-export type GetVerificationToken200 = string;
+export type GetVerificationTokenStatus200Json = string;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type GetVerificationToken401 = APIUnauthorizedError;
+export type GetVerificationTokenStatus200Html = string;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type GetVerificationToken403 = APIForbiddenError;
+export type GetVerificationTokenStatus200 = GetVerificationTokenStatus200Json | GetVerificationTokenStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type GetVerificationToken404 = APINotFound;
+export type GetVerificationTokenStatus401Json = APIUnauthorizedError;
 
-export type GetVerificationTokenQueryResponse = GetVerificationToken200;
+export type GetVerificationTokenStatus401Html = APIUnauthorizedError;
 
-export type GetVerificationTokenQuery = {
-  Response: GetVerificationToken200;
-  Errors: GetVerificationToken401 | GetVerificationToken403 | GetVerificationToken404;
+export type GetVerificationTokenStatus401 = GetVerificationTokenStatus401Json | GetVerificationTokenStatus401Html;
+
+export type GetVerificationTokenStatus403Json = APIForbiddenError;
+
+export type GetVerificationTokenStatus403Html = APIForbiddenError;
+
+export type GetVerificationTokenStatus403 = GetVerificationTokenStatus403Json | GetVerificationTokenStatus403Html;
+
+export type GetVerificationTokenStatus404Json = APINotFound;
+
+export type GetVerificationTokenStatus404Html = APINotFound;
+
+export type GetVerificationTokenStatus404 = GetVerificationTokenStatus404Json | GetVerificationTokenStatus404Html;
+
+export type GetVerificationTokenOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetVerificationTokenResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetVerificationTokenStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetVerificationTokenStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: GetVerificationTokenStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetVerificationTokenStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: GetVerificationTokenStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetVerificationTokenStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetVerificationTokenStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetVerificationTokenStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetVerificationTokenResponse =
+  | GetVerificationTokenStatus200
+  | GetVerificationTokenStatus401
+  | GetVerificationTokenStatus403
+  | GetVerificationTokenStatus404;

@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditReactionOption } from './EditReactionOption';
 import type { Reaction } from './Reaction';
 
-export type IssuePostIssueReactionPathParams = {
+export type IssuePostIssueReactionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,38 +21,110 @@ export type IssuePostIssueReactionPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Reaction
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostIssueReaction200 = Reaction;
+export type IssuePostIssueReactionStatus200Json = Reaction;
 
 /**
- * @description Reaction
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostIssueReaction201 = Reaction;
+export type IssuePostIssueReactionStatus200Html = Reaction;
+
+export type IssuePostIssueReactionStatus200 = IssuePostIssueReactionStatus200Json | IssuePostIssueReactionStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostIssueReaction403 = APIForbiddenError;
+export type IssuePostIssueReactionStatus201Json = Reaction;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostIssueReaction404 = APINotFound;
+export type IssuePostIssueReactionStatus201Html = Reaction;
 
-export type IssuePostIssueReactionMutationRequest = EditReactionOption;
+export type IssuePostIssueReactionStatus201 = IssuePostIssueReactionStatus201Json | IssuePostIssueReactionStatus201Html;
 
-export type IssuePostIssueReactionMutationResponse = IssuePostIssueReaction200 | IssuePostIssueReaction201;
+export type IssuePostIssueReactionStatus403Json = APIForbiddenError;
 
-export type IssuePostIssueReactionMutation = {
-  Response: IssuePostIssueReaction200 | IssuePostIssueReaction201;
-  Request: IssuePostIssueReactionMutationRequest;
-  PathParams: IssuePostIssueReactionPathParams;
-  Errors: IssuePostIssueReaction403 | IssuePostIssueReaction404;
+export type IssuePostIssueReactionStatus403Html = APIForbiddenError;
+
+export type IssuePostIssueReactionStatus403 = IssuePostIssueReactionStatus403Json | IssuePostIssueReactionStatus403Html;
+
+export type IssuePostIssueReactionStatus404Json = APINotFound;
+
+export type IssuePostIssueReactionStatus404Html = APINotFound;
+
+export type IssuePostIssueReactionStatus404 = IssuePostIssueReactionStatus404Json | IssuePostIssueReactionStatus404Html;
+
+/**
+ * @description EditReactionOption contain the reaction type
+ * @type object | undefined
+ */
+export type IssuePostIssueReactionBody = EditReactionOption | undefined;
+
+export type IssuePostIssueReactionOptions = {
+  body: IssuePostIssueReactionBody;
+  path: IssuePostIssueReactionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssuePostIssueReactionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssuePostIssueReactionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostIssueReactionStatus200Html;
+      };
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssuePostIssueReactionStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostIssueReactionStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssuePostIssueReactionStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostIssueReactionStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssuePostIssueReactionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostIssueReactionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssuePostIssueReactionResponse =
+  | IssuePostIssueReactionStatus200
+  | IssuePostIssueReactionStatus201
+  | IssuePostIssueReactionStatus403
+  | IssuePostIssueReactionStatus404;

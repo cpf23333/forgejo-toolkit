@@ -3,10 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetAnnotatedTagQueryResponse, GetAnnotatedTag400, GetAnnotatedTag404 } from '../types/GetAnnotatedTag';
+import type {
+  GetAnnotatedTagResponse,
+  GetAnnotatedTagStatus400,
+  GetAnnotatedTagStatus404,
+} from '../types/GetAnnotatedTag';
 import { http } from 'msw';
 
-export function getAnnotatedTagHandlerResponse200(data: GetAnnotatedTagQueryResponse) {
+export function getAnnotatedTagHandlerResponse200(data: GetAnnotatedTagResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +19,7 @@ export function getAnnotatedTagHandlerResponse200(data: GetAnnotatedTagQueryResp
   });
 }
 
-export function getAnnotatedTagHandlerResponse400(data: GetAnnotatedTag400) {
+export function getAnnotatedTagHandlerResponse400(data: GetAnnotatedTagStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -24,7 +28,7 @@ export function getAnnotatedTagHandlerResponse400(data: GetAnnotatedTag400) {
   });
 }
 
-export function getAnnotatedTagHandlerResponse404(data: GetAnnotatedTag404) {
+export function getAnnotatedTagHandlerResponse404(data: GetAnnotatedTagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +39,7 @@ export function getAnnotatedTagHandlerResponse404(data: GetAnnotatedTag404) {
 
 export function getAnnotatedTagHandler(
   data?:
-    | GetAnnotatedTagQueryResponse
+    | GetAnnotatedTagResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/tags/:sha`, function handler(info) {

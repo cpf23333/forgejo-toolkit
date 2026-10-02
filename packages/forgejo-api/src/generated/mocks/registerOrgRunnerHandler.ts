@@ -4,14 +4,16 @@
  */
 
 import type {
-  RegisterOrgRunnerMutationResponse,
-  RegisterOrgRunner400,
-  RegisterOrgRunner401,
-  RegisterOrgRunner404,
+  RegisterOrgRunnerResponse,
+  RegisterOrgRunnerStatus400,
+  RegisterOrgRunnerStatus401,
+  RegisterOrgRunnerStatus404,
+  RegisterOrgRunnerBody,
 } from '../types/RegisterOrgRunner';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function registerOrgRunnerHandlerResponse201(data: RegisterOrgRunnerMutationResponse) {
+export function registerOrgRunnerHandlerResponse201(data: RegisterOrgRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function registerOrgRunnerHandlerResponse201(data: RegisterOrgRunnerMutat
   });
 }
 
-export function registerOrgRunnerHandlerResponse400(data: RegisterOrgRunner400) {
+export function registerOrgRunnerHandlerResponse400(data: RegisterOrgRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function registerOrgRunnerHandlerResponse400(data: RegisterOrgRunner400) 
   });
 }
 
-export function registerOrgRunnerHandlerResponse401(data: RegisterOrgRunner401) {
+export function registerOrgRunnerHandlerResponse401(data: RegisterOrgRunnerStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -38,7 +40,7 @@ export function registerOrgRunnerHandlerResponse401(data: RegisterOrgRunner401) 
   });
 }
 
-export function registerOrgRunnerHandlerResponse404(data: RegisterOrgRunner404) {
+export function registerOrgRunnerHandlerResponse404(data: RegisterOrgRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -48,11 +50,9 @@ export function registerOrgRunnerHandlerResponse404(data: RegisterOrgRunner404) 
 }
 
 export function registerOrgRunnerHandler(
-  data?:
-    | RegisterOrgRunnerMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RegisterOrgRunnerResponse | HttpResponseResolver<Record<string, string>, RegisterOrgRunnerBody>,
 ) {
-  return http.post(`/orgs/:org/actions/runners`, function handler(info) {
+  return http.post<Record<string, string>, RegisterOrgRunnerBody>(`/orgs/:org/actions/runners`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

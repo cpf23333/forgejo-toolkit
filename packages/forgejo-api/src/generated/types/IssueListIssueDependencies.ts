@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Issue } from './Issue';
 
-export type IssueListIssueDependenciesPathParams = {
+export type IssueListIssueDependenciesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,12 +19,14 @@ export type IssueListIssueDependenciesPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueListIssueDependenciesQueryParams = {
+export type IssueListIssueDependenciesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -37,21 +39,53 @@ export type IssueListIssueDependenciesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description IssueListWithoutPagination - Issues without pagination headers (used for pinned issues, dependencies, etc.)
- */
-export type IssueListIssueDependencies200 = Issue[];
+export type IssueListIssueDependenciesStatus200Json = Issue[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueListIssueDependencies404 = APINotFound;
+export type IssueListIssueDependenciesStatus200Html = Issue[];
 
-export type IssueListIssueDependenciesQueryResponse = IssueListIssueDependencies200;
+export type IssueListIssueDependenciesStatus200 =
+  | IssueListIssueDependenciesStatus200Json
+  | IssueListIssueDependenciesStatus200Html;
 
-export type IssueListIssueDependenciesQuery = {
-  Response: IssueListIssueDependencies200;
-  PathParams: IssueListIssueDependenciesPathParams;
-  QueryParams: IssueListIssueDependenciesQueryParams;
-  Errors: IssueListIssueDependencies404;
+export type IssueListIssueDependenciesStatus404Json = APINotFound;
+
+export type IssueListIssueDependenciesStatus404Html = APINotFound;
+
+export type IssueListIssueDependenciesStatus404 =
+  | IssueListIssueDependenciesStatus404Json
+  | IssueListIssueDependenciesStatus404Html;
+
+export type IssueListIssueDependenciesOptions = {
+  body?: never;
+  path: IssueListIssueDependenciesPath;
+  query?: IssueListIssueDependenciesQuery;
+  headers?: never;
 };
+
+export type IssueListIssueDependenciesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueDependenciesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueDependenciesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueDependenciesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueDependenciesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueListIssueDependenciesResponse =
+  | IssueListIssueDependenciesStatus200
+  | IssueListIssueDependenciesStatus404;

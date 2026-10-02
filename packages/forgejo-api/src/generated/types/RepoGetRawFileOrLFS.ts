@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoGetRawFileOrLFSPathParams = {
+export type RepoGetRawFileOrLFSPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,7 +23,7 @@ export type RepoGetRawFileOrLFSPathParams = {
   filepath: string;
 };
 
-export type RepoGetRawFileOrLFSQueryParams = {
+export type RepoGetRawFileOrLFSQuery = {
   /**
    * @description The name of the commit/branch/tag. Default the repository’s default branch (usually master)
    * @type string | undefined
@@ -31,21 +31,47 @@ export type RepoGetRawFileOrLFSQueryParams = {
   ref?: string;
 };
 
-/**
- * @description Returns raw file content.
- */
-export type RepoGetRawFileOrLFS200 = Blob;
+export type RepoGetRawFileOrLFSStatus200Json = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetRawFileOrLFS404 = APINotFound;
+export type RepoGetRawFileOrLFSStatus200Html = Blob;
 
-export type RepoGetRawFileOrLFSQueryResponse = RepoGetRawFileOrLFS200;
+export type RepoGetRawFileOrLFSStatus200 = RepoGetRawFileOrLFSStatus200Json | RepoGetRawFileOrLFSStatus200Html;
 
-export type RepoGetRawFileOrLFSQuery = {
-  Response: RepoGetRawFileOrLFS200;
-  PathParams: RepoGetRawFileOrLFSPathParams;
-  QueryParams: RepoGetRawFileOrLFSQueryParams;
-  Errors: RepoGetRawFileOrLFS404;
+export type RepoGetRawFileOrLFSStatus404Json = APINotFound;
+
+export type RepoGetRawFileOrLFSStatus404Html = APINotFound;
+
+export type RepoGetRawFileOrLFSStatus404 = RepoGetRawFileOrLFSStatus404Json | RepoGetRawFileOrLFSStatus404Html;
+
+export type RepoGetRawFileOrLFSOptions = {
+  body?: never;
+  path: RepoGetRawFileOrLFSPath;
+  query?: RepoGetRawFileOrLFSQuery;
+  headers?: never;
 };
+
+export type RepoGetRawFileOrLFSResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRawFileOrLFSStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRawFileOrLFSStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRawFileOrLFSStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRawFileOrLFSStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetRawFileOrLFSResponse = RepoGetRawFileOrLFSStatus200 | RepoGetRawFileOrLFSStatus404;

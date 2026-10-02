@@ -3,33 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { OrgIsMemberQueryResponse, OrgIsMemberPathParams, OrgIsMember404 } from '../types/OrgIsMember';
-
-function getOrgIsMemberUrl(org: OrgIsMemberPathParams['org'], username: OrgIsMemberPathParams['username']) {
-  const res = {
-    method: 'GET',
-    url: `/orgs/${org}/members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgIsMemberOptions, OrgIsMemberResponses } from '../types/OrgIsMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if a user is a member of an organization
  * {@link /orgs/:org/members/:username}
  */
-export async function orgIsMember(
-  org: OrgIsMemberPathParams['org'],
-  username: OrgIsMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgIsMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgIsMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgIsMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgIsMemberQueryResponse, ResponseErrorConfig<OrgIsMember404>, unknown>({
-    method: 'GET',
-    url: getOrgIsMemberUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgIsMemberResponses, ThrowOnError>>;
 }

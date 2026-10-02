@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListUserOrgsQueryResponse, OrgListUserOrgs404 } from '../types/OrgListUserOrgs';
+import type { OrgListUserOrgsResponse, OrgListUserOrgsStatus404 } from '../types/OrgListUserOrgs';
 import { http } from 'msw';
 
-export function orgListUserOrgsHandlerResponse200(data: OrgListUserOrgsQueryResponse) {
+export function orgListUserOrgsHandlerResponse200(data: OrgListUserOrgsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListUserOrgsHandlerResponse200(data: OrgListUserOrgsQueryResp
   });
 }
 
-export function orgListUserOrgsHandlerResponse404(data: OrgListUserOrgs404) {
+export function orgListUserOrgsHandlerResponse404(data: OrgListUserOrgsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListUserOrgsHandlerResponse404(data: OrgListUserOrgs404) {
 
 export function orgListUserOrgsHandler(
   data?:
-    | OrgListUserOrgsQueryResponse
+    | OrgListUserOrgsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/orgs`, function handler(info) {

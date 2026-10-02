@@ -5,34 +5,24 @@
 
 /**
  * @description PackageFile represents a package file
+ * @type object
  */
 export type PackageFile = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   Size?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   md5?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   sha1?: string;
-  /**
-   * @type string | undefined
-   */
   sha256?: string;
-  /**
-   * @type string | undefined
-   */
   sha512?: string;
 };

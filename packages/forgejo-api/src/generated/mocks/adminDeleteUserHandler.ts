@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminDeleteUserMutationResponse,
-  AdminDeleteUser403,
-  AdminDeleteUser404,
-  AdminDeleteUser422,
+  AdminDeleteUserResponse,
+  AdminDeleteUserStatus403,
+  AdminDeleteUserStatus404,
+  AdminDeleteUserStatus422,
 } from '../types/AdminDeleteUser';
 import { http } from 'msw';
 
-export function adminDeleteUserHandlerResponse204(data?: AdminDeleteUserMutationResponse) {
+export function adminDeleteUserHandlerResponse204(data?: AdminDeleteUserResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserHandlerResponse403(data: AdminDeleteUser403) {
+export function adminDeleteUserHandlerResponse403(data: AdminDeleteUserStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminDeleteUserHandlerResponse403(data: AdminDeleteUser403) {
   });
 }
 
-export function adminDeleteUserHandlerResponse404(data: AdminDeleteUser404) {
+export function adminDeleteUserHandlerResponse404(data: AdminDeleteUserStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function adminDeleteUserHandlerResponse404(data: AdminDeleteUser404) {
   });
 }
 
-export function adminDeleteUserHandlerResponse422(data: AdminDeleteUser422) {
+export function adminDeleteUserHandlerResponse422(data: AdminDeleteUserStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

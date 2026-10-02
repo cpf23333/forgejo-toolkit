@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type DownloadActionArtifactPathParams = {
+export type DownloadActionArtifactPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,84 @@ export type DownloadActionArtifactPathParams = {
   repo: string;
   /**
    * @description ID of the artifact
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   artifact_id: number;
 };
 
-/**
- * @description the artifact archive
- */
-export type DownloadActionArtifact200 = any;
+export type DownloadActionArtifactStatus200 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DownloadActionArtifact400 = APIError;
+export type DownloadActionArtifactStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DownloadActionArtifact403 = APIForbiddenError;
+export type DownloadActionArtifactStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type DownloadActionArtifact404 = APINotFound;
+export type DownloadActionArtifactStatus400 = DownloadActionArtifactStatus400Json | DownloadActionArtifactStatus400Html;
 
-export type DownloadActionArtifactQueryResponse = DownloadActionArtifact200;
+export type DownloadActionArtifactStatus403Json = APIForbiddenError;
 
-export type DownloadActionArtifactQuery = {
-  Response: DownloadActionArtifact200;
-  PathParams: DownloadActionArtifactPathParams;
-  Errors: DownloadActionArtifact400 | DownloadActionArtifact403 | DownloadActionArtifact404;
+export type DownloadActionArtifactStatus403Html = APIForbiddenError;
+
+export type DownloadActionArtifactStatus403 = DownloadActionArtifactStatus403Json | DownloadActionArtifactStatus403Html;
+
+export type DownloadActionArtifactStatus404Json = APINotFound;
+
+export type DownloadActionArtifactStatus404Html = APINotFound;
+
+export type DownloadActionArtifactStatus404 = DownloadActionArtifactStatus404Json | DownloadActionArtifactStatus404Html;
+
+export type DownloadActionArtifactOptions = {
+  body?: never;
+  path: DownloadActionArtifactPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DownloadActionArtifactResponses = {
+  '200': DownloadActionArtifactStatus200;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DownloadActionArtifactStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DownloadActionArtifactStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: DownloadActionArtifactStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DownloadActionArtifactStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DownloadActionArtifactStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DownloadActionArtifactStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DownloadActionArtifactResponse =
+  | DownloadActionArtifactStatus200
+  | DownloadActionArtifactStatus400
+  | DownloadActionArtifactStatus403
+  | DownloadActionArtifactStatus404;

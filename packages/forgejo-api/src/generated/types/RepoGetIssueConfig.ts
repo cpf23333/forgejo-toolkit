@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { IssueConfig } from './IssueConfig';
 
-export type RepoGetIssueConfigPathParams = {
+export type RepoGetIssueConfigPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoGetIssueConfigPathParams = {
   repo: string;
 };
 
-/**
- * @description RepoIssueConfig
- */
-export type RepoGetIssueConfig200 = IssueConfig;
+export type RepoGetIssueConfigStatus200Json = IssueConfig;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetIssueConfig404 = APINotFound;
+export type RepoGetIssueConfigStatus200Html = IssueConfig;
 
-export type RepoGetIssueConfigQueryResponse = RepoGetIssueConfig200;
+export type RepoGetIssueConfigStatus200 = RepoGetIssueConfigStatus200Json | RepoGetIssueConfigStatus200Html;
 
-export type RepoGetIssueConfigQuery = {
-  Response: RepoGetIssueConfig200;
-  PathParams: RepoGetIssueConfigPathParams;
-  Errors: RepoGetIssueConfig404;
+export type RepoGetIssueConfigStatus404Json = APINotFound;
+
+export type RepoGetIssueConfigStatus404Html = APINotFound;
+
+export type RepoGetIssueConfigStatus404 = RepoGetIssueConfigStatus404Json | RepoGetIssueConfigStatus404Html;
+
+export type RepoGetIssueConfigOptions = {
+  body?: never;
+  path: RepoGetIssueConfigPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetIssueConfigResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetIssueConfigStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetIssueConfigStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetIssueConfigStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetIssueConfigStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetIssueConfigResponse = RepoGetIssueConfigStatus200 | RepoGetIssueConfigStatus404;

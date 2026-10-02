@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteOrgVariableMutationResponse,
-  DeleteOrgVariablePathParams,
-  DeleteOrgVariable400,
-  DeleteOrgVariable404,
-} from '../types/DeleteOrgVariable';
-
-function getDeleteOrgVariableUrl(
-  org: DeleteOrgVariablePathParams['org'],
-  variablename: DeleteOrgVariablePathParams['variablename'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/orgs/${org}/actions/variables/${variablename}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteOrgVariableOptions, DeleteOrgVariableResponses } from '../types/DeleteOrgVariable';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete organization's variable by name
  * {@link /orgs/:org/actions/variables/:variablename}
  */
-export async function deleteOrgVariable(
-  org: DeleteOrgVariablePathParams['org'],
-  variablename: DeleteOrgVariablePathParams['variablename'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteOrgVariable<ThrowOnError extends boolean = true>(
+  options: Options<DeleteOrgVariableOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteOrgVariableResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteOrgVariableMutationResponse,
-    ResponseErrorConfig<DeleteOrgVariable400 | DeleteOrgVariable404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteOrgVariableUrl(org, variablename).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/actions/variables/{variablename}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteOrgVariableResponses, ThrowOnError>>;
 }

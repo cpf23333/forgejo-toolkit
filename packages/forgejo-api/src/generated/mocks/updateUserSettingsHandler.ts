@@ -4,13 +4,15 @@
  */
 
 import type {
-  UpdateUserSettingsMutationResponse,
-  UpdateUserSettings401,
-  UpdateUserSettings403,
+  UpdateUserSettingsResponse,
+  UpdateUserSettingsStatus401,
+  UpdateUserSettingsStatus403,
+  UpdateUserSettingsBody,
 } from '../types/UpdateUserSettings';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateUserSettingsHandlerResponse200(data: UpdateUserSettingsMutationResponse) {
+export function updateUserSettingsHandlerResponse200(data: UpdateUserSettingsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function updateUserSettingsHandlerResponse200(data: UpdateUserSettingsMut
   });
 }
 
-export function updateUserSettingsHandlerResponse401(data: UpdateUserSettings401) {
+export function updateUserSettingsHandlerResponse401(data: UpdateUserSettingsStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +30,7 @@ export function updateUserSettingsHandlerResponse401(data: UpdateUserSettings401
   });
 }
 
-export function updateUserSettingsHandlerResponse403(data: UpdateUserSettings403) {
+export function updateUserSettingsHandlerResponse403(data: UpdateUserSettingsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,11 +40,9 @@ export function updateUserSettingsHandlerResponse403(data: UpdateUserSettings403
 }
 
 export function updateUserSettingsHandler(
-  data?:
-    | UpdateUserSettingsMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: UpdateUserSettingsResponse | HttpResponseResolver<Record<string, string>, UpdateUserSettingsBody>,
 ) {
-  return http.patch(`/user/settings`, function handler(info) {
+  return http.patch<Record<string, string>, UpdateUserSettingsBody>(`/user/settings`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -3,35 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteMutationResponse,
-  RepoDeletePathParams,
-  RepoDelete403,
-  RepoDelete404,
-} from '../types/RepoDelete';
-
-function getRepoDeleteUrl(owner: RepoDeletePathParams['owner'], repo: RepoDeletePathParams['repo']) {
-  const res = { method: 'DELETE', url: `/repos/${owner}/${repo}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteOptions, RepoDeleteResponses } from '../types/RepoDelete';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a repository
  * {@link /repos/:owner/:repo}
  */
-export async function repoDelete(
-  owner: RepoDeletePathParams['owner'],
-  repo: RepoDeletePathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDelete<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoDeleteMutationResponse, ResponseErrorConfig<RepoDelete403 | RepoDelete404>, unknown>({
-    method: 'DELETE',
-    url: getRepoDeleteUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteResponses, ThrowOnError>>;
 }

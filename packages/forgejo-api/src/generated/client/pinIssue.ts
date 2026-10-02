@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { PinIssueMutationResponse, PinIssuePathParams, PinIssue403, PinIssue404 } from '../types/PinIssue';
-
-function getPinIssueUrl(
-  owner: PinIssuePathParams['owner'],
-  repo: PinIssuePathParams['repo'],
-  index: PinIssuePathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/pin` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { PinIssueOptions, PinIssueResponses } from '../types/PinIssue';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Pin an Issue
  * {@link /repos/:owner/:repo/issues/:index/pin}
  */
-export async function pinIssue(
-  owner: PinIssuePathParams['owner'],
-  repo: PinIssuePathParams['repo'],
-  index: PinIssuePathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function pinIssue<ThrowOnError extends boolean = true>(
+  options: Options<PinIssueOptions, ThrowOnError>,
+): Promise<UnwrappedResult<PinIssueResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<PinIssueMutationResponse, ResponseErrorConfig<PinIssue403 | PinIssue404>, unknown>({
-    method: 'POST',
-    url: getPinIssueUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/pin',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<PinIssueResponses, ThrowOnError>>;
 }

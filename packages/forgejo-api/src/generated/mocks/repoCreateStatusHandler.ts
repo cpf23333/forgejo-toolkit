@@ -4,13 +4,15 @@
  */
 
 import type {
-  RepoCreateStatusMutationResponse,
-  RepoCreateStatus400,
-  RepoCreateStatus404,
+  RepoCreateStatusResponse,
+  RepoCreateStatusStatus400,
+  RepoCreateStatusStatus404,
+  RepoCreateStatusBody,
 } from '../types/RepoCreateStatus';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateStatusHandlerResponse201(data: RepoCreateStatusMutationResponse) {
+export function repoCreateStatusHandlerResponse201(data: RepoCreateStatusResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,7 +21,7 @@ export function repoCreateStatusHandlerResponse201(data: RepoCreateStatusMutatio
   });
 }
 
-export function repoCreateStatusHandlerResponse400(data: RepoCreateStatus400) {
+export function repoCreateStatusHandlerResponse400(data: RepoCreateStatusStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +30,7 @@ export function repoCreateStatusHandlerResponse400(data: RepoCreateStatus400) {
   });
 }
 
-export function repoCreateStatusHandlerResponse404(data: RepoCreateStatus404) {
+export function repoCreateStatusHandlerResponse404(data: RepoCreateStatusStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,18 +40,19 @@ export function repoCreateStatusHandlerResponse404(data: RepoCreateStatus404) {
 }
 
 export function repoCreateStatusHandler(
-  data?:
-    | RepoCreateStatusMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateStatusResponse | HttpResponseResolver<Record<string, string>, RepoCreateStatusBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/statuses/:sha`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateStatusBody>(
+    `/repos/:owner/:repo/statuses/:sha`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

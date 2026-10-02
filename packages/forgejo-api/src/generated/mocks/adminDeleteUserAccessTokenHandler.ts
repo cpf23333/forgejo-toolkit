@@ -4,20 +4,20 @@
  */
 
 import type {
-  AdminDeleteUserAccessTokenMutationResponse,
-  AdminDeleteUserAccessToken403,
-  AdminDeleteUserAccessToken404,
-  AdminDeleteUserAccessToken422,
+  AdminDeleteUserAccessTokenResponse,
+  AdminDeleteUserAccessTokenStatus403,
+  AdminDeleteUserAccessTokenStatus404,
+  AdminDeleteUserAccessTokenStatus422,
 } from '../types/AdminDeleteUserAccessToken';
 import { http } from 'msw';
 
-export function adminDeleteUserAccessTokenHandlerResponse204(data?: AdminDeleteUserAccessTokenMutationResponse) {
+export function adminDeleteUserAccessTokenHandlerResponse204(data?: AdminDeleteUserAccessTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserAccessTokenHandlerResponse403(data: AdminDeleteUserAccessToken403) {
+export function adminDeleteUserAccessTokenHandlerResponse403(data: AdminDeleteUserAccessTokenStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminDeleteUserAccessTokenHandlerResponse403(data: AdminDeleteUs
   });
 }
 
-export function adminDeleteUserAccessTokenHandlerResponse404(data: AdminDeleteUserAccessToken404) {
+export function adminDeleteUserAccessTokenHandlerResponse404(data: AdminDeleteUserAccessTokenStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function adminDeleteUserAccessTokenHandlerResponse404(data: AdminDeleteUs
   });
 }
 
-export function adminDeleteUserAccessTokenHandlerResponse422(data: AdminDeleteUserAccessToken422) {
+export function adminDeleteUserAccessTokenHandlerResponse422(data: AdminDeleteUserAccessTokenStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

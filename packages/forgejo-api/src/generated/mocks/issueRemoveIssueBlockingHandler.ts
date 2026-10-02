@@ -4,12 +4,14 @@
  */
 
 import type {
-  IssueRemoveIssueBlockingMutationResponse,
-  IssueRemoveIssueBlocking404,
+  IssueRemoveIssueBlockingResponse,
+  IssueRemoveIssueBlockingStatus404,
+  IssueRemoveIssueBlockingBody,
 } from '../types/IssueRemoveIssueBlocking';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueRemoveIssueBlockingHandlerResponse200(data: IssueRemoveIssueBlockingMutationResponse) {
+export function issueRemoveIssueBlockingHandlerResponse200(data: IssueRemoveIssueBlockingResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +20,7 @@ export function issueRemoveIssueBlockingHandlerResponse200(data: IssueRemoveIssu
   });
 }
 
-export function issueRemoveIssueBlockingHandlerResponse404(data: IssueRemoveIssueBlocking404) {
+export function issueRemoveIssueBlockingHandlerResponse404(data: IssueRemoveIssueBlockingStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,18 +30,19 @@ export function issueRemoveIssueBlockingHandlerResponse404(data: IssueRemoveIssu
 }
 
 export function issueRemoveIssueBlockingHandler(
-  data?:
-    | IssueRemoveIssueBlockingMutationResponse
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueRemoveIssueBlockingResponse | HttpResponseResolver<Record<string, string>, IssueRemoveIssueBlockingBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, IssueRemoveIssueBlockingBody>(
+    `/repos/:owner/:repo/issues/:index/blocks`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

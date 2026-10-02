@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserListFollowingQueryResponse,
-  UserListFollowingPathParams,
-  UserListFollowingQueryParams,
-  UserListFollowing404,
-} from '../types/UserListFollowing';
-
-function getUserListFollowingUrl(username: UserListFollowingPathParams['username']) {
-  const res = { method: 'GET', url: `/users/${username}/following` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserListFollowingOptions, UserListFollowingResponses } from '../types/UserListFollowing';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the users that the given user is following
  * {@link /users/:username/following}
  */
-export async function userListFollowing(
-  username: UserListFollowingPathParams['username'],
-  params?: UserListFollowingQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userListFollowing<ThrowOnError extends boolean = true>(
+  options: Options<UserListFollowingOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserListFollowingResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserListFollowingQueryResponse, ResponseErrorConfig<UserListFollowing404>, unknown>({
-    method: 'GET',
-    url: getUserListFollowingUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}/following',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserListFollowingResponses, ThrowOnError>>;
 }

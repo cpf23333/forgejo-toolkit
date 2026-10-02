@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeletePullReviewPathParams = {
+export type RepoDeletePullReviewPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,35 +19,67 @@ export type RepoDeletePullReviewPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeletePullReview204 = any;
+export type RepoDeletePullReviewStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeletePullReview403 = APIForbiddenError;
+export type RepoDeletePullReviewStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeletePullReview404 = APINotFound;
+export type RepoDeletePullReviewStatus403Html = APIForbiddenError;
 
-export type RepoDeletePullReviewMutationResponse = RepoDeletePullReview204;
+export type RepoDeletePullReviewStatus403 = RepoDeletePullReviewStatus403Json | RepoDeletePullReviewStatus403Html;
 
-export type RepoDeletePullReviewMutation = {
-  Response: RepoDeletePullReview204;
-  PathParams: RepoDeletePullReviewPathParams;
-  Errors: RepoDeletePullReview403 | RepoDeletePullReview404;
+export type RepoDeletePullReviewStatus404Json = APINotFound;
+
+export type RepoDeletePullReviewStatus404Html = APINotFound;
+
+export type RepoDeletePullReviewStatus404 = RepoDeletePullReviewStatus404Json | RepoDeletePullReviewStatus404Html;
+
+export type RepoDeletePullReviewOptions = {
+  body?: never;
+  path: RepoDeletePullReviewPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeletePullReviewResponses = {
+  '204': RepoDeletePullReviewStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeletePullReviewStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeletePullReviewStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeletePullReviewResponse =
+  | RepoDeletePullReviewStatus204
+  | RepoDeletePullReviewStatus403
+  | RepoDeletePullReviewStatus404;

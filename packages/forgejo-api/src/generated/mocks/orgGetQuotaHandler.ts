@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgGetQuotaQueryResponse, OrgGetQuota403, OrgGetQuota404 } from '../types/OrgGetQuota';
+import type { OrgGetQuotaResponse, OrgGetQuotaStatus403, OrgGetQuotaStatus404 } from '../types/OrgGetQuota';
 import { http } from 'msw';
 
-export function orgGetQuotaHandlerResponse200(data: OrgGetQuotaQueryResponse) {
+export function orgGetQuotaHandlerResponse200(data: OrgGetQuotaResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgGetQuotaHandlerResponse200(data: OrgGetQuotaQueryResponse) {
   });
 }
 
-export function orgGetQuotaHandlerResponse403(data: OrgGetQuota403) {
+export function orgGetQuotaHandlerResponse403(data: OrgGetQuotaStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +24,7 @@ export function orgGetQuotaHandlerResponse403(data: OrgGetQuota403) {
   });
 }
 
-export function orgGetQuotaHandlerResponse404(data: OrgGetQuota404) {
+export function orgGetQuotaHandlerResponse404(data: OrgGetQuotaStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -34,9 +34,7 @@ export function orgGetQuotaHandlerResponse404(data: OrgGetQuota404) {
 }
 
 export function orgGetQuotaHandler(
-  data?:
-    | OrgGetQuotaQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgGetQuotaResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/quota`, function handler(info) {
     if (typeof data === 'function') return data(info);

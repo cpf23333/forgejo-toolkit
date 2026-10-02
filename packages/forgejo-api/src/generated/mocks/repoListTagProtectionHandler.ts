@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListTagProtectionQueryResponse } from '../types/RepoListTagProtection';
+import type { RepoListTagProtectionResponse } from '../types/RepoListTagProtection';
 import { http } from 'msw';
 
-export function repoListTagProtectionHandlerResponse200(data: RepoListTagProtectionQueryResponse) {
+export function repoListTagProtectionHandlerResponse200(data: RepoListTagProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function repoListTagProtectionHandlerResponse200(data: RepoListTagProtect
 
 export function repoListTagProtectionHandler(
   data?:
-    | RepoListTagProtectionQueryResponse
+    | RepoListTagProtectionResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/tag_protections`, function handler(info) {

@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListReleasesQueryResponse,
-  RepoListReleasesPathParams,
-  RepoListReleasesQueryParams,
-  RepoListReleases404,
-} from '../types/RepoListReleases';
-
-function getRepoListReleasesUrl(owner: RepoListReleasesPathParams['owner'], repo: RepoListReleasesPathParams['repo']) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/releases` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListReleasesOptions, RepoListReleasesResponses } from '../types/RepoListReleases';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repo's releases
  * {@link /repos/:owner/:repo/releases}
  */
-export async function repoListReleases(
-  owner: RepoListReleasesPathParams['owner'],
-  repo: RepoListReleasesPathParams['repo'],
-  params?: RepoListReleasesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListReleases<ThrowOnError extends boolean = true>(
+  options: Options<RepoListReleasesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListReleasesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListReleasesQueryResponse, ResponseErrorConfig<RepoListReleases404>, unknown>({
-    method: 'GET',
-    url: getRepoListReleasesUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/releases',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListReleasesResponses, ThrowOnError>>;
 }

@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentListGPGKeysQueryResponse,
-  UserCurrentListGPGKeysQueryParams,
-  UserCurrentListGPGKeys401,
-  UserCurrentListGPGKeys403,
-} from '../types/UserCurrentListGPGKeys';
-
-function getUserCurrentListGPGKeysUrl() {
-  const res = { method: 'GET', url: `/user/gpg_keys` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentListGPGKeysOptions, UserCurrentListGPGKeysResponses } from '../types/UserCurrentListGPGKeys';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List the authenticated user's GPG keys
  * {@link /user/gpg_keys}
  */
-export async function userCurrentListGPGKeys(
-  params?: UserCurrentListGPGKeysQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentListGPGKeys<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentListGPGKeysOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentListGPGKeysResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentListGPGKeysQueryResponse,
-    ResponseErrorConfig<UserCurrentListGPGKeys401 | UserCurrentListGPGKeys403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentListGPGKeysUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/gpg_keys',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentListGPGKeysResponses, ThrowOnError>>;
 }

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullReviewComment } from './PullReviewComment';
 
-export type RepoGetPullReviewCommentsPathParams = {
+export type RepoGetPullReviewCommentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,65 @@ export type RepoGetPullReviewCommentsPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description PullCommentList
- */
-export type RepoGetPullReviewComments200 = PullReviewComment[];
+export type RepoGetPullReviewCommentsStatus200Json = PullReviewComment[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetPullReviewComments404 = APINotFound;
+export type RepoGetPullReviewCommentsStatus200Html = PullReviewComment[];
 
-export type RepoGetPullReviewCommentsQueryResponse = RepoGetPullReviewComments200;
+export type RepoGetPullReviewCommentsStatus200 =
+  | RepoGetPullReviewCommentsStatus200Json
+  | RepoGetPullReviewCommentsStatus200Html;
 
-export type RepoGetPullReviewCommentsQuery = {
-  Response: RepoGetPullReviewComments200;
-  PathParams: RepoGetPullReviewCommentsPathParams;
-  Errors: RepoGetPullReviewComments404;
+export type RepoGetPullReviewCommentsStatus404Json = APINotFound;
+
+export type RepoGetPullReviewCommentsStatus404Html = APINotFound;
+
+export type RepoGetPullReviewCommentsStatus404 =
+  | RepoGetPullReviewCommentsStatus404Json
+  | RepoGetPullReviewCommentsStatus404Html;
+
+export type RepoGetPullReviewCommentsOptions = {
+  body?: never;
+  path: RepoGetPullReviewCommentsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetPullReviewCommentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullReviewCommentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullReviewCommentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullReviewCommentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullReviewCommentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullReviewCommentsResponse = RepoGetPullReviewCommentsStatus200 | RepoGetPullReviewCommentsStatus404;

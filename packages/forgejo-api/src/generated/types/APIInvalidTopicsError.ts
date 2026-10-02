@@ -4,12 +4,6 @@
  */
 
 export type APIInvalidTopicsError = {
-  /**
-   * @type array | undefined
-   */
   invalidTopics?: string[];
-  /**
-   * @type string | undefined
-   */
   message?: string;
 };

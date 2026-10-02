@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { DeletePackageMutationResponse, DeletePackage404 } from '../types/DeletePackage';
+import type { DeletePackageResponse, DeletePackageStatus404 } from '../types/DeletePackage';
 import { http } from 'msw';
 
-export function deletePackageHandlerResponse204(data?: DeletePackageMutationResponse) {
+export function deletePackageHandlerResponse204(data?: DeletePackageResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deletePackageHandlerResponse404(data: DeletePackage404) {
+export function deletePackageHandlerResponse404(data: DeletePackageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

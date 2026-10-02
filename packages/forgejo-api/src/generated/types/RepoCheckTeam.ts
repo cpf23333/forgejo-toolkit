@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { Team } from './Team';
 
-export type RepoCheckTeamPathParams = {
+export type RepoCheckTeamPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,24 +26,77 @@ export type RepoCheckTeamPathParams = {
 };
 
 /**
- * @description Team
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type RepoCheckTeam200 = Team;
+export type RepoCheckTeamStatus200Json = Team;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type RepoCheckTeam404 = APINotFound;
+export type RepoCheckTeamStatus200Html = Team;
+
+export type RepoCheckTeamStatus200 = RepoCheckTeamStatus200Json | RepoCheckTeamStatus200Html;
+
+export type RepoCheckTeamStatus404Json = APINotFound;
+
+export type RepoCheckTeamStatus404Html = APINotFound;
+
+export type RepoCheckTeamStatus404 = RepoCheckTeamStatus404Json | RepoCheckTeamStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCheckTeam405 = APIError;
+export type RepoCheckTeamStatus405Json = APIError;
 
-export type RepoCheckTeamQueryResponse = RepoCheckTeam200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoCheckTeamStatus405Html = APIError;
 
-export type RepoCheckTeamQuery = {
-  Response: RepoCheckTeam200;
-  PathParams: RepoCheckTeamPathParams;
-  Errors: RepoCheckTeam404 | RepoCheckTeam405;
+export type RepoCheckTeamStatus405 = RepoCheckTeamStatus405Json | RepoCheckTeamStatus405Html;
+
+export type RepoCheckTeamOptions = {
+  body?: never;
+  path: RepoCheckTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCheckTeamResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckTeamStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckTeamStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckTeamStatus404Html;
+      };
+  '405':
+    | {
+        contentType: 'application/json';
+        data: RepoCheckTeamStatus405Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCheckTeamStatus405Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCheckTeamResponse = RepoCheckTeamStatus200 | RepoCheckTeamStatus404 | RepoCheckTeamStatus405;

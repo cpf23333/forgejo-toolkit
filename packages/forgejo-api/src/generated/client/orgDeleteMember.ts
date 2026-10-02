@@ -3,37 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgDeleteMemberMutationResponse,
-  OrgDeleteMemberPathParams,
-  OrgDeleteMember404,
-} from '../types/OrgDeleteMember';
-
-function getOrgDeleteMemberUrl(org: OrgDeleteMemberPathParams['org'], username: OrgDeleteMemberPathParams['username']) {
-  const res = {
-    method: 'DELETE',
-    url: `/orgs/${org}/members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgDeleteMemberOptions, OrgDeleteMemberResponses } from '../types/OrgDeleteMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a member from an organization
  * {@link /orgs/:org/members/:username}
  */
-export async function orgDeleteMember(
-  org: OrgDeleteMemberPathParams['org'],
-  username: OrgDeleteMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgDeleteMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgDeleteMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgDeleteMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgDeleteMemberMutationResponse, ResponseErrorConfig<OrgDeleteMember404>, unknown>({
-    method: 'DELETE',
-    url: getOrgDeleteMemberUrl(org, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgDeleteMemberResponses, ThrowOnError>>;
 }

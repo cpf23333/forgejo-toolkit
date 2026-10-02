@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { GitBlob } from './GitBlob';
 
-export type GetBlobPathParams = {
+export type GetBlobPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,24 +26,77 @@ export type GetBlobPathParams = {
 };
 
 /**
- * @description GitBlob
+ * @description GitBlob represents a git blob
+ * @type object
  */
-export type GetBlob200 = GitBlob;
+export type GetBlobStatus200Json = GitBlob;
 
 /**
- * @description APIError is error format response
+ * @description GitBlob represents a git blob
+ * @type object
  */
-export type GetBlob400 = APIError;
+export type GetBlobStatus200Html = GitBlob;
+
+export type GetBlobStatus200 = GetBlobStatus200Json | GetBlobStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetBlob404 = APINotFound;
+export type GetBlobStatus400Json = APIError;
 
-export type GetBlobQueryResponse = GetBlob200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetBlobStatus400Html = APIError;
 
-export type GetBlobQuery = {
-  Response: GetBlob200;
-  PathParams: GetBlobPathParams;
-  Errors: GetBlob400 | GetBlob404;
+export type GetBlobStatus400 = GetBlobStatus400Json | GetBlobStatus400Html;
+
+export type GetBlobStatus404Json = APINotFound;
+
+export type GetBlobStatus404Html = APINotFound;
+
+export type GetBlobStatus404 = GetBlobStatus404Json | GetBlobStatus404Html;
+
+export type GetBlobOptions = {
+  body?: never;
+  path: GetBlobPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetBlobResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetBlobStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetBlobStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetBlobStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetBlobStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetBlobStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetBlobStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetBlobResponse = GetBlobStatus200 | GetBlobStatus400 | GetBlobStatus404;

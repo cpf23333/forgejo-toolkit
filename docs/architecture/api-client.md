@@ -1,12 +1,16 @@
 # API Client
 
-The client is layered: generated operation wrappers call a small shared fetch
-client, and the extension host wraps both in `ForgejoClient`.
+The client is layered: generated operation wrappers send through a Kubb client
+core, and the extension host supplies that core's _transport_ — this
+repository's shared fetch client — so `ForgejoClient` keeps every concern the
+shared client omits.
 
 ```text
 ForgejoClient                     packages/forgejo-toolkit/src/api/client.ts
   └─ generated operations         packages/forgejo-api/src/generated/client/*
-       └─ shared request client   packages/shared/src/request/index.ts
+       └─ Kubb client core        packages/forgejo-api/src/generated/.kubb/client.ts
+            └─ shared transport   packages/forgejo-toolkit/src/api/sharedTransport.ts
+                 └─ shared fetch  packages/shared/src/request/index.ts
 ```
 
 ## 1. Generated operation wrappers
@@ -15,67 +19,115 @@ ForgejoClient                     packages/forgejo-toolkit/src/api/client.ts
 Forgejo operation (one file per operation, e.g. `repoGet.ts`, `renderMarkdown.ts`).
 Each wrapper:
 
-- takes the operation's parameters plus
-  `config: Partial<RequestConfig> & { client?: Client }`,
+- takes a single `options: Options<<Name>Options, ThrowOnError>` object, whose
+  `path` / `query` / `body` members are the operation's own grouped parameters
+  plus the request options (`signal`, `headers`, `responseType`, `client`, …),
 - resolves its own method/URL internally,
-- delegates the request to the shared client (`client`, imported as `fetch` via
-  `importPath` in `packages/forgejo-api/kubb.config.ts`) and returns `res.data`.
-
-Passing `{ client }` is how the host attaches per-instance behaviour; the default
-is the shared fetch client.
-
-## 2. Shared request client
-
-`@cpf23333-forgejo-toolkit/shared/request`
-(`packages/shared/src/request/index.ts`) is the transport. It exports `client`
-(default and named), `buildUrl`, `mergeHeaders`, `encodePathSegment`, and the
-types `Client`, `RequestConfig`, `ResponseConfig`, `RequestFetch`,
-`ResponseErrorConfig`. It does exactly this much:
-
-- resolves the URL from `baseURL` + `url` + serialized `params` (`buildUrl`),
-- merges `Accept: application/json`, JSON-encodes the body and sets
-  `Content-Type: application/json` when the caller did not supply a content type
-  (any casing) of its own (inside `client`),
-- optional `credentials`, `signal`, and an undici `dispatcher`/`fetchImpl` pair
-  for proxies,
-- returns `{ data, status, statusText, headers }`, normalizing 204/205/304 to `{}`.
-
-It does **not** inject authentication headers, resolve an instance URL, or log
-requests and responses — all of that lives in `ForgejoClient` (below). The shared
-package exposes only these subpaths (`packages/shared/package.json`):
-`./request`, `./webview/messages`, `./git/url`, `./mcp/workspaceState`, `./limits`.
-There is no `createClient`, no `getUserRepos`, and no barrel
-`@cpf23333-forgejo-toolkit/shared`.
-
-Using a generated operation directly, with the shared client as transport:
+- delegates to the client instance in `options.client` (defaulting to the
+  bundled one) and resolves to the success body (`returnType: 'data'` in
+  `packages/forgejo-api/kubb.config.ts`), or to the whole result when the caller
+  passes `throwOnError: false`.
 
 ```ts
-import { repoGet } from '@cpf23333-forgejo-toolkit/api';
-
-const repository = await repoGet('myuser', 'myrepo', {
+const repository = await repoGet({
+  path: { owner: 'myuser', repo: 'myrepo' },
   baseURL: 'https://forgejo.example.com/api/v1',
   headers: { Authorization: 'token my-token' },
 });
 ```
 
-`@cpf23333-forgejo-toolkit/api` (`packages/forgejo-api/src/index.ts`) re-exports
-the shared request client, every generated operation, and every generated type.
+Passing `{ client }` is how the host attaches per-instance behaviour.
 
-## 3. `ForgejoClient` (extension host)
+The client core and its transport types are reachable through the package's
+`./kubb` subpath (`createClientCore`, `Transport`, `TransportResult`,
+`ResolvedRequest`, `ClientInstance`), and the serializers through
+`./kubb/serializers`. They need those entry points because the package's root
+barrel re-exports only `src/generated/client/index` and
+`src/generated/types/index`, and Kubb writes `.kubb/client.ts` outside both; and
+`./kubb` cannot be folded into the root barrel, whose `client` export is the
+shared request client.
+
+## 2. Shared request client
+
+`@cpf23333-forgejo-toolkit/shared/request`
+(`packages/shared/src/request/index.ts`) is the wire layer. It exports `client`
+(default and named), `buildUrl`, `mergeHeaders`, `encodePathSegment`, and the
+types `Client`, `RequestConfig`, `ResponseConfig`, `RequestFetch`,
+`ResponseErrorConfig`. It does exactly this much:
+
+- merges `Accept: application/json`, JSON-encodes the body and sets
+  `Content-Type: application/json` when the caller did not supply a content type
+  (any casing) of its own (inside `client`),
+- optional `credentials`, `signal`, `responseType`, and an undici
+  `dispatcher`/`fetchImpl` pair for proxies,
+- returns `{ data, status, statusText, headers }`, normalizing 204/205/304 to `{}`,
+- throws a `RequestError` for a non-2xx response or a 200 whose body is not JSON.
+
+It does **not** inject authentication headers, resolve an instance URL, build a
+URL from grouped `path`/`query` parameters, or log requests and responses. The
+shared package exposes only these subpaths (`packages/shared/package.json`):
+`./request`, `./webview/messages`, `./git/url`, `./mcp/workspaceState`, `./limits`.
+There is no `createClient`, no `getUserRepos`, and no barrel
+`@cpf23333-forgejo-toolkit/shared`.
+
+## 3. The transport seam
+
+`packages/forgejo-toolkit/src/api/sharedTransport.ts` is the ~70 lines that make
+the shared client the transport of a Kubb `ClientInstance`. It receives a request
+that is already resolved — URL built from `{owner}`-style templates and the
+grouped `path`/`query`, headers merged, body serialized for the declared content
+type — and **re-sends that request** rather than rebuilding one:
+
+- the URL is passed through verbatim, with no `params` (repeating them would
+  append the serialized query a second time),
+- the body keeps the form the serializer produced, so a `FormData` body stays a
+  `FormData` and an urlencoded body stays a string,
+- the proxy pair and the abort signal are resolved per request, because the
+  extension installs the configured proxy once during activation and a client may
+  have been constructed before that,
+- the credential is read per request and left off entirely when empty, so an
+  anonymous request carries no `Authorization` header at all,
+- the `responseType` the caller asked for is replayed into the shared client, so
+  a `text` call (CI logs, PR diffs, rendered markdown) is not JSON-parsed.
+
+Two details are worth knowing before changing it:
+
+- **Capturing the native pair.** A Kubb transport result must carry the native
+  `Request` and `Response` (the generated `ResponseError` exposes both, and
+  `_getListPage` reads `X-Total-Count` off them), while the shared client's
+  `ResponseConfig` deliberately carries only data/status/headers. The transport
+  therefore installs its own `fetch` wrapper and captures the pair it sees.
+  The shared client uses a caller-supplied `fetchImpl` only together with a
+  `dispatcher`, so that wrapper is always paired with one (a sentinel when no
+  proxy is configured) — otherwise the shared client would call global `fetch`
+  and there would be nothing to capture.
+- **Path encoding.** Kubb's path serializer percent-encodes each parameter, which
+  is right for a single-segment route (`branches/{branch}` with `feature/x#1` goes
+  out as `feature%2Fx%231`, and Forgejo routes on the escaped path). It is wrong
+  for `/repos/{owner}/{repo}/contents/{filepath}`, a wildcard route that matches
+  the remainder of the path: encoding its `/` makes Forgejo answer 404 for every
+  nested path. `_client()` therefore passes a `slashPreservingPathSerializer` that
+  encodes that one parameter segment by segment and rejects `.`/`..` segments,
+  which would otherwise let a path navigate out of the route.
+
+## 4. `ForgejoClient` (extension host)
 
 `packages/forgejo-toolkit/src/api/client.ts` (`ForgejoClient`) is the hand-written
 layer the extension actually uses, and it is where the concerns the shared client
 omits are implemented:
 
-- per-instance base URL `${instanceUrl}/api/v1` and the closure returned by
-  `_client()`,
+- per-instance base URL `${instanceUrl}/api/v1` and the `ClientInstance` built by
+  `_client()` (once per `ForgejoClient`, in the constructor),
 - authentication: `Authorization: token <token>` on every request,
 - proxy dispatcher + abort signal wiring,
 - debug request/response logging through the `ClientLogger` passed to the
-  constructor,
-- pagination (`_fetchAllPages`), tree/contents caching, and response rewriting,
-- error normalization: the raw `Error` from the shared client is classified into
-  an `ApiError` by `toApiError` (`packages/forgejo-toolkit/src/api/errors-core.ts`).
+  constructor, including the failure line for a request that never produced a
+  response,
+- pagination (`_fetchAllPages`), tree/contents caching, and response rewriting
+  (as a response interceptor, so a `stream` response is passed through untouched),
+- error normalization: the `RequestError` (or any other failure) from the shared
+  client is classified into an `ApiError` by `toApiError`
+  (`packages/forgejo-toolkit/src/api/errors-core.ts`).
 
 Example usage in the extension host:
 
@@ -96,8 +148,10 @@ pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe
 ```
 
 It produces `src/generated/client/*` (one function per operation),
-`src/generated/mocks/*` (MSW handlers), `src/generated/schemas/*` and
-`src/generated/types/*`.
+`src/generated/mocks/*` (MSW handlers), `src/generated/schemas/*`,
+`src/generated/types/*` and `src/generated/.kubb/*` (the bundled client core and
+serializers). The plain `generate` script is `kubb generate` followed by
+`oxfmt src/generated`; nothing else rewrites the output.
 
 Use `generate:safe` rather than plain `generate`: `packages/forgejo-api/kubb.config.ts`
 sets `output.clean = true`, so kubb deletes `src/generated` _before_ writing, and a
@@ -131,12 +185,15 @@ not JSON also throws (`nonJsonSuccessBodyError`). `body` is the parsed JSON when
 the response declared JSON and it parsed, otherwise the raw text (empty string
 for an empty body) — read the field rather than re-parsing the message.
 
-The type alias `ResponseErrorConfig<TError> = RequestError<TError>`
-(`packages/shared/src/request/index.ts`) fills the generated wrappers' second type
-argument (e.g. `ResponseErrorConfig<RepoGet404>` in `repoGet.ts`) and now names
-what is really thrown; `TError` describes the documented body shape, which is not
-validated at runtime, so do not narrow a `catch` to `RepoGet404` and read its
-fields off the body without checking.
+That error is what `error instanceof RequestError` in
+`packages/forgejo-toolkit/src/api/errors-core.ts` matches, which is why the
+transport delegates the send to the shared client instead of reimplementing it:
+a second fetch implementation would produce a second error shape and lose that
+identity. The generated `ResponseError` (Kubb's per-status error class) is not
+the error a caller sees — the shared client throws before Kubb can build one —
+and its `ResponseError.is()` helper matches on `name` rather than `instanceof`
+for exactly the reason the shared client's own class comment gives: every
+generated client bundles its own copy.
 
 The host classifies the thrown error with `toApiError`
 (`packages/forgejo-toolkit/src/api/errors-core.ts`) into an `ApiError` carrying
@@ -159,6 +216,6 @@ and never trust generated error fields.
 
 If Forgejo adds an endpoint that is not yet in the generated client, either refresh
 the pinned spec and regenerate (`spec:update` then `generate:safe`), or add a method
-to `ForgejoClient` in `packages/forgejo-toolkit/src/api/client.ts`, calling the
-shared client through `_client()`. Do not hand-write endpoint code in
-`packages/shared/src/request/`, which is transport-only.
+to `ForgejoClient` in `packages/forgejo-toolkit/src/api/client.ts`, sending through
+`this.client` (the `ClientInstance` `_client()` built). Do not hand-write endpoint
+code in `packages/shared/src/request/`, which is transport-only.

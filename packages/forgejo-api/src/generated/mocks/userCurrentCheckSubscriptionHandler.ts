@@ -4,12 +4,12 @@
  */
 
 import type {
-  UserCurrentCheckSubscriptionQueryResponse,
-  UserCurrentCheckSubscription404,
+  UserCurrentCheckSubscriptionResponse,
+  UserCurrentCheckSubscriptionStatus404,
 } from '../types/UserCurrentCheckSubscription';
 import { http } from 'msw';
 
-export function userCurrentCheckSubscriptionHandlerResponse200(data: UserCurrentCheckSubscriptionQueryResponse) {
+export function userCurrentCheckSubscriptionHandlerResponse200(data: UserCurrentCheckSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function userCurrentCheckSubscriptionHandlerResponse200(data: UserCurrent
   });
 }
 
-export function userCurrentCheckSubscriptionHandlerResponse404(data?: UserCurrentCheckSubscription404) {
+export function userCurrentCheckSubscriptionHandlerResponse404(data?: UserCurrentCheckSubscriptionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
@@ -26,7 +26,7 @@ export function userCurrentCheckSubscriptionHandlerResponse404(data?: UserCurren
 
 export function userCurrentCheckSubscriptionHandler(
   data?:
-    | UserCurrentCheckSubscriptionQueryResponse
+    | UserCurrentCheckSubscriptionResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/subscription`, function handler(info) {

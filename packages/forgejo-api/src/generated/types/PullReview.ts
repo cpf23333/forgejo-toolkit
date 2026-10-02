@@ -9,43 +9,27 @@ import type { User } from './User';
 
 /**
  * @description PullReview represents a pull request review
+ * @type object
  */
 export type PullReview = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   comments_count?: number;
-  /**
-   * @type string | undefined
-   */
   commit_id?: string;
-  /**
-   * @type boolean | undefined
-   */
   dismissed?: boolean;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   official?: boolean;
-  /**
-   * @type string | undefined
-   */
   pull_request_url?: string;
-  /**
-   * @type boolean | undefined
-   */
   stale?: boolean;
   /**
    * @description ReviewStateType review state type
@@ -53,7 +37,9 @@ export type PullReview = {
    */
   state?: ReviewStateType;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   submitted_at?: string;
   /**
@@ -62,7 +48,9 @@ export type PullReview = {
    */
   team?: Team;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
   /**

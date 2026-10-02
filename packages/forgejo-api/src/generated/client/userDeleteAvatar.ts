@@ -3,34 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserDeleteAvatarMutationResponse,
-  UserDeleteAvatar401,
-  UserDeleteAvatar403,
-} from '../types/UserDeleteAvatar';
-
-function getUserDeleteAvatarUrl() {
-  const res = { method: 'DELETE', url: `/user/avatar` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserDeleteAvatarOptions, UserDeleteAvatarResponses } from '../types/UserDeleteAvatar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete avatar of the current user. It will be replaced by a default one
  * {@link /user/avatar}
  */
-export async function userDeleteAvatar(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userDeleteAvatar<ThrowOnError extends boolean = true>(
+  options: Options<UserDeleteAvatarOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserDeleteAvatarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserDeleteAvatarMutationResponse,
-    ResponseErrorConfig<UserDeleteAvatar401 | UserDeleteAvatar403>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserDeleteAvatarUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/avatar',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserDeleteAvatarResponses, ThrowOnError>>;
 }

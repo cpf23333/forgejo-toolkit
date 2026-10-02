@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { MergePullRequestOption } from './MergePullRequestOption';
 
-export type RepoMergePullRequestPathParams = {
+export type RepoMergePullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,53 +21,106 @@ export type RepoMergePullRequestPathParams = {
   repo: string;
   /**
    * @description index of the pull request to merge
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoMergePullRequest200 = any;
+export type RepoMergePullRequestStatus200 = unknown;
+
+export type RepoMergePullRequestStatus404Json = APINotFound;
+
+export type RepoMergePullRequestStatus404Html = APINotFound;
+
+export type RepoMergePullRequestStatus404 = RepoMergePullRequestStatus404Json | RepoMergePullRequestStatus404Html;
+
+export type RepoMergePullRequestStatus405 = unknown;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoMergePullRequest404 = APINotFound;
+export type RepoMergePullRequestStatus409Json = APIError;
 
 /**
- * @description APIEmpty is an empty response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoMergePullRequest405 = any;
+export type RepoMergePullRequestStatus409Html = APIError;
+
+export type RepoMergePullRequestStatus409 = RepoMergePullRequestStatus409Json | RepoMergePullRequestStatus409Html;
+
+export type RepoMergePullRequestStatus413 = unknown;
+
+export type RepoMergePullRequestStatus423Json = APIRepoArchivedError;
+
+export type RepoMergePullRequestStatus423Html = APIRepoArchivedError;
+
+export type RepoMergePullRequestStatus423 = RepoMergePullRequestStatus423Json | RepoMergePullRequestStatus423Html;
 
 /**
- * @description APIError is error format response
+ * @description MergePullRequestForm form for merging Pull Request
+ * @type object | undefined
  */
-export type RepoMergePullRequest409 = APIError;
+export type RepoMergePullRequestBodyJson = MergePullRequestOption | undefined;
 
 /**
- * @description QuotaExceeded
+ * @description MergePullRequestForm form for merging Pull Request
+ * @type object | undefined
  */
-export type RepoMergePullRequest413 = any;
+export type RepoMergePullRequestBodyPlain = MergePullRequestOption | undefined;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoMergePullRequest423 = APIRepoArchivedError;
+export type RepoMergePullRequestBody = RepoMergePullRequestBodyJson | RepoMergePullRequestBodyPlain;
 
-export type RepoMergePullRequestMutationRequest = MergePullRequestOption;
-
-export type RepoMergePullRequestMutationResponse = RepoMergePullRequest200;
-
-export type RepoMergePullRequestMutation = {
-  Response: RepoMergePullRequest200;
-  Request: RepoMergePullRequestMutationRequest;
-  PathParams: RepoMergePullRequestPathParams;
-  Errors:
-    | RepoMergePullRequest404
-    | RepoMergePullRequest405
-    | RepoMergePullRequest409
-    | RepoMergePullRequest413
-    | RepoMergePullRequest423;
+export type RepoMergePullRequestOptions = {
+  body: RepoMergePullRequestBody;
+  path: RepoMergePullRequestPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoMergePullRequestResponses = {
+  '200': RepoMergePullRequestStatus200;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoMergePullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMergePullRequestStatus404Html;
+      };
+  '405': RepoMergePullRequestStatus405;
+  '409':
+    | {
+        contentType: 'application/json';
+        data: RepoMergePullRequestStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMergePullRequestStatus409Html;
+      };
+  '413': RepoMergePullRequestStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoMergePullRequestStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoMergePullRequestStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoMergePullRequestResponse =
+  | RepoMergePullRequestStatus200
+  | RepoMergePullRequestStatus404
+  | RepoMergePullRequestStatus405
+  | RepoMergePullRequestStatus409
+  | RepoMergePullRequestStatus413
+  | RepoMergePullRequestStatus423;

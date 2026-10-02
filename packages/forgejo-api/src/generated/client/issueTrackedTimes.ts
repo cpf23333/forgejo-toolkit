@@ -3,51 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueTrackedTimesQueryResponse,
-  IssueTrackedTimesPathParams,
-  IssueTrackedTimesQueryParams,
-  IssueTrackedTimes403,
-  IssueTrackedTimes404,
-  IssueTrackedTimes422,
-} from '../types/IssueTrackedTimes';
-
-function getIssueTrackedTimesUrl(
-  owner: IssueTrackedTimesPathParams['owner'],
-  repo: IssueTrackedTimesPathParams['repo'],
-  index: IssueTrackedTimesPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueTrackedTimesOptions, IssueTrackedTimesResponses } from '../types/IssueTrackedTimes';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an issue's tracked times
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
-export async function issueTrackedTimes(
-  owner: IssueTrackedTimesPathParams['owner'],
-  repo: IssueTrackedTimesPathParams['repo'],
-  index: IssueTrackedTimesPathParams['index'],
-  params?: IssueTrackedTimesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueTrackedTimes<ThrowOnError extends boolean = true>(
+  options: Options<IssueTrackedTimesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueTrackedTimesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueTrackedTimesQueryResponse,
-    ResponseErrorConfig<IssueTrackedTimes403 | IssueTrackedTimes404 | IssueTrackedTimes422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueTrackedTimesUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/times',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueTrackedTimesResponses, ThrowOnError>>;
 }

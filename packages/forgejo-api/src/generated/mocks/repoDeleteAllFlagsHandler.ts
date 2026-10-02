@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoDeleteAllFlagsMutationResponse,
-  RepoDeleteAllFlags403,
-  RepoDeleteAllFlags404,
+  RepoDeleteAllFlagsResponse,
+  RepoDeleteAllFlagsStatus403,
+  RepoDeleteAllFlagsStatus404,
 } from '../types/RepoDeleteAllFlags';
 import { http } from 'msw';
 
-export function repoDeleteAllFlagsHandlerResponse204(data?: RepoDeleteAllFlagsMutationResponse) {
+export function repoDeleteAllFlagsHandlerResponse204(data?: RepoDeleteAllFlagsResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteAllFlagsHandlerResponse403(data: RepoDeleteAllFlags403) {
+export function repoDeleteAllFlagsHandlerResponse403(data: RepoDeleteAllFlagsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function repoDeleteAllFlagsHandlerResponse403(data: RepoDeleteAllFlags403
   });
 }
 
-export function repoDeleteAllFlagsHandlerResponse404(data: RepoDeleteAllFlags404) {
+export function repoDeleteAllFlagsHandlerResponse404(data: RepoDeleteAllFlagsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

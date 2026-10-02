@@ -5,6 +5,7 @@
 
 /**
  * @description GenerateRepoOption options when creating repository using a template
+ * @type object
  */
 export type GenerateRepoOption = {
   /**

@@ -3,59 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditWikiPageMutationRequest,
-  RepoEditWikiPageMutationResponse,
-  RepoEditWikiPagePathParams,
-  RepoEditWikiPage400,
-  RepoEditWikiPage403,
-  RepoEditWikiPage404,
-  RepoEditWikiPage413,
-  RepoEditWikiPage423,
-} from '../types/RepoEditWikiPage';
-
-function getRepoEditWikiPageUrl(
-  owner: RepoEditWikiPagePathParams['owner'],
-  repo: RepoEditWikiPagePathParams['repo'],
-  pageName: RepoEditWikiPagePathParams['pageName'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/wiki/page/${pageName}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditWikiPageOptions, RepoEditWikiPageResponses } from '../types/RepoEditWikiPage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a wiki page
  * {@link /repos/:owner/:repo/wiki/page/:pageName}
  */
-export async function repoEditWikiPage(
-  owner: RepoEditWikiPagePathParams['owner'],
-  repo: RepoEditWikiPagePathParams['repo'],
-  pageName: RepoEditWikiPagePathParams['pageName'],
-  data?: RepoEditWikiPageMutationRequest,
-  config: Partial<RequestConfig<RepoEditWikiPageMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditWikiPage<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditWikiPageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditWikiPageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditWikiPageMutationResponse,
-    ResponseErrorConfig<
-      RepoEditWikiPage400 | RepoEditWikiPage403 | RepoEditWikiPage404 | RepoEditWikiPage413 | RepoEditWikiPage423
-    >,
-    RepoEditWikiPageMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditWikiPageUrl(owner, repo, pageName).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/wiki/page/{pageName}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditWikiPageResponses, ThrowOnError>>;
 }

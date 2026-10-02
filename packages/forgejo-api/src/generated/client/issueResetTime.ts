@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueResetTimeMutationResponse,
-  IssueResetTimePathParams,
-  IssueResetTime400,
-  IssueResetTime403,
-  IssueResetTime404,
-} from '../types/IssueResetTime';
-
-function getIssueResetTimeUrl(
-  owner: IssueResetTimePathParams['owner'],
-  repo: IssueResetTimePathParams['repo'],
-  index: IssueResetTimePathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueResetTimeOptions, IssueResetTimeResponses } from '../types/IssueResetTime';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Reset a tracked time of an issue
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
-export async function issueResetTime(
-  owner: IssueResetTimePathParams['owner'],
-  repo: IssueResetTimePathParams['repo'],
-  index: IssueResetTimePathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueResetTime<ThrowOnError extends boolean = true>(
+  options: Options<IssueResetTimeOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueResetTimeResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueResetTimeMutationResponse,
-    ResponseErrorConfig<IssueResetTime400 | IssueResetTime403 | IssueResetTime404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getIssueResetTimeUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/times',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueResetTimeResponses, ThrowOnError>>;
 }

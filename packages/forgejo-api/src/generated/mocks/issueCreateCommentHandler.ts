@@ -4,15 +4,17 @@
  */
 
 import type {
-  IssueCreateCommentMutationResponse,
-  IssueCreateComment403,
-  IssueCreateComment404,
-  IssueCreateComment423,
-  IssueCreateComment500,
+  IssueCreateCommentResponse,
+  IssueCreateCommentStatus403,
+  IssueCreateCommentStatus404,
+  IssueCreateCommentStatus423,
+  IssueCreateCommentStatus500,
+  IssueCreateCommentBody,
 } from '../types/IssueCreateComment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateCommentHandlerResponse201(data: IssueCreateCommentMutationResponse) {
+export function issueCreateCommentHandlerResponse201(data: IssueCreateCommentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function issueCreateCommentHandlerResponse201(data: IssueCreateCommentMut
   });
 }
 
-export function issueCreateCommentHandlerResponse403(data: IssueCreateComment403) {
+export function issueCreateCommentHandlerResponse403(data: IssueCreateCommentStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -30,7 +32,7 @@ export function issueCreateCommentHandlerResponse403(data: IssueCreateComment403
   });
 }
 
-export function issueCreateCommentHandlerResponse404(data: IssueCreateComment404) {
+export function issueCreateCommentHandlerResponse404(data: IssueCreateCommentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +41,7 @@ export function issueCreateCommentHandlerResponse404(data: IssueCreateComment404
   });
 }
 
-export function issueCreateCommentHandlerResponse423(data: IssueCreateComment423) {
+export function issueCreateCommentHandlerResponse423(data: IssueCreateCommentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -48,7 +50,7 @@ export function issueCreateCommentHandlerResponse423(data: IssueCreateComment423
   });
 }
 
-export function issueCreateCommentHandlerResponse500(data: IssueCreateComment500) {
+export function issueCreateCommentHandlerResponse500(data: IssueCreateCommentStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
@@ -58,18 +60,19 @@ export function issueCreateCommentHandlerResponse500(data: IssueCreateComment500
 }
 
 export function issueCreateCommentHandler(
-  data?:
-    | IssueCreateCommentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueCreateCommentResponse | HttpResponseResolver<Record<string, string>, IssueCreateCommentBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/comments`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueCreateCommentBody>(
+    `/repos/:owner/:repo/issues/:index/comments`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

@@ -5,34 +5,29 @@
 
 /**
  * @description StopWatch represent a running stopwatch
+ * @type object
  */
 export type StopWatch = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type string | undefined
-   */
   duration?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   issue_index?: number;
-  /**
-   * @type string | undefined
-   */
   issue_title?: string;
-  /**
-   * @type string | undefined
-   */
   repo_name?: string;
-  /**
-   * @type string | undefined
-   */
   repo_owner_name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   seconds?: number;
 };

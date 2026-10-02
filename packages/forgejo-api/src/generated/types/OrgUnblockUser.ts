@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type OrgUnblockUserPathParams = {
+export type OrgUnblockUserPath = {
   /**
    * @description name of the org
    * @type string
@@ -19,25 +19,50 @@ export type OrgUnblockUserPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgUnblockUser204 = any;
+export type OrgUnblockUserStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgUnblockUser404 = APINotFound;
+export type OrgUnblockUserStatus404Json = APINotFound;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type OrgUnblockUser422 = APIValidationError;
+export type OrgUnblockUserStatus404Html = APINotFound;
 
-export type OrgUnblockUserMutationResponse = OrgUnblockUser204;
+export type OrgUnblockUserStatus404 = OrgUnblockUserStatus404Json | OrgUnblockUserStatus404Html;
 
-export type OrgUnblockUserMutation = {
-  Response: OrgUnblockUser204;
-  PathParams: OrgUnblockUserPathParams;
-  Errors: OrgUnblockUser404 | OrgUnblockUser422;
+export type OrgUnblockUserStatus422Json = APIValidationError;
+
+export type OrgUnblockUserStatus422Html = APIValidationError;
+
+export type OrgUnblockUserStatus422 = OrgUnblockUserStatus422Json | OrgUnblockUserStatus422Html;
+
+export type OrgUnblockUserOptions = {
+  body?: never;
+  path: OrgUnblockUserPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgUnblockUserResponses = {
+  '204': OrgUnblockUserStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgUnblockUserStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgUnblockUserStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgUnblockUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgUnblockUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgUnblockUserResponse = OrgUnblockUserStatus204 | OrgUnblockUserStatus404 | OrgUnblockUserStatus422;

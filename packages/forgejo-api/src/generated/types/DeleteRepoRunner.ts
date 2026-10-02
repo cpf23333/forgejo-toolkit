@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteRepoRunnerPathParams = {
+export type DeleteRepoRunnerPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,25 +24,61 @@ export type DeleteRepoRunnerPathParams = {
   runner_id: string;
 };
 
-/**
- * @description runner has been deleted
- */
-export type DeleteRepoRunner204 = any;
+export type DeleteRepoRunnerStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoRunner400 = APIError;
+export type DeleteRepoRunnerStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteRepoRunner404 = APINotFound;
+export type DeleteRepoRunnerStatus400Html = APIError;
 
-export type DeleteRepoRunnerMutationResponse = DeleteRepoRunner204;
+export type DeleteRepoRunnerStatus400 = DeleteRepoRunnerStatus400Json | DeleteRepoRunnerStatus400Html;
 
-export type DeleteRepoRunnerMutation = {
-  Response: DeleteRepoRunner204;
-  PathParams: DeleteRepoRunnerPathParams;
-  Errors: DeleteRepoRunner400 | DeleteRepoRunner404;
+export type DeleteRepoRunnerStatus404Json = APINotFound;
+
+export type DeleteRepoRunnerStatus404Html = APINotFound;
+
+export type DeleteRepoRunnerStatus404 = DeleteRepoRunnerStatus404Json | DeleteRepoRunnerStatus404Html;
+
+export type DeleteRepoRunnerOptions = {
+  body?: never;
+  path: DeleteRepoRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteRepoRunnerResponses = {
+  '204': DeleteRepoRunnerStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteRepoRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteRepoRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteRepoRunnerResponse =
+  | DeleteRepoRunnerStatus204
+  | DeleteRepoRunnerStatus400
+  | DeleteRepoRunnerStatus404;

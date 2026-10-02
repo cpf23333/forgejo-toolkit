@@ -3,54 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminAddRuleToQuotaGroupMutationResponse,
-  AdminAddRuleToQuotaGroupPathParams,
-  AdminAddRuleToQuotaGroup400,
-  AdminAddRuleToQuotaGroup403,
-  AdminAddRuleToQuotaGroup404,
-  AdminAddRuleToQuotaGroup409,
-  AdminAddRuleToQuotaGroup422,
+  AdminAddRuleToQuotaGroupOptions,
+  AdminAddRuleToQuotaGroupResponses,
 } from '../types/AdminAddRuleToQuotaGroup';
-
-function getAdminAddRuleToQuotaGroupUrl(
-  quotagroup: AdminAddRuleToQuotaGroupPathParams['quotagroup'],
-  quotarule: AdminAddRuleToQuotaGroupPathParams['quotarule'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/admin/quota/groups/${quotagroup}/rules/${quotarule}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Adds a rule to a quota group
  * {@link /admin/quota/groups/:quotagroup/rules/:quotarule}
  */
-export async function adminAddRuleToQuotaGroup(
-  quotagroup: AdminAddRuleToQuotaGroupPathParams['quotagroup'],
-  quotarule: AdminAddRuleToQuotaGroupPathParams['quotarule'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminAddRuleToQuotaGroup<ThrowOnError extends boolean = true>(
+  options: Options<AdminAddRuleToQuotaGroupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminAddRuleToQuotaGroupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminAddRuleToQuotaGroupMutationResponse,
-    ResponseErrorConfig<
-      | AdminAddRuleToQuotaGroup400
-      | AdminAddRuleToQuotaGroup403
-      | AdminAddRuleToQuotaGroup404
-      | AdminAddRuleToQuotaGroup409
-      | AdminAddRuleToQuotaGroup422
-    >,
-    unknown
-  >({
-    method: 'PUT',
-    url: getAdminAddRuleToQuotaGroupUrl(quotagroup, quotarule).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/admin/quota/groups/{quotagroup}/rules/{quotarule}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminAddRuleToQuotaGroupResponses, ThrowOnError>>;
 }

@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetOrgVariablesListQueryResponse,
-  GetOrgVariablesListPathParams,
-  GetOrgVariablesListQueryParams,
-  GetOrgVariablesList400,
-  GetOrgVariablesList404,
-} from '../types/GetOrgVariablesList';
-
-function getGetOrgVariablesListUrl(org: GetOrgVariablesListPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/actions/variables` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetOrgVariablesListOptions, GetOrgVariablesListResponses } from '../types/GetOrgVariablesList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List variables of an organization
  * {@link /orgs/:org/actions/variables}
  */
-export async function getOrgVariablesList(
-  org: GetOrgVariablesListPathParams['org'],
-  params?: GetOrgVariablesListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getOrgVariablesList<ThrowOnError extends boolean = true>(
+  options: Options<GetOrgVariablesListOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetOrgVariablesListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetOrgVariablesListQueryResponse,
-    ResponseErrorConfig<GetOrgVariablesList400 | GetOrgVariablesList404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetOrgVariablesListUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/actions/variables',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetOrgVariablesListResponses, ThrowOnError>>;
 }

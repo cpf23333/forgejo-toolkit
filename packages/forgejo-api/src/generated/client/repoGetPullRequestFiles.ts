@@ -3,49 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoGetPullRequestFilesQueryResponse,
-  RepoGetPullRequestFilesPathParams,
-  RepoGetPullRequestFilesQueryParams,
-  RepoGetPullRequestFiles404,
+  RepoGetPullRequestFilesOptions,
+  RepoGetPullRequestFilesResponses,
 } from '../types/RepoGetPullRequestFiles';
-
-function getRepoGetPullRequestFilesUrl(
-  owner: RepoGetPullRequestFilesPathParams['owner'],
-  repo: RepoGetPullRequestFilesPathParams['repo'],
-  index: RepoGetPullRequestFilesPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}/files` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get changed files for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/files}
  */
-export async function repoGetPullRequestFiles(
-  owner: RepoGetPullRequestFilesPathParams['owner'],
-  repo: RepoGetPullRequestFilesPathParams['repo'],
-  index: RepoGetPullRequestFilesPathParams['index'],
-  params?: RepoGetPullRequestFilesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetPullRequestFiles<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetPullRequestFilesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetPullRequestFilesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetPullRequestFilesQueryResponse,
-    ResponseErrorConfig<RepoGetPullRequestFiles404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetPullRequestFilesUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}/files',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetPullRequestFilesResponses, ThrowOnError>>;
 }

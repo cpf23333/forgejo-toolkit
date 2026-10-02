@@ -8,19 +8,11 @@ import type { ReviewStateType } from './ReviewStateType';
 
 /**
  * @description CreatePullReviewOptions are options to create a pull review
+ * @type object
  */
 export type CreatePullReviewOptions = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
-  /**
-   * @type array | undefined
-   */
   comments?: CreatePullReviewComment[];
-  /**
-   * @type string | undefined
-   */
   commit_id?: string;
   /**
    * @description ReviewStateType review state type

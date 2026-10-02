@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type RepoGetActionJobLogsPathParams = {
+export type RepoGetActionJobLogsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,49 +20,114 @@ export type RepoGetActionJobLogsPathParams = {
   repo: string;
   /**
    * @description ID of the workflow job
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   job_id: number;
 };
 
-export type RepoGetActionJobLogsQueryParams = {
+export type RepoGetActionJobLogsQuery = {
   /**
    * @description 1-based attempt number matching the value of `attempt` in the job listing; omit to fetch the latest attempt of the job
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   attempt?: number;
 };
 
-/**
- * @description Plaintext log content
- */
-export type RepoGetActionJobLogs200 = string;
+export type RepoGetActionJobLogsStatus200Json = string;
 
-/**
- * @description Partial log content (Range request)
- */
-export type RepoGetActionJobLogs206 = string;
+export type RepoGetActionJobLogsStatus200Html = string;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type RepoGetActionJobLogs401 = APIUnauthorizedError;
+export type RepoGetActionJobLogsStatus200 = RepoGetActionJobLogsStatus200Json | RepoGetActionJobLogsStatus200Html;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoGetActionJobLogs403 = APIForbiddenError;
+export type RepoGetActionJobLogsStatus206Json = string;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetActionJobLogs404 = APINotFound;
+export type RepoGetActionJobLogsStatus206Html = string;
 
-export type RepoGetActionJobLogsQueryResponse = RepoGetActionJobLogs200 | RepoGetActionJobLogs206;
+export type RepoGetActionJobLogsStatus206 = RepoGetActionJobLogsStatus206Json | RepoGetActionJobLogsStatus206Html;
 
-export type RepoGetActionJobLogsQuery = {
-  Response: RepoGetActionJobLogs200 | RepoGetActionJobLogs206;
-  PathParams: RepoGetActionJobLogsPathParams;
-  QueryParams: RepoGetActionJobLogsQueryParams;
-  Errors: RepoGetActionJobLogs401 | RepoGetActionJobLogs403 | RepoGetActionJobLogs404;
+export type RepoGetActionJobLogsStatus401Json = APIUnauthorizedError;
+
+export type RepoGetActionJobLogsStatus401Html = APIUnauthorizedError;
+
+export type RepoGetActionJobLogsStatus401 = RepoGetActionJobLogsStatus401Json | RepoGetActionJobLogsStatus401Html;
+
+export type RepoGetActionJobLogsStatus403Json = APIForbiddenError;
+
+export type RepoGetActionJobLogsStatus403Html = APIForbiddenError;
+
+export type RepoGetActionJobLogsStatus403 = RepoGetActionJobLogsStatus403Json | RepoGetActionJobLogsStatus403Html;
+
+export type RepoGetActionJobLogsStatus404Json = APINotFound;
+
+export type RepoGetActionJobLogsStatus404Html = APINotFound;
+
+export type RepoGetActionJobLogsStatus404 = RepoGetActionJobLogsStatus404Json | RepoGetActionJobLogsStatus404Html;
+
+export type RepoGetActionJobLogsOptions = {
+  body?: never;
+  path: RepoGetActionJobLogsPath;
+  query?: RepoGetActionJobLogsQuery;
+  headers?: never;
 };
+
+export type RepoGetActionJobLogsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionJobLogsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionJobLogsStatus200Html;
+      };
+  '206':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionJobLogsStatus206Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionJobLogsStatus206Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionJobLogsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionJobLogsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionJobLogsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionJobLogsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetActionJobLogsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetActionJobLogsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetActionJobLogsResponse =
+  | RepoGetActionJobLogsStatus200
+  | RepoGetActionJobLogsStatus206
+  | RepoGetActionJobLogsStatus401
+  | RepoGetActionJobLogsStatus403
+  | RepoGetActionJobLogsStatus404;

@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { QuotaUsedAttachmentList } from './QuotaUsedAttachmentList';
 
-export type UserListQuotaAttachmentsQueryParams = {
+export type UserListQuotaAttachmentsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -21,24 +21,78 @@ export type UserListQuotaAttachmentsQueryParams = {
 };
 
 /**
- * @description QuotaUsedAttachmentList
+ * @description QuotaUsedAttachmentList represents a list of attachment counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaAttachments200 = QuotaUsedAttachmentList;
+export type UserListQuotaAttachmentsStatus200Json = QuotaUsedAttachmentList;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description QuotaUsedAttachmentList represents a list of attachment counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaAttachments401 = APIUnauthorizedError;
+export type UserListQuotaAttachmentsStatus200Html = QuotaUsedAttachmentList;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListQuotaAttachments403 = APIForbiddenError;
+export type UserListQuotaAttachmentsStatus200 =
+  | UserListQuotaAttachmentsStatus200Json
+  | UserListQuotaAttachmentsStatus200Html;
 
-export type UserListQuotaAttachmentsQueryResponse = UserListQuotaAttachments200;
+export type UserListQuotaAttachmentsStatus401Json = APIUnauthorizedError;
 
-export type UserListQuotaAttachmentsQuery = {
-  Response: UserListQuotaAttachments200;
-  QueryParams: UserListQuotaAttachmentsQueryParams;
-  Errors: UserListQuotaAttachments401 | UserListQuotaAttachments403;
+export type UserListQuotaAttachmentsStatus401Html = APIUnauthorizedError;
+
+export type UserListQuotaAttachmentsStatus401 =
+  | UserListQuotaAttachmentsStatus401Json
+  | UserListQuotaAttachmentsStatus401Html;
+
+export type UserListQuotaAttachmentsStatus403Json = APIForbiddenError;
+
+export type UserListQuotaAttachmentsStatus403Html = APIForbiddenError;
+
+export type UserListQuotaAttachmentsStatus403 =
+  | UserListQuotaAttachmentsStatus403Json
+  | UserListQuotaAttachmentsStatus403Html;
+
+export type UserListQuotaAttachmentsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListQuotaAttachmentsQuery;
+  headers?: never;
 };
+
+export type UserListQuotaAttachmentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaAttachmentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaAttachmentsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaAttachmentsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaAttachmentsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaAttachmentsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaAttachmentsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListQuotaAttachmentsResponse =
+  | UserListQuotaAttachmentsStatus200
+  | UserListQuotaAttachmentsStatus401
+  | UserListQuotaAttachmentsStatus403;

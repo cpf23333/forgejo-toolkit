@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Hook } from './Hook';
 
-export type OrgGetHookPathParams = {
+export type OrgGetHookPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,25 +14,62 @@ export type OrgGetHookPathParams = {
   org: string;
   /**
    * @description id of the hook to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgGetHook200 = Hook;
+export type OrgGetHookStatus200Json = Hook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgGetHook404 = APINotFound;
+export type OrgGetHookStatus200Html = Hook;
 
-export type OrgGetHookQueryResponse = OrgGetHook200;
+export type OrgGetHookStatus200 = OrgGetHookStatus200Json | OrgGetHookStatus200Html;
 
-export type OrgGetHookQuery = {
-  Response: OrgGetHook200;
-  PathParams: OrgGetHookPathParams;
-  Errors: OrgGetHook404;
+export type OrgGetHookStatus404Json = APINotFound;
+
+export type OrgGetHookStatus404Html = APINotFound;
+
+export type OrgGetHookStatus404 = OrgGetHookStatus404Json | OrgGetHookStatus404Html;
+
+export type OrgGetHookOptions = {
+  body?: never;
+  path: OrgGetHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetHookStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetHookResponse = OrgGetHookStatus200 | OrgGetHookStatus404;

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminRemoveUserFromQuotaGroupPathParams = {
+export type AdminRemoveUserFromQuotaGroupPath = {
   /**
    * @description quota group to remove a user from
    * @type string
@@ -20,30 +20,83 @@ export type AdminRemoveUserFromQuotaGroupPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminRemoveUserFromQuotaGroup204 = any;
+export type AdminRemoveUserFromQuotaGroupStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminRemoveUserFromQuotaGroup400 = APIError;
+export type AdminRemoveUserFromQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminRemoveUserFromQuotaGroup403 = APIForbiddenError;
+export type AdminRemoveUserFromQuotaGroupStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminRemoveUserFromQuotaGroup404 = APINotFound;
+export type AdminRemoveUserFromQuotaGroupStatus400 =
+  | AdminRemoveUserFromQuotaGroupStatus400Json
+  | AdminRemoveUserFromQuotaGroupStatus400Html;
 
-export type AdminRemoveUserFromQuotaGroupMutationResponse = AdminRemoveUserFromQuotaGroup204;
+export type AdminRemoveUserFromQuotaGroupStatus403Json = APIForbiddenError;
 
-export type AdminRemoveUserFromQuotaGroupMutation = {
-  Response: AdminRemoveUserFromQuotaGroup204;
-  PathParams: AdminRemoveUserFromQuotaGroupPathParams;
-  Errors: AdminRemoveUserFromQuotaGroup400 | AdminRemoveUserFromQuotaGroup403 | AdminRemoveUserFromQuotaGroup404;
+export type AdminRemoveUserFromQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminRemoveUserFromQuotaGroupStatus403 =
+  | AdminRemoveUserFromQuotaGroupStatus403Json
+  | AdminRemoveUserFromQuotaGroupStatus403Html;
+
+export type AdminRemoveUserFromQuotaGroupStatus404Json = APINotFound;
+
+export type AdminRemoveUserFromQuotaGroupStatus404Html = APINotFound;
+
+export type AdminRemoveUserFromQuotaGroupStatus404 =
+  | AdminRemoveUserFromQuotaGroupStatus404Json
+  | AdminRemoveUserFromQuotaGroupStatus404Html;
+
+export type AdminRemoveUserFromQuotaGroupOptions = {
+  body?: never;
+  path: AdminRemoveUserFromQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminRemoveUserFromQuotaGroupResponses = {
+  '204': AdminRemoveUserFromQuotaGroupStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveUserFromQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveUserFromQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveUserFromQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveUserFromQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveUserFromQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveUserFromQuotaGroupStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminRemoveUserFromQuotaGroupResponse =
+  | AdminRemoveUserFromQuotaGroupStatus204
+  | AdminRemoveUserFromQuotaGroupStatus400
+  | AdminRemoveUserFromQuotaGroupStatus403
+  | AdminRemoveUserFromQuotaGroupStatus404;

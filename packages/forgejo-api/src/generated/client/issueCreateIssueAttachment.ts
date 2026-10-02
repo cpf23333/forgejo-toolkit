@@ -3,67 +3,40 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueCreateIssueAttachmentMutationRequest,
-  IssueCreateIssueAttachmentMutationResponse,
-  IssueCreateIssueAttachmentPathParams,
-  IssueCreateIssueAttachmentQueryParams,
-  IssueCreateIssueAttachment400,
-  IssueCreateIssueAttachment404,
-  IssueCreateIssueAttachment413,
-  IssueCreateIssueAttachment422,
-  IssueCreateIssueAttachment423,
+  IssueCreateIssueAttachmentOptions,
+  IssueCreateIssueAttachmentResponses,
 } from '../types/IssueCreateIssueAttachment';
-import { buildFormData } from '../.kubb/config';
-
-function getIssueCreateIssueAttachmentUrl(
-  owner: IssueCreateIssueAttachmentPathParams['owner'],
-  repo: IssueCreateIssueAttachmentPathParams['repo'],
-  index: IssueCreateIssueAttachmentPathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/assets` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create an issue attachment
  * {@link /repos/:owner/:repo/issues/:index/assets}
  */
-export async function issueCreateIssueAttachment(
-  owner: IssueCreateIssueAttachmentPathParams['owner'],
-  repo: IssueCreateIssueAttachmentPathParams['repo'],
-  index: IssueCreateIssueAttachmentPathParams['index'],
-  data: IssueCreateIssueAttachmentMutationRequest,
-  params?: IssueCreateIssueAttachmentQueryParams,
-  config: Partial<RequestConfig<IssueCreateIssueAttachmentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCreateIssueAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueCreateIssueAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCreateIssueAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, contentType, ...config } = options;
 
-  const requestData = data;
-  const formData = buildFormData(requestData);
-  const res = await request<
-    IssueCreateIssueAttachmentMutationResponse,
-    ResponseErrorConfig<
-      | IssueCreateIssueAttachment400
-      | IssueCreateIssueAttachment404
-      | IssueCreateIssueAttachment413
-      | IssueCreateIssueAttachment422
-      | IssueCreateIssueAttachment423
-    >,
-    IssueCreateIssueAttachmentMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueCreateIssueAttachmentUrl(owner, repo, index).url.toString(),
-    params,
-    data: formData as FormData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/assets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      contentType: {
+        request: 'multipart/form-data',
+        ...(typeof contentType === 'string' ? { request: contentType } : contentType),
+      },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCreateIssueAttachmentResponses, ThrowOnError>>;
 }

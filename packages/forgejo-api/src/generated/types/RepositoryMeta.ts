@@ -5,22 +5,16 @@
 
 /**
  * @description RepositoryMeta basic repository information
+ * @type object
  */
 export type RepositoryMeta = {
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   owner?: string;
 };

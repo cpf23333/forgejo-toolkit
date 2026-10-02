@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { AccessToken } from './AccessToken';
 
-export type UserGetTokensPathParams = {
+export type UserGetTokensPath = {
   /**
    * @description username of user
    * @type string
@@ -15,7 +15,7 @@ export type UserGetTokensPathParams = {
   username: string;
 };
 
-export type UserGetTokensQueryParams = {
+export type UserGetTokensQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -28,26 +28,62 @@ export type UserGetTokensQueryParams = {
   limit?: number;
 };
 
-/**
- * @description AccessTokenList
- */
-export type UserGetTokens200 = AccessToken[];
+export type UserGetTokensStatus200Json = AccessToken[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetTokens403 = APIForbiddenError;
+export type UserGetTokensStatus200Html = AccessToken[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserGetTokens404 = APINotFound;
+export type UserGetTokensStatus200 = UserGetTokensStatus200Json | UserGetTokensStatus200Html;
 
-export type UserGetTokensQueryResponse = UserGetTokens200;
+export type UserGetTokensStatus403Json = APIForbiddenError;
 
-export type UserGetTokensQuery = {
-  Response: UserGetTokens200;
-  PathParams: UserGetTokensPathParams;
-  QueryParams: UserGetTokensQueryParams;
-  Errors: UserGetTokens403 | UserGetTokens404;
+export type UserGetTokensStatus403Html = APIForbiddenError;
+
+export type UserGetTokensStatus403 = UserGetTokensStatus403Json | UserGetTokensStatus403Html;
+
+export type UserGetTokensStatus404Json = APINotFound;
+
+export type UserGetTokensStatus404Html = APINotFound;
+
+export type UserGetTokensStatus404 = UserGetTokensStatus404Json | UserGetTokensStatus404Html;
+
+export type UserGetTokensOptions = {
+  body?: never;
+  path: UserGetTokensPath;
+  query?: UserGetTokensQuery;
+  headers?: never;
 };
+
+export type UserGetTokensResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetTokensStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetTokensStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetTokensStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetTokensStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserGetTokensStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetTokensStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetTokensResponse = UserGetTokensStatus200 | UserGetTokensStatus403 | UserGetTokensStatus404;

@@ -8,13 +8,11 @@ import type { PayloadCommitVerification } from './PayloadCommitVerification';
 
 /**
  * @description FileDeleteResponse contains information about a repo\'s file that was deleted
+ * @type object
  */
 export type FileDeleteResponse = {
-  /**
-   * @type object | undefined
-   */
   commit?: FileCommitResponse;
-  content?: any;
+  content?: unknown;
   /**
    * @description PayloadCommitVerification represents the GPG verification of a commit
    * @type object | undefined

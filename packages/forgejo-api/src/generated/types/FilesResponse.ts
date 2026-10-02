@@ -9,15 +9,10 @@ import type { PayloadCommitVerification } from './PayloadCommitVerification';
 
 /**
  * @description FilesResponse contains information about multiple files from a repo
+ * @type object
  */
 export type FilesResponse = {
-  /**
-   * @type object | undefined
-   */
   commit?: FileCommitResponse;
-  /**
-   * @type array | undefined
-   */
   files?: ContentsResponse[];
   /**
    * @description PayloadCommitVerification represents the GPG verification of a commit

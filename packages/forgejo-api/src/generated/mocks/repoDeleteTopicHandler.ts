@@ -3,16 +3,20 @@
  * Do not edit manually.
  */
 
-import type { RepoDeleteTopicMutationResponse, RepoDeleteTopic404, RepoDeleteTopic422 } from '../types/RepoDeleteTopic';
+import type {
+  RepoDeleteTopicResponse,
+  RepoDeleteTopicStatus404,
+  RepoDeleteTopicStatus422,
+} from '../types/RepoDeleteTopic';
 import { http } from 'msw';
 
-export function repoDeleteTopicHandlerResponse204(data?: RepoDeleteTopicMutationResponse) {
+export function repoDeleteTopicHandlerResponse204(data?: RepoDeleteTopicResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteTopicHandlerResponse404(data: RepoDeleteTopic404) {
+export function repoDeleteTopicHandlerResponse404(data: RepoDeleteTopicStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -21,7 +25,7 @@ export function repoDeleteTopicHandlerResponse404(data: RepoDeleteTopic404) {
   });
 }
 
-export function repoDeleteTopicHandlerResponse422(data: RepoDeleteTopic422) {
+export function repoDeleteTopicHandlerResponse422(data: RepoDeleteTopicStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

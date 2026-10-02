@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { TopicName } from './TopicName';
 
-export type RepoListTopicsPathParams = {
+export type RepoListTopicsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListTopicsPathParams = {
   repo: string;
 };
 
-export type RepoListTopicsQueryParams = {
+export type RepoListTopicsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -33,20 +33,54 @@ export type RepoListTopicsQueryParams = {
 };
 
 /**
- * @description TopicNames
+ * @description TopicName a list of repo topic names
+ * @type object
  */
-export type RepoListTopics200 = TopicName;
+export type RepoListTopicsStatus200Json = TopicName;
 
 /**
- * @description APINotFound is a not found error response
+ * @description TopicName a list of repo topic names
+ * @type object
  */
-export type RepoListTopics404 = APINotFound;
+export type RepoListTopicsStatus200Html = TopicName;
 
-export type RepoListTopicsQueryResponse = RepoListTopics200;
+export type RepoListTopicsStatus200 = RepoListTopicsStatus200Json | RepoListTopicsStatus200Html;
 
-export type RepoListTopicsQuery = {
-  Response: RepoListTopics200;
-  PathParams: RepoListTopicsPathParams;
-  QueryParams: RepoListTopicsQueryParams;
-  Errors: RepoListTopics404;
+export type RepoListTopicsStatus404Json = APINotFound;
+
+export type RepoListTopicsStatus404Html = APINotFound;
+
+export type RepoListTopicsStatus404 = RepoListTopicsStatus404Json | RepoListTopicsStatus404Html;
+
+export type RepoListTopicsOptions = {
+  body?: never;
+  path: RepoListTopicsPath;
+  query?: RepoListTopicsQuery;
+  headers?: never;
 };
+
+export type RepoListTopicsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListTopicsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTopicsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListTopicsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTopicsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListTopicsResponse = RepoListTopicsStatus200 | RepoListTopicsStatus404;

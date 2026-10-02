@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type OrgCheckQuotaPathParams = {
+export type OrgCheckQuotaPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,7 +15,7 @@ export type OrgCheckQuotaPathParams = {
   org: string;
 };
 
-export type OrgCheckQuotaQueryParams = {
+export type OrgCheckQuotaQuery = {
   /**
    * @description subject of the quota
    * @type string
@@ -23,31 +23,81 @@ export type OrgCheckQuotaQueryParams = {
   subject: string;
 };
 
-/**
- * @description Returns true if the action is accepted.
- */
-export type OrgCheckQuota200 = boolean;
+export type OrgCheckQuotaStatus200Json = boolean;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgCheckQuota403 = APIForbiddenError;
+export type OrgCheckQuotaStatus200Html = boolean;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgCheckQuota404 = APINotFound;
+export type OrgCheckQuotaStatus200 = OrgCheckQuotaStatus200Json | OrgCheckQuotaStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type OrgCheckQuota422 = APIValidationError;
+export type OrgCheckQuotaStatus403Json = APIForbiddenError;
 
-export type OrgCheckQuotaQueryResponse = OrgCheckQuota200;
+export type OrgCheckQuotaStatus403Html = APIForbiddenError;
 
-export type OrgCheckQuotaQuery = {
-  Response: OrgCheckQuota200;
-  PathParams: OrgCheckQuotaPathParams;
-  QueryParams: OrgCheckQuotaQueryParams;
-  Errors: OrgCheckQuota403 | OrgCheckQuota404 | OrgCheckQuota422;
+export type OrgCheckQuotaStatus403 = OrgCheckQuotaStatus403Json | OrgCheckQuotaStatus403Html;
+
+export type OrgCheckQuotaStatus404Json = APINotFound;
+
+export type OrgCheckQuotaStatus404Html = APINotFound;
+
+export type OrgCheckQuotaStatus404 = OrgCheckQuotaStatus404Json | OrgCheckQuotaStatus404Html;
+
+export type OrgCheckQuotaStatus422Json = APIValidationError;
+
+export type OrgCheckQuotaStatus422Html = APIValidationError;
+
+export type OrgCheckQuotaStatus422 = OrgCheckQuotaStatus422Json | OrgCheckQuotaStatus422Html;
+
+export type OrgCheckQuotaOptions = {
+  body?: never;
+  path: OrgCheckQuotaPath;
+  query: OrgCheckQuotaQuery;
+  headers?: never;
 };
+
+export type OrgCheckQuotaResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgCheckQuotaStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCheckQuotaStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgCheckQuotaStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCheckQuotaStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgCheckQuotaStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCheckQuotaStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgCheckQuotaStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCheckQuotaStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgCheckQuotaResponse =
+  | OrgCheckQuotaStatus200
+  | OrgCheckQuotaStatus403
+  | OrgCheckQuotaStatus404
+  | OrgCheckQuotaStatus422;

@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentDeleteGPGKeyMutationResponse,
-  UserCurrentDeleteGPGKey401,
-  UserCurrentDeleteGPGKey403,
-  UserCurrentDeleteGPGKey404,
+  UserCurrentDeleteGPGKeyResponse,
+  UserCurrentDeleteGPGKeyStatus401,
+  UserCurrentDeleteGPGKeyStatus403,
+  UserCurrentDeleteGPGKeyStatus404,
 } from '../types/UserCurrentDeleteGPGKey';
 import { http } from 'msw';
 
-export function userCurrentDeleteGPGKeyHandlerResponse204(data?: UserCurrentDeleteGPGKeyMutationResponse) {
+export function userCurrentDeleteGPGKeyHandlerResponse204(data?: UserCurrentDeleteGPGKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse401(data: UserCurrentDeleteGPGKey401) {
+export function userCurrentDeleteGPGKeyHandlerResponse401(data: UserCurrentDeleteGPGKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentDeleteGPGKeyHandlerResponse401(data: UserCurrentDelet
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse403(data: UserCurrentDeleteGPGKey403) {
+export function userCurrentDeleteGPGKeyHandlerResponse403(data: UserCurrentDeleteGPGKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentDeleteGPGKeyHandlerResponse403(data: UserCurrentDelet
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse404(data: UserCurrentDeleteGPGKey404) {
+export function userCurrentDeleteGPGKeyHandlerResponse404(data: UserCurrentDeleteGPGKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

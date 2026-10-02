@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentActivityPubFollowMutationRequest,
-  UserCurrentActivityPubFollowMutationResponse,
-  UserCurrentActivityPubFollow401,
-  UserCurrentActivityPubFollow403,
-  UserCurrentActivityPubFollow404,
+  UserCurrentActivityPubFollowOptions,
+  UserCurrentActivityPubFollowResponses,
 } from '../types/UserCurrentActivityPubFollow';
-
-function getUserCurrentActivityPubFollowUrl() {
-  const res = { method: 'POST', url: `/user/activitypub/follow` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Follow a remote activitypub account
  * {@link /user/activitypub/follow}
  */
-export async function userCurrentActivityPubFollow(
-  data?: UserCurrentActivityPubFollowMutationRequest,
-  config: Partial<RequestConfig<UserCurrentActivityPubFollowMutationRequest>> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentActivityPubFollow<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentActivityPubFollowOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentActivityPubFollowResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserCurrentActivityPubFollowMutationResponse,
-    ResponseErrorConfig<
-      UserCurrentActivityPubFollow401 | UserCurrentActivityPubFollow403 | UserCurrentActivityPubFollow404
-    >,
-    UserCurrentActivityPubFollowMutationRequest
-  >({
-    method: 'POST',
-    url: getUserCurrentActivityPubFollowUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/activitypub/follow',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentActivityPubFollowResponses, ThrowOnError>>;
 }

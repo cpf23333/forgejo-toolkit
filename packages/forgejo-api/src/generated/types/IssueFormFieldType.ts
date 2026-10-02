@@ -3,7 +3,4 @@
  * Do not edit manually.
  */
 
-/**
- * IssueFormFieldType defines issue form field type, can be \"markdown\", \"textarea\", \"input\", \"dropdown\" or \"checkboxes\"
- */
 export type IssueFormFieldType = string;

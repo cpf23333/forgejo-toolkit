@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserCurrentListKeysQueryResponse,
-  UserCurrentListKeys401,
-  UserCurrentListKeys403,
+  UserCurrentListKeysResponse,
+  UserCurrentListKeysStatus401,
+  UserCurrentListKeysStatus403,
 } from '../types/UserCurrentListKeys';
 import { http } from 'msw';
 
-export function userCurrentListKeysHandlerResponse200(data: UserCurrentListKeysQueryResponse) {
+export function userCurrentListKeysHandlerResponse200(data: UserCurrentListKeysResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userCurrentListKeysHandlerResponse200(data: UserCurrentListKeysQ
   });
 }
 
-export function userCurrentListKeysHandlerResponse401(data: UserCurrentListKeys401) {
+export function userCurrentListKeysHandlerResponse401(data: UserCurrentListKeysStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userCurrentListKeysHandlerResponse401(data: UserCurrentListKeys4
   });
 }
 
-export function userCurrentListKeysHandlerResponse403(data: UserCurrentListKeys403) {
+export function userCurrentListKeysHandlerResponse403(data: UserCurrentListKeysStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userCurrentListKeysHandlerResponse403(data: UserCurrentListKeys4
 
 export function userCurrentListKeysHandler(
   data?:
-    | UserCurrentListKeysQueryResponse
+    | UserCurrentListKeysResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/keys`, function handler(info) {

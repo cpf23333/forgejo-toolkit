@@ -8,7 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Attachment } from './Attachment';
 import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
-export type IssueEditIssueAttachmentPathParams = {
+export type IssueEditIssueAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,43 +21,111 @@ export type IssueEditIssueAttachmentPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the attachment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueEditIssueAttachment201 = Attachment;
+export type IssueEditIssueAttachmentStatus201Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueEditIssueAttachment404 = APIError;
+export type IssueEditIssueAttachmentStatus201Html = Attachment;
+
+export type IssueEditIssueAttachmentStatus201 =
+  | IssueEditIssueAttachmentStatus201Json
+  | IssueEditIssueAttachmentStatus201Html;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssueAttachment413 = any;
+export type IssueEditIssueAttachmentStatus404Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueEditIssueAttachment423 = APIRepoArchivedError;
+export type IssueEditIssueAttachmentStatus404Html = APIError;
 
-export type IssueEditIssueAttachmentMutationRequest = EditAttachmentOptions;
+export type IssueEditIssueAttachmentStatus404 =
+  | IssueEditIssueAttachmentStatus404Json
+  | IssueEditIssueAttachmentStatus404Html;
 
-export type IssueEditIssueAttachmentMutationResponse = IssueEditIssueAttachment201;
+export type IssueEditIssueAttachmentStatus413 = unknown;
 
-export type IssueEditIssueAttachmentMutation = {
-  Response: IssueEditIssueAttachment201;
-  Request: IssueEditIssueAttachmentMutationRequest;
-  PathParams: IssueEditIssueAttachmentPathParams;
-  Errors: IssueEditIssueAttachment404 | IssueEditIssueAttachment413 | IssueEditIssueAttachment423;
+export type IssueEditIssueAttachmentStatus423Json = APIRepoArchivedError;
+
+export type IssueEditIssueAttachmentStatus423Html = APIRepoArchivedError;
+
+export type IssueEditIssueAttachmentStatus423 =
+  | IssueEditIssueAttachmentStatus423Json
+  | IssueEditIssueAttachmentStatus423Html;
+
+/**
+ * @description EditAttachmentOptions options for editing attachments
+ * @type object | undefined
+ */
+export type IssueEditIssueAttachmentBody = EditAttachmentOptions | undefined;
+
+export type IssueEditIssueAttachmentOptions = {
+  body: IssueEditIssueAttachmentBody;
+  path: IssueEditIssueAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditIssueAttachmentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueAttachmentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueAttachmentStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueAttachmentStatus404Html;
+      };
+  '413': IssueEditIssueAttachmentStatus413;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueEditIssueAttachmentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditIssueAttachmentStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditIssueAttachmentResponse =
+  | IssueEditIssueAttachmentStatus201
+  | IssueEditIssueAttachmentStatus404
+  | IssueEditIssueAttachmentStatus413
+  | IssueEditIssueAttachmentStatus423;

@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UnpinIssueMutationResponse,
-  UnpinIssuePathParams,
-  UnpinIssue403,
-  UnpinIssue404,
-} from '../types/UnpinIssue';
-
-function getUnpinIssueUrl(
-  owner: UnpinIssuePathParams['owner'],
-  repo: UnpinIssuePathParams['repo'],
-  index: UnpinIssuePathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/pin` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UnpinIssueOptions, UnpinIssueResponses } from '../types/UnpinIssue';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unpin an Issue
  * {@link /repos/:owner/:repo/issues/:index/pin}
  */
-export async function unpinIssue(
-  owner: UnpinIssuePathParams['owner'],
-  repo: UnpinIssuePathParams['repo'],
-  index: UnpinIssuePathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function unpinIssue<ThrowOnError extends boolean = true>(
+  options: Options<UnpinIssueOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UnpinIssueResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UnpinIssueMutationResponse, ResponseErrorConfig<UnpinIssue403 | UnpinIssue404>, unknown>({
-    method: 'DELETE',
-    url: getUnpinIssueUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/pin',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UnpinIssueResponses, ThrowOnError>>;
 }

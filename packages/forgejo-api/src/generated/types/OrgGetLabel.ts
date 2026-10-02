@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Label } from './Label';
 
-export type OrgGetLabelPathParams = {
+export type OrgGetLabelPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,25 +14,62 @@ export type OrgGetLabelPathParams = {
   org: string;
   /**
    * @description id of the label to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Label
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgGetLabel200 = Label;
+export type OrgGetLabelStatus200Json = Label;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Label a label to an issue or a pr
+ * @type object
  */
-export type OrgGetLabel404 = APINotFound;
+export type OrgGetLabelStatus200Html = Label;
 
-export type OrgGetLabelQueryResponse = OrgGetLabel200;
+export type OrgGetLabelStatus200 = OrgGetLabelStatus200Json | OrgGetLabelStatus200Html;
 
-export type OrgGetLabelQuery = {
-  Response: OrgGetLabel200;
-  PathParams: OrgGetLabelPathParams;
-  Errors: OrgGetLabel404;
+export type OrgGetLabelStatus404Json = APINotFound;
+
+export type OrgGetLabelStatus404Html = APINotFound;
+
+export type OrgGetLabelStatus404 = OrgGetLabelStatus404Json | OrgGetLabelStatus404Html;
+
+export type OrgGetLabelOptions = {
+  body?: never;
+  path: OrgGetLabelPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetLabelResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetLabelStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetLabelStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetLabelStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetLabelStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetLabelResponse = OrgGetLabelStatus200 | OrgGetLabelStatus404;

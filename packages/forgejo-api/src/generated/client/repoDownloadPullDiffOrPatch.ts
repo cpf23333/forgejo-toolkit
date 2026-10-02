@@ -3,51 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoDownloadPullDiffOrPatchQueryResponse,
-  RepoDownloadPullDiffOrPatchPathParams,
-  RepoDownloadPullDiffOrPatchQueryParams,
-  RepoDownloadPullDiffOrPatch404,
+  RepoDownloadPullDiffOrPatchOptions,
+  RepoDownloadPullDiffOrPatchResponses,
 } from '../types/RepoDownloadPullDiffOrPatch';
-
-function getRepoDownloadPullDiffOrPatchUrl(
-  owner: RepoDownloadPullDiffOrPatchPathParams['owner'],
-  repo: RepoDownloadPullDiffOrPatchPathParams['repo'],
-  index: RepoDownloadPullDiffOrPatchPathParams['index'],
-  diffType: RepoDownloadPullDiffOrPatchPathParams['diffType'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/pulls/${index}.${diffType}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a pull request diff or patch
  * {@link /repos/:owner/:repo/pulls/:index.:diffType}
  */
-export async function repoDownloadPullDiffOrPatch(
-  owner: RepoDownloadPullDiffOrPatchPathParams['owner'],
-  repo: RepoDownloadPullDiffOrPatchPathParams['repo'],
-  index: RepoDownloadPullDiffOrPatchPathParams['index'],
-  diffType: RepoDownloadPullDiffOrPatchPathParams['diffType'],
-  params?: RepoDownloadPullDiffOrPatchQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDownloadPullDiffOrPatch<ThrowOnError extends boolean = true>(
+  options: Options<RepoDownloadPullDiffOrPatchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDownloadPullDiffOrPatchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDownloadPullDiffOrPatchQueryResponse,
-    ResponseErrorConfig<RepoDownloadPullDiffOrPatch404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoDownloadPullDiffOrPatchUrl(owner, repo, index, diffType).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/pulls/{index}.{diffType}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDownloadPullDiffOrPatchResponses, ThrowOnError>>;
 }

@@ -5,14 +5,9 @@
 
 /**
  * @description DismissPullReviewOptions are options to dismiss a pull review
+ * @type object
  */
 export type DismissPullReviewOptions = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type boolean | undefined
-   */
   priors?: boolean;
 };

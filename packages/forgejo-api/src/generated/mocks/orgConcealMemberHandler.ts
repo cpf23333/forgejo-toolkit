@@ -4,19 +4,19 @@
  */
 
 import type {
-  OrgConcealMemberMutationResponse,
-  OrgConcealMember403,
-  OrgConcealMember404,
+  OrgConcealMemberResponse,
+  OrgConcealMemberStatus403,
+  OrgConcealMemberStatus404,
 } from '../types/OrgConcealMember';
 import { http } from 'msw';
 
-export function orgConcealMemberHandlerResponse204(data?: OrgConcealMemberMutationResponse) {
+export function orgConcealMemberHandlerResponse204(data?: OrgConcealMemberResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgConcealMemberHandlerResponse403(data: OrgConcealMember403) {
+export function orgConcealMemberHandlerResponse403(data: OrgConcealMemberStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function orgConcealMemberHandlerResponse403(data: OrgConcealMember403) {
   });
 }
 
-export function orgConcealMemberHandlerResponse404(data: OrgConcealMember404) {
+export function orgConcealMemberHandlerResponse404(data: OrgConcealMemberStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

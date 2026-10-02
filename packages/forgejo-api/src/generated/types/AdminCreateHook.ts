@@ -7,16 +7,45 @@ import type { CreateHookOption } from './CreateHookOption';
 import type { Hook } from './Hook';
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type AdminCreateHook201 = Hook;
+export type AdminCreateHookStatus201Json = Hook;
 
-export type AdminCreateHookMutationRequest = CreateHookOption;
+/**
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
+ */
+export type AdminCreateHookStatus201Html = Hook;
 
-export type AdminCreateHookMutationResponse = AdminCreateHook201;
+export type AdminCreateHookStatus201 = AdminCreateHookStatus201Json | AdminCreateHookStatus201Html;
 
-export type AdminCreateHookMutation = {
-  Response: AdminCreateHook201;
-  Request: AdminCreateHookMutationRequest;
-  Errors: any;
+/**
+ * @description CreateHookOption options when create a hook
+ * @type object
+ */
+export type AdminCreateHookBody = CreateHookOption;
+
+export type AdminCreateHookOptions = {
+  body: AdminCreateHookBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateHookResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateHookStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateHookStatus201Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateHookResponse = AdminCreateHookStatus201;

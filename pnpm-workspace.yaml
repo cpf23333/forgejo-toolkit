@@ -2,6 +2,13 @@ packages:
   - packages/*
   - tools/*
 
+overrides:
+  # @kubb/plugin-ts (every stable release up to 5.0.2, the newest before the
+  # kubb 5.4.2 train) depends on `@kubb/parser-ts: ^5.2.0`, a range whose newest
+  # match is 5.4.3 — a release younger than `minimumReleaseAge` below. Pinning
+  # parser-ts here keeps the whole kubb set on the 5.4.2 train instead of letting
+  # that one range pull 5.4.3 (plus its own 5.4.3 ast/core/kit) back in.
+  '@kubb/plugin-ts>@kubb/parser-ts': 5.4.2
 allowBuilds:
   '@vscode/vsce-sign': true
   es5-ext: true

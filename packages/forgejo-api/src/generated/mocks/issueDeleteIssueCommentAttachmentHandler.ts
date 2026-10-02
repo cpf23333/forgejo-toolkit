@@ -4,21 +4,19 @@
  */
 
 import type {
-  IssueDeleteIssueCommentAttachmentMutationResponse,
-  IssueDeleteIssueCommentAttachment404,
-  IssueDeleteIssueCommentAttachment423,
+  IssueDeleteIssueCommentAttachmentResponse,
+  IssueDeleteIssueCommentAttachmentStatus404,
+  IssueDeleteIssueCommentAttachmentStatus423,
 } from '../types/IssueDeleteIssueCommentAttachment';
 import { http } from 'msw';
 
-export function issueDeleteIssueCommentAttachmentHandlerResponse204(
-  data?: IssueDeleteIssueCommentAttachmentMutationResponse,
-) {
+export function issueDeleteIssueCommentAttachmentHandlerResponse204(data?: IssueDeleteIssueCommentAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteIssueCommentAttachmentHandlerResponse404(data: IssueDeleteIssueCommentAttachment404) {
+export function issueDeleteIssueCommentAttachmentHandlerResponse404(data: IssueDeleteIssueCommentAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -27,7 +25,7 @@ export function issueDeleteIssueCommentAttachmentHandlerResponse404(data: IssueD
   });
 }
 
-export function issueDeleteIssueCommentAttachmentHandlerResponse423(data: IssueDeleteIssueCommentAttachment423) {
+export function issueDeleteIssueCommentAttachmentHandlerResponse423(data: IssueDeleteIssueCommentAttachmentStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

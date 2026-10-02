@@ -3,34 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserGetHookQueryResponse,
-  UserGetHookPathParams,
-  UserGetHook401,
-  UserGetHook403,
-} from '../types/UserGetHook';
-
-function getUserGetHookUrl(id: UserGetHookPathParams['id']) {
-  const res = { method: 'GET', url: `/user/hooks/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserGetHookOptions, UserGetHookResponses } from '../types/UserGetHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a hook
  * {@link /user/hooks/:id}
  */
-export async function userGetHook(
-  id: UserGetHookPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userGetHook<ThrowOnError extends boolean = true>(
+  options: Options<UserGetHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserGetHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserGetHookQueryResponse, ResponseErrorConfig<UserGetHook401 | UserGetHook403>, unknown>({
-    method: 'GET',
-    url: getUserGetHookUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserGetHookResponses, ThrowOnError>>;
 }

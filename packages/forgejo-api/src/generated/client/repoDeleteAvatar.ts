@@ -3,37 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteAvatarMutationResponse,
-  RepoDeleteAvatarPathParams,
-  RepoDeleteAvatar404,
-} from '../types/RepoDeleteAvatar';
-
-function getRepoDeleteAvatarUrl(owner: RepoDeleteAvatarPathParams['owner'], repo: RepoDeleteAvatarPathParams['repo']) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/avatar` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteAvatarOptions, RepoDeleteAvatarResponses } from '../types/RepoDeleteAvatar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a repository's avatar
  * {@link /repos/:owner/:repo/avatar}
  */
-export async function repoDeleteAvatar(
-  owner: RepoDeleteAvatarPathParams['owner'],
-  repo: RepoDeleteAvatarPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteAvatar<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteAvatarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteAvatarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoDeleteAvatarMutationResponse, ResponseErrorConfig<RepoDeleteAvatar404>, unknown>({
-    method: 'DELETE',
-    url: getRepoDeleteAvatarUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/avatar',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteAvatarResponses, ThrowOnError>>;
 }

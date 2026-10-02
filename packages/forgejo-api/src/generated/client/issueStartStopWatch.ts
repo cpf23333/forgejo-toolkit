@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueStartStopWatchMutationResponse,
-  IssueStartStopWatchPathParams,
-  IssueStartStopWatch403,
-  IssueStartStopWatch404,
-  IssueStartStopWatch409,
-} from '../types/IssueStartStopWatch';
-
-function getIssueStartStopWatchUrl(
-  owner: IssueStartStopWatchPathParams['owner'],
-  repo: IssueStartStopWatchPathParams['repo'],
-  index: IssueStartStopWatchPathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/${index}/stopwatch/start` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueStartStopWatchOptions, IssueStartStopWatchResponses } from '../types/IssueStartStopWatch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Start stopwatch on an issue.
  * {@link /repos/:owner/:repo/issues/:index/stopwatch/start}
  */
-export async function issueStartStopWatch(
-  owner: IssueStartStopWatchPathParams['owner'],
-  repo: IssueStartStopWatchPathParams['repo'],
-  index: IssueStartStopWatchPathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueStartStopWatch<ThrowOnError extends boolean = true>(
+  options: Options<IssueStartStopWatchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueStartStopWatchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueStartStopWatchMutationResponse,
-    ResponseErrorConfig<IssueStartStopWatch403 | IssueStartStopWatch404 | IssueStartStopWatch409>,
-    unknown
-  >({
-    method: 'POST',
-    url: getIssueStartStopWatchUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/{index}/stopwatch/start',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueStartStopWatchResponses, ThrowOnError>>;
 }

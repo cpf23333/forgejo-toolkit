@@ -4,12 +4,12 @@
  */
 
 import type {
-  OrgListTeamActivityFeedsQueryResponse,
-  OrgListTeamActivityFeeds404,
+  OrgListTeamActivityFeedsResponse,
+  OrgListTeamActivityFeedsStatus404,
 } from '../types/OrgListTeamActivityFeeds';
 import { http } from 'msw';
 
-export function orgListTeamActivityFeedsHandlerResponse200(data: OrgListTeamActivityFeedsQueryResponse) {
+export function orgListTeamActivityFeedsHandlerResponse200(data: OrgListTeamActivityFeedsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function orgListTeamActivityFeedsHandlerResponse200(data: OrgListTeamActi
   });
 }
 
-export function orgListTeamActivityFeedsHandlerResponse404(data: OrgListTeamActivityFeeds404) {
+export function orgListTeamActivityFeedsHandlerResponse404(data: OrgListTeamActivityFeedsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function orgListTeamActivityFeedsHandlerResponse404(data: OrgListTeamActi
 
 export function orgListTeamActivityFeedsHandler(
   data?:
-    | OrgListTeamActivityFeedsQueryResponse
+    | OrgListTeamActivityFeedsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id/activities/feeds`, function handler(info) {

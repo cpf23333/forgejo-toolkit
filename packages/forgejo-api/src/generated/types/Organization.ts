@@ -5,55 +5,33 @@
 
 /**
  * @description Organization represents an organization
+ * @type object
  */
 export type Organization = {
-  /**
-   * @type string | undefined
-   */
   avatar_url?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type string | undefined
-   */
   email?: string;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   location?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type boolean | undefined
-   */
   repo_admin_change_team_access?: boolean;
   /**
    * @description deprecated
    * @type string | undefined
    */
   username?: string;
-  /**
-   * @type string | undefined
-   */
   visibility?: string;
-  /**
-   * @type string | undefined
-   */
   website?: string;
 };

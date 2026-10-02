@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoDeleteFlagMutationResponse, RepoDeleteFlag403, RepoDeleteFlag404 } from '../types/RepoDeleteFlag';
+import type { RepoDeleteFlagResponse, RepoDeleteFlagStatus403, RepoDeleteFlagStatus404 } from '../types/RepoDeleteFlag';
 import { http } from 'msw';
 
-export function repoDeleteFlagHandlerResponse204(data?: RepoDeleteFlagMutationResponse) {
+export function repoDeleteFlagHandlerResponse204(data?: RepoDeleteFlagResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteFlagHandlerResponse403(data: RepoDeleteFlag403) {
+export function repoDeleteFlagHandlerResponse403(data: RepoDeleteFlagStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -21,7 +21,7 @@ export function repoDeleteFlagHandlerResponse403(data: RepoDeleteFlag403) {
   });
 }
 
-export function repoDeleteFlagHandlerResponse404(data: RepoDeleteFlag404) {
+export function repoDeleteFlagHandlerResponse404(data: RepoDeleteFlagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

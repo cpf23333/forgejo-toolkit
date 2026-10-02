@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type OrgListReposPathParams = {
+export type OrgListReposPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListReposPathParams = {
   org: string;
 };
 
-export type OrgListReposQueryParams = {
+export type OrgListReposQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListReposQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type OrgListRepos200 = Repository[];
+export type OrgListReposStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListRepos404 = APINotFound;
+export type OrgListReposStatus200Html = Repository[];
 
-export type OrgListReposQueryResponse = OrgListRepos200;
+export type OrgListReposStatus200 = OrgListReposStatus200Json | OrgListReposStatus200Html;
 
-export type OrgListReposQuery = {
-  Response: OrgListRepos200;
-  PathParams: OrgListReposPathParams;
-  QueryParams: OrgListReposQueryParams;
-  Errors: OrgListRepos404;
+export type OrgListReposStatus404Json = APINotFound;
+
+export type OrgListReposStatus404Html = APINotFound;
+
+export type OrgListReposStatus404 = OrgListReposStatus404Json | OrgListReposStatus404Html;
+
+export type OrgListReposOptions = {
+  body?: never;
+  path: OrgListReposPath;
+  query?: OrgListReposQuery;
+  headers?: never;
 };
+
+export type OrgListReposResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListReposStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListReposStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListReposStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListReposStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListReposResponse = OrgListReposStatus200 | OrgListReposStatus404;

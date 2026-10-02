@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgSearchRunJobsQueryResponse,
-  OrgSearchRunJobsPathParams,
-  OrgSearchRunJobsQueryParams,
-  OrgSearchRunJobs403,
-} from '../types/OrgSearchRunJobs';
-
-function getOrgSearchRunJobsUrl(org: OrgSearchRunJobsPathParams['org']) {
-  const res = {
-    method: 'GET',
-    url: `/orgs/${org}/actions/runners/jobs` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgSearchRunJobsOptions, OrgSearchRunJobsResponses } from '../types/OrgSearchRunJobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for organization's action jobs according filter conditions
  * {@link /orgs/:org/actions/runners/jobs}
  */
-export async function orgSearchRunJobs(
-  org: OrgSearchRunJobsPathParams['org'],
-  params?: OrgSearchRunJobsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgSearchRunJobs<ThrowOnError extends boolean = true>(
+  options: Options<OrgSearchRunJobsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgSearchRunJobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgSearchRunJobsQueryResponse, ResponseErrorConfig<OrgSearchRunJobs403>, unknown>({
-    method: 'GET',
-    url: getOrgSearchRunJobsUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/actions/runners/jobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgSearchRunJobsResponses, ThrowOnError>>;
 }

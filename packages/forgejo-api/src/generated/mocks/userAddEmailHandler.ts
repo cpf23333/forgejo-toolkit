@@ -4,14 +4,16 @@
  */
 
 import type {
-  UserAddEmailMutationResponse,
-  UserAddEmail401,
-  UserAddEmail403,
-  UserAddEmail422,
+  UserAddEmailResponse,
+  UserAddEmailStatus401,
+  UserAddEmailStatus403,
+  UserAddEmailStatus422,
+  UserAddEmailBody,
 } from '../types/UserAddEmail';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userAddEmailHandlerResponse201(data: UserAddEmailMutationResponse) {
+export function userAddEmailHandlerResponse201(data: UserAddEmailResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function userAddEmailHandlerResponse201(data: UserAddEmailMutationRespons
   });
 }
 
-export function userAddEmailHandlerResponse401(data: UserAddEmail401) {
+export function userAddEmailHandlerResponse401(data: UserAddEmailStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +31,7 @@ export function userAddEmailHandlerResponse401(data: UserAddEmail401) {
   });
 }
 
-export function userAddEmailHandlerResponse403(data: UserAddEmail403) {
+export function userAddEmailHandlerResponse403(data: UserAddEmailStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function userAddEmailHandlerResponse403(data: UserAddEmail403) {
   });
 }
 
-export function userAddEmailHandlerResponse422(data: UserAddEmail422) {
+export function userAddEmailHandlerResponse422(data: UserAddEmailStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,11 +50,9 @@ export function userAddEmailHandlerResponse422(data: UserAddEmail422) {
 }
 
 export function userAddEmailHandler(
-  data?:
-    | UserAddEmailMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: UserAddEmailResponse | HttpResponseResolver<Record<string, string>, UserAddEmailBody>,
 ) {
-  return http.post(`/user/emails`, function handler(info) {
+  return http.post<Record<string, string>, UserAddEmailBody>(`/user/emails`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

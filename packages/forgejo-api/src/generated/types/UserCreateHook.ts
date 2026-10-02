@@ -9,26 +9,75 @@ import type { CreateHookOption } from './CreateHookOption';
 import type { Hook } from './Hook';
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserCreateHook201 = Hook;
+export type UserCreateHookStatus201Json = Hook;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserCreateHook401 = APIUnauthorizedError;
+export type UserCreateHookStatus201Html = Hook;
+
+export type UserCreateHookStatus201 = UserCreateHookStatus201Json | UserCreateHookStatus201Html;
+
+export type UserCreateHookStatus401Json = APIUnauthorizedError;
+
+export type UserCreateHookStatus401Html = APIUnauthorizedError;
+
+export type UserCreateHookStatus401 = UserCreateHookStatus401Json | UserCreateHookStatus401Html;
+
+export type UserCreateHookStatus403Json = APIForbiddenError;
+
+export type UserCreateHookStatus403Html = APIForbiddenError;
+
+export type UserCreateHookStatus403 = UserCreateHookStatus403Json | UserCreateHookStatus403Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description CreateHookOption options when create a hook
+ * @type object
  */
-export type UserCreateHook403 = APIForbiddenError;
+export type UserCreateHookBody = CreateHookOption;
 
-export type UserCreateHookMutationRequest = CreateHookOption;
-
-export type UserCreateHookMutationResponse = UserCreateHook201;
-
-export type UserCreateHookMutation = {
-  Response: UserCreateHook201;
-  Request: UserCreateHookMutationRequest;
-  Errors: UserCreateHook401 | UserCreateHook403;
+export type UserCreateHookOptions = {
+  body: UserCreateHookBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCreateHookResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: UserCreateHookStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateHookStatus201Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCreateHookStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateHookStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCreateHookStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCreateHookStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCreateHookResponse = UserCreateHookStatus201 | UserCreateHookStatus401 | UserCreateHookStatus403;

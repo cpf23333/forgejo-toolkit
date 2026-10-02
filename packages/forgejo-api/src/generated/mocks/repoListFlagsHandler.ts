@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListFlagsQueryResponse, RepoListFlags403, RepoListFlags404 } from '../types/RepoListFlags';
+import type { RepoListFlagsResponse, RepoListFlagsStatus403, RepoListFlagsStatus404 } from '../types/RepoListFlags';
 import { http } from 'msw';
 
-export function repoListFlagsHandlerResponse200(data: RepoListFlagsQueryResponse) {
+export function repoListFlagsHandlerResponse200(data: RepoListFlagsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListFlagsHandlerResponse200(data: RepoListFlagsQueryResponse
   });
 }
 
-export function repoListFlagsHandlerResponse403(data: RepoListFlags403) {
+export function repoListFlagsHandlerResponse403(data: RepoListFlagsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +24,7 @@ export function repoListFlagsHandlerResponse403(data: RepoListFlags403) {
   });
 }
 
-export function repoListFlagsHandlerResponse404(data: RepoListFlags404) {
+export function repoListFlagsHandlerResponse404(data: RepoListFlagsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function repoListFlagsHandlerResponse404(data: RepoListFlags404) {
 
 export function repoListFlagsHandler(
   data?:
-    | RepoListFlagsQueryResponse
+    | RepoListFlagsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/flags`, function handler(info) {

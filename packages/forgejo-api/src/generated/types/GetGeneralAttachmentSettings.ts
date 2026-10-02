@@ -6,13 +6,41 @@
 import type { GeneralAttachmentSettings } from './GeneralAttachmentSettings';
 
 /**
- * @description GeneralAttachmentSettings
+ * @description GeneralAttachmentSettings contains global Attachment settings exposed by API
+ * @type object
  */
-export type GetGeneralAttachmentSettings200 = GeneralAttachmentSettings;
+export type GetGeneralAttachmentSettingsStatus200Json = GeneralAttachmentSettings;
 
-export type GetGeneralAttachmentSettingsQueryResponse = GetGeneralAttachmentSettings200;
+/**
+ * @description GeneralAttachmentSettings contains global Attachment settings exposed by API
+ * @type object
+ */
+export type GetGeneralAttachmentSettingsStatus200Html = GeneralAttachmentSettings;
 
-export type GetGeneralAttachmentSettingsQuery = {
-  Response: GetGeneralAttachmentSettings200;
-  Errors: any;
+export type GetGeneralAttachmentSettingsStatus200 =
+  | GetGeneralAttachmentSettingsStatus200Json
+  | GetGeneralAttachmentSettingsStatus200Html;
+
+export type GetGeneralAttachmentSettingsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetGeneralAttachmentSettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetGeneralAttachmentSettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGeneralAttachmentSettingsStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetGeneralAttachmentSettingsResponse = GetGeneralAttachmentSettingsStatus200;

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionVariable } from './ActionVariable';
 
-export type GetRepoVariablesListPathParams = {
+export type GetRepoVariablesListPath = {
   /**
    * @description name of the owner
    * @type string
@@ -20,7 +20,7 @@ export type GetRepoVariablesListPathParams = {
   repo: string;
 };
 
-export type GetRepoVariablesListQueryParams = {
+export type GetRepoVariablesListQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -33,26 +33,73 @@ export type GetRepoVariablesListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description VariableList
- */
-export type GetRepoVariablesList200 = ActionVariable[];
+export type GetRepoVariablesListStatus200Json = ActionVariable[];
+
+export type GetRepoVariablesListStatus200Html = ActionVariable[];
+
+export type GetRepoVariablesListStatus200 = GetRepoVariablesListStatus200Json | GetRepoVariablesListStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoVariablesList400 = APIError;
+export type GetRepoVariablesListStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetRepoVariablesList404 = APINotFound;
+export type GetRepoVariablesListStatus400Html = APIError;
 
-export type GetRepoVariablesListQueryResponse = GetRepoVariablesList200;
+export type GetRepoVariablesListStatus400 = GetRepoVariablesListStatus400Json | GetRepoVariablesListStatus400Html;
 
-export type GetRepoVariablesListQuery = {
-  Response: GetRepoVariablesList200;
-  PathParams: GetRepoVariablesListPathParams;
-  QueryParams: GetRepoVariablesListQueryParams;
-  Errors: GetRepoVariablesList400 | GetRepoVariablesList404;
+export type GetRepoVariablesListStatus404Json = APINotFound;
+
+export type GetRepoVariablesListStatus404Html = APINotFound;
+
+export type GetRepoVariablesListStatus404 = GetRepoVariablesListStatus404Json | GetRepoVariablesListStatus404Html;
+
+export type GetRepoVariablesListOptions = {
+  body?: never;
+  path: GetRepoVariablesListPath;
+  query?: GetRepoVariablesListQuery;
+  headers?: never;
 };
+
+export type GetRepoVariablesListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariablesListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariablesListStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariablesListStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariablesListStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetRepoVariablesListStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetRepoVariablesListStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetRepoVariablesListResponse =
+  | GetRepoVariablesListStatus200
+  | GetRepoVariablesListStatus400
+  | GetRepoVariablesListStatus404;

@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssueEditIssueDeadlineMutationResponse,
-  IssueEditIssueDeadline403,
-  IssueEditIssueDeadline404,
+  IssueEditIssueDeadlineResponse,
+  IssueEditIssueDeadlineStatus403,
+  IssueEditIssueDeadlineStatus404,
+  IssueEditIssueDeadlineBody,
 } from '../types/IssueEditIssueDeadline';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueEditIssueDeadlineHandlerResponse201(data: IssueEditIssueDeadlineMutationResponse) {
+export function issueEditIssueDeadlineHandlerResponse201(data: IssueEditIssueDeadlineResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,7 +21,7 @@ export function issueEditIssueDeadlineHandlerResponse201(data: IssueEditIssueDea
   });
 }
 
-export function issueEditIssueDeadlineHandlerResponse403(data: IssueEditIssueDeadline403) {
+export function issueEditIssueDeadlineHandlerResponse403(data: IssueEditIssueDeadlineStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +30,7 @@ export function issueEditIssueDeadlineHandlerResponse403(data: IssueEditIssueDea
   });
 }
 
-export function issueEditIssueDeadlineHandlerResponse404(data: IssueEditIssueDeadline404) {
+export function issueEditIssueDeadlineHandlerResponse404(data: IssueEditIssueDeadlineStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,18 +40,19 @@ export function issueEditIssueDeadlineHandlerResponse404(data: IssueEditIssueDea
 }
 
 export function issueEditIssueDeadlineHandler(
-  data?:
-    | IssueEditIssueDeadlineMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueEditIssueDeadlineResponse | HttpResponseResolver<Record<string, string>, IssueEditIssueDeadlineBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/deadline`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueEditIssueDeadlineBody>(
+    `/repos/:owner/:repo/issues/:index/deadline`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

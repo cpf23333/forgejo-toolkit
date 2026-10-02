@@ -3,26 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { ActivitypubInstanceActorQueryResponse } from '../types/ActivitypubInstanceActor';
-
-function getActivitypubInstanceActorUrl() {
-  const res = { method: 'GET', url: `/activitypub/actor` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type {
+  ActivitypubInstanceActorOptions,
+  ActivitypubInstanceActorResponses,
+} from '../types/ActivitypubInstanceActor';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Returns the instance's Actor
  * {@link /activitypub/actor}
  */
-export async function activitypubInstanceActor(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubInstanceActor<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubInstanceActorOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<ActivitypubInstanceActorResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubInstanceActorQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getActivitypubInstanceActorUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/activitypub/actor',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubInstanceActorResponses, ThrowOnError>>;
 }

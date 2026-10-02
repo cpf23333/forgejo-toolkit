@@ -5,26 +5,17 @@
 
 /**
  * @description GitBlob represents a git blob
+ * @type object
  */
 export type GitBlob = {
-  /**
-   * @type string | undefined
-   */
   content?: string;
-  /**
-   * @type string | undefined
-   */
   encoding?: string;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

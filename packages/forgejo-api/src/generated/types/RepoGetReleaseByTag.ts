@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Release } from './Release';
 
-export type RepoGetReleaseByTagPathParams = {
+export type RepoGetReleaseByTagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,54 @@ export type RepoGetReleaseByTagPathParams = {
 };
 
 /**
- * @description Release
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetReleaseByTag200 = Release;
+export type RepoGetReleaseByTagStatus200Json = Release;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Release represents a repository release
+ * @type object
  */
-export type RepoGetReleaseByTag404 = APINotFound;
+export type RepoGetReleaseByTagStatus200Html = Release;
 
-export type RepoGetReleaseByTagQueryResponse = RepoGetReleaseByTag200;
+export type RepoGetReleaseByTagStatus200 = RepoGetReleaseByTagStatus200Json | RepoGetReleaseByTagStatus200Html;
 
-export type RepoGetReleaseByTagQuery = {
-  Response: RepoGetReleaseByTag200;
-  PathParams: RepoGetReleaseByTagPathParams;
-  Errors: RepoGetReleaseByTag404;
+export type RepoGetReleaseByTagStatus404Json = APINotFound;
+
+export type RepoGetReleaseByTagStatus404Html = APINotFound;
+
+export type RepoGetReleaseByTagStatus404 = RepoGetReleaseByTagStatus404Json | RepoGetReleaseByTagStatus404Html;
+
+export type RepoGetReleaseByTagOptions = {
+  body?: never;
+  path: RepoGetReleaseByTagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetReleaseByTagResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReleaseByTagStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReleaseByTagStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetReleaseByTagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetReleaseByTagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetReleaseByTagResponse = RepoGetReleaseByTagStatus200 | RepoGetReleaseByTagStatus404;

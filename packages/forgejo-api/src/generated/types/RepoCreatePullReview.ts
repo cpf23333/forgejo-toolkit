@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreatePullReviewOptions } from './CreatePullReviewOptions';
 import type { PullReview } from './PullReview';
 
-export type RepoCreatePullReviewPathParams = {
+export type RepoCreatePullReviewPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,94 @@ export type RepoCreatePullReviewPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description PullReview
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoCreatePullReview200 = PullReview;
+export type RepoCreatePullReviewStatus200Json = PullReview;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullReview represents a pull request review
+ * @type object
  */
-export type RepoCreatePullReview404 = APINotFound;
+export type RepoCreatePullReviewStatus200Html = PullReview;
+
+export type RepoCreatePullReviewStatus200 = RepoCreatePullReviewStatus200Json | RepoCreatePullReviewStatus200Html;
+
+export type RepoCreatePullReviewStatus404Json = APINotFound;
+
+export type RepoCreatePullReviewStatus404Html = APINotFound;
+
+export type RepoCreatePullReviewStatus404 = RepoCreatePullReviewStatus404Json | RepoCreatePullReviewStatus404Html;
+
+export type RepoCreatePullReviewStatus422Json = APIValidationError;
+
+export type RepoCreatePullReviewStatus422Html = APIValidationError;
+
+export type RepoCreatePullReviewStatus422 = RepoCreatePullReviewStatus422Json | RepoCreatePullReviewStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreatePullReviewOptions are options to create a pull review
+ * @type object
  */
-export type RepoCreatePullReview422 = APIValidationError;
+export type RepoCreatePullReviewBodyJson = CreatePullReviewOptions;
 
-export type RepoCreatePullReviewMutationRequest = CreatePullReviewOptions;
+/**
+ * @description CreatePullReviewOptions are options to create a pull review
+ * @type object
+ */
+export type RepoCreatePullReviewBodyPlain = CreatePullReviewOptions;
 
-export type RepoCreatePullReviewMutationResponse = RepoCreatePullReview200;
+export type RepoCreatePullReviewBody = RepoCreatePullReviewBodyJson | RepoCreatePullReviewBodyPlain;
 
-export type RepoCreatePullReviewMutation = {
-  Response: RepoCreatePullReview200;
-  Request: RepoCreatePullReviewMutationRequest;
-  PathParams: RepoCreatePullReviewPathParams;
-  Errors: RepoCreatePullReview404 | RepoCreatePullReview422;
+export type RepoCreatePullReviewOptions = {
+  body: RepoCreatePullReviewBody;
+  path: RepoCreatePullReviewPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreatePullReviewResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreatePullReviewResponse =
+  | RepoCreatePullReviewStatus200
+  | RepoCreatePullReviewStatus404
+  | RepoCreatePullReviewStatus422;

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { WatchInfo } from './WatchInfo';
 
-export type UserCurrentPutSubscriptionPathParams = {
+export type UserCurrentPutSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,19 +20,60 @@ export type UserCurrentPutSubscriptionPathParams = {
 };
 
 /**
- * @description WatchInfo
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type UserCurrentPutSubscription200 = WatchInfo;
+export type UserCurrentPutSubscriptionStatus200Json = WatchInfo;
 
 /**
- * @description APINotFound is a not found error response
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type UserCurrentPutSubscription404 = APINotFound;
+export type UserCurrentPutSubscriptionStatus200Html = WatchInfo;
 
-export type UserCurrentPutSubscriptionMutationResponse = UserCurrentPutSubscription200;
+export type UserCurrentPutSubscriptionStatus200 =
+  | UserCurrentPutSubscriptionStatus200Json
+  | UserCurrentPutSubscriptionStatus200Html;
 
-export type UserCurrentPutSubscriptionMutation = {
-  Response: UserCurrentPutSubscription200;
-  PathParams: UserCurrentPutSubscriptionPathParams;
-  Errors: UserCurrentPutSubscription404;
+export type UserCurrentPutSubscriptionStatus404Json = APINotFound;
+
+export type UserCurrentPutSubscriptionStatus404Html = APINotFound;
+
+export type UserCurrentPutSubscriptionStatus404 =
+  | UserCurrentPutSubscriptionStatus404Json
+  | UserCurrentPutSubscriptionStatus404Html;
+
+export type UserCurrentPutSubscriptionOptions = {
+  body?: never;
+  path: UserCurrentPutSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentPutSubscriptionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutSubscriptionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutSubscriptionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutSubscriptionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutSubscriptionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentPutSubscriptionResponse =
+  | UserCurrentPutSubscriptionStatus200
+  | UserCurrentPutSubscriptionStatus404;

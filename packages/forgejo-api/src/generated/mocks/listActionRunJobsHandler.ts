@@ -4,14 +4,14 @@
  */
 
 import type {
-  ListActionRunJobsQueryResponse,
-  ListActionRunJobs400,
-  ListActionRunJobs403,
-  ListActionRunJobs404,
+  ListActionRunJobsResponse,
+  ListActionRunJobsStatus400,
+  ListActionRunJobsStatus403,
+  ListActionRunJobsStatus404,
 } from '../types/ListActionRunJobs';
 import { http } from 'msw';
 
-export function listActionRunJobsHandlerResponse200(data: ListActionRunJobsQueryResponse) {
+export function listActionRunJobsHandlerResponse200(data: ListActionRunJobsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function listActionRunJobsHandlerResponse200(data: ListActionRunJobsQuery
   });
 }
 
-export function listActionRunJobsHandlerResponse400(data: ListActionRunJobs400) {
+export function listActionRunJobsHandlerResponse400(data: ListActionRunJobsStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function listActionRunJobsHandlerResponse400(data: ListActionRunJobs400) 
   });
 }
 
-export function listActionRunJobsHandlerResponse403(data: ListActionRunJobs403) {
+export function listActionRunJobsHandlerResponse403(data: ListActionRunJobsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function listActionRunJobsHandlerResponse403(data: ListActionRunJobs403) 
   });
 }
 
-export function listActionRunJobsHandlerResponse404(data: ListActionRunJobs404) {
+export function listActionRunJobsHandlerResponse404(data: ListActionRunJobsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function listActionRunJobsHandlerResponse404(data: ListActionRunJobs404) 
 
 export function listActionRunJobsHandler(
   data?:
-    | ListActionRunJobsQueryResponse
+    | ListActionRunJobsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/runs/:run_id/jobs`, function handler(info) {

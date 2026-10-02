@@ -5,7 +5,7 @@
 
 import type { BranchProtection } from './BranchProtection';
 
-export type RepoListBranchProtectionPathParams = {
+export type RepoListBranchProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,15 +18,34 @@ export type RepoListBranchProtectionPathParams = {
   repo: string;
 };
 
-/**
- * @description BranchProtectionList
- */
-export type RepoListBranchProtection200 = BranchProtection[];
+export type RepoListBranchProtectionStatus200Json = BranchProtection[];
 
-export type RepoListBranchProtectionQueryResponse = RepoListBranchProtection200;
+export type RepoListBranchProtectionStatus200Html = BranchProtection[];
 
-export type RepoListBranchProtectionQuery = {
-  Response: RepoListBranchProtection200;
-  PathParams: RepoListBranchProtectionPathParams;
-  Errors: any;
+export type RepoListBranchProtectionStatus200 =
+  | RepoListBranchProtectionStatus200Json
+  | RepoListBranchProtectionStatus200Html;
+
+export type RepoListBranchProtectionOptions = {
+  body?: never;
+  path: RepoListBranchProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListBranchProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListBranchProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListBranchProtectionStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListBranchProtectionResponse = RepoListBranchProtectionStatus200;

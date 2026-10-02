@@ -6,20 +6,13 @@
 import type { Commit } from './Commit';
 import type { CommitAffectedFiles } from './CommitAffectedFiles';
 
-/**
- * Compare represents a comparison between two commits.
- */
 export type Compare = {
-  /**
-   * @type array | undefined
-   */
   commits?: Commit[];
-  /**
-   * @type array | undefined
-   */
   files?: CommitAffectedFiles[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total_commits?: number;
 };

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIInternalServerError } from './APIInternalServerError';
 
-export type IssueDeleteCommentDeprecatedPathParams = {
+export type IssueDeleteCommentDeprecatedPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,30 +24,68 @@ export type IssueDeleteCommentDeprecatedPathParams = {
   index: number;
   /**
    * @description id of comment to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteCommentDeprecated204 = any;
+export type IssueDeleteCommentDeprecatedStatus204 = unknown;
+
+export type IssueDeleteCommentDeprecatedStatus403Json = APIForbiddenError;
+
+export type IssueDeleteCommentDeprecatedStatus403Html = APIForbiddenError;
+
+export type IssueDeleteCommentDeprecatedStatus403 =
+  | IssueDeleteCommentDeprecatedStatus403Json
+  | IssueDeleteCommentDeprecatedStatus403Html;
+
+export type IssueDeleteCommentDeprecatedStatus500Json = APIInternalServerError;
+
+export type IssueDeleteCommentDeprecatedStatus500Html = APIInternalServerError;
+
+export type IssueDeleteCommentDeprecatedStatus500 =
+  | IssueDeleteCommentDeprecatedStatus500Json
+  | IssueDeleteCommentDeprecatedStatus500Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @deprecated
+ * @type object
  */
-export type IssueDeleteCommentDeprecated403 = APIForbiddenError;
-
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueDeleteCommentDeprecated500 = APIInternalServerError;
-
-export type IssueDeleteCommentDeprecatedMutationResponse = IssueDeleteCommentDeprecated204;
-
-export type IssueDeleteCommentDeprecatedMutation = {
-  Response: IssueDeleteCommentDeprecated204;
-  PathParams: IssueDeleteCommentDeprecatedPathParams;
-  Errors: IssueDeleteCommentDeprecated403 | IssueDeleteCommentDeprecated500;
+export type IssueDeleteCommentDeprecatedOptions = {
+  body?: never;
+  path: IssueDeleteCommentDeprecatedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteCommentDeprecatedResponses = {
+  '204': IssueDeleteCommentDeprecatedStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteCommentDeprecatedStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteCommentDeprecatedStatus403Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteCommentDeprecatedStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteCommentDeprecatedStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteCommentDeprecatedResponse =
+  | IssueDeleteCommentDeprecatedStatus204
+  | IssueDeleteCommentDeprecatedStatus403
+  | IssueDeleteCommentDeprecatedStatus500;

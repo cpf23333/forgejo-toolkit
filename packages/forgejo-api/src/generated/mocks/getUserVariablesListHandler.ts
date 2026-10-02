@@ -4,15 +4,15 @@
  */
 
 import type {
-  GetUserVariablesListQueryResponse,
-  GetUserVariablesList400,
-  GetUserVariablesList401,
-  GetUserVariablesList403,
-  GetUserVariablesList404,
+  GetUserVariablesListResponse,
+  GetUserVariablesListStatus400,
+  GetUserVariablesListStatus401,
+  GetUserVariablesListStatus403,
+  GetUserVariablesListStatus404,
 } from '../types/GetUserVariablesList';
 import { http } from 'msw';
 
-export function getUserVariablesListHandlerResponse200(data: GetUserVariablesListQueryResponse) {
+export function getUserVariablesListHandlerResponse200(data: GetUserVariablesListResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -21,7 +21,7 @@ export function getUserVariablesListHandlerResponse200(data: GetUserVariablesLis
   });
 }
 
-export function getUserVariablesListHandlerResponse400(data: GetUserVariablesList400) {
+export function getUserVariablesListHandlerResponse400(data: GetUserVariablesListStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +30,7 @@ export function getUserVariablesListHandlerResponse400(data: GetUserVariablesLis
   });
 }
 
-export function getUserVariablesListHandlerResponse401(data: GetUserVariablesList401) {
+export function getUserVariablesListHandlerResponse401(data: GetUserVariablesListStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -39,7 +39,7 @@ export function getUserVariablesListHandlerResponse401(data: GetUserVariablesLis
   });
 }
 
-export function getUserVariablesListHandlerResponse403(data: GetUserVariablesList403) {
+export function getUserVariablesListHandlerResponse403(data: GetUserVariablesListStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -48,7 +48,7 @@ export function getUserVariablesListHandlerResponse403(data: GetUserVariablesLis
   });
 }
 
-export function getUserVariablesListHandlerResponse404(data: GetUserVariablesList404) {
+export function getUserVariablesListHandlerResponse404(data: GetUserVariablesListStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -59,7 +59,7 @@ export function getUserVariablesListHandlerResponse404(data: GetUserVariablesLis
 
 export function getUserVariablesListHandler(
   data?:
-    | GetUserVariablesListQueryResponse
+    | GetUserVariablesListResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/variables`, function handler(info) {

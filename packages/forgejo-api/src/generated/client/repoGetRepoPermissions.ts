@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetRepoPermissionsQueryResponse,
-  RepoGetRepoPermissionsPathParams,
-  RepoGetRepoPermissions403,
-  RepoGetRepoPermissions404,
-} from '../types/RepoGetRepoPermissions';
-
-function getRepoGetRepoPermissionsUrl(
-  owner: RepoGetRepoPermissionsPathParams['owner'],
-  repo: RepoGetRepoPermissionsPathParams['repo'],
-  collaborator: RepoGetRepoPermissionsPathParams['collaborator'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/collaborators/${collaborator}/permission` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetRepoPermissionsOptions, RepoGetRepoPermissionsResponses } from '../types/RepoGetRepoPermissions';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get repository permissions for a user
  * {@link /repos/:owner/:repo/collaborators/:collaborator/permission}
  */
-export async function repoGetRepoPermissions(
-  owner: RepoGetRepoPermissionsPathParams['owner'],
-  repo: RepoGetRepoPermissionsPathParams['repo'],
-  collaborator: RepoGetRepoPermissionsPathParams['collaborator'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetRepoPermissions<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetRepoPermissionsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetRepoPermissionsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetRepoPermissionsQueryResponse,
-    ResponseErrorConfig<RepoGetRepoPermissions403 | RepoGetRepoPermissions404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetRepoPermissionsUrl(owner, repo, collaborator).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/collaborators/{collaborator}/permission',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetRepoPermissionsResponses, ThrowOnError>>;
 }

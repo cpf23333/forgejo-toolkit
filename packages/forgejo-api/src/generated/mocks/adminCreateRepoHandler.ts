@@ -4,16 +4,18 @@
  */
 
 import type {
-  AdminCreateRepoMutationResponse,
-  AdminCreateRepo400,
-  AdminCreateRepo403,
-  AdminCreateRepo404,
-  AdminCreateRepo409,
-  AdminCreateRepo422,
+  AdminCreateRepoResponse,
+  AdminCreateRepoStatus400,
+  AdminCreateRepoStatus403,
+  AdminCreateRepoStatus404,
+  AdminCreateRepoStatus409,
+  AdminCreateRepoStatus422,
+  AdminCreateRepoBody,
 } from '../types/AdminCreateRepo';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateRepoHandlerResponse201(data: AdminCreateRepoMutationResponse) {
+export function adminCreateRepoHandlerResponse201(data: AdminCreateRepoResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function adminCreateRepoHandlerResponse201(data: AdminCreateRepoMutationR
   });
 }
 
-export function adminCreateRepoHandlerResponse400(data: AdminCreateRepo400) {
+export function adminCreateRepoHandlerResponse400(data: AdminCreateRepoStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function adminCreateRepoHandlerResponse400(data: AdminCreateRepo400) {
   });
 }
 
-export function adminCreateRepoHandlerResponse403(data: AdminCreateRepo403) {
+export function adminCreateRepoHandlerResponse403(data: AdminCreateRepoStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -40,7 +42,7 @@ export function adminCreateRepoHandlerResponse403(data: AdminCreateRepo403) {
   });
 }
 
-export function adminCreateRepoHandlerResponse404(data: AdminCreateRepo404) {
+export function adminCreateRepoHandlerResponse404(data: AdminCreateRepoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +51,7 @@ export function adminCreateRepoHandlerResponse404(data: AdminCreateRepo404) {
   });
 }
 
-export function adminCreateRepoHandlerResponse409(data: AdminCreateRepo409) {
+export function adminCreateRepoHandlerResponse409(data: AdminCreateRepoStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -58,7 +60,7 @@ export function adminCreateRepoHandlerResponse409(data: AdminCreateRepo409) {
   });
 }
 
-export function adminCreateRepoHandlerResponse422(data: AdminCreateRepo422) {
+export function adminCreateRepoHandlerResponse422(data: AdminCreateRepoStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -68,11 +70,9 @@ export function adminCreateRepoHandlerResponse422(data: AdminCreateRepo422) {
 }
 
 export function adminCreateRepoHandler(
-  data?:
-    | AdminCreateRepoMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateRepoResponse | HttpResponseResolver<Record<string, string>, AdminCreateRepoBody>,
 ) {
-  return http.post(`/admin/users/:username/repos`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateRepoBody>(`/admin/users/:username/repos`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

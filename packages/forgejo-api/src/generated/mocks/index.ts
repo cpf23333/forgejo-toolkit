@@ -666,6 +666,7 @@ export {
   issueAddSubscriptionHandler,
   issueAddSubscriptionHandlerResponse200,
   issueAddSubscriptionHandlerResponse201,
+  issueAddSubscriptionHandlerResponse304,
   issueAddSubscriptionHandlerResponse404,
 } from './issueAddSubscriptionHandler';
 export {
@@ -806,6 +807,7 @@ export {
   issueDeleteSubscriptionHandler,
   issueDeleteSubscriptionHandlerResponse200,
   issueDeleteSubscriptionHandlerResponse201,
+  issueDeleteSubscriptionHandlerResponse304,
   issueDeleteSubscriptionHandlerResponse404,
 } from './issueDeleteSubscriptionHandler';
 export {
@@ -1244,7 +1246,12 @@ export {
   orgGetUserPermissionsHandlerResponse403,
   orgGetUserPermissionsHandlerResponse404,
 } from './orgGetUserPermissionsHandler';
-export { orgIsMemberHandler, orgIsMemberHandlerResponse204, orgIsMemberHandlerResponse404 } from './orgIsMemberHandler';
+export {
+  orgIsMemberHandler,
+  orgIsMemberHandlerResponse204,
+  orgIsMemberHandlerResponse303,
+  orgIsMemberHandlerResponse404,
+} from './orgIsMemberHandler';
 export {
   orgIsPublicMemberHandler,
   orgIsPublicMemberHandlerResponse204,

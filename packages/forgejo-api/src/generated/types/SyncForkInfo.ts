@@ -5,22 +5,16 @@
 
 /**
  * @description SyncForkInfo information about syncing a fork
+ * @type object
  */
 export type SyncForkInfo = {
-  /**
-   * @type boolean | undefined
-   */
   allowed?: boolean;
-  /**
-   * @type string | undefined
-   */
   base_commit?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   commits_behind?: number;
-  /**
-   * @type string | undefined
-   */
   fork_commit?: string;
 };

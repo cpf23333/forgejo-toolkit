@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateOrgOption } from './CreateOrgOption';
 import type { Organization } from './Organization';
 
-export type AdminCreateOrgPathParams = {
+export type AdminCreateOrgPath = {
   /**
    * @description username of the user that will own the created organization
    * @type string
@@ -17,27 +17,75 @@ export type AdminCreateOrgPathParams = {
 };
 
 /**
- * @description Organization
+ * @description Organization represents an organization
+ * @type object
  */
-export type AdminCreateOrg201 = Organization;
+export type AdminCreateOrgStatus201Json = Organization;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Organization represents an organization
+ * @type object
  */
-export type AdminCreateOrg403 = APIForbiddenError;
+export type AdminCreateOrgStatus201Html = Organization;
+
+export type AdminCreateOrgStatus201 = AdminCreateOrgStatus201Json | AdminCreateOrgStatus201Html;
+
+export type AdminCreateOrgStatus403Json = APIForbiddenError;
+
+export type AdminCreateOrgStatus403Html = APIForbiddenError;
+
+export type AdminCreateOrgStatus403 = AdminCreateOrgStatus403Json | AdminCreateOrgStatus403Html;
+
+export type AdminCreateOrgStatus422Json = APIValidationError;
+
+export type AdminCreateOrgStatus422Html = APIValidationError;
+
+export type AdminCreateOrgStatus422 = AdminCreateOrgStatus422Json | AdminCreateOrgStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateOrgOption options for creating an organization
+ * @type object
  */
-export type AdminCreateOrg422 = APIValidationError;
+export type AdminCreateOrgBody = CreateOrgOption;
 
-export type AdminCreateOrgMutationRequest = CreateOrgOption;
-
-export type AdminCreateOrgMutationResponse = AdminCreateOrg201;
-
-export type AdminCreateOrgMutation = {
-  Response: AdminCreateOrg201;
-  Request: AdminCreateOrgMutationRequest;
-  PathParams: AdminCreateOrgPathParams;
-  Errors: AdminCreateOrg403 | AdminCreateOrg422;
+export type AdminCreateOrgOptions = {
+  body: AdminCreateOrgBody;
+  path: AdminCreateOrgPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateOrgResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateOrgStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateOrgStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateOrgStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateOrgStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateOrgStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateOrgStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateOrgResponse = AdminCreateOrgStatus201 | AdminCreateOrgStatus403 | AdminCreateOrgStatus422;

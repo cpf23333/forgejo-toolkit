@@ -4,16 +4,7 @@
  */
 
 export type APINotFound = {
-  /**
-   * @type array | undefined
-   */
   errors?: string[];
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

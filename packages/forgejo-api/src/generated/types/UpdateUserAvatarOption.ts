@@ -5,6 +5,7 @@
 
 /**
  * @description UpdateUserAvatarUserOption options when updating the user avatar
+ * @type object
  */
 export type UpdateUserAvatarOption = {
   /**

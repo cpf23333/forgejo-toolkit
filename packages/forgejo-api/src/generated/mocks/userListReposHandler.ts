@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListReposQueryResponse, UserListRepos404 } from '../types/UserListRepos';
+import type { UserListReposResponse, UserListReposStatus404 } from '../types/UserListRepos';
 import { http } from 'msw';
 
-export function userListReposHandlerResponse200(data: UserListReposQueryResponse) {
+export function userListReposHandlerResponse200(data: UserListReposResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListReposHandlerResponse200(data: UserListReposQueryResponse
   });
 }
 
-export function userListReposHandlerResponse404(data: UserListRepos404) {
+export function userListReposHandlerResponse404(data: UserListReposStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListReposHandlerResponse404(data: UserListRepos404) {
 
 export function userListReposHandler(
   data?:
-    | UserListReposQueryResponse
+    | UserListReposResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/repos`, function handler(info) {

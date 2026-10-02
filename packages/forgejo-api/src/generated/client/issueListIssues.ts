@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueListIssuesQueryResponse,
-  IssueListIssuesPathParams,
-  IssueListIssuesQueryParams,
-  IssueListIssues404,
-  IssueListIssues422,
-} from '../types/IssueListIssues';
-
-function getIssueListIssuesUrl(owner: IssueListIssuesPathParams['owner'], repo: IssueListIssuesPathParams['repo']) {
-  const res = { method: 'GET', url: `/repos/${owner}/${repo}/issues` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueListIssuesOptions, IssueListIssuesResponses } from '../types/IssueListIssues';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repository's issues
  * {@link /repos/:owner/:repo/issues}
  */
-export async function issueListIssues(
-  owner: IssueListIssuesPathParams['owner'],
-  repo: IssueListIssuesPathParams['repo'],
-  params?: IssueListIssuesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueListIssues<ThrowOnError extends boolean = true>(
+  options: Options<IssueListIssuesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueListIssuesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueListIssuesQueryResponse,
-    ResponseErrorConfig<IssueListIssues404 | IssueListIssues422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getIssueListIssuesUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueListIssuesResponses, ThrowOnError>>;
 }

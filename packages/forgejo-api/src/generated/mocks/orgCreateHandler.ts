@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { OrgCreateMutationResponse, OrgCreate403, OrgCreate422 } from '../types/OrgCreate';
+import type { OrgCreateResponse, OrgCreateStatus403, OrgCreateStatus422, OrgCreateBody } from '../types/OrgCreate';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgCreateHandlerResponse201(data: OrgCreateMutationResponse) {
+export function orgCreateHandlerResponse201(data: OrgCreateResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +16,7 @@ export function orgCreateHandlerResponse201(data: OrgCreateMutationResponse) {
   });
 }
 
-export function orgCreateHandlerResponse403(data: OrgCreate403) {
+export function orgCreateHandlerResponse403(data: OrgCreateStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -24,7 +25,7 @@ export function orgCreateHandlerResponse403(data: OrgCreate403) {
   });
 }
 
-export function orgCreateHandlerResponse422(data: OrgCreate422) {
+export function orgCreateHandlerResponse422(data: OrgCreateStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +35,9 @@ export function orgCreateHandlerResponse422(data: OrgCreate422) {
 }
 
 export function orgCreateHandler(
-  data?:
-    | OrgCreateMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgCreateResponse | HttpResponseResolver<Record<string, string>, OrgCreateBody>,
 ) {
-  return http.post(`/orgs`, function handler(info) {
+  return http.post<Record<string, string>, OrgCreateBody>(`/orgs`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

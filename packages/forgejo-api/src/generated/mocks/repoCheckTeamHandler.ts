@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoCheckTeamQueryResponse, RepoCheckTeam404, RepoCheckTeam405 } from '../types/RepoCheckTeam';
+import type { RepoCheckTeamResponse, RepoCheckTeamStatus404, RepoCheckTeamStatus405 } from '../types/RepoCheckTeam';
 import { http } from 'msw';
 
-export function repoCheckTeamHandlerResponse200(data: RepoCheckTeamQueryResponse) {
+export function repoCheckTeamHandlerResponse200(data: RepoCheckTeamResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoCheckTeamHandlerResponse200(data: RepoCheckTeamQueryResponse
   });
 }
 
-export function repoCheckTeamHandlerResponse404(data: RepoCheckTeam404) {
+export function repoCheckTeamHandlerResponse404(data: RepoCheckTeamStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +24,7 @@ export function repoCheckTeamHandlerResponse404(data: RepoCheckTeam404) {
   });
 }
 
-export function repoCheckTeamHandlerResponse405(data: RepoCheckTeam405) {
+export function repoCheckTeamHandlerResponse405(data: RepoCheckTeamStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
@@ -35,7 +35,7 @@ export function repoCheckTeamHandlerResponse405(data: RepoCheckTeam405) {
 
 export function repoCheckTeamHandler(
   data?:
-    | RepoCheckTeamQueryResponse
+    | RepoCheckTeamResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/teams/:team`, function handler(info) {

@@ -4,21 +4,21 @@
  */
 
 import type {
-  DeleteUserSecretMutationResponse,
-  DeleteUserSecret400,
-  DeleteUserSecret401,
-  DeleteUserSecret403,
-  DeleteUserSecret404,
+  DeleteUserSecretResponse,
+  DeleteUserSecretStatus400,
+  DeleteUserSecretStatus401,
+  DeleteUserSecretStatus403,
+  DeleteUserSecretStatus404,
 } from '../types/DeleteUserSecret';
 import { http } from 'msw';
 
-export function deleteUserSecretHandlerResponse204(data?: DeleteUserSecretMutationResponse) {
+export function deleteUserSecretHandlerResponse204(data?: DeleteUserSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteUserSecretHandlerResponse400(data: DeleteUserSecret400) {
+export function deleteUserSecretHandlerResponse400(data: DeleteUserSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -27,7 +27,7 @@ export function deleteUserSecretHandlerResponse400(data: DeleteUserSecret400) {
   });
 }
 
-export function deleteUserSecretHandlerResponse401(data: DeleteUserSecret401) {
+export function deleteUserSecretHandlerResponse401(data: DeleteUserSecretStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -36,7 +36,7 @@ export function deleteUserSecretHandlerResponse401(data: DeleteUserSecret401) {
   });
 }
 
-export function deleteUserSecretHandlerResponse403(data: DeleteUserSecret403) {
+export function deleteUserSecretHandlerResponse403(data: DeleteUserSecretStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -45,7 +45,7 @@ export function deleteUserSecretHandlerResponse403(data: DeleteUserSecret403) {
   });
 }
 
-export function deleteUserSecretHandlerResponse404(data: DeleteUserSecret404) {
+export function deleteUserSecretHandlerResponse404(data: DeleteUserSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

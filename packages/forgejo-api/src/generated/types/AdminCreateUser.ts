@@ -10,31 +10,102 @@ import type { CreateUserOption } from './CreateUserOption';
 import type { User } from './User';
 
 /**
- * @description User
+ * @description User represents a user
+ * @type object
  */
-export type AdminCreateUser201 = User;
+export type AdminCreateUserStatus201Json = User;
 
 /**
- * @description APIError is error format response
+ * @description User represents a user
+ * @type object
  */
-export type AdminCreateUser400 = APIError;
+export type AdminCreateUserStatus201Html = User;
+
+export type AdminCreateUserStatus201 = AdminCreateUserStatus201Json | AdminCreateUserStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateUser403 = APIForbiddenError;
+export type AdminCreateUserStatus400Json = APIError;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateUser422 = APIValidationError;
+export type AdminCreateUserStatus400Html = APIError;
 
-export type AdminCreateUserMutationRequest = CreateUserOption;
+export type AdminCreateUserStatus400 = AdminCreateUserStatus400Json | AdminCreateUserStatus400Html;
 
-export type AdminCreateUserMutationResponse = AdminCreateUser201;
+export type AdminCreateUserStatus403Json = APIForbiddenError;
 
-export type AdminCreateUserMutation = {
-  Response: AdminCreateUser201;
-  Request: AdminCreateUserMutationRequest;
-  Errors: AdminCreateUser400 | AdminCreateUser403 | AdminCreateUser422;
+export type AdminCreateUserStatus403Html = APIForbiddenError;
+
+export type AdminCreateUserStatus403 = AdminCreateUserStatus403Json | AdminCreateUserStatus403Html;
+
+export type AdminCreateUserStatus422Json = APIValidationError;
+
+export type AdminCreateUserStatus422Html = APIValidationError;
+
+export type AdminCreateUserStatus422 = AdminCreateUserStatus422Json | AdminCreateUserStatus422Html;
+
+/**
+ * @description CreateUserOption create user options
+ * @type object | undefined
+ */
+export type AdminCreateUserBody = CreateUserOption | undefined;
+
+export type AdminCreateUserOptions = {
+  body: AdminCreateUserBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateUserResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserStatus403Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateUserStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateUserStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateUserResponse =
+  | AdminCreateUserStatus201
+  | AdminCreateUserStatus400
+  | AdminCreateUserStatus403
+  | AdminCreateUserStatus422;

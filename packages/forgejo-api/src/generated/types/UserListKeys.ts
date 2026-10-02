@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PublicKey } from './PublicKey';
 
-export type UserListKeysPathParams = {
+export type UserListKeysPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListKeysPathParams = {
   username: string;
 };
 
-export type UserListKeysQueryParams = {
+export type UserListKeysQuery = {
   /**
    * @description fingerprint of the key
    * @type string | undefined
@@ -32,21 +32,47 @@ export type UserListKeysQueryParams = {
   limit?: number;
 };
 
-/**
- * @description PublicKeyList
- */
-export type UserListKeys200 = PublicKey[];
+export type UserListKeysStatus200Json = PublicKey[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListKeys404 = APINotFound;
+export type UserListKeysStatus200Html = PublicKey[];
 
-export type UserListKeysQueryResponse = UserListKeys200;
+export type UserListKeysStatus200 = UserListKeysStatus200Json | UserListKeysStatus200Html;
 
-export type UserListKeysQuery = {
-  Response: UserListKeys200;
-  PathParams: UserListKeysPathParams;
-  QueryParams: UserListKeysQueryParams;
-  Errors: UserListKeys404;
+export type UserListKeysStatus404Json = APINotFound;
+
+export type UserListKeysStatus404Html = APINotFound;
+
+export type UserListKeysStatus404 = UserListKeysStatus404Json | UserListKeysStatus404Html;
+
+export type UserListKeysOptions = {
+  body?: never;
+  path: UserListKeysPath;
+  query?: UserListKeysQuery;
+  headers?: never;
 };
+
+export type UserListKeysResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListKeysStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListKeysStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListKeysStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListKeysStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListKeysResponse = UserListKeysStatus200 | UserListKeysStatus404;

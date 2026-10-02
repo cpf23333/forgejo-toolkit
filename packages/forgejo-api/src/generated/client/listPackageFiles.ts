@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ListPackageFilesQueryResponse,
-  ListPackageFilesPathParams,
-  ListPackageFiles404,
-} from '../types/ListPackageFiles';
-
-function getListPackageFilesUrl(
-  owner: ListPackageFilesPathParams['owner'],
-  type: ListPackageFilesPathParams['type'],
-  name: ListPackageFilesPathParams['name'],
-  version: ListPackageFilesPathParams['version'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/packages/${owner}/${type}/${name}/${version}/files` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ListPackageFilesOptions, ListPackageFilesResponses } from '../types/ListPackageFiles';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets all files of a package
  * {@link /packages/:owner/:type/:name/:version/files}
  */
-export async function listPackageFiles(
-  owner: ListPackageFilesPathParams['owner'],
-  type: ListPackageFilesPathParams['type'],
-  name: ListPackageFilesPathParams['name'],
-  version: ListPackageFilesPathParams['version'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function listPackageFiles<ThrowOnError extends boolean = true>(
+  options: Options<ListPackageFilesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ListPackageFilesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ListPackageFilesQueryResponse, ResponseErrorConfig<ListPackageFiles404>, unknown>({
-    method: 'GET',
-    url: getListPackageFilesUrl(owner, type, name, version).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/packages/{owner}/{type}/{name}/{version}/files',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ListPackageFilesResponses, ThrowOnError>>;
 }

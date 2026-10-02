@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteRepoRunnerMutationResponse,
-  DeleteRepoRunnerPathParams,
-  DeleteRepoRunner400,
-  DeleteRepoRunner404,
-} from '../types/DeleteRepoRunner';
-
-function getDeleteRepoRunnerUrl(
-  owner: DeleteRepoRunnerPathParams['owner'],
-  repo: DeleteRepoRunnerPathParams['repo'],
-  runner_id: DeleteRepoRunnerPathParams['runner_id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteRepoRunnerOptions, DeleteRepoRunnerResponses } from '../types/DeleteRepoRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a particular runner that belongs to a repository
  * {@link /repos/:owner/:repo/actions/runners/:runner_id}
  */
-export async function deleteRepoRunner(
-  owner: DeleteRepoRunnerPathParams['owner'],
-  repo: DeleteRepoRunnerPathParams['repo'],
-  runner_id: DeleteRepoRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteRepoRunner<ThrowOnError extends boolean = true>(
+  options: Options<DeleteRepoRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteRepoRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteRepoRunnerMutationResponse,
-    ResponseErrorConfig<DeleteRepoRunner400 | DeleteRepoRunner404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteRepoRunnerUrl(owner, repo, runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteRepoRunnerResponses, ThrowOnError>>;
 }

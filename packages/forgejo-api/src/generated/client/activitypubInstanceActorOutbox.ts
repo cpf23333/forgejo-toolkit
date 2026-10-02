@@ -3,26 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { ActivitypubInstanceActorOutboxMutationResponse } from '../types/ActivitypubInstanceActorOutbox';
-
-function getActivitypubInstanceActorOutboxUrl() {
-  const res = { method: 'POST', url: `/activitypub/actor/outbox` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type {
+  ActivitypubInstanceActorOutboxOptions,
+  ActivitypubInstanceActorOutboxResponses,
+} from '../types/ActivitypubInstanceActorOutbox';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Display the outbox (always empty)
  * {@link /activitypub/actor/outbox}
  */
-export async function activitypubInstanceActorOutbox(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function activitypubInstanceActorOutbox<ThrowOnError extends boolean = true>(
+  options: Options<ActivitypubInstanceActorOutboxOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<ActivitypubInstanceActorOutboxResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<ActivitypubInstanceActorOutboxMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'POST',
-    url: getActivitypubInstanceActorOutboxUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/activitypub/actor/outbox',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ActivitypubInstanceActorOutboxResponses, ThrowOnError>>;
 }

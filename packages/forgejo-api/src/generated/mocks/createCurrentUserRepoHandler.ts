@@ -4,17 +4,19 @@
  */
 
 import type {
-  CreateCurrentUserRepoMutationResponse,
-  CreateCurrentUserRepo400,
-  CreateCurrentUserRepo401,
-  CreateCurrentUserRepo403,
-  CreateCurrentUserRepo409,
-  CreateCurrentUserRepo413,
-  CreateCurrentUserRepo422,
+  CreateCurrentUserRepoResponse,
+  CreateCurrentUserRepoStatus400,
+  CreateCurrentUserRepoStatus401,
+  CreateCurrentUserRepoStatus403,
+  CreateCurrentUserRepoStatus409,
+  CreateCurrentUserRepoStatus413,
+  CreateCurrentUserRepoStatus422,
+  CreateCurrentUserRepoBody,
 } from '../types/CreateCurrentUserRepo';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function createCurrentUserRepoHandlerResponse201(data: CreateCurrentUserRepoMutationResponse) {
+export function createCurrentUserRepoHandlerResponse201(data: CreateCurrentUserRepoResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -23,7 +25,7 @@ export function createCurrentUserRepoHandlerResponse201(data: CreateCurrentUserR
   });
 }
 
-export function createCurrentUserRepoHandlerResponse400(data: CreateCurrentUserRepo400) {
+export function createCurrentUserRepoHandlerResponse400(data: CreateCurrentUserRepoStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -32,7 +34,7 @@ export function createCurrentUserRepoHandlerResponse400(data: CreateCurrentUserR
   });
 }
 
-export function createCurrentUserRepoHandlerResponse401(data: CreateCurrentUserRepo401) {
+export function createCurrentUserRepoHandlerResponse401(data: CreateCurrentUserRepoStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -41,7 +43,7 @@ export function createCurrentUserRepoHandlerResponse401(data: CreateCurrentUserR
   });
 }
 
-export function createCurrentUserRepoHandlerResponse403(data: CreateCurrentUserRepo403) {
+export function createCurrentUserRepoHandlerResponse403(data: CreateCurrentUserRepoStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -50,19 +52,19 @@ export function createCurrentUserRepoHandlerResponse403(data: CreateCurrentUserR
   });
 }
 
-export function createCurrentUserRepoHandlerResponse409(data?: CreateCurrentUserRepo409) {
+export function createCurrentUserRepoHandlerResponse409(data?: CreateCurrentUserRepoStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function createCurrentUserRepoHandlerResponse413(data?: CreateCurrentUserRepo413) {
+export function createCurrentUserRepoHandlerResponse413(data?: CreateCurrentUserRepoStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function createCurrentUserRepoHandlerResponse422(data: CreateCurrentUserRepo422) {
+export function createCurrentUserRepoHandlerResponse422(data: CreateCurrentUserRepoStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -72,11 +74,9 @@ export function createCurrentUserRepoHandlerResponse422(data: CreateCurrentUserR
 }
 
 export function createCurrentUserRepoHandler(
-  data?:
-    | CreateCurrentUserRepoMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: CreateCurrentUserRepoResponse | HttpResponseResolver<Record<string, string>, CreateCurrentUserRepoBody>,
 ) {
-  return http.post(`/user/repos`, function handler(info) {
+  return http.post<Record<string, string>, CreateCurrentUserRepoBody>(`/user/repos`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

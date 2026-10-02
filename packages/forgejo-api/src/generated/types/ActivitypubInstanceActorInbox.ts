@@ -3,14 +3,20 @@
  * Do not edit manually.
  */
 
-/**
- * @description APIEmpty is an empty response
- */
-export type ActivitypubInstanceActorInbox204 = any;
+export type ActivitypubInstanceActorInboxStatus204 = unknown;
 
-export type ActivitypubInstanceActorInboxMutationResponse = ActivitypubInstanceActorInbox204;
-
-export type ActivitypubInstanceActorInboxMutation = {
-  Response: ActivitypubInstanceActorInbox204;
-  Errors: any;
+export type ActivitypubInstanceActorInboxOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubInstanceActorInboxResponses = {
+  '204': ActivitypubInstanceActorInboxStatus204;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubInstanceActorInboxResponse = ActivitypubInstanceActorInboxStatus204;

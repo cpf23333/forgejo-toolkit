@@ -5,10 +5,13 @@
 
 /**
  * @description EditDeadlineOption options for creating a deadline
+ * @type object
  */
 export type EditDeadlineOption = {
   /**
-   * @type string, date-time
+   * @description
+   * Format: `date-time`
+   * @type string
    */
   due_date: string;
 };

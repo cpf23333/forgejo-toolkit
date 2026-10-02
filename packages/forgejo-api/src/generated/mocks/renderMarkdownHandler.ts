@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { RenderMarkdownMutationResponse, RenderMarkdown422 } from '../types/RenderMarkdown';
+import type { RenderMarkdownResponse, RenderMarkdownStatus422, RenderMarkdownBody } from '../types/RenderMarkdown';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function renderMarkdownHandlerResponse200(data: RenderMarkdownMutationResponse) {
+export function renderMarkdownHandlerResponse200(data: RenderMarkdownResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +16,7 @@ export function renderMarkdownHandlerResponse200(data: RenderMarkdownMutationRes
   });
 }
 
-export function renderMarkdownHandlerResponse422(data: RenderMarkdown422) {
+export function renderMarkdownHandlerResponse422(data: RenderMarkdownStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -25,11 +26,9 @@ export function renderMarkdownHandlerResponse422(data: RenderMarkdown422) {
 }
 
 export function renderMarkdownHandler(
-  data?:
-    | RenderMarkdownMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RenderMarkdownResponse | HttpResponseResolver<Record<string, string>, RenderMarkdownBody>,
 ) {
-  return http.post(`/markdown`, function handler(info) {
+  return http.post<Record<string, string>, RenderMarkdownBody>(`/markdown`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

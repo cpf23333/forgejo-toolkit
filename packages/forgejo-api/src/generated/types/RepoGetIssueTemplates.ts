@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { IssueTemplate } from './IssueTemplate';
 
-export type RepoGetIssueTemplatesPathParams = {
+export type RepoGetIssueTemplatesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoGetIssueTemplatesPathParams = {
   repo: string;
 };
 
-/**
- * @description IssueTemplates
- */
-export type RepoGetIssueTemplates200 = IssueTemplate[];
+export type RepoGetIssueTemplatesStatus200Json = IssueTemplate[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetIssueTemplates404 = APINotFound;
+export type RepoGetIssueTemplatesStatus200Html = IssueTemplate[];
 
-export type RepoGetIssueTemplatesQueryResponse = RepoGetIssueTemplates200;
+export type RepoGetIssueTemplatesStatus200 = RepoGetIssueTemplatesStatus200Json | RepoGetIssueTemplatesStatus200Html;
 
-export type RepoGetIssueTemplatesQuery = {
-  Response: RepoGetIssueTemplates200;
-  PathParams: RepoGetIssueTemplatesPathParams;
-  Errors: RepoGetIssueTemplates404;
+export type RepoGetIssueTemplatesStatus404Json = APINotFound;
+
+export type RepoGetIssueTemplatesStatus404Html = APINotFound;
+
+export type RepoGetIssueTemplatesStatus404 = RepoGetIssueTemplatesStatus404Json | RepoGetIssueTemplatesStatus404Html;
+
+export type RepoGetIssueTemplatesOptions = {
+  body?: never;
+  path: RepoGetIssueTemplatesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetIssueTemplatesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetIssueTemplatesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetIssueTemplatesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetIssueTemplatesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetIssueTemplatesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetIssueTemplatesResponse = RepoGetIssueTemplatesStatus200 | RepoGetIssueTemplatesStatus404;

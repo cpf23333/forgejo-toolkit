@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListTeamMembersQueryResponse, OrgListTeamMembers404 } from '../types/OrgListTeamMembers';
+import type { OrgListTeamMembersResponse, OrgListTeamMembersStatus404 } from '../types/OrgListTeamMembers';
 import { http } from 'msw';
 
-export function orgListTeamMembersHandlerResponse200(data: OrgListTeamMembersQueryResponse) {
+export function orgListTeamMembersHandlerResponse200(data: OrgListTeamMembersResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListTeamMembersHandlerResponse200(data: OrgListTeamMembersQue
   });
 }
 
-export function orgListTeamMembersHandlerResponse404(data: OrgListTeamMembers404) {
+export function orgListTeamMembersHandlerResponse404(data: OrgListTeamMembersStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListTeamMembersHandlerResponse404(data: OrgListTeamMembers404
 
 export function orgListTeamMembersHandler(
   data?:
-    | OrgListTeamMembersQueryResponse
+    | OrgListTeamMembersResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id/members`, function handler(info) {

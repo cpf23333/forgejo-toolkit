@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionRunner } from './ActionRunner';
 
-export type GetAdminRunnerPathParams = {
+export type GetAdminRunnerPath = {
   /**
    * @description ID of the runner
    * @type string
@@ -17,23 +17,76 @@ export type GetAdminRunnerPathParams = {
 
 /**
  * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetAdminRunner200 = ActionRunner;
+export type GetAdminRunnerStatus200Json = ActionRunner;
 
 /**
- * @description APIError is error format response
+ * @description ActionRunner represents a runner
+ * @type object
  */
-export type GetAdminRunner400 = APIError;
+export type GetAdminRunnerStatus200Html = ActionRunner;
+
+export type GetAdminRunnerStatus200 = GetAdminRunnerStatus200Json | GetAdminRunnerStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetAdminRunner404 = APINotFound;
+export type GetAdminRunnerStatus400Json = APIError;
 
-export type GetAdminRunnerQueryResponse = GetAdminRunner200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type GetAdminRunnerStatus400Html = APIError;
 
-export type GetAdminRunnerQuery = {
-  Response: GetAdminRunner200;
-  PathParams: GetAdminRunnerPathParams;
-  Errors: GetAdminRunner400 | GetAdminRunner404;
+export type GetAdminRunnerStatus400 = GetAdminRunnerStatus400Json | GetAdminRunnerStatus400Html;
+
+export type GetAdminRunnerStatus404Json = APINotFound;
+
+export type GetAdminRunnerStatus404Html = APINotFound;
+
+export type GetAdminRunnerStatus404 = GetAdminRunnerStatus404Json | GetAdminRunnerStatus404Html;
+
+export type GetAdminRunnerOptions = {
+  body?: never;
+  path: GetAdminRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetAdminRunnerResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnerStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnerStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetAdminRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetAdminRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetAdminRunnerResponse = GetAdminRunnerStatus200 | GetAdminRunnerStatus400 | GetAdminRunnerStatus404;

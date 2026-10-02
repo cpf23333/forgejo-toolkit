@@ -5,10 +5,8 @@
 
 /**
  * @description TopicName a list of repo topic names
+ * @type object
  */
 export type TopicName = {
-  /**
-   * @type array | undefined
-   */
   topics?: string[];
 };

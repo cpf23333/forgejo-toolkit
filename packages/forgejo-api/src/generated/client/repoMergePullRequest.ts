@@ -3,63 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoMergePullRequestMutationRequest,
-  RepoMergePullRequestMutationResponse,
-  RepoMergePullRequestPathParams,
-  RepoMergePullRequest404,
-  RepoMergePullRequest405,
-  RepoMergePullRequest409,
-  RepoMergePullRequest413,
-  RepoMergePullRequest423,
-} from '../types/RepoMergePullRequest';
-
-function getRepoMergePullRequestUrl(
-  owner: RepoMergePullRequestPathParams['owner'],
-  repo: RepoMergePullRequestPathParams['repo'],
-  index: RepoMergePullRequestPathParams['index'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/pulls/${index}/merge` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoMergePullRequestOptions, RepoMergePullRequestResponses } from '../types/RepoMergePullRequest';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Merge a pull request
  * {@link /repos/:owner/:repo/pulls/:index/merge}
  */
-export async function repoMergePullRequest(
-  owner: RepoMergePullRequestPathParams['owner'],
-  repo: RepoMergePullRequestPathParams['repo'],
-  index: RepoMergePullRequestPathParams['index'],
-  data: RepoMergePullRequestMutationRequest,
-  config: Partial<RequestConfig<RepoMergePullRequestMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoMergePullRequest<ThrowOnError extends boolean = true>(
+  options: Options<RepoMergePullRequestOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoMergePullRequestResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoMergePullRequestMutationResponse,
-    ResponseErrorConfig<
-      | RepoMergePullRequest404
-      | RepoMergePullRequest405
-      | RepoMergePullRequest409
-      | RepoMergePullRequest413
-      | RepoMergePullRequest423
-    >,
-    RepoMergePullRequestMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoMergePullRequestUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/pulls/{index}/merge',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoMergePullRequestResponses, ThrowOnError>>;
 }

@@ -3,49 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueCreateLabelMutationRequest,
-  IssueCreateLabelMutationResponse,
-  IssueCreateLabelPathParams,
-  IssueCreateLabel404,
-  IssueCreateLabel422,
-} from '../types/IssueCreateLabel';
-
-function getIssueCreateLabelUrl(owner: IssueCreateLabelPathParams['owner'], repo: IssueCreateLabelPathParams['repo']) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/labels` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueCreateLabelOptions, IssueCreateLabelResponses } from '../types/IssueCreateLabel';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a label
  * {@link /repos/:owner/:repo/labels}
  */
-export async function issueCreateLabel(
-  owner: IssueCreateLabelPathParams['owner'],
-  repo: IssueCreateLabelPathParams['repo'],
-  data: IssueCreateLabelMutationRequest,
-  config: Partial<RequestConfig<IssueCreateLabelMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCreateLabel<ThrowOnError extends boolean = true>(
+  options: Options<IssueCreateLabelOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCreateLabelResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueCreateLabelMutationResponse,
-    ResponseErrorConfig<IssueCreateLabel404 | IssueCreateLabel422>,
-    IssueCreateLabelMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueCreateLabelUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/labels',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCreateLabelResponses, ThrowOnError>>;
 }

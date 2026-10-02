@@ -4,15 +4,17 @@
  */
 
 import type {
-  AdminCreateQuotaGroupMutationResponse,
-  AdminCreateQuotaGroup400,
-  AdminCreateQuotaGroup403,
-  AdminCreateQuotaGroup409,
-  AdminCreateQuotaGroup422,
+  AdminCreateQuotaGroupResponse,
+  AdminCreateQuotaGroupStatus400,
+  AdminCreateQuotaGroupStatus403,
+  AdminCreateQuotaGroupStatus409,
+  AdminCreateQuotaGroupStatus422,
+  AdminCreateQuotaGroupBody,
 } from '../types/AdminCreateQuotaGroup';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateQuotaGroupHandlerResponse201(data: AdminCreateQuotaGroupMutationResponse) {
+export function adminCreateQuotaGroupHandlerResponse201(data: AdminCreateQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function adminCreateQuotaGroupHandlerResponse201(data: AdminCreateQuotaGr
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse400(data: AdminCreateQuotaGroup400) {
+export function adminCreateQuotaGroupHandlerResponse400(data: AdminCreateQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -30,7 +32,7 @@ export function adminCreateQuotaGroupHandlerResponse400(data: AdminCreateQuotaGr
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse403(data: AdminCreateQuotaGroup403) {
+export function adminCreateQuotaGroupHandlerResponse403(data: AdminCreateQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +41,7 @@ export function adminCreateQuotaGroupHandlerResponse403(data: AdminCreateQuotaGr
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse409(data: AdminCreateQuotaGroup409) {
+export function adminCreateQuotaGroupHandlerResponse409(data: AdminCreateQuotaGroupStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -48,7 +50,7 @@ export function adminCreateQuotaGroupHandlerResponse409(data: AdminCreateQuotaGr
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse422(data: AdminCreateQuotaGroup422) {
+export function adminCreateQuotaGroupHandlerResponse422(data: AdminCreateQuotaGroupStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,11 +60,9 @@ export function adminCreateQuotaGroupHandlerResponse422(data: AdminCreateQuotaGr
 }
 
 export function adminCreateQuotaGroupHandler(
-  data?:
-    | AdminCreateQuotaGroupMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreateQuotaGroupResponse | HttpResponseResolver<Record<string, string>, AdminCreateQuotaGroupBody>,
 ) {
-  return http.post(`/admin/quota/groups`, function handler(info) {
+  return http.post<Record<string, string>, AdminCreateQuotaGroupBody>(`/admin/quota/groups`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

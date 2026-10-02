@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
-export type UpdateRepoSecretPathParams = {
+export type UpdateRepoSecretPath = {
   /**
    * @description owner of the repository
    * @type string
@@ -25,36 +25,67 @@ export type UpdateRepoSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description response when creating a secret
- */
-export type UpdateRepoSecret201 = any;
+export type UpdateRepoSecretStatus201 = unknown;
+
+export type UpdateRepoSecretStatus204 = unknown;
 
 /**
- * @description response when updating a secret
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateRepoSecret204 = any;
+export type UpdateRepoSecretStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateRepoSecret400 = APIError;
+export type UpdateRepoSecretStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateRepoSecret404 = APINotFound;
+export type UpdateRepoSecretStatus400 = UpdateRepoSecretStatus400Json | UpdateRepoSecretStatus400Html;
 
-/**
- * CreateOrUpdateSecretOption defines the properties of the secret to create or update.
- */
-export type UpdateRepoSecretMutationRequest = CreateOrUpdateSecretOption;
+export type UpdateRepoSecretStatus404Json = APINotFound;
 
-export type UpdateRepoSecretMutationResponse = UpdateRepoSecret201 | UpdateRepoSecret204;
+export type UpdateRepoSecretStatus404Html = APINotFound;
 
-export type UpdateRepoSecretMutation = {
-  Response: UpdateRepoSecret201 | UpdateRepoSecret204;
-  Request: UpdateRepoSecretMutationRequest;
-  PathParams: UpdateRepoSecretPathParams;
-  Errors: UpdateRepoSecret400 | UpdateRepoSecret404;
+export type UpdateRepoSecretStatus404 = UpdateRepoSecretStatus404Json | UpdateRepoSecretStatus404Html;
+
+export type UpdateRepoSecretBody = CreateOrUpdateSecretOption | undefined;
+
+export type UpdateRepoSecretOptions = {
+  body: UpdateRepoSecretBody;
+  path: UpdateRepoSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateRepoSecretResponses = {
+  '201': UpdateRepoSecretStatus201;
+  '204': UpdateRepoSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateRepoSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateRepoSecretStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateRepoSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateRepoSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateRepoSecretResponse =
+  | UpdateRepoSecretStatus201
+  | UpdateRepoSecretStatus204
+  | UpdateRepoSecretStatus400
+  | UpdateRepoSecretStatus404;

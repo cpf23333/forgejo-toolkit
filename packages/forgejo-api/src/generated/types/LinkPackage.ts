@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type LinkPackagePathParams = {
+export type LinkPackagePath = {
   /**
    * @description owner of the package
    * @type string
@@ -28,20 +28,35 @@ export type LinkPackagePathParams = {
   repo_name: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type LinkPackage201 = any;
+export type LinkPackageStatus201 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type LinkPackage404 = APINotFound;
+export type LinkPackageStatus404Json = APINotFound;
 
-export type LinkPackageMutationResponse = LinkPackage201;
+export type LinkPackageStatus404Html = APINotFound;
 
-export type LinkPackageMutation = {
-  Response: LinkPackage201;
-  PathParams: LinkPackagePathParams;
-  Errors: LinkPackage404;
+export type LinkPackageStatus404 = LinkPackageStatus404Json | LinkPackageStatus404Html;
+
+export type LinkPackageOptions = {
+  body?: never;
+  path: LinkPackagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type LinkPackageResponses = {
+  '201': LinkPackageStatus201;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: LinkPackageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: LinkPackageStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type LinkPackageResponse = LinkPackageStatus201 | LinkPackageStatus404;

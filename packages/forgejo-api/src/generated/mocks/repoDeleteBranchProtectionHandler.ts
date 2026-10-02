@@ -4,18 +4,18 @@
  */
 
 import type {
-  RepoDeleteBranchProtectionMutationResponse,
-  RepoDeleteBranchProtection404,
+  RepoDeleteBranchProtectionResponse,
+  RepoDeleteBranchProtectionStatus404,
 } from '../types/RepoDeleteBranchProtection';
 import { http } from 'msw';
 
-export function repoDeleteBranchProtectionHandlerResponse204(data?: RepoDeleteBranchProtectionMutationResponse) {
+export function repoDeleteBranchProtectionHandlerResponse204(data?: RepoDeleteBranchProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteBranchProtectionHandlerResponse404(data: RepoDeleteBranchProtection404) {
+export function repoDeleteBranchProtectionHandlerResponse404(data: RepoDeleteBranchProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

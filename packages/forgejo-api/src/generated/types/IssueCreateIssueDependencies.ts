@@ -7,7 +7,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Issue } from './Issue';
 import type { IssueMeta } from './IssueMeta';
 
-export type IssueCreateIssueDependenciesPathParams = {
+export type IssueCreateIssueDependenciesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,33 +20,88 @@ export type IssueCreateIssueDependenciesPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssueDependencies201 = Issue;
+export type IssueCreateIssueDependenciesStatus201Json = Issue;
 
 /**
- * @description the issue does not exist
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueCreateIssueDependencies404 = any;
+export type IssueCreateIssueDependenciesStatus201Html = Issue;
+
+export type IssueCreateIssueDependenciesStatus201 =
+  | IssueCreateIssueDependenciesStatus201Json
+  | IssueCreateIssueDependenciesStatus201Html;
+
+export type IssueCreateIssueDependenciesStatus404 = unknown;
+
+export type IssueCreateIssueDependenciesStatus423Json = APIRepoArchivedError;
+
+export type IssueCreateIssueDependenciesStatus423Html = APIRepoArchivedError;
+
+export type IssueCreateIssueDependenciesStatus423 =
+  | IssueCreateIssueDependenciesStatus423Json
+  | IssueCreateIssueDependenciesStatus423Html;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description IssueMeta basic issue information
+ * @type object | undefined
  */
-export type IssueCreateIssueDependencies423 = APIRepoArchivedError;
+export type IssueCreateIssueDependenciesBodyJson = IssueMeta | undefined;
 
-export type IssueCreateIssueDependenciesMutationRequest = IssueMeta;
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueCreateIssueDependenciesBodyPlain = IssueMeta | undefined;
 
-export type IssueCreateIssueDependenciesMutationResponse = IssueCreateIssueDependencies201;
+export type IssueCreateIssueDependenciesBody =
+  | IssueCreateIssueDependenciesBodyJson
+  | IssueCreateIssueDependenciesBodyPlain;
 
-export type IssueCreateIssueDependenciesMutation = {
-  Response: IssueCreateIssueDependencies201;
-  Request: IssueCreateIssueDependenciesMutationRequest;
-  PathParams: IssueCreateIssueDependenciesPathParams;
-  Errors: IssueCreateIssueDependencies404 | IssueCreateIssueDependencies423;
+export type IssueCreateIssueDependenciesOptions = {
+  body: IssueCreateIssueDependenciesBody;
+  path: IssueCreateIssueDependenciesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCreateIssueDependenciesResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueDependenciesStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueDependenciesStatus201Html;
+      };
+  '404': IssueCreateIssueDependenciesStatus404;
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueDependenciesStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueDependenciesStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateIssueDependenciesResponse =
+  | IssueCreateIssueDependenciesStatus201
+  | IssueCreateIssueDependenciesStatus404
+  | IssueCreateIssueDependenciesStatus423;

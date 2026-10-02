@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListReleasesQueryResponse, RepoListReleases404 } from '../types/RepoListReleases';
+import type { RepoListReleasesResponse, RepoListReleasesStatus404 } from '../types/RepoListReleases';
 import { http } from 'msw';
 
-export function repoListReleasesHandlerResponse200(data: RepoListReleasesQueryResponse) {
+export function repoListReleasesHandlerResponse200(data: RepoListReleasesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoListReleasesHandlerResponse200(data: RepoListReleasesQueryRe
   });
 }
 
-export function repoListReleasesHandlerResponse404(data: RepoListReleases404) {
+export function repoListReleasesHandlerResponse404(data: RepoListReleasesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoListReleasesHandlerResponse404(data: RepoListReleases404) {
 
 export function repoListReleasesHandler(
   data?:
-    | RepoListReleasesQueryResponse
+    | RepoListReleasesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/releases`, function handler(info) {

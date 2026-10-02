@@ -5,18 +5,10 @@
 
 /**
  * @description CreateOAuth2ApplicationOptions holds options to create an oauth2 application
+ * @type object
  */
 export type CreateOAuth2ApplicationOptions = {
-  /**
-   * @type boolean | undefined
-   */
   confidential_client?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type array | undefined
-   */
   redirect_uris?: string[];
 };

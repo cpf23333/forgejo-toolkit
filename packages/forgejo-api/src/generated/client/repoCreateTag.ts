@@ -3,52 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreateTagMutationRequest,
-  RepoCreateTagMutationResponse,
-  RepoCreateTagPathParams,
-  RepoCreateTag404,
-  RepoCreateTag405,
-  RepoCreateTag409,
-  RepoCreateTag413,
-  RepoCreateTag422,
-  RepoCreateTag423,
-} from '../types/RepoCreateTag';
-
-function getRepoCreateTagUrl(owner: RepoCreateTagPathParams['owner'], repo: RepoCreateTagPathParams['repo']) {
-  const res = { method: 'POST', url: `/repos/${owner}/${repo}/tags` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreateTagOptions, RepoCreateTagResponses } from '../types/RepoCreateTag';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a new git tag in a repository
  * {@link /repos/:owner/:repo/tags}
  */
-export async function repoCreateTag(
-  owner: RepoCreateTagPathParams['owner'],
-  repo: RepoCreateTagPathParams['repo'],
-  data: RepoCreateTagMutationRequest,
-  config: Partial<RequestConfig<RepoCreateTagMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateTag<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateTagOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateTagResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateTagMutationResponse,
-    ResponseErrorConfig<
-      RepoCreateTag404 | RepoCreateTag405 | RepoCreateTag409 | RepoCreateTag413 | RepoCreateTag422 | RepoCreateTag423
-    >,
-    RepoCreateTagMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateTagUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/tags',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateTagResponses, ThrowOnError>>;
 }

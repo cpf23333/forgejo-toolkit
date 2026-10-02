@@ -5,34 +5,14 @@
 
 /**
  * @description EditReleaseOption options when editing a release
+ * @type object
  */
 export type EditReleaseOption = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
-  /**
-   * @type boolean | undefined
-   */
   draft?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   hide_archive_links?: boolean;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type boolean | undefined
-   */
   prerelease?: boolean;
-  /**
-   * @type string | undefined
-   */
   tag_name?: string;
-  /**
-   * @type string | undefined
-   */
   target_commitish?: string;
 };

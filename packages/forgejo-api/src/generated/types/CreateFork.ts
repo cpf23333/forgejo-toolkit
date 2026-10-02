@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateForkOption } from './CreateForkOption';
 import type { Repository } from './Repository';
 
-export type CreateForkPathParams = {
+export type CreateForkPath = {
   /**
    * @description owner of the repo to fork
    * @type string
@@ -23,42 +23,110 @@ export type CreateForkPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateFork202 = Repository;
+export type CreateForkStatus202Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateFork403 = APIForbiddenError;
+export type CreateForkStatus202Html = Repository;
+
+export type CreateForkStatus202 = CreateForkStatus202Json | CreateForkStatus202Html;
+
+export type CreateForkStatus403Json = APIForbiddenError;
+
+export type CreateForkStatus403Html = APIForbiddenError;
+
+export type CreateForkStatus403 = CreateForkStatus403Json | CreateForkStatus403Html;
+
+export type CreateForkStatus404Json = APINotFound;
+
+export type CreateForkStatus404Html = APINotFound;
+
+export type CreateForkStatus404 = CreateForkStatus404Json | CreateForkStatus404Html;
+
+export type CreateForkStatus409 = unknown;
+
+export type CreateForkStatus413 = unknown;
+
+export type CreateForkStatus422Json = APIValidationError;
+
+export type CreateForkStatus422Html = APIValidationError;
+
+export type CreateForkStatus422 = CreateForkStatus422Json | CreateForkStatus422Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateForkOption options for creating a fork
+ * @type object | undefined
  */
-export type CreateFork404 = APINotFound;
+export type CreateForkBodyJson = CreateForkOption | undefined;
 
 /**
- * @description The repository with the same name already exists.
+ * @description CreateForkOption options for creating a fork
+ * @type object | undefined
  */
-export type CreateFork409 = any;
+export type CreateForkBodyPlain = CreateForkOption | undefined;
 
-/**
- * @description QuotaExceeded
- */
-export type CreateFork413 = any;
+export type CreateForkBody = CreateForkBodyJson | CreateForkBodyPlain;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type CreateFork422 = APIValidationError;
-
-export type CreateForkMutationRequest = CreateForkOption;
-
-export type CreateForkMutationResponse = CreateFork202;
-
-export type CreateForkMutation = {
-  Response: CreateFork202;
-  Request: CreateForkMutationRequest;
-  PathParams: CreateForkPathParams;
-  Errors: CreateFork403 | CreateFork404 | CreateFork409 | CreateFork413 | CreateFork422;
+export type CreateForkOptions = {
+  body: CreateForkBody;
+  path: CreateForkPath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateForkResponses = {
+  '202':
+    | {
+        contentType: 'application/json';
+        data: CreateForkStatus202Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateForkStatus202Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CreateForkStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateForkStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateForkStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateForkStatus404Html;
+      };
+  '409': CreateForkStatus409;
+  '413': CreateForkStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: CreateForkStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateForkStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateForkResponse =
+  | CreateForkStatus202
+  | CreateForkStatus403
+  | CreateForkStatus404
+  | CreateForkStatus409
+  | CreateForkStatus413
+  | CreateForkStatus422;

@@ -5,23 +5,50 @@
 
 import type { Hook } from './Hook';
 
-export type AdminGetHookPathParams = {
+export type AdminGetHookPath = {
   /**
    * @description id of the hook to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type AdminGetHook200 = Hook;
+export type AdminGetHookStatus200Json = Hook;
 
-export type AdminGetHookQueryResponse = AdminGetHook200;
+/**
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
+ */
+export type AdminGetHookStatus200Html = Hook;
 
-export type AdminGetHookQuery = {
-  Response: AdminGetHook200;
-  PathParams: AdminGetHookPathParams;
-  Errors: any;
+export type AdminGetHookStatus200 = AdminGetHookStatus200Json | AdminGetHookStatus200Html;
+
+export type AdminGetHookOptions = {
+  body?: never;
+  path: AdminGetHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminGetHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetHookStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetHookResponse = AdminGetHookStatus200;

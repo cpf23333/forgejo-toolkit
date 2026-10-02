@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoGetRawFilePathParams = {
+export type RepoGetRawFilePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,7 +23,7 @@ export type RepoGetRawFilePathParams = {
   filepath: string;
 };
 
-export type RepoGetRawFileQueryParams = {
+export type RepoGetRawFileQuery = {
   /**
    * @description The name of the commit/branch/tag. Default the repository’s default branch (usually master)
    * @type string | undefined
@@ -31,21 +31,47 @@ export type RepoGetRawFileQueryParams = {
   ref?: string;
 };
 
-/**
- * @description Returns raw file content.
- */
-export type RepoGetRawFile200 = Blob;
+export type RepoGetRawFileStatus200Json = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoGetRawFile404 = APINotFound;
+export type RepoGetRawFileStatus200Html = Blob;
 
-export type RepoGetRawFileQueryResponse = RepoGetRawFile200;
+export type RepoGetRawFileStatus200 = RepoGetRawFileStatus200Json | RepoGetRawFileStatus200Html;
 
-export type RepoGetRawFileQuery = {
-  Response: RepoGetRawFile200;
-  PathParams: RepoGetRawFilePathParams;
-  QueryParams: RepoGetRawFileQueryParams;
-  Errors: RepoGetRawFile404;
+export type RepoGetRawFileStatus404Json = APINotFound;
+
+export type RepoGetRawFileStatus404Html = APINotFound;
+
+export type RepoGetRawFileStatus404 = RepoGetRawFileStatus404Json | RepoGetRawFileStatus404Html;
+
+export type RepoGetRawFileOptions = {
+  body?: never;
+  path: RepoGetRawFilePath;
+  query?: RepoGetRawFileQuery;
+  headers?: never;
 };
+
+export type RepoGetRawFileResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRawFileStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRawFileStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetRawFileStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetRawFileStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetRawFileResponse = RepoGetRawFileStatus200 | RepoGetRawFileStatus404;

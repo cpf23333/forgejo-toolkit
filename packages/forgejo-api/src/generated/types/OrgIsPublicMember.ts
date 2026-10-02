@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-export type OrgIsPublicMemberPathParams = {
+export type OrgIsPublicMemberPath = {
   /**
    * @description name of the organization
    * @type string
@@ -16,20 +16,23 @@ export type OrgIsPublicMemberPathParams = {
   username: string;
 };
 
-/**
- * @description user is a public member
- */
-export type OrgIsPublicMember204 = any;
+export type OrgIsPublicMemberStatus204 = unknown;
 
-/**
- * @description user is not a public member
- */
-export type OrgIsPublicMember404 = any;
+export type OrgIsPublicMemberStatus404 = unknown;
 
-export type OrgIsPublicMemberQueryResponse = OrgIsPublicMember204;
-
-export type OrgIsPublicMemberQuery = {
-  Response: OrgIsPublicMember204;
-  PathParams: OrgIsPublicMemberPathParams;
-  Errors: OrgIsPublicMember404;
+export type OrgIsPublicMemberOptions = {
+  body?: never;
+  path: OrgIsPublicMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgIsPublicMemberResponses = {
+  '204': OrgIsPublicMemberStatus204;
+  '404': OrgIsPublicMemberStatus404;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgIsPublicMemberResponse = OrgIsPublicMemberStatus204 | OrgIsPublicMemberStatus404;

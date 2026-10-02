@@ -3,16 +3,21 @@
  * Do not edit manually.
  */
 
-import type { RepoUpdateAvatarMutationResponse, RepoUpdateAvatar404 } from '../types/RepoUpdateAvatar';
+import type {
+  RepoUpdateAvatarResponse,
+  RepoUpdateAvatarStatus404,
+  RepoUpdateAvatarBody,
+} from '../types/RepoUpdateAvatar';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoUpdateAvatarHandlerResponse204(data?: RepoUpdateAvatarMutationResponse) {
+export function repoUpdateAvatarHandlerResponse204(data?: RepoUpdateAvatarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoUpdateAvatarHandlerResponse404(data: RepoUpdateAvatar404) {
+export function repoUpdateAvatarHandlerResponse404(data: RepoUpdateAvatarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -22,15 +27,9 @@ export function repoUpdateAvatarHandlerResponse404(data: RepoUpdateAvatar404) {
 }
 
 export function repoUpdateAvatarHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, RepoUpdateAvatarBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/avatar`, function handler(info) {
+  return http.post<Record<string, string>, RepoUpdateAvatarBody>(`/repos/:owner/:repo/avatar`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

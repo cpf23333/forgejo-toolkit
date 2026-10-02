@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  NotifyReadThreadMutationResponse,
-  NotifyReadThreadPathParams,
-  NotifyReadThreadQueryParams,
-  NotifyReadThread403,
-  NotifyReadThread404,
-} from '../types/NotifyReadThread';
-
-function getNotifyReadThreadUrl(id: NotifyReadThreadPathParams['id']) {
-  const res = { method: 'PATCH', url: `/notifications/threads/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { NotifyReadThreadOptions, NotifyReadThreadResponses } from '../types/NotifyReadThread';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Mark notification thread as read by ID
  * {@link /notifications/threads/:id}
  */
-export async function notifyReadThread(
-  id: NotifyReadThreadPathParams['id'],
-  params?: NotifyReadThreadQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function notifyReadThread<ThrowOnError extends boolean = true>(
+  options: Options<NotifyReadThreadOptions, ThrowOnError>,
+): Promise<UnwrappedResult<NotifyReadThreadResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    NotifyReadThreadMutationResponse,
-    ResponseErrorConfig<NotifyReadThread403 | NotifyReadThread404>,
-    unknown
-  >({
-    method: 'PATCH',
-    url: getNotifyReadThreadUrl(id).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/notifications/threads/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<NotifyReadThreadResponses, ThrowOnError>>;
 }

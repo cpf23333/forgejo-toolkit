@@ -3,34 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminSearchEmailsQueryResponse,
-  AdminSearchEmailsQueryParams,
-  AdminSearchEmails403,
-} from '../types/AdminSearchEmails';
-
-function getAdminSearchEmailsUrl() {
-  const res = { method: 'GET', url: `/admin/emails/search` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminSearchEmailsOptions, AdminSearchEmailsResponses } from '../types/AdminSearchEmails';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search users' email addresses
  * {@link /admin/emails/search}
  */
-export async function adminSearchEmails(
-  params?: AdminSearchEmailsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminSearchEmails<ThrowOnError extends boolean = true>(
+  options: Options<AdminSearchEmailsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminSearchEmailsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminSearchEmailsQueryResponse, ResponseErrorConfig<AdminSearchEmails403>, unknown>({
-    method: 'GET',
-    url: getAdminSearchEmailsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/emails/search',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminSearchEmailsResponses, ThrowOnError>>;
 }

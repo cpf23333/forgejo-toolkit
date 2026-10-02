@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoNewPinAllowedQueryResponse,
-  RepoNewPinAllowedPathParams,
-  RepoNewPinAllowed404,
-} from '../types/RepoNewPinAllowed';
-
-function getRepoNewPinAllowedUrl(
-  owner: RepoNewPinAllowedPathParams['owner'],
-  repo: RepoNewPinAllowedPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/new_pin_allowed` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoNewPinAllowedOptions, RepoNewPinAllowedResponses } from '../types/RepoNewPinAllowed';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Returns if new Issue Pins are allowed
  * {@link /repos/:owner/:repo/new_pin_allowed}
  */
-export async function repoNewPinAllowed(
-  owner: RepoNewPinAllowedPathParams['owner'],
-  repo: RepoNewPinAllowedPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoNewPinAllowed<ThrowOnError extends boolean = true>(
+  options: Options<RepoNewPinAllowedOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoNewPinAllowedResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoNewPinAllowedQueryResponse, ResponseErrorConfig<RepoNewPinAllowed404>, unknown>({
-    method: 'GET',
-    url: getRepoNewPinAllowedUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/new_pin_allowed',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoNewPinAllowedResponses, ThrowOnError>>;
 }

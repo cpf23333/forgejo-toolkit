@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Comment } from './Comment';
 
-export type IssueGetCommentsPathParams = {
+export type IssueGetCommentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,49 +21,105 @@ export type IssueGetCommentsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueGetCommentsQueryParams = {
+export type IssueGetCommentsQuery = {
   /**
    * @description if provided, only comments updated since the specified time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description if provided, only comments updated before the provided time are returned.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
 };
 
-/**
- * @description CommentList
- */
-export type IssueGetComments200 = Comment[];
+export type IssueGetCommentsStatus200Json = Comment[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetComments404 = APINotFound;
+export type IssueGetCommentsStatus200Html = Comment[];
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueGetComments422 = APIValidationError;
+export type IssueGetCommentsStatus200 = IssueGetCommentsStatus200Json | IssueGetCommentsStatus200Html;
 
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueGetComments500 = APIInternalServerError;
+export type IssueGetCommentsStatus404Json = APINotFound;
 
-export type IssueGetCommentsQueryResponse = IssueGetComments200;
+export type IssueGetCommentsStatus404Html = APINotFound;
 
-export type IssueGetCommentsQuery = {
-  Response: IssueGetComments200;
-  PathParams: IssueGetCommentsPathParams;
-  QueryParams: IssueGetCommentsQueryParams;
-  Errors: IssueGetComments404 | IssueGetComments422 | IssueGetComments500;
+export type IssueGetCommentsStatus404 = IssueGetCommentsStatus404Json | IssueGetCommentsStatus404Html;
+
+export type IssueGetCommentsStatus422Json = APIValidationError;
+
+export type IssueGetCommentsStatus422Html = APIValidationError;
+
+export type IssueGetCommentsStatus422 = IssueGetCommentsStatus422Json | IssueGetCommentsStatus422Html;
+
+export type IssueGetCommentsStatus500Json = APIInternalServerError;
+
+export type IssueGetCommentsStatus500Html = APIInternalServerError;
+
+export type IssueGetCommentsStatus500 = IssueGetCommentsStatus500Json | IssueGetCommentsStatus500Html;
+
+export type IssueGetCommentsOptions = {
+  body?: never;
+  path: IssueGetCommentsPath;
+  query?: IssueGetCommentsQuery;
+  headers?: never;
 };
+
+export type IssueGetCommentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsStatus422Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueGetCommentsStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetCommentsStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetCommentsResponse =
+  | IssueGetCommentsStatus200
+  | IssueGetCommentsStatus404
+  | IssueGetCommentsStatus422
+  | IssueGetCommentsStatus500;

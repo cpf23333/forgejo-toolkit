@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgDeleteLabelMutationResponse, OrgDeleteLabel404 } from '../types/OrgDeleteLabel';
+import type { OrgDeleteLabelResponse, OrgDeleteLabelStatus404 } from '../types/OrgDeleteLabel';
 import { http } from 'msw';
 
-export function orgDeleteLabelHandlerResponse204(data?: OrgDeleteLabelMutationResponse) {
+export function orgDeleteLabelHandlerResponse204(data?: OrgDeleteLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgDeleteLabelHandlerResponse404(data: OrgDeleteLabel404) {
+export function orgDeleteLabelHandlerResponse404(data: OrgDeleteLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Activity } from './Activity';
 
-export type OrgListActivityFeedsPathParams = {
+export type OrgListActivityFeedsPath = {
   /**
    * @description name of the org
    * @type string
@@ -14,10 +14,12 @@ export type OrgListActivityFeedsPathParams = {
   org: string;
 };
 
-export type OrgListActivityFeedsQueryParams = {
+export type OrgListActivityFeedsQuery = {
   /**
    * @description the date of the activities to be found
-   * @type string | undefined, date
+   *
+   * Format: `date`
+   * @type string | undefined
    */
   date?: string;
   /**
@@ -32,21 +34,47 @@ export type OrgListActivityFeedsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActivityFeedsList
- */
-export type OrgListActivityFeeds200 = Activity[];
+export type OrgListActivityFeedsStatus200Json = Activity[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListActivityFeeds404 = APINotFound;
+export type OrgListActivityFeedsStatus200Html = Activity[];
 
-export type OrgListActivityFeedsQueryResponse = OrgListActivityFeeds200;
+export type OrgListActivityFeedsStatus200 = OrgListActivityFeedsStatus200Json | OrgListActivityFeedsStatus200Html;
 
-export type OrgListActivityFeedsQuery = {
-  Response: OrgListActivityFeeds200;
-  PathParams: OrgListActivityFeedsPathParams;
-  QueryParams: OrgListActivityFeedsQueryParams;
-  Errors: OrgListActivityFeeds404;
+export type OrgListActivityFeedsStatus404Json = APINotFound;
+
+export type OrgListActivityFeedsStatus404Html = APINotFound;
+
+export type OrgListActivityFeedsStatus404 = OrgListActivityFeedsStatus404Json | OrgListActivityFeedsStatus404Html;
+
+export type OrgListActivityFeedsOptions = {
+  body?: never;
+  path: OrgListActivityFeedsPath;
+  query?: OrgListActivityFeedsQuery;
+  headers?: never;
 };
+
+export type OrgListActivityFeedsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListActivityFeedsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListActivityFeedsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListActivityFeedsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListActivityFeedsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListActivityFeedsResponse = OrgListActivityFeedsStatus200 | OrgListActivityFeedsStatus404;

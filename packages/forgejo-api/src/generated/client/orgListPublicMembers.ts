@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListPublicMembersQueryResponse,
-  OrgListPublicMembersPathParams,
-  OrgListPublicMembersQueryParams,
-  OrgListPublicMembers404,
-} from '../types/OrgListPublicMembers';
-
-function getOrgListPublicMembersUrl(org: OrgListPublicMembersPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/public_members` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListPublicMembersOptions, OrgListPublicMembersResponses } from '../types/OrgListPublicMembers';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List an organization's public members
  * {@link /orgs/:org/public_members}
  */
-export async function orgListPublicMembers(
-  org: OrgListPublicMembersPathParams['org'],
-  params?: OrgListPublicMembersQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListPublicMembers<ThrowOnError extends boolean = true>(
+  options: Options<OrgListPublicMembersOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListPublicMembersResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListPublicMembersQueryResponse, ResponseErrorConfig<OrgListPublicMembers404>, unknown>({
-    method: 'GET',
-    url: getOrgListPublicMembersUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/public_members',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListPublicMembersResponses, ThrowOnError>>;
 }

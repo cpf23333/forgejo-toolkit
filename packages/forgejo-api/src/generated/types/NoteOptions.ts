@@ -4,8 +4,5 @@
  */
 
 export type NoteOptions = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
 };

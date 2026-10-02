@@ -3,42 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  NotifyReadRepoListMutationResponse,
-  NotifyReadRepoListPathParams,
-  NotifyReadRepoListQueryParams,
-} from '../types/NotifyReadRepoList';
-
-function getNotifyReadRepoListUrl(
-  owner: NotifyReadRepoListPathParams['owner'],
-  repo: NotifyReadRepoListPathParams['repo'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/repos/${owner}/${repo}/notifications` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { NotifyReadRepoListOptions, NotifyReadRepoListResponses } from '../types/NotifyReadRepoList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Mark notification threads as read, pinned or unread on a specific repo
  * {@link /repos/:owner/:repo/notifications}
  */
-export async function notifyReadRepoList(
-  owner: NotifyReadRepoListPathParams['owner'],
-  repo: NotifyReadRepoListPathParams['repo'],
-  params?: NotifyReadRepoListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function notifyReadRepoList<ThrowOnError extends boolean = true>(
+  options: Options<NotifyReadRepoListOptions, ThrowOnError>,
+): Promise<UnwrappedResult<NotifyReadRepoListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<NotifyReadRepoListMutationResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'PUT',
-    url: getNotifyReadRepoListUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/notifications',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      styles: { query: { 'status-types': { style: 'form', explode: true } } },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<NotifyReadRepoListResponses, ThrowOnError>>;
 }

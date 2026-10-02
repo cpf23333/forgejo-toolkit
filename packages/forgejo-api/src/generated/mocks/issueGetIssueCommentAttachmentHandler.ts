@@ -4,12 +4,12 @@
  */
 
 import type {
-  IssueGetIssueCommentAttachmentQueryResponse,
-  IssueGetIssueCommentAttachment404,
+  IssueGetIssueCommentAttachmentResponse,
+  IssueGetIssueCommentAttachmentStatus404,
 } from '../types/IssueGetIssueCommentAttachment';
 import { http } from 'msw';
 
-export function issueGetIssueCommentAttachmentHandlerResponse200(data: IssueGetIssueCommentAttachmentQueryResponse) {
+export function issueGetIssueCommentAttachmentHandlerResponse200(data: IssueGetIssueCommentAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function issueGetIssueCommentAttachmentHandlerResponse200(data: IssueGetI
   });
 }
 
-export function issueGetIssueCommentAttachmentHandlerResponse404(data: IssueGetIssueCommentAttachment404) {
+export function issueGetIssueCommentAttachmentHandlerResponse404(data: IssueGetIssueCommentAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueGetIssueCommentAttachmentHandlerResponse404(data: IssueGetI
 
 export function issueGetIssueCommentAttachmentHandler(
   data?:
-    | IssueGetIssueCommentAttachmentQueryResponse
+    | IssueGetIssueCommentAttachmentResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id`, function handler(info) {

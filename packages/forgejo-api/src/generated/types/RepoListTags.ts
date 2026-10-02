@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Tag } from './Tag';
 
-export type RepoListTagsPathParams = {
+export type RepoListTagsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListTagsPathParams = {
   repo: string;
 };
 
-export type RepoListTagsQueryParams = {
+export type RepoListTagsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -32,21 +32,47 @@ export type RepoListTagsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description TagList
- */
-export type RepoListTags200 = Tag[];
+export type RepoListTagsStatus200Json = Tag[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListTags404 = APINotFound;
+export type RepoListTagsStatus200Html = Tag[];
 
-export type RepoListTagsQueryResponse = RepoListTags200;
+export type RepoListTagsStatus200 = RepoListTagsStatus200Json | RepoListTagsStatus200Html;
 
-export type RepoListTagsQuery = {
-  Response: RepoListTags200;
-  PathParams: RepoListTagsPathParams;
-  QueryParams: RepoListTagsQueryParams;
-  Errors: RepoListTags404;
+export type RepoListTagsStatus404Json = APINotFound;
+
+export type RepoListTagsStatus404Html = APINotFound;
+
+export type RepoListTagsStatus404 = RepoListTagsStatus404Json | RepoListTagsStatus404Html;
+
+export type RepoListTagsOptions = {
+  body?: never;
+  path: RepoListTagsPath;
+  query?: RepoListTagsQuery;
+  headers?: never;
 };
+
+export type RepoListTagsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListTagsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTagsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListTagsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTagsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListTagsResponse = RepoListTagsStatus200 | RepoListTagsStatus404;

@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetCommitPullRequestQueryResponse,
-  RepoGetCommitPullRequest404,
+  RepoGetCommitPullRequestResponse,
+  RepoGetCommitPullRequestStatus404,
 } from '../types/RepoGetCommitPullRequest';
 import { http } from 'msw';
 
-export function repoGetCommitPullRequestHandlerResponse200(data: RepoGetCommitPullRequestQueryResponse) {
+export function repoGetCommitPullRequestHandlerResponse200(data: RepoGetCommitPullRequestResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetCommitPullRequestHandlerResponse200(data: RepoGetCommitPu
   });
 }
 
-export function repoGetCommitPullRequestHandlerResponse404(data: RepoGetCommitPullRequest404) {
+export function repoGetCommitPullRequestHandlerResponse404(data: RepoGetCommitPullRequestStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetCommitPullRequestHandlerResponse404(data: RepoGetCommitPu
 
 export function repoGetCommitPullRequestHandler(
   data?:
-    | RepoGetCommitPullRequestQueryResponse
+    | RepoGetCommitPullRequestResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/commits/:sha/pull`, function handler(info) {

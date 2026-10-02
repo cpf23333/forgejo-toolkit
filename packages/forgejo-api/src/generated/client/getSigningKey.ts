@@ -3,26 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetSigningKeyQueryResponse } from '../types/GetSigningKey';
-
-function getGetSigningKeyUrl() {
-  const res = { method: 'GET', url: `/signing-key.gpg` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetSigningKeyOptions, GetSigningKeyResponses } from '../types/GetSigningKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get default signing-key.gpg
  * {@link /signing-key.gpg}
  */
-export async function getSigningKey(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getSigningKey<ThrowOnError extends boolean = true>(
+  options: Options<GetSigningKeyOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetSigningKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetSigningKeyQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getGetSigningKeyUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/signing-key.gpg',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetSigningKeyResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { CreateHookOption } from './CreateHookOption';
 import type { Hook } from './Hook';
 
-export type OrgCreateHookPathParams = {
+export type OrgCreateHookPath = {
   /**
    * @description name of the organization
    * @type string
@@ -16,22 +16,60 @@ export type OrgCreateHookPathParams = {
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgCreateHook201 = Hook;
+export type OrgCreateHookStatus201Json = Hook;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type OrgCreateHook404 = APINotFound;
+export type OrgCreateHookStatus201Html = Hook;
 
-export type OrgCreateHookMutationRequest = CreateHookOption;
+export type OrgCreateHookStatus201 = OrgCreateHookStatus201Json | OrgCreateHookStatus201Html;
 
-export type OrgCreateHookMutationResponse = OrgCreateHook201;
+export type OrgCreateHookStatus404Json = APINotFound;
 
-export type OrgCreateHookMutation = {
-  Response: OrgCreateHook201;
-  Request: OrgCreateHookMutationRequest;
-  PathParams: OrgCreateHookPathParams;
-  Errors: OrgCreateHook404;
+export type OrgCreateHookStatus404Html = APINotFound;
+
+export type OrgCreateHookStatus404 = OrgCreateHookStatus404Json | OrgCreateHookStatus404Html;
+
+/**
+ * @description CreateHookOption options when create a hook
+ * @type object
+ */
+export type OrgCreateHookBody = CreateHookOption;
+
+export type OrgCreateHookOptions = {
+  body: OrgCreateHookBody;
+  path: OrgCreateHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgCreateHookResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateHookStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateHookStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgCreateHookResponse = OrgCreateHookStatus201 | OrgCreateHookStatus404;

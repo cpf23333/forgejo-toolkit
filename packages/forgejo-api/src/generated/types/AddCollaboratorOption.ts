@@ -14,10 +14,8 @@ export type AddCollaboratorOptionPermissionEnumKey =
 
 /**
  * @description AddCollaboratorOption options when adding a user as a collaborator of a repository
+ * @type object
  */
 export type AddCollaboratorOption = {
-  /**
-   * @type string | undefined
-   */
   permission?: AddCollaboratorOptionPermissionEnumKey;
 };

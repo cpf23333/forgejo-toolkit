@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoValidateIssueConfigQueryResponse,
-  RepoValidateIssueConfigPathParams,
-  RepoValidateIssueConfig404,
+  RepoValidateIssueConfigOptions,
+  RepoValidateIssueConfigResponses,
 } from '../types/RepoValidateIssueConfig';
-
-function getRepoValidateIssueConfigUrl(
-  owner: RepoValidateIssueConfigPathParams['owner'],
-  repo: RepoValidateIssueConfigPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issue_config/validate` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Returns the validation information for a issue config
  * {@link /repos/:owner/:repo/issue_config/validate}
  */
-export async function repoValidateIssueConfig(
-  owner: RepoValidateIssueConfigPathParams['owner'],
-  repo: RepoValidateIssueConfigPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoValidateIssueConfig<ThrowOnError extends boolean = true>(
+  options: Options<RepoValidateIssueConfigOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoValidateIssueConfigResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoValidateIssueConfigQueryResponse,
-    ResponseErrorConfig<RepoValidateIssueConfig404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoValidateIssueConfigUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issue_config/validate',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoValidateIssueConfigResponses, ThrowOnError>>;
 }

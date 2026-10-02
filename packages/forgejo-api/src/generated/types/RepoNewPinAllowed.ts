@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { NewIssuePinsAllowed } from './NewIssuePinsAllowed';
 
-export type RepoNewPinAllowedPathParams = {
+export type RepoNewPinAllowedPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,19 +20,54 @@ export type RepoNewPinAllowedPathParams = {
 };
 
 /**
- * @description RepoNewIssuePinsAllowed
+ * @description NewIssuePinsAllowed represents an API response that says if new Issue Pins are allowed
+ * @type object
  */
-export type RepoNewPinAllowed200 = NewIssuePinsAllowed;
+export type RepoNewPinAllowedStatus200Json = NewIssuePinsAllowed;
 
 /**
- * @description APINotFound is a not found error response
+ * @description NewIssuePinsAllowed represents an API response that says if new Issue Pins are allowed
+ * @type object
  */
-export type RepoNewPinAllowed404 = APINotFound;
+export type RepoNewPinAllowedStatus200Html = NewIssuePinsAllowed;
 
-export type RepoNewPinAllowedQueryResponse = RepoNewPinAllowed200;
+export type RepoNewPinAllowedStatus200 = RepoNewPinAllowedStatus200Json | RepoNewPinAllowedStatus200Html;
 
-export type RepoNewPinAllowedQuery = {
-  Response: RepoNewPinAllowed200;
-  PathParams: RepoNewPinAllowedPathParams;
-  Errors: RepoNewPinAllowed404;
+export type RepoNewPinAllowedStatus404Json = APINotFound;
+
+export type RepoNewPinAllowedStatus404Html = APINotFound;
+
+export type RepoNewPinAllowedStatus404 = RepoNewPinAllowedStatus404Json | RepoNewPinAllowedStatus404Html;
+
+export type RepoNewPinAllowedOptions = {
+  body?: never;
+  path: RepoNewPinAllowedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoNewPinAllowedResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoNewPinAllowedStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoNewPinAllowedStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoNewPinAllowedStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoNewPinAllowedStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoNewPinAllowedResponse = RepoNewPinAllowedStatus200 | RepoNewPinAllowedStatus404;

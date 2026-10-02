@@ -5,7 +5,7 @@
 
 import type { ActivityPub } from './ActivityPub';
 
-export type ActivitypubPersonActivityNotePathParams = {
+export type ActivitypubPersonActivityNotePath = {
   /**
    * @description user ID of the user
    * @type integer
@@ -19,14 +19,41 @@ export type ActivitypubPersonActivityNotePathParams = {
 };
 
 /**
- * @description ActivityPub
+ * @description ActivityPub type
+ * @type object
  */
-export type ActivitypubPersonActivityNote200 = ActivityPub;
+export type ActivitypubPersonActivityNoteStatus200Json = ActivityPub;
 
-export type ActivitypubPersonActivityNoteQueryResponse = ActivitypubPersonActivityNote200;
+/**
+ * @description ActivityPub type
+ * @type object
+ */
+export type ActivitypubPersonActivityNoteStatus200Html = ActivityPub;
 
-export type ActivitypubPersonActivityNoteQuery = {
-  Response: ActivitypubPersonActivityNote200;
-  PathParams: ActivitypubPersonActivityNotePathParams;
-  Errors: any;
+export type ActivitypubPersonActivityNoteStatus200 =
+  | ActivitypubPersonActivityNoteStatus200Json
+  | ActivitypubPersonActivityNoteStatus200Html;
+
+export type ActivitypubPersonActivityNoteOptions = {
+  body?: never;
+  path: ActivitypubPersonActivityNotePath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubPersonActivityNoteResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ActivitypubPersonActivityNoteStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ActivitypubPersonActivityNoteStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubPersonActivityNoteResponse = ActivitypubPersonActivityNoteStatus200;

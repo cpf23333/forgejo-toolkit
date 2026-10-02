@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Activity } from './Activity';
 
-export type UserListActivityFeedsPathParams = {
+export type UserListActivityFeedsPath = {
   /**
    * @description username of user
    * @type string
@@ -14,7 +14,7 @@ export type UserListActivityFeedsPathParams = {
   username: string;
 };
 
-export type UserListActivityFeedsQueryParams = {
+export type UserListActivityFeedsQuery = {
   /**
    * @description if true, only show actions performed by the requested user
    * @type boolean | undefined
@@ -22,7 +22,9 @@ export type UserListActivityFeedsQueryParams = {
   'only-performed-by'?: boolean;
   /**
    * @description the date of the activities to be found
-   * @type string | undefined, date
+   *
+   * Format: `date`
+   * @type string | undefined
    */
   date?: string;
   /**
@@ -37,21 +39,47 @@ export type UserListActivityFeedsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ActivityFeedsList
- */
-export type UserListActivityFeeds200 = Activity[];
+export type UserListActivityFeedsStatus200Json = Activity[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListActivityFeeds404 = APINotFound;
+export type UserListActivityFeedsStatus200Html = Activity[];
 
-export type UserListActivityFeedsQueryResponse = UserListActivityFeeds200;
+export type UserListActivityFeedsStatus200 = UserListActivityFeedsStatus200Json | UserListActivityFeedsStatus200Html;
 
-export type UserListActivityFeedsQuery = {
-  Response: UserListActivityFeeds200;
-  PathParams: UserListActivityFeedsPathParams;
-  QueryParams: UserListActivityFeedsQueryParams;
-  Errors: UserListActivityFeeds404;
+export type UserListActivityFeedsStatus404Json = APINotFound;
+
+export type UserListActivityFeedsStatus404Html = APINotFound;
+
+export type UserListActivityFeedsStatus404 = UserListActivityFeedsStatus404Json | UserListActivityFeedsStatus404Html;
+
+export type UserListActivityFeedsOptions = {
+  body?: never;
+  path: UserListActivityFeedsPath;
+  query?: UserListActivityFeedsQuery;
+  headers?: never;
 };
+
+export type UserListActivityFeedsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListActivityFeedsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListActivityFeedsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListActivityFeedsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListActivityFeedsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListActivityFeedsResponse = UserListActivityFeedsStatus200 | UserListActivityFeedsStatus404;

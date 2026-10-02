@@ -3,34 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminGetAllEmailsQueryResponse,
-  AdminGetAllEmailsQueryParams,
-  AdminGetAllEmails403,
-} from '../types/AdminGetAllEmails';
-
-function getAdminGetAllEmailsUrl() {
-  const res = { method: 'GET', url: `/admin/emails` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminGetAllEmailsOptions, AdminGetAllEmailsResponses } from '../types/AdminGetAllEmails';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List all users' email addresses
  * {@link /admin/emails}
  */
-export async function adminGetAllEmails(
-  params?: AdminGetAllEmailsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminGetAllEmails<ThrowOnError extends boolean = true>(
+  options: Options<AdminGetAllEmailsOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminGetAllEmailsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminGetAllEmailsQueryResponse, ResponseErrorConfig<AdminGetAllEmails403>, unknown>({
-    method: 'GET',
-    url: getAdminGetAllEmailsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/emails',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminGetAllEmailsResponses, ThrowOnError>>;
 }

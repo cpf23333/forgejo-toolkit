@@ -3,50 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListStatusesQueryResponse,
-  RepoListStatusesPathParams,
-  RepoListStatusesQueryParams,
-  RepoListStatuses400,
-  RepoListStatuses404,
-} from '../types/RepoListStatuses';
-
-function getRepoListStatusesUrl(
-  owner: RepoListStatusesPathParams['owner'],
-  repo: RepoListStatusesPathParams['repo'],
-  sha: RepoListStatusesPathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/statuses/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListStatusesOptions, RepoListStatusesResponses } from '../types/RepoListStatuses';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a commit's statuses
  * {@link /repos/:owner/:repo/statuses/:sha}
  */
-export async function repoListStatuses(
-  owner: RepoListStatusesPathParams['owner'],
-  repo: RepoListStatusesPathParams['repo'],
-  sha: RepoListStatusesPathParams['sha'],
-  params?: RepoListStatusesQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListStatuses<ThrowOnError extends boolean = true>(
+  options: Options<RepoListStatusesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListStatusesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoListStatusesQueryResponse,
-    ResponseErrorConfig<RepoListStatuses400 | RepoListStatuses404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoListStatusesUrl(owner, repo, sha).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/statuses/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListStatusesResponses, ThrowOnError>>;
 }

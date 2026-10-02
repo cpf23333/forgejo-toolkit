@@ -3,49 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  CreateForkMutationRequest,
-  CreateForkMutationResponse,
-  CreateForkPathParams,
-  CreateFork403,
-  CreateFork404,
-  CreateFork409,
-  CreateFork413,
-  CreateFork422,
-} from '../types/CreateFork';
-
-function getCreateForkUrl(owner: CreateForkPathParams['owner'], repo: CreateForkPathParams['repo']) {
-  const res = { method: 'POST', url: `/repos/${owner}/${repo}/forks` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { CreateForkOptions, CreateForkResponses } from '../types/CreateFork';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Fork a repository
  * {@link /repos/:owner/:repo/forks}
  */
-export async function createFork(
-  owner: CreateForkPathParams['owner'],
-  repo: CreateForkPathParams['repo'],
-  data?: CreateForkMutationRequest,
-  config: Partial<RequestConfig<CreateForkMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function createFork<ThrowOnError extends boolean = true>(
+  options: Options<CreateForkOptions, ThrowOnError>,
+): Promise<UnwrappedResult<CreateForkResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    CreateForkMutationResponse,
-    ResponseErrorConfig<CreateFork403 | CreateFork404 | CreateFork409 | CreateFork413 | CreateFork422>,
-    CreateForkMutationRequest
-  >({
-    method: 'POST',
-    url: getCreateForkUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/forks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<CreateForkResponses, ThrowOnError>>;
 }

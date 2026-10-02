@@ -8,23 +8,69 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { UserSettings } from './UserSettings';
 
 /**
- * @description UserSettings
+ * @description UserSettings represents user settings
+ * @type object
  */
-export type GetUserSettings200 = UserSettings;
+export type GetUserSettingsStatus200Json = UserSettings;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description UserSettings represents user settings
+ * @type object
  */
-export type GetUserSettings401 = APIUnauthorizedError;
+export type GetUserSettingsStatus200Html = UserSettings;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type GetUserSettings403 = APIForbiddenError;
+export type GetUserSettingsStatus200 = GetUserSettingsStatus200Json | GetUserSettingsStatus200Html;
 
-export type GetUserSettingsQueryResponse = GetUserSettings200;
+export type GetUserSettingsStatus401Json = APIUnauthorizedError;
 
-export type GetUserSettingsQuery = {
-  Response: GetUserSettings200;
-  Errors: GetUserSettings401 | GetUserSettings403;
+export type GetUserSettingsStatus401Html = APIUnauthorizedError;
+
+export type GetUserSettingsStatus401 = GetUserSettingsStatus401Json | GetUserSettingsStatus401Html;
+
+export type GetUserSettingsStatus403Json = APIForbiddenError;
+
+export type GetUserSettingsStatus403Html = APIForbiddenError;
+
+export type GetUserSettingsStatus403 = GetUserSettingsStatus403Json | GetUserSettingsStatus403Html;
+
+export type GetUserSettingsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetUserSettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetUserSettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserSettingsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: GetUserSettingsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserSettingsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: GetUserSettingsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetUserSettingsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetUserSettingsResponse = GetUserSettingsStatus200 | GetUserSettingsStatus401 | GetUserSettingsStatus403;

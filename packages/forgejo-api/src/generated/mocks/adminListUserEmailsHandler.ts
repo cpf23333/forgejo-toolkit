@@ -4,13 +4,13 @@
  */
 
 import type {
-  AdminListUserEmailsQueryResponse,
-  AdminListUserEmails403,
-  AdminListUserEmails404,
+  AdminListUserEmailsResponse,
+  AdminListUserEmailsStatus403,
+  AdminListUserEmailsStatus404,
 } from '../types/AdminListUserEmails';
 import { http } from 'msw';
 
-export function adminListUserEmailsHandlerResponse200(data: AdminListUserEmailsQueryResponse) {
+export function adminListUserEmailsHandlerResponse200(data: AdminListUserEmailsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function adminListUserEmailsHandlerResponse200(data: AdminListUserEmailsQ
   });
 }
 
-export function adminListUserEmailsHandlerResponse403(data: AdminListUserEmails403) {
+export function adminListUserEmailsHandlerResponse403(data: AdminListUserEmailsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function adminListUserEmailsHandlerResponse403(data: AdminListUserEmails4
   });
 }
 
-export function adminListUserEmailsHandlerResponse404(data: AdminListUserEmails404) {
+export function adminListUserEmailsHandlerResponse404(data: AdminListUserEmailsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function adminListUserEmailsHandlerResponse404(data: AdminListUserEmails4
 
 export function adminListUserEmailsHandler(
   data?:
-    | AdminListUserEmailsQueryResponse
+    | AdminListUserEmailsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users/:username/emails`, function handler(info) {

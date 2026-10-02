@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetPullRequestQueryResponse, RepoGetPullRequest404 } from '../types/RepoGetPullRequest';
+import type { RepoGetPullRequestResponse, RepoGetPullRequestStatus404 } from '../types/RepoGetPullRequest';
 import { http } from 'msw';
 
-export function repoGetPullRequestHandlerResponse200(data: RepoGetPullRequestQueryResponse) {
+export function repoGetPullRequestHandlerResponse200(data: RepoGetPullRequestResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetPullRequestHandlerResponse200(data: RepoGetPullRequestQue
   });
 }
 
-export function repoGetPullRequestHandlerResponse404(data: RepoGetPullRequest404) {
+export function repoGetPullRequestHandlerResponse404(data: RepoGetPullRequestStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetPullRequestHandlerResponse404(data: RepoGetPullRequest404
 
 export function repoGetPullRequestHandler(
   data?:
-    | RepoGetPullRequestQueryResponse
+    | RepoGetPullRequestResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index`, function handler(info) {

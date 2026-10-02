@@ -5,15 +5,18 @@
 
 /**
  * @description IssueLabelsOption a collection of labels
+ * @type object
  */
 export type IssueLabelsOption = {
   /**
    * @description Labels can be a list of integers representing label IDs\nor a list of strings representing label names
    * @type array | undefined
    */
-  labels?: any[];
+  labels?: unknown[];
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };

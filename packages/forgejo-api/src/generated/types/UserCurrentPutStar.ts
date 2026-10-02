@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentPutStarPathParams = {
+export type UserCurrentPutStarPath = {
   /**
    * @description owner of the repo to star
    * @type string
@@ -20,30 +20,69 @@ export type UserCurrentPutStarPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentPutStar204 = any;
+export type UserCurrentPutStarStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentPutStar401 = APIUnauthorizedError;
+export type UserCurrentPutStarStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentPutStar403 = APIForbiddenError;
+export type UserCurrentPutStarStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentPutStar404 = APINotFound;
+export type UserCurrentPutStarStatus401 = UserCurrentPutStarStatus401Json | UserCurrentPutStarStatus401Html;
 
-export type UserCurrentPutStarMutationResponse = UserCurrentPutStar204;
+export type UserCurrentPutStarStatus403Json = APIForbiddenError;
 
-export type UserCurrentPutStarMutation = {
-  Response: UserCurrentPutStar204;
-  PathParams: UserCurrentPutStarPathParams;
-  Errors: UserCurrentPutStar401 | UserCurrentPutStar403 | UserCurrentPutStar404;
+export type UserCurrentPutStarStatus403Html = APIForbiddenError;
+
+export type UserCurrentPutStarStatus403 = UserCurrentPutStarStatus403Json | UserCurrentPutStarStatus403Html;
+
+export type UserCurrentPutStarStatus404Json = APINotFound;
+
+export type UserCurrentPutStarStatus404Html = APINotFound;
+
+export type UserCurrentPutStarStatus404 = UserCurrentPutStarStatus404Json | UserCurrentPutStarStatus404Html;
+
+export type UserCurrentPutStarOptions = {
+  body?: never;
+  path: UserCurrentPutStarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentPutStarResponses = {
+  '204': UserCurrentPutStarStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutStarStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutStarStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutStarStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutStarStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentPutStarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentPutStarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentPutStarResponse =
+  | UserCurrentPutStarStatus204
+  | UserCurrentPutStarStatus401
+  | UserCurrentPutStarStatus403
+  | UserCurrentPutStarStatus404;

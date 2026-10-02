@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteOrgSecretPathParams = {
+export type DeleteOrgSecretPath = {
   /**
    * @description name of organization
    * @type string
@@ -19,25 +19,58 @@ export type DeleteOrgSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description delete one secret of the organization
- */
-export type DeleteOrgSecret204 = any;
+export type DeleteOrgSecretStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgSecret400 = APIError;
+export type DeleteOrgSecretStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgSecret404 = APINotFound;
+export type DeleteOrgSecretStatus400Html = APIError;
 
-export type DeleteOrgSecretMutationResponse = DeleteOrgSecret204;
+export type DeleteOrgSecretStatus400 = DeleteOrgSecretStatus400Json | DeleteOrgSecretStatus400Html;
 
-export type DeleteOrgSecretMutation = {
-  Response: DeleteOrgSecret204;
-  PathParams: DeleteOrgSecretPathParams;
-  Errors: DeleteOrgSecret400 | DeleteOrgSecret404;
+export type DeleteOrgSecretStatus404Json = APINotFound;
+
+export type DeleteOrgSecretStatus404Html = APINotFound;
+
+export type DeleteOrgSecretStatus404 = DeleteOrgSecretStatus404Json | DeleteOrgSecretStatus404Html;
+
+export type DeleteOrgSecretOptions = {
+  body?: never;
+  path: DeleteOrgSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteOrgSecretResponses = {
+  '204': DeleteOrgSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgSecretStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteOrgSecretResponse = DeleteOrgSecretStatus204 | DeleteOrgSecretStatus400 | DeleteOrgSecretStatus404;

@@ -3,56 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoCreateTagProtectionMutationRequest,
-  RepoCreateTagProtectionMutationResponse,
-  RepoCreateTagProtectionPathParams,
-  RepoCreateTagProtection403,
-  RepoCreateTagProtection404,
-  RepoCreateTagProtection422,
-  RepoCreateTagProtection423,
+  RepoCreateTagProtectionOptions,
+  RepoCreateTagProtectionResponses,
 } from '../types/RepoCreateTagProtection';
-
-function getRepoCreateTagProtectionUrl(
-  owner: RepoCreateTagProtectionPathParams['owner'],
-  repo: RepoCreateTagProtectionPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/tag_protections` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a tag protections for a repository
  * {@link /repos/:owner/:repo/tag_protections}
  */
-export async function repoCreateTagProtection(
-  owner: RepoCreateTagProtectionPathParams['owner'],
-  repo: RepoCreateTagProtectionPathParams['repo'],
-  data?: RepoCreateTagProtectionMutationRequest,
-  config: Partial<RequestConfig<RepoCreateTagProtectionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateTagProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateTagProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateTagProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateTagProtectionMutationResponse,
-    ResponseErrorConfig<
-      RepoCreateTagProtection403 | RepoCreateTagProtection404 | RepoCreateTagProtection422 | RepoCreateTagProtection423
-    >,
-    RepoCreateTagProtectionMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateTagProtectionUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/tag_protections',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateTagProtectionResponses, ThrowOnError>>;
 }

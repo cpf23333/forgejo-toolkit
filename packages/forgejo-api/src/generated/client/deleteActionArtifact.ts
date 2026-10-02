@@ -3,27 +3,9 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteActionArtifactMutationResponse,
-  DeleteActionArtifactPathParams,
-  DeleteActionArtifact400,
-  DeleteActionArtifact403,
-  DeleteActionArtifact404,
-} from '../types/DeleteActionArtifact';
-
-function getDeleteActionArtifactUrl(
-  owner: DeleteActionArtifactPathParams['owner'],
-  repo: DeleteActionArtifactPathParams['repo'],
-  artifact_id: DeleteActionArtifactPathParams['artifact_id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/actions/artifacts/${artifact_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteActionArtifactOptions, DeleteActionArtifactResponses } from '../types/DeleteActionArtifact';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description Marks the artifact for deletion. Storage space will be reclaimed
@@ -31,22 +13,25 @@ function getDeleteActionArtifactUrl(
  * @summary Mark an artifact for deletion
  * {@link /repos/:owner/:repo/actions/artifacts/:artifact_id}
  */
-export async function deleteActionArtifact(
-  owner: DeleteActionArtifactPathParams['owner'],
-  repo: DeleteActionArtifactPathParams['repo'],
-  artifact_id: DeleteActionArtifactPathParams['artifact_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteActionArtifact<ThrowOnError extends boolean = true>(
+  options: Options<DeleteActionArtifactOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteActionArtifactResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteActionArtifactMutationResponse,
-    ResponseErrorConfig<DeleteActionArtifact400 | DeleteActionArtifact403 | DeleteActionArtifact404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteActionArtifactUrl(owner, repo, artifact_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteActionArtifactResponses, ThrowOnError>>;
 }

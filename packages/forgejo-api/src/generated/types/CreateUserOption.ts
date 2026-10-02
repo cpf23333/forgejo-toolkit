@@ -5,51 +5,34 @@
 
 /**
  * @description CreateUserOption create user options
+ * @type object
  */
 export type CreateUserOption = {
   /**
    * @description For explicitly setting the user creation timestamp. Useful when users are\nmigrated from other systems. When omitted, the user\'s creation timestamp\nwill be set to \"now\".
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
-   * @type string, email
-   */
-  email: string;
-  /**
-   * @type string | undefined
-   */
-  full_name?: string;
-  /**
-   * @type string | undefined
-   */
-  login_name?: string;
-  /**
-   * @type boolean | undefined
-   */
-  must_change_password?: boolean;
-  /**
-   * @type string | undefined
-   */
-  password?: string;
-  /**
-   * @type boolean | undefined
-   */
-  restricted?: boolean;
-  /**
-   * @type boolean | undefined
-   */
-  send_notify?: boolean;
-  /**
-   * @type integer | undefined, int64
-   */
-  source_id?: number;
-  /**
+   * @description
+   * Format: `email`
    * @type string
    */
-  username: string;
+  email: string;
+  full_name?: string;
+  login_name?: string;
+  must_change_password?: boolean;
+  password?: string;
+  restricted?: boolean;
+  send_notify?: boolean;
   /**
-   * @type string | undefined
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
+  source_id?: number;
+  username: string;
   visibility?: string;
 };

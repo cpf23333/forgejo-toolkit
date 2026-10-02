@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PackageFile } from './PackageFile';
 
-export type ListPackageFilesPathParams = {
+export type ListPackageFilesPath = {
   /**
    * @description owner of the package
    * @type string
@@ -29,20 +29,47 @@ export type ListPackageFilesPathParams = {
   version: string;
 };
 
-/**
- * @description PackageFileList
- */
-export type ListPackageFiles200 = PackageFile[];
+export type ListPackageFilesStatus200Json = PackageFile[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type ListPackageFiles404 = APINotFound;
+export type ListPackageFilesStatus200Html = PackageFile[];
 
-export type ListPackageFilesQueryResponse = ListPackageFiles200;
+export type ListPackageFilesStatus200 = ListPackageFilesStatus200Json | ListPackageFilesStatus200Html;
 
-export type ListPackageFilesQuery = {
-  Response: ListPackageFiles200;
-  PathParams: ListPackageFilesPathParams;
-  Errors: ListPackageFiles404;
+export type ListPackageFilesStatus404Json = APINotFound;
+
+export type ListPackageFilesStatus404Html = APINotFound;
+
+export type ListPackageFilesStatus404 = ListPackageFilesStatus404Json | ListPackageFilesStatus404Html;
+
+export type ListPackageFilesOptions = {
+  body?: never;
+  path: ListPackageFilesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ListPackageFilesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListPackageFilesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListPackageFilesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListPackageFilesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListPackageFilesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListPackageFilesResponse = ListPackageFilesStatus200 | ListPackageFilesStatus404;

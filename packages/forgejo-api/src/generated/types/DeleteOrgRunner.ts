@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type DeleteOrgRunnerPathParams = {
+export type DeleteOrgRunnerPath = {
   /**
    * @description name of the organization
    * @type string
@@ -19,25 +19,58 @@ export type DeleteOrgRunnerPathParams = {
   runner_id: string;
 };
 
-/**
- * @description runner has been deleted
- */
-export type DeleteOrgRunner204 = any;
+export type DeleteOrgRunnerStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgRunner400 = APIError;
+export type DeleteOrgRunnerStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type DeleteOrgRunner404 = APINotFound;
+export type DeleteOrgRunnerStatus400Html = APIError;
 
-export type DeleteOrgRunnerMutationResponse = DeleteOrgRunner204;
+export type DeleteOrgRunnerStatus400 = DeleteOrgRunnerStatus400Json | DeleteOrgRunnerStatus400Html;
 
-export type DeleteOrgRunnerMutation = {
-  Response: DeleteOrgRunner204;
-  PathParams: DeleteOrgRunnerPathParams;
-  Errors: DeleteOrgRunner400 | DeleteOrgRunner404;
+export type DeleteOrgRunnerStatus404Json = APINotFound;
+
+export type DeleteOrgRunnerStatus404Html = APINotFound;
+
+export type DeleteOrgRunnerStatus404 = DeleteOrgRunnerStatus404Json | DeleteOrgRunnerStatus404Html;
+
+export type DeleteOrgRunnerOptions = {
+  body?: never;
+  path: DeleteOrgRunnerPath;
+  query?: never;
+  headers?: never;
 };
+
+export type DeleteOrgRunnerResponses = {
+  '204': DeleteOrgRunnerStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgRunnerStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: DeleteOrgRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: DeleteOrgRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type DeleteOrgRunnerResponse = DeleteOrgRunnerStatus204 | DeleteOrgRunnerStatus400 | DeleteOrgRunnerStatus404;

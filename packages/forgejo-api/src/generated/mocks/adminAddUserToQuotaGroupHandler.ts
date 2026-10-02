@@ -4,22 +4,22 @@
  */
 
 import type {
-  AdminAddUserToQuotaGroupMutationResponse,
-  AdminAddUserToQuotaGroup400,
-  AdminAddUserToQuotaGroup403,
-  AdminAddUserToQuotaGroup404,
-  AdminAddUserToQuotaGroup409,
-  AdminAddUserToQuotaGroup422,
+  AdminAddUserToQuotaGroupResponse,
+  AdminAddUserToQuotaGroupStatus400,
+  AdminAddUserToQuotaGroupStatus403,
+  AdminAddUserToQuotaGroupStatus404,
+  AdminAddUserToQuotaGroupStatus409,
+  AdminAddUserToQuotaGroupStatus422,
 } from '../types/AdminAddUserToQuotaGroup';
 import { http } from 'msw';
 
-export function adminAddUserToQuotaGroupHandlerResponse204(data?: AdminAddUserToQuotaGroupMutationResponse) {
+export function adminAddUserToQuotaGroupHandlerResponse204(data?: AdminAddUserToQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminAddUserToQuotaGroupHandlerResponse400(data: AdminAddUserToQuotaGroup400) {
+export function adminAddUserToQuotaGroupHandlerResponse400(data: AdminAddUserToQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function adminAddUserToQuotaGroupHandlerResponse400(data: AdminAddUserToQ
   });
 }
 
-export function adminAddUserToQuotaGroupHandlerResponse403(data: AdminAddUserToQuotaGroup403) {
+export function adminAddUserToQuotaGroupHandlerResponse403(data: AdminAddUserToQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -37,7 +37,7 @@ export function adminAddUserToQuotaGroupHandlerResponse403(data: AdminAddUserToQ
   });
 }
 
-export function adminAddUserToQuotaGroupHandlerResponse404(data: AdminAddUserToQuotaGroup404) {
+export function adminAddUserToQuotaGroupHandlerResponse404(data: AdminAddUserToQuotaGroupStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -46,7 +46,7 @@ export function adminAddUserToQuotaGroupHandlerResponse404(data: AdminAddUserToQ
   });
 }
 
-export function adminAddUserToQuotaGroupHandlerResponse409(data: AdminAddUserToQuotaGroup409) {
+export function adminAddUserToQuotaGroupHandlerResponse409(data: AdminAddUserToQuotaGroupStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -55,7 +55,7 @@ export function adminAddUserToQuotaGroupHandlerResponse409(data: AdminAddUserToQ
   });
 }
 
-export function adminAddUserToQuotaGroupHandlerResponse422(data: AdminAddUserToQuotaGroup422) {
+export function adminAddUserToQuotaGroupHandlerResponse422(data: AdminAddUserToQuotaGroupStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

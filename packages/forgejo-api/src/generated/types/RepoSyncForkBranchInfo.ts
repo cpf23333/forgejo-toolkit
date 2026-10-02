@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { SyncForkInfo } from './SyncForkInfo';
 
-export type RepoSyncForkBranchInfoPathParams = {
+export type RepoSyncForkBranchInfoPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,24 +26,80 @@ export type RepoSyncForkBranchInfoPathParams = {
 };
 
 /**
- * @description SyncForkInfo
+ * @description SyncForkInfo information about syncing a fork
+ * @type object
  */
-export type RepoSyncForkBranchInfo200 = SyncForkInfo;
+export type RepoSyncForkBranchInfoStatus200Json = SyncForkInfo;
 
 /**
- * @description APIError is error format response
+ * @description SyncForkInfo information about syncing a fork
+ * @type object
  */
-export type RepoSyncForkBranchInfo400 = APIError;
+export type RepoSyncForkBranchInfoStatus200Html = SyncForkInfo;
+
+export type RepoSyncForkBranchInfoStatus200 = RepoSyncForkBranchInfoStatus200Json | RepoSyncForkBranchInfoStatus200Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoSyncForkBranchInfo404 = APINotFound;
+export type RepoSyncForkBranchInfoStatus400Json = APIError;
 
-export type RepoSyncForkBranchInfoQueryResponse = RepoSyncForkBranchInfo200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type RepoSyncForkBranchInfoStatus400Html = APIError;
 
-export type RepoSyncForkBranchInfoQuery = {
-  Response: RepoSyncForkBranchInfo200;
-  PathParams: RepoSyncForkBranchInfoPathParams;
-  Errors: RepoSyncForkBranchInfo400 | RepoSyncForkBranchInfo404;
+export type RepoSyncForkBranchInfoStatus400 = RepoSyncForkBranchInfoStatus400Json | RepoSyncForkBranchInfoStatus400Html;
+
+export type RepoSyncForkBranchInfoStatus404Json = APINotFound;
+
+export type RepoSyncForkBranchInfoStatus404Html = APINotFound;
+
+export type RepoSyncForkBranchInfoStatus404 = RepoSyncForkBranchInfoStatus404Json | RepoSyncForkBranchInfoStatus404Html;
+
+export type RepoSyncForkBranchInfoOptions = {
+  body?: never;
+  path: RepoSyncForkBranchInfoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSyncForkBranchInfoResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkBranchInfoStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkBranchInfoStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkBranchInfoStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkBranchInfoStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkBranchInfoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkBranchInfoStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSyncForkBranchInfoResponse =
+  | RepoSyncForkBranchInfoStatus200
+  | RepoSyncForkBranchInfoStatus400
+  | RepoSyncForkBranchInfoStatus404;

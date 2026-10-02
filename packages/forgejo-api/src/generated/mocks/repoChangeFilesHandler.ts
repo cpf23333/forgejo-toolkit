@@ -4,17 +4,19 @@
  */
 
 import type {
-  RepoChangeFilesMutationResponse,
-  RepoChangeFiles403,
-  RepoChangeFiles404,
-  RepoChangeFiles409,
-  RepoChangeFiles413,
-  RepoChangeFiles422,
-  RepoChangeFiles423,
+  RepoChangeFilesResponse,
+  RepoChangeFilesStatus403,
+  RepoChangeFilesStatus404,
+  RepoChangeFilesStatus409,
+  RepoChangeFilesStatus413,
+  RepoChangeFilesStatus422,
+  RepoChangeFilesStatus423,
+  RepoChangeFilesBody,
 } from '../types/RepoChangeFiles';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoChangeFilesHandlerResponse201(data: RepoChangeFilesMutationResponse) {
+export function repoChangeFilesHandlerResponse201(data: RepoChangeFilesResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -23,7 +25,7 @@ export function repoChangeFilesHandlerResponse201(data: RepoChangeFilesMutationR
   });
 }
 
-export function repoChangeFilesHandlerResponse403(data: RepoChangeFiles403) {
+export function repoChangeFilesHandlerResponse403(data: RepoChangeFilesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -32,7 +34,7 @@ export function repoChangeFilesHandlerResponse403(data: RepoChangeFiles403) {
   });
 }
 
-export function repoChangeFilesHandlerResponse404(data: RepoChangeFiles404) {
+export function repoChangeFilesHandlerResponse404(data: RepoChangeFilesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -41,19 +43,19 @@ export function repoChangeFilesHandlerResponse404(data: RepoChangeFiles404) {
   });
 }
 
-export function repoChangeFilesHandlerResponse409(data?: RepoChangeFiles409) {
+export function repoChangeFilesHandlerResponse409(data?: RepoChangeFilesStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function repoChangeFilesHandlerResponse413(data?: RepoChangeFiles413) {
+export function repoChangeFilesHandlerResponse413(data?: RepoChangeFilesStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoChangeFilesHandlerResponse422(data: RepoChangeFiles422) {
+export function repoChangeFilesHandlerResponse422(data: RepoChangeFilesStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -62,7 +64,7 @@ export function repoChangeFilesHandlerResponse422(data: RepoChangeFiles422) {
   });
 }
 
-export function repoChangeFilesHandlerResponse423(data: RepoChangeFiles423) {
+export function repoChangeFilesHandlerResponse423(data: RepoChangeFilesStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -72,11 +74,9 @@ export function repoChangeFilesHandlerResponse423(data: RepoChangeFiles423) {
 }
 
 export function repoChangeFilesHandler(
-  data?:
-    | RepoChangeFilesMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoChangeFilesResponse | HttpResponseResolver<Record<string, string>, RepoChangeFilesBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/contents`, function handler(info) {
+  return http.post<Record<string, string>, RepoChangeFilesBody>(`/repos/:owner/:repo/contents`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

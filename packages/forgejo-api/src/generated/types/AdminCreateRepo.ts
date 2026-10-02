@@ -10,7 +10,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateRepoOption } from './CreateRepoOption';
 import type { Repository } from './Repository';
 
-export type AdminCreateRepoPathParams = {
+export type AdminCreateRepoPath = {
   /**
    * @description username of the user. This user will own the created repository
    * @type string
@@ -19,42 +19,142 @@ export type AdminCreateRepoPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type AdminCreateRepo201 = Repository;
+export type AdminCreateRepoStatus201Json = Repository;
 
 /**
- * @description APIError is error format response
+ * @description Repository represents a repository
+ * @type object
  */
-export type AdminCreateRepo400 = APIError;
+export type AdminCreateRepoStatus201Html = Repository;
+
+export type AdminCreateRepoStatus201 = AdminCreateRepoStatus201Json | AdminCreateRepoStatus201Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateRepo403 = APIForbiddenError;
+export type AdminCreateRepoStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateRepo404 = APINotFound;
+export type AdminCreateRepoStatus400Html = APIError;
+
+export type AdminCreateRepoStatus400 = AdminCreateRepoStatus400Json | AdminCreateRepoStatus400Html;
+
+export type AdminCreateRepoStatus403Json = APIForbiddenError;
+
+export type AdminCreateRepoStatus403Html = APIForbiddenError;
+
+export type AdminCreateRepoStatus403 = AdminCreateRepoStatus403Json | AdminCreateRepoStatus403Html;
+
+export type AdminCreateRepoStatus404Json = APINotFound;
+
+export type AdminCreateRepoStatus404Html = APINotFound;
+
+export type AdminCreateRepoStatus404 = AdminCreateRepoStatus404Json | AdminCreateRepoStatus404Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateRepo409 = APIError;
+export type AdminCreateRepoStatus409Json = APIError;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminCreateRepo422 = APIValidationError;
+export type AdminCreateRepoStatus409Html = APIError;
 
-export type AdminCreateRepoMutationRequest = CreateRepoOption;
+export type AdminCreateRepoStatus409 = AdminCreateRepoStatus409Json | AdminCreateRepoStatus409Html;
 
-export type AdminCreateRepoMutationResponse = AdminCreateRepo201;
+export type AdminCreateRepoStatus422Json = APIValidationError;
 
-export type AdminCreateRepoMutation = {
-  Response: AdminCreateRepo201;
-  Request: AdminCreateRepoMutationRequest;
-  PathParams: AdminCreateRepoPathParams;
-  Errors: AdminCreateRepo400 | AdminCreateRepo403 | AdminCreateRepo404 | AdminCreateRepo409 | AdminCreateRepo422;
+export type AdminCreateRepoStatus422Html = APIValidationError;
+
+export type AdminCreateRepoStatus422 = AdminCreateRepoStatus422Json | AdminCreateRepoStatus422Html;
+
+/**
+ * @description CreateRepoOption options when creating repository
+ * @type object
+ */
+export type AdminCreateRepoBody = CreateRepoOption;
+
+export type AdminCreateRepoOptions = {
+  body: AdminCreateRepoBody;
+  path: AdminCreateRepoPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminCreateRepoResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus404Html;
+      };
+  '409':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus409Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus409Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminCreateRepoStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminCreateRepoStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminCreateRepoResponse =
+  | AdminCreateRepoStatus201
+  | AdminCreateRepoStatus400
+  | AdminCreateRepoStatus403
+  | AdminCreateRepoStatus404
+  | AdminCreateRepoStatus409
+  | AdminCreateRepoStatus422;

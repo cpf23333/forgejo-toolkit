@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { ActionArtifact } from './ActionArtifact';
 
-export type GetActionArtifactPathParams = {
+export type GetActionArtifactPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,35 +21,104 @@ export type GetActionArtifactPathParams = {
   repo: string;
   /**
    * @description ID of the artifact
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   artifact_id: number;
 };
 
 /**
- * @description ActionArtifact
+ * @description ActionArtifact represents an artifact of a workflow run
+ * @type object
  */
-export type GetActionArtifact200 = ActionArtifact;
+export type GetActionArtifactStatus200Json = ActionArtifact;
 
 /**
- * @description APIError is error format response
+ * @description ActionArtifact represents an artifact of a workflow run
+ * @type object
  */
-export type GetActionArtifact400 = APIError;
+export type GetActionArtifactStatus200Html = ActionArtifact;
+
+export type GetActionArtifactStatus200 = GetActionArtifactStatus200Json | GetActionArtifactStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetActionArtifact403 = APIForbiddenError;
+export type GetActionArtifactStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetActionArtifact404 = APINotFound;
+export type GetActionArtifactStatus400Html = APIError;
 
-export type GetActionArtifactQueryResponse = GetActionArtifact200;
+export type GetActionArtifactStatus400 = GetActionArtifactStatus400Json | GetActionArtifactStatus400Html;
 
-export type GetActionArtifactQuery = {
-  Response: GetActionArtifact200;
-  PathParams: GetActionArtifactPathParams;
-  Errors: GetActionArtifact400 | GetActionArtifact403 | GetActionArtifact404;
+export type GetActionArtifactStatus403Json = APIForbiddenError;
+
+export type GetActionArtifactStatus403Html = APIForbiddenError;
+
+export type GetActionArtifactStatus403 = GetActionArtifactStatus403Json | GetActionArtifactStatus403Html;
+
+export type GetActionArtifactStatus404Json = APINotFound;
+
+export type GetActionArtifactStatus404Html = APINotFound;
+
+export type GetActionArtifactStatus404 = GetActionArtifactStatus404Json | GetActionArtifactStatus404Html;
+
+export type GetActionArtifactOptions = {
+  body?: never;
+  path: GetActionArtifactPath;
+  query?: never;
+  headers?: never;
 };
+
+export type GetActionArtifactResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetActionArtifactStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetActionArtifactStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetActionArtifactStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetActionArtifactStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: GetActionArtifactStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetActionArtifactStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetActionArtifactStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetActionArtifactStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetActionArtifactResponse =
+  | GetActionArtifactStatus200
+  | GetActionArtifactStatus400
+  | GetActionArtifactStatus403
+  | GetActionArtifactStatus404;

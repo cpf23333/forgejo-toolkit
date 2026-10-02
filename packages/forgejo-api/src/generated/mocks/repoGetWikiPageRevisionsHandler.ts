@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetWikiPageRevisionsQueryResponse,
-  RepoGetWikiPageRevisions404,
+  RepoGetWikiPageRevisionsResponse,
+  RepoGetWikiPageRevisionsStatus404,
 } from '../types/RepoGetWikiPageRevisions';
 import { http } from 'msw';
 
-export function repoGetWikiPageRevisionsHandlerResponse200(data: RepoGetWikiPageRevisionsQueryResponse) {
+export function repoGetWikiPageRevisionsHandlerResponse200(data: RepoGetWikiPageRevisionsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetWikiPageRevisionsHandlerResponse200(data: RepoGetWikiPage
   });
 }
 
-export function repoGetWikiPageRevisionsHandlerResponse404(data: RepoGetWikiPageRevisions404) {
+export function repoGetWikiPageRevisionsHandlerResponse404(data: RepoGetWikiPageRevisionsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetWikiPageRevisionsHandlerResponse404(data: RepoGetWikiPage
 
 export function repoGetWikiPageRevisionsHandler(
   data?:
-    | RepoGetWikiPageRevisionsQueryResponse
+    | RepoGetWikiPageRevisionsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/wiki/revisions/:pageName`, function handler(info) {

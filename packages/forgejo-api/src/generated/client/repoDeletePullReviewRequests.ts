@@ -3,55 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoDeletePullReviewRequestsMutationRequest,
-  RepoDeletePullReviewRequestsMutationResponse,
-  RepoDeletePullReviewRequestsPathParams,
-  RepoDeletePullReviewRequests403,
-  RepoDeletePullReviewRequests404,
-  RepoDeletePullReviewRequests422,
+  RepoDeletePullReviewRequestsOptions,
+  RepoDeletePullReviewRequestsResponses,
 } from '../types/RepoDeletePullReviewRequests';
-
-function getRepoDeletePullReviewRequestsUrl(
-  owner: RepoDeletePullReviewRequestsPathParams['owner'],
-  repo: RepoDeletePullReviewRequestsPathParams['repo'],
-  index: RepoDeletePullReviewRequestsPathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/pulls/${index}/requested_reviewers` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Cancel review requests for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/requested_reviewers}
  */
-export async function repoDeletePullReviewRequests(
-  owner: RepoDeletePullReviewRequestsPathParams['owner'],
-  repo: RepoDeletePullReviewRequestsPathParams['repo'],
-  index: RepoDeletePullReviewRequestsPathParams['index'],
-  data: RepoDeletePullReviewRequestsMutationRequest,
-  config: Partial<RequestConfig<RepoDeletePullReviewRequestsMutationRequest>> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeletePullReviewRequests<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeletePullReviewRequestsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeletePullReviewRequestsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoDeletePullReviewRequestsMutationResponse,
-    ResponseErrorConfig<
-      RepoDeletePullReviewRequests403 | RepoDeletePullReviewRequests404 | RepoDeletePullReviewRequests422
-    >,
-    RepoDeletePullReviewRequestsMutationRequest
-  >({
-    method: 'DELETE',
-    url: getRepoDeletePullReviewRequestsUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/pulls/{index}/requested_reviewers',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeletePullReviewRequestsResponses, ThrowOnError>>;
 }

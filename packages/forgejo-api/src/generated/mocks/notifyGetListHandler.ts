@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { NotifyGetListQueryResponse } from '../types/NotifyGetList';
+import type { NotifyGetListResponse } from '../types/NotifyGetList';
 import { http } from 'msw';
 
-export function notifyGetListHandlerResponse200(data: NotifyGetListQueryResponse) {
+export function notifyGetListHandlerResponse200(data: NotifyGetListResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function notifyGetListHandlerResponse200(data: NotifyGetListQueryResponse
 
 export function notifyGetListHandler(
   data?:
-    | NotifyGetListQueryResponse
+    | NotifyGetListResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/notifications`, function handler(info) {

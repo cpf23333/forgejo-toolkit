@@ -4,24 +4,31 @@
  */
 
 import type {
-  IssueDeleteSubscriptionMutationResponse,
-  IssueDeleteSubscription404,
+  IssueDeleteSubscriptionResponse,
+  IssueDeleteSubscriptionStatus304,
+  IssueDeleteSubscriptionStatus404,
 } from '../types/IssueDeleteSubscription';
 import { http } from 'msw';
 
-export function issueDeleteSubscriptionHandlerResponse200(data?: IssueDeleteSubscriptionMutationResponse) {
+export function issueDeleteSubscriptionHandlerResponse200(data?: IssueDeleteSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function issueDeleteSubscriptionHandlerResponse201(data?: IssueDeleteSubscriptionMutationResponse) {
+export function issueDeleteSubscriptionHandlerResponse201(data?: IssueDeleteSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueDeleteSubscriptionHandlerResponse404(data: IssueDeleteSubscription404) {
+export function issueDeleteSubscriptionHandlerResponse304(data?: IssueDeleteSubscriptionStatus304) {
+  return new Response(JSON.stringify(data), {
+    status: 304,
+  });
+}
+
+export function issueDeleteSubscriptionHandlerResponse404(data: IssueDeleteSubscriptionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

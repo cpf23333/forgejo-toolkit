@@ -4,16 +4,18 @@
  */
 
 import type {
-  RepoCreateWikiPageMutationResponse,
-  RepoCreateWikiPage400,
-  RepoCreateWikiPage403,
-  RepoCreateWikiPage404,
-  RepoCreateWikiPage413,
-  RepoCreateWikiPage423,
+  RepoCreateWikiPageResponse,
+  RepoCreateWikiPageStatus400,
+  RepoCreateWikiPageStatus403,
+  RepoCreateWikiPageStatus404,
+  RepoCreateWikiPageStatus413,
+  RepoCreateWikiPageStatus423,
+  RepoCreateWikiPageBody,
 } from '../types/RepoCreateWikiPage';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateWikiPageHandlerResponse201(data: RepoCreateWikiPageMutationResponse) {
+export function repoCreateWikiPageHandlerResponse201(data: RepoCreateWikiPageResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function repoCreateWikiPageHandlerResponse201(data: RepoCreateWikiPageMut
   });
 }
 
-export function repoCreateWikiPageHandlerResponse400(data: RepoCreateWikiPage400) {
+export function repoCreateWikiPageHandlerResponse400(data: RepoCreateWikiPageStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +33,7 @@ export function repoCreateWikiPageHandlerResponse400(data: RepoCreateWikiPage400
   });
 }
 
-export function repoCreateWikiPageHandlerResponse403(data: RepoCreateWikiPage403) {
+export function repoCreateWikiPageHandlerResponse403(data: RepoCreateWikiPageStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -40,7 +42,7 @@ export function repoCreateWikiPageHandlerResponse403(data: RepoCreateWikiPage403
   });
 }
 
-export function repoCreateWikiPageHandlerResponse404(data: RepoCreateWikiPage404) {
+export function repoCreateWikiPageHandlerResponse404(data: RepoCreateWikiPageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,13 +51,13 @@ export function repoCreateWikiPageHandlerResponse404(data: RepoCreateWikiPage404
   });
 }
 
-export function repoCreateWikiPageHandlerResponse413(data?: RepoCreateWikiPage413) {
+export function repoCreateWikiPageHandlerResponse413(data?: RepoCreateWikiPageStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoCreateWikiPageHandlerResponse423(data: RepoCreateWikiPage423) {
+export function repoCreateWikiPageHandlerResponse423(data: RepoCreateWikiPageStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -65,18 +67,19 @@ export function repoCreateWikiPageHandlerResponse423(data: RepoCreateWikiPage423
 }
 
 export function repoCreateWikiPageHandler(
-  data?:
-    | RepoCreateWikiPageMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateWikiPageResponse | HttpResponseResolver<Record<string, string>, RepoCreateWikiPageBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/wiki/new`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateWikiPageBody>(
+    `/repos/:owner/:repo/wiki/new`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

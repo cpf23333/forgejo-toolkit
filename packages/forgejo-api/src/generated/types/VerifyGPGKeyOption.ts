@@ -5,11 +5,9 @@
 
 /**
  * @description VerifyGPGKeyOption options verifies user GPG key
+ * @type object
  */
 export type VerifyGPGKeyOption = {
-  /**
-   * @type string | undefined
-   */
   armored_signature?: string;
   /**
    * @description An Signature for a GPG key token

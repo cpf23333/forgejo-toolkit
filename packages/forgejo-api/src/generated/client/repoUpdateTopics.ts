@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoUpdateTopicsMutationRequest,
-  RepoUpdateTopicsMutationResponse,
-  RepoUpdateTopicsPathParams,
-  RepoUpdateTopics404,
-  RepoUpdateTopics422,
-} from '../types/RepoUpdateTopics';
-
-function getRepoUpdateTopicsUrl(owner: RepoUpdateTopicsPathParams['owner'], repo: RepoUpdateTopicsPathParams['repo']) {
-  const res = { method: 'PUT', url: `/repos/${owner}/${repo}/topics` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoUpdateTopicsOptions, RepoUpdateTopicsResponses } from '../types/RepoUpdateTopics';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Replace list of topics for a repository
  * {@link /repos/:owner/:repo/topics}
  */
-export async function repoUpdateTopics(
-  owner: RepoUpdateTopicsPathParams['owner'],
-  repo: RepoUpdateTopicsPathParams['repo'],
-  data?: RepoUpdateTopicsMutationRequest,
-  config: Partial<RequestConfig<RepoUpdateTopicsMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoUpdateTopics<ThrowOnError extends boolean = true>(
+  options: Options<RepoUpdateTopicsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoUpdateTopicsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoUpdateTopicsMutationResponse,
-    ResponseErrorConfig<RepoUpdateTopics404 | RepoUpdateTopics422>,
-    RepoUpdateTopicsMutationRequest
-  >({
-    method: 'PUT',
-    url: getRepoUpdateTopicsUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/repos/{owner}/{repo}/topics',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoUpdateTopicsResponses, ThrowOnError>>;
 }

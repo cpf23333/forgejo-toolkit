@@ -5,6 +5,7 @@
 
 /**
  * @description User represents a user
+ * @type object
  */
 export type User = {
   /**
@@ -18,7 +19,9 @@ export type User = {
    */
   avatar_url?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
@@ -27,16 +30,22 @@ export type User = {
    */
   description?: string;
   /**
-   * @type string | undefined, email
+   * @description
+   * Format: `email`
+   * @type string | undefined
    */
   email?: string;
   /**
    * @description user counts
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   followers_count?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   following_count?: number;
   /**
@@ -51,7 +60,9 @@ export type User = {
   html_url?: string;
   /**
    * @description the user\'s id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -65,7 +76,9 @@ export type User = {
    */
   language?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   last_login?: string;
   /**
@@ -80,7 +93,7 @@ export type User = {
   login?: string;
   /**
    * @description the user\'s authentication sign-in name.
-   * @default "empty"
+   * @default 'empty'
    * @type string | undefined
    */
   login_name?: string;
@@ -101,11 +114,15 @@ export type User = {
   restricted?: boolean;
   /**
    * @description The ID of the user\'s Authentication Source
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   source_id?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   starred_repos_count?: number;
   /**

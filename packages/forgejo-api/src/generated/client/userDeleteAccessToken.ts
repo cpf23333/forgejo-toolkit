@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserDeleteAccessTokenMutationResponse,
-  UserDeleteAccessTokenPathParams,
-  UserDeleteAccessToken403,
-  UserDeleteAccessToken404,
-  UserDeleteAccessToken422,
-} from '../types/UserDeleteAccessToken';
-
-function getUserDeleteAccessTokenUrl(
-  username: UserDeleteAccessTokenPathParams['username'],
-  token: UserDeleteAccessTokenPathParams['token'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/users/${username}/tokens/${token}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserDeleteAccessTokenOptions, UserDeleteAccessTokenResponses } from '../types/UserDeleteAccessToken';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an access token from the specified user's account
  * {@link /users/:username/tokens/:token}
  */
-export async function userDeleteAccessToken(
-  username: UserDeleteAccessTokenPathParams['username'],
-  token: UserDeleteAccessTokenPathParams['token'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userDeleteAccessToken<ThrowOnError extends boolean = true>(
+  options: Options<UserDeleteAccessTokenOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserDeleteAccessTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserDeleteAccessTokenMutationResponse,
-    ResponseErrorConfig<UserDeleteAccessToken403 | UserDeleteAccessToken404 | UserDeleteAccessToken422>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserDeleteAccessTokenUrl(username, token).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/users/{username}/tokens/{token}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserDeleteAccessTokenResponses, ThrowOnError>>;
 }

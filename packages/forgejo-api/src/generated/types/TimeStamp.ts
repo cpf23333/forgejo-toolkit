@@ -5,5 +5,8 @@
 
 /**
  * @description TimeStamp defines a timestamp
+ *
+ * Format: `int64`
+ * @type integer
  */
 export type TimeStamp = number;

@@ -5,16 +5,21 @@
 
 /**
  * @description QuotaUsedSizeRepos represents the size-based repository quota usage of a user
+ * @type object
  */
 export type QuotaUsedSizeRepos = {
   /**
    * @description Storage size of the user\'s private repositories
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   private?: number;
   /**
    * @description Storage size of the user\'s public repositories
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   public?: number;
 };

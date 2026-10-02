@@ -4,14 +4,14 @@
  */
 
 import type {
-  IssueGetCommentsQueryResponse,
-  IssueGetComments404,
-  IssueGetComments422,
-  IssueGetComments500,
+  IssueGetCommentsResponse,
+  IssueGetCommentsStatus404,
+  IssueGetCommentsStatus422,
+  IssueGetCommentsStatus500,
 } from '../types/IssueGetComments';
 import { http } from 'msw';
 
-export function issueGetCommentsHandlerResponse200(data: IssueGetCommentsQueryResponse) {
+export function issueGetCommentsHandlerResponse200(data: IssueGetCommentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function issueGetCommentsHandlerResponse200(data: IssueGetCommentsQueryRe
   });
 }
 
-export function issueGetCommentsHandlerResponse404(data: IssueGetComments404) {
+export function issueGetCommentsHandlerResponse404(data: IssueGetCommentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueGetCommentsHandlerResponse404(data: IssueGetComments404) {
   });
 }
 
-export function issueGetCommentsHandlerResponse422(data: IssueGetComments422) {
+export function issueGetCommentsHandlerResponse422(data: IssueGetCommentsStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,7 +38,7 @@ export function issueGetCommentsHandlerResponse422(data: IssueGetComments422) {
   });
 }
 
-export function issueGetCommentsHandlerResponse500(data: IssueGetComments500) {
+export function issueGetCommentsHandlerResponse500(data: IssueGetCommentsStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
@@ -49,7 +49,7 @@ export function issueGetCommentsHandlerResponse500(data: IssueGetComments500) {
 
 export function issueGetCommentsHandler(
   data?:
-    | IssueGetCommentsQueryResponse
+    | IssueGetCommentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/comments`, function handler(info) {

@@ -3,35 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  TopicSearchQueryResponse,
-  TopicSearchQueryParams,
-  TopicSearch403,
-  TopicSearch404,
-} from '../types/TopicSearch';
-
-function getTopicSearchUrl() {
-  const res = { method: 'GET', url: `/topics/search` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { TopicSearchOptions, TopicSearchResponses } from '../types/TopicSearch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for topics by keyword
  * {@link /topics/search}
  */
-export async function topicSearch(
-  params: TopicSearchQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function topicSearch<ThrowOnError extends boolean = true>(
+  options: Options<TopicSearchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<TopicSearchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<TopicSearchQueryResponse, ResponseErrorConfig<TopicSearch403 | TopicSearch404>, unknown>({
-    method: 'GET',
-    url: getTopicSearchUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/topics/search',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<TopicSearchResponses, ThrowOnError>>;
 }

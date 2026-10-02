@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteReleaseAttachmentPathParams = {
+export type RepoDeleteReleaseAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,30 +18,53 @@ export type RepoDeleteReleaseAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the release
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the attachment to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteReleaseAttachment204 = any;
+export type RepoDeleteReleaseAttachmentStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteReleaseAttachment404 = APINotFound;
+export type RepoDeleteReleaseAttachmentStatus404Json = APINotFound;
 
-export type RepoDeleteReleaseAttachmentMutationResponse = RepoDeleteReleaseAttachment204;
+export type RepoDeleteReleaseAttachmentStatus404Html = APINotFound;
 
-export type RepoDeleteReleaseAttachmentMutation = {
-  Response: RepoDeleteReleaseAttachment204;
-  PathParams: RepoDeleteReleaseAttachmentPathParams;
-  Errors: RepoDeleteReleaseAttachment404;
+export type RepoDeleteReleaseAttachmentStatus404 =
+  | RepoDeleteReleaseAttachmentStatus404Json
+  | RepoDeleteReleaseAttachmentStatus404Html;
+
+export type RepoDeleteReleaseAttachmentOptions = {
+  body?: never;
+  path: RepoDeleteReleaseAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteReleaseAttachmentResponses = {
+  '204': RepoDeleteReleaseAttachmentStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteReleaseAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteReleaseAttachmentStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteReleaseAttachmentResponse =
+  | RepoDeleteReleaseAttachmentStatus204
+  | RepoDeleteReleaseAttachmentStatus404;

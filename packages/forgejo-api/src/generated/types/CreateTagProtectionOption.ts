@@ -5,18 +5,10 @@
 
 /**
  * @description CreateTagProtectionOption options for creating a tag protection
+ * @type object
  */
 export type CreateTagProtectionOption = {
-  /**
-   * @type string | undefined
-   */
   name_pattern?: string;
-  /**
-   * @type array | undefined
-   */
   whitelist_teams?: string[];
-  /**
-   * @type array | undefined
-   */
   whitelist_usernames?: string[];
 };

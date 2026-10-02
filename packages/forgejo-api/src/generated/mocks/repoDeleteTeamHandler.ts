@@ -4,20 +4,20 @@
  */
 
 import type {
-  RepoDeleteTeamMutationResponse,
-  RepoDeleteTeam404,
-  RepoDeleteTeam405,
-  RepoDeleteTeam422,
+  RepoDeleteTeamResponse,
+  RepoDeleteTeamStatus404,
+  RepoDeleteTeamStatus405,
+  RepoDeleteTeamStatus422,
 } from '../types/RepoDeleteTeam';
 import { http } from 'msw';
 
-export function repoDeleteTeamHandlerResponse204(data?: RepoDeleteTeamMutationResponse) {
+export function repoDeleteTeamHandlerResponse204(data?: RepoDeleteTeamResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteTeamHandlerResponse404(data: RepoDeleteTeam404) {
+export function repoDeleteTeamHandlerResponse404(data: RepoDeleteTeamStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoDeleteTeamHandlerResponse404(data: RepoDeleteTeam404) {
   });
 }
 
-export function repoDeleteTeamHandlerResponse405(data: RepoDeleteTeam405) {
+export function repoDeleteTeamHandlerResponse405(data: RepoDeleteTeamStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
@@ -35,7 +35,7 @@ export function repoDeleteTeamHandlerResponse405(data: RepoDeleteTeam405) {
   });
 }
 
-export function repoDeleteTeamHandlerResponse422(data: RepoDeleteTeam422) {
+export function repoDeleteTeamHandlerResponse422(data: RepoDeleteTeamStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIInternalServerError } from './APIInternalServerError';
 
-export type IssueDeleteCommentPathParams = {
+export type IssueDeleteCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,60 @@ export type IssueDeleteCommentPathParams = {
   repo: string;
   /**
    * @description id of comment to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteComment204 = any;
+export type IssueDeleteCommentStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueDeleteComment403 = APIForbiddenError;
+export type IssueDeleteCommentStatus403Json = APIForbiddenError;
 
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueDeleteComment500 = APIInternalServerError;
+export type IssueDeleteCommentStatus403Html = APIForbiddenError;
 
-export type IssueDeleteCommentMutationResponse = IssueDeleteComment204;
+export type IssueDeleteCommentStatus403 = IssueDeleteCommentStatus403Json | IssueDeleteCommentStatus403Html;
 
-export type IssueDeleteCommentMutation = {
-  Response: IssueDeleteComment204;
-  PathParams: IssueDeleteCommentPathParams;
-  Errors: IssueDeleteComment403 | IssueDeleteComment500;
+export type IssueDeleteCommentStatus500Json = APIInternalServerError;
+
+export type IssueDeleteCommentStatus500Html = APIInternalServerError;
+
+export type IssueDeleteCommentStatus500 = IssueDeleteCommentStatus500Json | IssueDeleteCommentStatus500Html;
+
+export type IssueDeleteCommentOptions = {
+  body?: never;
+  path: IssueDeleteCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteCommentResponses = {
+  '204': IssueDeleteCommentStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteCommentStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteCommentStatus403Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteCommentStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteCommentStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteCommentResponse =
+  | IssueDeleteCommentStatus204
+  | IssueDeleteCommentStatus403
+  | IssueDeleteCommentStatus500;

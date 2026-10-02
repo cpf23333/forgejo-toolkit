@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgEditLabelMutationResponse, OrgEditLabel404, OrgEditLabel422 } from '../types/OrgEditLabel';
+import type {
+  OrgEditLabelResponse,
+  OrgEditLabelStatus404,
+  OrgEditLabelStatus422,
+  OrgEditLabelBody,
+} from '../types/OrgEditLabel';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgEditLabelHandlerResponse200(data: OrgEditLabelMutationResponse) {
+export function orgEditLabelHandlerResponse200(data: OrgEditLabelResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +21,7 @@ export function orgEditLabelHandlerResponse200(data: OrgEditLabelMutationRespons
   });
 }
 
-export function orgEditLabelHandlerResponse404(data: OrgEditLabel404) {
+export function orgEditLabelHandlerResponse404(data: OrgEditLabelStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +30,7 @@ export function orgEditLabelHandlerResponse404(data: OrgEditLabel404) {
   });
 }
 
-export function orgEditLabelHandlerResponse422(data: OrgEditLabel422) {
+export function orgEditLabelHandlerResponse422(data: OrgEditLabelStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -34,11 +40,9 @@ export function orgEditLabelHandlerResponse422(data: OrgEditLabel422) {
 }
 
 export function orgEditLabelHandler(
-  data?:
-    | OrgEditLabelMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgEditLabelResponse | HttpResponseResolver<Record<string, string>, OrgEditLabelBody>,
 ) {
-  return http.patch(`/orgs/:org/labels/:id`, function handler(info) {
+  return http.patch<Record<string, string>, OrgEditLabelBody>(`/orgs/:org/labels/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

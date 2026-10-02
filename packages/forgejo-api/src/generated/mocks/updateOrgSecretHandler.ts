@@ -3,22 +3,28 @@
  * Do not edit manually.
  */
 
-import type { UpdateOrgSecretMutationResponse, UpdateOrgSecret400, UpdateOrgSecret404 } from '../types/UpdateOrgSecret';
+import type {
+  UpdateOrgSecretResponse,
+  UpdateOrgSecretStatus400,
+  UpdateOrgSecretStatus404,
+  UpdateOrgSecretBody,
+} from '../types/UpdateOrgSecret';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function updateOrgSecretHandlerResponse201(data?: UpdateOrgSecretMutationResponse) {
+export function updateOrgSecretHandlerResponse201(data?: UpdateOrgSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateOrgSecretHandlerResponse204(data?: UpdateOrgSecretMutationResponse) {
+export function updateOrgSecretHandlerResponse204(data?: UpdateOrgSecretResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateOrgSecretHandlerResponse400(data: UpdateOrgSecret400) {
+export function updateOrgSecretHandlerResponse400(data: UpdateOrgSecretStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -27,7 +33,7 @@ export function updateOrgSecretHandlerResponse400(data: UpdateOrgSecret400) {
   });
 }
 
-export function updateOrgSecretHandlerResponse404(data: UpdateOrgSecret404) {
+export function updateOrgSecretHandlerResponse404(data: UpdateOrgSecretStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -37,19 +43,16 @@ export function updateOrgSecretHandlerResponse404(data: UpdateOrgSecret404) {
 }
 
 export function updateOrgSecretHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, UpdateOrgSecretBody>,
 ) {
-  return http.put(`/orgs/:org/actions/secrets/:secretname`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.put<Record<string, string>, UpdateOrgSecretBody>(
+    `/orgs/:org/actions/secrets/:secretname`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+      });
+    },
+  );
 }

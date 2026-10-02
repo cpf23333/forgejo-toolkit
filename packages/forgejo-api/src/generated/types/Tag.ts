@@ -8,6 +8,7 @@ import type { TagArchiveDownloadCount } from './TagArchiveDownloadCount';
 
 /**
  * @description Tag represents a repository tag
+ * @type object
  */
 export type Tag = {
   /**
@@ -15,28 +16,10 @@ export type Tag = {
    * @type object | undefined
    */
   archive_download_count?: TagArchiveDownloadCount;
-  /**
-   * @type object | undefined
-   */
   commit?: CommitMeta;
-  /**
-   * @type string | undefined
-   */
   id?: string;
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   tarball_url?: string;
-  /**
-   * @type string | undefined
-   */
   zipball_url?: string;
 };

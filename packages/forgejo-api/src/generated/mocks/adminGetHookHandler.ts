@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminGetHookQueryResponse } from '../types/AdminGetHook';
+import type { AdminGetHookResponse } from '../types/AdminGetHook';
 import { http } from 'msw';
 
-export function adminGetHookHandlerResponse200(data: AdminGetHookQueryResponse) {
+export function adminGetHookHandlerResponse200(data: AdminGetHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -16,9 +16,7 @@ export function adminGetHookHandlerResponse200(data: AdminGetHookQueryResponse) 
 }
 
 export function adminGetHookHandler(
-  data?:
-    | AdminGetHookQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminGetHookResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/hooks/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);

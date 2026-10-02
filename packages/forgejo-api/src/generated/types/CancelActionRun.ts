@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type CancelActionRunPathParams = {
+export type CancelActionRunPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,57 @@ export type CancelActionRunPathParams = {
   repo: string;
   /**
    * @description ID of the workflow run
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   run_id: number;
 };
 
-/**
- * @description Workflow run has been cancelled
- */
-export type CancelActionRun204 = any;
+export type CancelActionRunStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type CancelActionRun403 = APIForbiddenError;
+export type CancelActionRunStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type CancelActionRun404 = APINotFound;
+export type CancelActionRunStatus403Html = APIForbiddenError;
 
-export type CancelActionRunMutationResponse = CancelActionRun204;
+export type CancelActionRunStatus403 = CancelActionRunStatus403Json | CancelActionRunStatus403Html;
 
-export type CancelActionRunMutation = {
-  Response: CancelActionRun204;
-  PathParams: CancelActionRunPathParams;
-  Errors: CancelActionRun403 | CancelActionRun404;
+export type CancelActionRunStatus404Json = APINotFound;
+
+export type CancelActionRunStatus404Html = APINotFound;
+
+export type CancelActionRunStatus404 = CancelActionRunStatus404Json | CancelActionRunStatus404Html;
+
+export type CancelActionRunOptions = {
+  body?: never;
+  path: CancelActionRunPath;
+  query?: never;
+  headers?: never;
 };
+
+export type CancelActionRunResponses = {
+  '204': CancelActionRunStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CancelActionRunStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CancelActionRunStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CancelActionRunStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CancelActionRunStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CancelActionRunResponse = CancelActionRunStatus204 | CancelActionRunStatus403 | CancelActionRunStatus404;

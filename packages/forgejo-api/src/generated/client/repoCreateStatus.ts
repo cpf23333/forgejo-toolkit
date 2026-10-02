@@ -3,54 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreateStatusMutationRequest,
-  RepoCreateStatusMutationResponse,
-  RepoCreateStatusPathParams,
-  RepoCreateStatus400,
-  RepoCreateStatus404,
-} from '../types/RepoCreateStatus';
-
-function getRepoCreateStatusUrl(
-  owner: RepoCreateStatusPathParams['owner'],
-  repo: RepoCreateStatusPathParams['repo'],
-  sha: RepoCreateStatusPathParams['sha'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/statuses/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreateStatusOptions, RepoCreateStatusResponses } from '../types/RepoCreateStatus';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a commit status
  * {@link /repos/:owner/:repo/statuses/:sha}
  */
-export async function repoCreateStatus(
-  owner: RepoCreateStatusPathParams['owner'],
-  repo: RepoCreateStatusPathParams['repo'],
-  sha: RepoCreateStatusPathParams['sha'],
-  data?: RepoCreateStatusMutationRequest,
-  config: Partial<RequestConfig<RepoCreateStatusMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateStatus<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateStatusOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateStatusResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateStatusMutationResponse,
-    ResponseErrorConfig<RepoCreateStatus400 | RepoCreateStatus404>,
-    RepoCreateStatusMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateStatusUrl(owner, repo, sha).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/statuses/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateStatusResponses, ThrowOnError>>;
 }

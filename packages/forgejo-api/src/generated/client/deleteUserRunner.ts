@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteUserRunnerMutationResponse,
-  DeleteUserRunnerPathParams,
-  DeleteUserRunner400,
-  DeleteUserRunner401,
-  DeleteUserRunner404,
-} from '../types/DeleteUserRunner';
-
-function getDeleteUserRunnerUrl(runner_id: DeleteUserRunnerPathParams['runner_id']) {
-  const res = {
-    method: 'DELETE',
-    url: `/user/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteUserRunnerOptions, DeleteUserRunnerResponses } from '../types/DeleteUserRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a particular user-level runner
  * {@link /user/actions/runners/:runner_id}
  */
-export async function deleteUserRunner(
-  runner_id: DeleteUserRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteUserRunner<ThrowOnError extends boolean = true>(
+  options: Options<DeleteUserRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteUserRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteUserRunnerMutationResponse,
-    ResponseErrorConfig<DeleteUserRunner400 | DeleteUserRunner401 | DeleteUserRunner404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteUserRunnerUrl(runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteUserRunnerResponses, ThrowOnError>>;
 }

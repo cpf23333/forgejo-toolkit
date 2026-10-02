@@ -8,32 +8,83 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { APRemoteFollowOption } from './APRemoteFollowOption';
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentActivityPubFollow204 = any;
+export type UserCurrentActivityPubFollowStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentActivityPubFollow401 = APIUnauthorizedError;
+export type UserCurrentActivityPubFollowStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentActivityPubFollow403 = APIForbiddenError;
+export type UserCurrentActivityPubFollowStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentActivityPubFollow404 = APINotFound;
+export type UserCurrentActivityPubFollowStatus401 =
+  | UserCurrentActivityPubFollowStatus401Json
+  | UserCurrentActivityPubFollowStatus401Html;
 
-export type UserCurrentActivityPubFollowMutationRequest = APRemoteFollowOption;
+export type UserCurrentActivityPubFollowStatus403Json = APIForbiddenError;
 
-export type UserCurrentActivityPubFollowMutationResponse = UserCurrentActivityPubFollow204;
+export type UserCurrentActivityPubFollowStatus403Html = APIForbiddenError;
 
-export type UserCurrentActivityPubFollowMutation = {
-  Response: UserCurrentActivityPubFollow204;
-  Request: UserCurrentActivityPubFollowMutationRequest;
-  Errors: UserCurrentActivityPubFollow401 | UserCurrentActivityPubFollow403 | UserCurrentActivityPubFollow404;
+export type UserCurrentActivityPubFollowStatus403 =
+  | UserCurrentActivityPubFollowStatus403Json
+  | UserCurrentActivityPubFollowStatus403Html;
+
+export type UserCurrentActivityPubFollowStatus404Json = APINotFound;
+
+export type UserCurrentActivityPubFollowStatus404Html = APINotFound;
+
+export type UserCurrentActivityPubFollowStatus404 =
+  | UserCurrentActivityPubFollowStatus404Json
+  | UserCurrentActivityPubFollowStatus404Html;
+
+export type UserCurrentActivityPubFollowBodyJson = APRemoteFollowOption | undefined;
+
+export type UserCurrentActivityPubFollowBodyPlain = APRemoteFollowOption | undefined;
+
+export type UserCurrentActivityPubFollowBody =
+  | UserCurrentActivityPubFollowBodyJson
+  | UserCurrentActivityPubFollowBodyPlain;
+
+export type UserCurrentActivityPubFollowOptions = {
+  body: UserCurrentActivityPubFollowBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentActivityPubFollowResponses = {
+  '204': UserCurrentActivityPubFollowStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentActivityPubFollowStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentActivityPubFollowStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentActivityPubFollowStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentActivityPubFollowStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentActivityPubFollowStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentActivityPubFollowStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentActivityPubFollowResponse =
+  | UserCurrentActivityPubFollowStatus204
+  | UserCurrentActivityPubFollowStatus401
+  | UserCurrentActivityPubFollowStatus403
+  | UserCurrentActivityPubFollowStatus404;

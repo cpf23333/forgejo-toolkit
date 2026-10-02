@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { ActionVariable } from './ActionVariable';
 
-export type GetOrgVariablesListPathParams = {
+export type GetOrgVariablesListPath = {
   /**
    * @description name of the organization
    * @type string
@@ -15,7 +15,7 @@ export type GetOrgVariablesListPathParams = {
   org: string;
 };
 
-export type GetOrgVariablesListQueryParams = {
+export type GetOrgVariablesListQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -28,26 +28,73 @@ export type GetOrgVariablesListQueryParams = {
   limit?: number;
 };
 
-/**
- * @description VariableList
- */
-export type GetOrgVariablesList200 = ActionVariable[];
+export type GetOrgVariablesListStatus200Json = ActionVariable[];
+
+export type GetOrgVariablesListStatus200Html = ActionVariable[];
+
+export type GetOrgVariablesListStatus200 = GetOrgVariablesListStatus200Json | GetOrgVariablesListStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgVariablesList400 = APIError;
+export type GetOrgVariablesListStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type GetOrgVariablesList404 = APINotFound;
+export type GetOrgVariablesListStatus400Html = APIError;
 
-export type GetOrgVariablesListQueryResponse = GetOrgVariablesList200;
+export type GetOrgVariablesListStatus400 = GetOrgVariablesListStatus400Json | GetOrgVariablesListStatus400Html;
 
-export type GetOrgVariablesListQuery = {
-  Response: GetOrgVariablesList200;
-  PathParams: GetOrgVariablesListPathParams;
-  QueryParams: GetOrgVariablesListQueryParams;
-  Errors: GetOrgVariablesList400 | GetOrgVariablesList404;
+export type GetOrgVariablesListStatus404Json = APINotFound;
+
+export type GetOrgVariablesListStatus404Html = APINotFound;
+
+export type GetOrgVariablesListStatus404 = GetOrgVariablesListStatus404Json | GetOrgVariablesListStatus404Html;
+
+export type GetOrgVariablesListOptions = {
+  body?: never;
+  path: GetOrgVariablesListPath;
+  query?: GetOrgVariablesListQuery;
+  headers?: never;
 };
+
+export type GetOrgVariablesListResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariablesListStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariablesListStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariablesListStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariablesListStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: GetOrgVariablesListStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetOrgVariablesListStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetOrgVariablesListResponse =
+  | GetOrgVariablesListStatus200
+  | GetOrgVariablesListStatus400
+  | GetOrgVariablesListStatus404;

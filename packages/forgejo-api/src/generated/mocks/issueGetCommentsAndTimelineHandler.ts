@@ -4,14 +4,14 @@
  */
 
 import type {
-  IssueGetCommentsAndTimelineQueryResponse,
-  IssueGetCommentsAndTimeline404,
-  IssueGetCommentsAndTimeline422,
-  IssueGetCommentsAndTimeline500,
+  IssueGetCommentsAndTimelineResponse,
+  IssueGetCommentsAndTimelineStatus404,
+  IssueGetCommentsAndTimelineStatus422,
+  IssueGetCommentsAndTimelineStatus500,
 } from '../types/IssueGetCommentsAndTimeline';
 import { http } from 'msw';
 
-export function issueGetCommentsAndTimelineHandlerResponse200(data: IssueGetCommentsAndTimelineQueryResponse) {
+export function issueGetCommentsAndTimelineHandlerResponse200(data: IssueGetCommentsAndTimelineResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function issueGetCommentsAndTimelineHandlerResponse200(data: IssueGetComm
   });
 }
 
-export function issueGetCommentsAndTimelineHandlerResponse404(data: IssueGetCommentsAndTimeline404) {
+export function issueGetCommentsAndTimelineHandlerResponse404(data: IssueGetCommentsAndTimelineStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueGetCommentsAndTimelineHandlerResponse404(data: IssueGetComm
   });
 }
 
-export function issueGetCommentsAndTimelineHandlerResponse422(data: IssueGetCommentsAndTimeline422) {
+export function issueGetCommentsAndTimelineHandlerResponse422(data: IssueGetCommentsAndTimelineStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,7 +38,7 @@ export function issueGetCommentsAndTimelineHandlerResponse422(data: IssueGetComm
   });
 }
 
-export function issueGetCommentsAndTimelineHandlerResponse500(data: IssueGetCommentsAndTimeline500) {
+export function issueGetCommentsAndTimelineHandlerResponse500(data: IssueGetCommentsAndTimelineStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
@@ -49,7 +49,7 @@ export function issueGetCommentsAndTimelineHandlerResponse500(data: IssueGetComm
 
 export function issueGetCommentsAndTimelineHandler(
   data?:
-    | IssueGetCommentsAndTimelineQueryResponse
+    | IssueGetCommentsAndTimelineResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/timeline`, function handler(info) {

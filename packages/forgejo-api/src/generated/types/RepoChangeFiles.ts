@@ -9,7 +9,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { ChangeFilesOptions } from './ChangeFilesOptions';
 import type { FilesResponse } from './FilesResponse';
 
-export type RepoChangeFilesPathParams = {
+export type RepoChangeFilesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -23,53 +23,134 @@ export type RepoChangeFilesPathParams = {
 };
 
 /**
- * @description FilesResponse
+ * @description FilesResponse contains information about multiple files from a repo
+ * @type object
  */
-export type RepoChangeFiles201 = FilesResponse;
+export type RepoChangeFilesStatus201Json = FilesResponse;
 
 /**
- * @description APIError is error format response
+ * @description FilesResponse contains information about multiple files from a repo
+ * @type object
  */
-export type RepoChangeFiles403 = APIError;
+export type RepoChangeFilesStatus201Html = FilesResponse;
+
+export type RepoChangeFilesStatus201 = RepoChangeFilesStatus201Json | RepoChangeFilesStatus201Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoChangeFiles404 = APINotFound;
+export type RepoChangeFilesStatus403Json = APIError;
 
 /**
- * @description APIConflict is a conflict empty response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoChangeFiles409 = any;
+export type RepoChangeFilesStatus403Html = APIError;
+
+export type RepoChangeFilesStatus403 = RepoChangeFilesStatus403Json | RepoChangeFilesStatus403Html;
+
+export type RepoChangeFilesStatus404Json = APINotFound;
+
+export type RepoChangeFilesStatus404Html = APINotFound;
+
+export type RepoChangeFilesStatus404 = RepoChangeFilesStatus404Json | RepoChangeFilesStatus404Html;
+
+export type RepoChangeFilesStatus409 = unknown;
+
+export type RepoChangeFilesStatus413 = unknown;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoChangeFiles413 = any;
+export type RepoChangeFilesStatus422Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoChangeFiles422 = APIError;
+export type RepoChangeFilesStatus422Html = APIError;
+
+export type RepoChangeFilesStatus422 = RepoChangeFilesStatus422Json | RepoChangeFilesStatus422Html;
+
+export type RepoChangeFilesStatus423Json = APIRepoArchivedError;
+
+export type RepoChangeFilesStatus423Html = APIRepoArchivedError;
+
+export type RepoChangeFilesStatus423 = RepoChangeFilesStatus423Json | RepoChangeFilesStatus423Html;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description ChangeFilesOptions options for creating, updating or deleting multiple files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
-export type RepoChangeFiles423 = APIRepoArchivedError;
+export type RepoChangeFilesBody = ChangeFilesOptions;
 
-export type RepoChangeFilesMutationRequest = ChangeFilesOptions;
-
-export type RepoChangeFilesMutationResponse = RepoChangeFiles201;
-
-export type RepoChangeFilesMutation = {
-  Response: RepoChangeFiles201;
-  Request: RepoChangeFilesMutationRequest;
-  PathParams: RepoChangeFilesPathParams;
-  Errors:
-    | RepoChangeFiles403
-    | RepoChangeFiles404
-    | RepoChangeFiles409
-    | RepoChangeFiles413
-    | RepoChangeFiles422
-    | RepoChangeFiles423;
+export type RepoChangeFilesOptions = {
+  body: RepoChangeFilesBody;
+  path: RepoChangeFilesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoChangeFilesResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoChangeFilesStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoChangeFilesStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoChangeFilesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoChangeFilesStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoChangeFilesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoChangeFilesStatus404Html;
+      };
+  '409': RepoChangeFilesStatus409;
+  '413': RepoChangeFilesStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoChangeFilesStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoChangeFilesStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoChangeFilesStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoChangeFilesStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoChangeFilesResponse =
+  | RepoChangeFilesStatus201
+  | RepoChangeFilesStatus403
+  | RepoChangeFilesStatus404
+  | RepoChangeFilesStatus409
+  | RepoChangeFilesStatus413
+  | RepoChangeFilesStatus422
+  | RepoChangeFilesStatus423;

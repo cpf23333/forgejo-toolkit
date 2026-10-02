@@ -7,23 +7,15 @@ import type { CommitStatusState } from './CommitStatusState';
 
 /**
  * @description CreateStatusOption holds the information needed to create a new CommitStatus for a Commit
+ * @type object
  */
 export type CreateStatusOption = {
-  /**
-   * @type string | undefined
-   */
   context?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
    * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"
    * @type string | undefined
    */
   state?: CommitStatusState;
-  /**
-   * @type string | undefined
-   */
   target_url?: string;
 };

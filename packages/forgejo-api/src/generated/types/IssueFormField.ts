@@ -8,30 +8,16 @@ import type { IssueFormFieldVisible } from './IssueFormFieldVisible';
 
 /**
  * @description IssueFormField represents a form field
+ * @type object
  */
 export type IssueFormField = {
-  /**
-   * @type object | undefined
-   */
   attributes?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  /**
-   * @type string | undefined
-   */
   id?: string;
-  /**
-   * @type string | undefined
-   */
   type?: IssueFormFieldType;
-  /**
-   * @type object | undefined
-   */
   validations?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  /**
-   * @type array | undefined
-   */
   visible?: IssueFormFieldVisible[];
 };

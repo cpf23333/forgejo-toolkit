@@ -7,10 +7,13 @@ import type { WikiCommit } from './WikiCommit';
 
 /**
  * @description WikiPage a wiki page
+ * @type object
  */
 export type WikiPage = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   commit_count?: number;
   /**
@@ -18,29 +21,14 @@ export type WikiPage = {
    * @type string | undefined
    */
   content_base64?: string;
-  /**
-   * @type string | undefined
-   */
   footer?: string;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
    * @description WikiCommit page commit/revision
    * @type object | undefined
    */
   last_commit?: WikiCommit;
-  /**
-   * @type string | undefined
-   */
   sidebar?: string;
-  /**
-   * @type string | undefined
-   */
   sub_url?: string;
-  /**
-   * @type string | undefined
-   */
   title?: string;
 };

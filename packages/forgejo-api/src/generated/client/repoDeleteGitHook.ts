@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeleteGitHookMutationResponse,
-  RepoDeleteGitHookPathParams,
-  RepoDeleteGitHook404,
-} from '../types/RepoDeleteGitHook';
-
-function getRepoDeleteGitHookUrl(
-  owner: RepoDeleteGitHookPathParams['owner'],
-  repo: RepoDeleteGitHookPathParams['repo'],
-  id: RepoDeleteGitHookPathParams['id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/hooks/git/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeleteGitHookOptions, RepoDeleteGitHookResponses } from '../types/RepoDeleteGitHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a Git hook in a repository
  * {@link /repos/:owner/:repo/hooks/git/:id}
  */
-export async function repoDeleteGitHook(
-  owner: RepoDeleteGitHookPathParams['owner'],
-  repo: RepoDeleteGitHookPathParams['repo'],
-  id: RepoDeleteGitHookPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeleteGitHook<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeleteGitHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeleteGitHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoDeleteGitHookMutationResponse, ResponseErrorConfig<RepoDeleteGitHook404>, unknown>({
-    method: 'DELETE',
-    url: getRepoDeleteGitHookUrl(owner, repo, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/hooks/git/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeleteGitHookResponses, ThrowOnError>>;
 }

@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoTestHookMutationResponse, RepoTestHook404 } from '../types/RepoTestHook';
+import type { RepoTestHookResponse, RepoTestHookStatus404 } from '../types/RepoTestHook';
 import { http } from 'msw';
 
-export function repoTestHookHandlerResponse204(data?: RepoTestHookMutationResponse) {
+export function repoTestHookHandlerResponse204(data?: RepoTestHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoTestHookHandlerResponse404(data: RepoTestHook404) {
+export function repoTestHookHandlerResponse404(data: RepoTestHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

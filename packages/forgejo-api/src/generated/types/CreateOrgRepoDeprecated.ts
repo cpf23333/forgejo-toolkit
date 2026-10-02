@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateRepoOption } from './CreateRepoOption';
 import type { Repository } from './Repository';
 
-export type CreateOrgRepoDeprecatedPathParams = {
+export type CreateOrgRepoDeprecatedPath = {
   /**
    * @description name of organization
    * @type string
@@ -18,32 +18,106 @@ export type CreateOrgRepoDeprecatedPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateOrgRepoDeprecated201 = Repository;
+export type CreateOrgRepoDeprecatedStatus201Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type CreateOrgRepoDeprecated403 = APIForbiddenError;
+export type CreateOrgRepoDeprecatedStatus201Html = Repository;
+
+export type CreateOrgRepoDeprecatedStatus201 =
+  | CreateOrgRepoDeprecatedStatus201Json
+  | CreateOrgRepoDeprecatedStatus201Html;
+
+export type CreateOrgRepoDeprecatedStatus403Json = APIForbiddenError;
+
+export type CreateOrgRepoDeprecatedStatus403Html = APIForbiddenError;
+
+export type CreateOrgRepoDeprecatedStatus403 =
+  | CreateOrgRepoDeprecatedStatus403Json
+  | CreateOrgRepoDeprecatedStatus403Html;
+
+export type CreateOrgRepoDeprecatedStatus404Json = APINotFound;
+
+export type CreateOrgRepoDeprecatedStatus404Html = APINotFound;
+
+export type CreateOrgRepoDeprecatedStatus404 =
+  | CreateOrgRepoDeprecatedStatus404Json
+  | CreateOrgRepoDeprecatedStatus404Html;
+
+export type CreateOrgRepoDeprecatedStatus422Json = APIValidationError;
+
+export type CreateOrgRepoDeprecatedStatus422Html = APIValidationError;
+
+export type CreateOrgRepoDeprecatedStatus422 =
+  | CreateOrgRepoDeprecatedStatus422Json
+  | CreateOrgRepoDeprecatedStatus422Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description CreateRepoOption options when creating repository
+ * @type object | undefined
  */
-export type CreateOrgRepoDeprecated404 = APINotFound;
+export type CreateOrgRepoDeprecatedBody = CreateRepoOption | undefined;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @deprecated
+ * @type object
  */
-export type CreateOrgRepoDeprecated422 = APIValidationError;
-
-export type CreateOrgRepoDeprecatedMutationRequest = CreateRepoOption;
-
-export type CreateOrgRepoDeprecatedMutationResponse = CreateOrgRepoDeprecated201;
-
-export type CreateOrgRepoDeprecatedMutation = {
-  Response: CreateOrgRepoDeprecated201;
-  Request: CreateOrgRepoDeprecatedMutationRequest;
-  PathParams: CreateOrgRepoDeprecatedPathParams;
-  Errors: CreateOrgRepoDeprecated403 | CreateOrgRepoDeprecated404 | CreateOrgRepoDeprecated422;
+export type CreateOrgRepoDeprecatedOptions = {
+  body: CreateOrgRepoDeprecatedBody;
+  path: CreateOrgRepoDeprecatedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateOrgRepoDeprecatedResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoDeprecatedStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoDeprecatedStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoDeprecatedStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoDeprecatedStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoDeprecatedStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoDeprecatedStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: CreateOrgRepoDeprecatedStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateOrgRepoDeprecatedStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateOrgRepoDeprecatedResponse =
+  | CreateOrgRepoDeprecatedStatus201
+  | CreateOrgRepoDeprecatedStatus403
+  | CreateOrgRepoDeprecatedStatus404
+  | CreateOrgRepoDeprecatedStatus422;

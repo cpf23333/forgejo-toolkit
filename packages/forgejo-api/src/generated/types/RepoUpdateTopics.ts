@@ -7,7 +7,7 @@ import type { APIInvalidTopicsError } from './APIInvalidTopicsError';
 import type { APINotFound } from './APINotFound';
 import type { RepoTopicOptions } from './RepoTopicOptions';
 
-export type RepoUpdateTopicsPathParams = {
+export type RepoUpdateTopicsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,28 +20,67 @@ export type RepoUpdateTopicsPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoUpdateTopics204 = any;
+export type RepoUpdateTopicsStatus204 = unknown;
+
+export type RepoUpdateTopicsStatus404Json = APINotFound;
+
+export type RepoUpdateTopicsStatus404Html = APINotFound;
+
+export type RepoUpdateTopicsStatus404 = RepoUpdateTopicsStatus404Json | RepoUpdateTopicsStatus404Html;
+
+export type RepoUpdateTopicsStatus422Json = APIInvalidTopicsError;
+
+export type RepoUpdateTopicsStatus422Html = APIInvalidTopicsError;
+
+export type RepoUpdateTopicsStatus422 = RepoUpdateTopicsStatus422Json | RepoUpdateTopicsStatus422Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description RepoTopicOptions a collection of repo topic names
+ * @type object | undefined
  */
-export type RepoUpdateTopics404 = APINotFound;
+export type RepoUpdateTopicsBodyJson = RepoTopicOptions | undefined;
 
 /**
- * @description APIInvalidTopicsError is error format response to invalid topics
+ * @description RepoTopicOptions a collection of repo topic names
+ * @type object | undefined
  */
-export type RepoUpdateTopics422 = APIInvalidTopicsError;
+export type RepoUpdateTopicsBodyPlain = RepoTopicOptions | undefined;
 
-export type RepoUpdateTopicsMutationRequest = RepoTopicOptions;
+export type RepoUpdateTopicsBody = RepoUpdateTopicsBodyJson | RepoUpdateTopicsBodyPlain;
 
-export type RepoUpdateTopicsMutationResponse = RepoUpdateTopics204;
-
-export type RepoUpdateTopicsMutation = {
-  Response: RepoUpdateTopics204;
-  Request: RepoUpdateTopicsMutationRequest;
-  PathParams: RepoUpdateTopicsPathParams;
-  Errors: RepoUpdateTopics404 | RepoUpdateTopics422;
+export type RepoUpdateTopicsOptions = {
+  body: RepoUpdateTopicsBody;
+  path: RepoUpdateTopicsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoUpdateTopicsResponses = {
+  '204': RepoUpdateTopicsStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateTopicsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateTopicsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoUpdateTopicsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoUpdateTopicsStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoUpdateTopicsResponse =
+  | RepoUpdateTopicsStatus204
+  | RepoUpdateTopicsStatus404
+  | RepoUpdateTopicsStatus422;

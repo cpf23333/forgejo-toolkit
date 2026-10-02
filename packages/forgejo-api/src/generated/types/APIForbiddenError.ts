@@ -4,12 +4,6 @@
  */
 
 export type APIForbiddenError = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

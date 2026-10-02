@@ -4,19 +4,19 @@
  */
 
 import type {
-  OrgPublicizeMemberMutationResponse,
-  OrgPublicizeMember403,
-  OrgPublicizeMember404,
+  OrgPublicizeMemberResponse,
+  OrgPublicizeMemberStatus403,
+  OrgPublicizeMemberStatus404,
 } from '../types/OrgPublicizeMember';
 import { http } from 'msw';
 
-export function orgPublicizeMemberHandlerResponse204(data?: OrgPublicizeMemberMutationResponse) {
+export function orgPublicizeMemberHandlerResponse204(data?: OrgPublicizeMemberResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgPublicizeMemberHandlerResponse403(data: OrgPublicizeMember403) {
+export function orgPublicizeMemberHandlerResponse403(data: OrgPublicizeMemberStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function orgPublicizeMemberHandlerResponse403(data: OrgPublicizeMember403
   });
 }
 
-export function orgPublicizeMemberHandlerResponse404(data: OrgPublicizeMember404) {
+export function orgPublicizeMemberHandlerResponse404(data: OrgPublicizeMemberStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

@@ -5,11 +5,14 @@
 
 /**
  * @description QuotaUsedSizeGit represents the size-based git (lfs) quota usage of a user
+ * @type object
  */
 export type QuotaUsedSizeGit = {
   /**
    * @description Storage size of the user\'s Git LFS objects
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   LFS?: number;
 };

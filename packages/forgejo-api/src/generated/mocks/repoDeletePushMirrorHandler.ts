@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoDeletePushMirrorMutationResponse,
-  RepoDeletePushMirror400,
-  RepoDeletePushMirror404,
+  RepoDeletePushMirrorResponse,
+  RepoDeletePushMirrorStatus400,
+  RepoDeletePushMirrorStatus404,
 } from '../types/RepoDeletePushMirror';
 import { http } from 'msw';
 
-export function repoDeletePushMirrorHandlerResponse204(data?: RepoDeletePushMirrorMutationResponse) {
+export function repoDeletePushMirrorHandlerResponse204(data?: RepoDeletePushMirrorResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeletePushMirrorHandlerResponse400(data: RepoDeletePushMirror400) {
+export function repoDeletePushMirrorHandlerResponse400(data: RepoDeletePushMirrorStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function repoDeletePushMirrorHandlerResponse400(data: RepoDeletePushMirro
   });
 }
 
-export function repoDeletePushMirrorHandlerResponse404(data: RepoDeletePushMirror404) {
+export function repoDeletePushMirrorHandlerResponse404(data: RepoDeletePushMirrorStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

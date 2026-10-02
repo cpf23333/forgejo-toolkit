@@ -8,7 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { Issue } from './Issue';
 import type { IssueMeta } from './IssueMeta';
 
-export type IssueRemoveIssueDependenciesPathParams = {
+export type IssueRemoveIssueDependenciesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,33 +21,102 @@ export type IssueRemoveIssueDependenciesPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description Issue
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueRemoveIssueDependencies200 = Issue;
+export type IssueRemoveIssueDependenciesStatus200Json = Issue;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Issue represents an issue in a repository
+ * @type object
  */
-export type IssueRemoveIssueDependencies404 = APINotFound;
+export type IssueRemoveIssueDependenciesStatus200Html = Issue;
+
+export type IssueRemoveIssueDependenciesStatus200 =
+  | IssueRemoveIssueDependenciesStatus200Json
+  | IssueRemoveIssueDependenciesStatus200Html;
+
+export type IssueRemoveIssueDependenciesStatus404Json = APINotFound;
+
+export type IssueRemoveIssueDependenciesStatus404Html = APINotFound;
+
+export type IssueRemoveIssueDependenciesStatus404 =
+  | IssueRemoveIssueDependenciesStatus404Json
+  | IssueRemoveIssueDependenciesStatus404Html;
+
+export type IssueRemoveIssueDependenciesStatus423Json = APIRepoArchivedError;
+
+export type IssueRemoveIssueDependenciesStatus423Html = APIRepoArchivedError;
+
+export type IssueRemoveIssueDependenciesStatus423 =
+  | IssueRemoveIssueDependenciesStatus423Json
+  | IssueRemoveIssueDependenciesStatus423Html;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description IssueMeta basic issue information
+ * @type object | undefined
  */
-export type IssueRemoveIssueDependencies423 = APIRepoArchivedError;
+export type IssueRemoveIssueDependenciesBodyJson = IssueMeta | undefined;
 
-export type IssueRemoveIssueDependenciesMutationRequest = IssueMeta;
+/**
+ * @description IssueMeta basic issue information
+ * @type object | undefined
+ */
+export type IssueRemoveIssueDependenciesBodyPlain = IssueMeta | undefined;
 
-export type IssueRemoveIssueDependenciesMutationResponse = IssueRemoveIssueDependencies200;
+export type IssueRemoveIssueDependenciesBody =
+  | IssueRemoveIssueDependenciesBodyJson
+  | IssueRemoveIssueDependenciesBodyPlain;
 
-export type IssueRemoveIssueDependenciesMutation = {
-  Response: IssueRemoveIssueDependencies200;
-  Request: IssueRemoveIssueDependenciesMutationRequest;
-  PathParams: IssueRemoveIssueDependenciesPathParams;
-  Errors: IssueRemoveIssueDependencies404 | IssueRemoveIssueDependencies423;
+export type IssueRemoveIssueDependenciesOptions = {
+  body: IssueRemoveIssueDependenciesBody;
+  path: IssueRemoveIssueDependenciesPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueRemoveIssueDependenciesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveIssueDependenciesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveIssueDependenciesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveIssueDependenciesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveIssueDependenciesStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueRemoveIssueDependenciesStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueRemoveIssueDependenciesStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueRemoveIssueDependenciesResponse =
+  | IssueRemoveIssueDependenciesStatus200
+  | IssueRemoveIssueDependenciesStatus404
+  | IssueRemoveIssueDependenciesStatus423;

@@ -6,44 +6,19 @@
 import type { CommitMeta } from './CommitMeta';
 import type { CommitUser } from './CommitUser';
 
-/**
- * FileCommitResponse contains information generated from a Git commit for a repo\'s file.
- */
 export type FileCommitResponse = {
-  /**
-   * @type object | undefined
-   */
   author?: CommitUser;
-  /**
-   * @type object | undefined
-   */
   committer?: CommitUser;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type array | undefined
-   */
   parents?: CommitMeta[];
-  /**
-   * @type string | undefined
-   */
   sha?: string;
-  /**
-   * @type object | undefined
-   */
   tree?: CommitMeta;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

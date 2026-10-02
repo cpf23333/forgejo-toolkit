@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { TrackedTime } from './TrackedTime';
 
-export type IssueTrackedTimesPathParams = {
+export type IssueTrackedTimesPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,12 +21,14 @@ export type IssueTrackedTimesPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueTrackedTimesQueryParams = {
+export type IssueTrackedTimesQuery = {
   /**
    * @description optional filter by user (available for issue managers)
    * @type string | undefined
@@ -34,12 +36,16 @@ export type IssueTrackedTimesQueryParams = {
   user?: string;
   /**
    * @description Only show times updated after the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   since?: string;
   /**
    * @description Only show times updated before the given time. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   before?: string;
   /**
@@ -54,31 +60,81 @@ export type IssueTrackedTimesQueryParams = {
   limit?: number;
 };
 
-/**
- * @description TrackedTimeList
- */
-export type IssueTrackedTimes200 = TrackedTime[];
+export type IssueTrackedTimesStatus200Json = TrackedTime[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueTrackedTimes403 = APIForbiddenError;
+export type IssueTrackedTimesStatus200Html = TrackedTime[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueTrackedTimes404 = APINotFound;
+export type IssueTrackedTimesStatus200 = IssueTrackedTimesStatus200Json | IssueTrackedTimesStatus200Html;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type IssueTrackedTimes422 = APIValidationError;
+export type IssueTrackedTimesStatus403Json = APIForbiddenError;
 
-export type IssueTrackedTimesQueryResponse = IssueTrackedTimes200;
+export type IssueTrackedTimesStatus403Html = APIForbiddenError;
 
-export type IssueTrackedTimesQuery = {
-  Response: IssueTrackedTimes200;
-  PathParams: IssueTrackedTimesPathParams;
-  QueryParams: IssueTrackedTimesQueryParams;
-  Errors: IssueTrackedTimes403 | IssueTrackedTimes404 | IssueTrackedTimes422;
+export type IssueTrackedTimesStatus403 = IssueTrackedTimesStatus403Json | IssueTrackedTimesStatus403Html;
+
+export type IssueTrackedTimesStatus404Json = APINotFound;
+
+export type IssueTrackedTimesStatus404Html = APINotFound;
+
+export type IssueTrackedTimesStatus404 = IssueTrackedTimesStatus404Json | IssueTrackedTimesStatus404Html;
+
+export type IssueTrackedTimesStatus422Json = APIValidationError;
+
+export type IssueTrackedTimesStatus422Html = APIValidationError;
+
+export type IssueTrackedTimesStatus422 = IssueTrackedTimesStatus422Json | IssueTrackedTimesStatus422Html;
+
+export type IssueTrackedTimesOptions = {
+  body?: never;
+  path: IssueTrackedTimesPath;
+  query?: IssueTrackedTimesQuery;
+  headers?: never;
 };
+
+export type IssueTrackedTimesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueTrackedTimesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueTrackedTimesStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueTrackedTimesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueTrackedTimesStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueTrackedTimesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueTrackedTimesStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueTrackedTimesStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueTrackedTimesStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueTrackedTimesResponse =
+  | IssueTrackedTimesStatus200
+  | IssueTrackedTimesStatus403
+  | IssueTrackedTimesStatus404
+  | IssueTrackedTimesStatus422;

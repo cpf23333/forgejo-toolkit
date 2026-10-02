@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteTagProtectionPathParams = {
+export type RepoDeleteTagProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,25 +18,44 @@ export type RepoDeleteTagProtectionPathParams = {
   repo: string;
   /**
    * @description id of protected tag
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteTagProtection204 = any;
+export type RepoDeleteTagProtectionStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteTagProtection404 = APINotFound;
+export type RepoDeleteTagProtectionStatus404Json = APINotFound;
 
-export type RepoDeleteTagProtectionMutationResponse = RepoDeleteTagProtection204;
+export type RepoDeleteTagProtectionStatus404Html = APINotFound;
 
-export type RepoDeleteTagProtectionMutation = {
-  Response: RepoDeleteTagProtection204;
-  PathParams: RepoDeleteTagProtectionPathParams;
-  Errors: RepoDeleteTagProtection404;
+export type RepoDeleteTagProtectionStatus404 =
+  | RepoDeleteTagProtectionStatus404Json
+  | RepoDeleteTagProtectionStatus404Html;
+
+export type RepoDeleteTagProtectionOptions = {
+  body?: never;
+  path: RepoDeleteTagProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteTagProtectionResponses = {
+  '204': RepoDeleteTagProtectionStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteTagProtectionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteTagProtectionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteTagProtectionResponse = RepoDeleteTagProtectionStatus204 | RepoDeleteTagProtectionStatus404;

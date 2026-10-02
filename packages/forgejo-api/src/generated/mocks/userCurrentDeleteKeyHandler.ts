@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentDeleteKeyMutationResponse,
-  UserCurrentDeleteKey401,
-  UserCurrentDeleteKey403,
-  UserCurrentDeleteKey404,
+  UserCurrentDeleteKeyResponse,
+  UserCurrentDeleteKeyStatus401,
+  UserCurrentDeleteKeyStatus403,
+  UserCurrentDeleteKeyStatus404,
 } from '../types/UserCurrentDeleteKey';
 import { http } from 'msw';
 
-export function userCurrentDeleteKeyHandlerResponse204(data?: UserCurrentDeleteKeyMutationResponse) {
+export function userCurrentDeleteKeyHandlerResponse204(data?: UserCurrentDeleteKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse401(data: UserCurrentDeleteKey401) {
+export function userCurrentDeleteKeyHandlerResponse401(data: UserCurrentDeleteKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentDeleteKeyHandlerResponse401(data: UserCurrentDeleteKe
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse403(data: UserCurrentDeleteKey403) {
+export function userCurrentDeleteKeyHandlerResponse403(data: UserCurrentDeleteKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentDeleteKeyHandlerResponse403(data: UserCurrentDeleteKe
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse404(data: UserCurrentDeleteKey404) {
+export function userCurrentDeleteKeyHandlerResponse404(data: UserCurrentDeleteKeyStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

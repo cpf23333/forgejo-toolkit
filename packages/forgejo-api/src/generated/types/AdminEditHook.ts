@@ -6,26 +6,56 @@
 import type { EditHookOption } from './EditHookOption';
 import type { Hook } from './Hook';
 
-export type AdminEditHookPathParams = {
+export type AdminEditHookPath = {
   /**
    * @description id of the hook to update
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type AdminEditHook200 = Hook;
+export type AdminEditHookStatus200Json = Hook;
 
-export type AdminEditHookMutationRequest = EditHookOption;
+/**
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
+ */
+export type AdminEditHookStatus200Html = Hook;
 
-export type AdminEditHookMutationResponse = AdminEditHook200;
+export type AdminEditHookStatus200 = AdminEditHookStatus200Json | AdminEditHookStatus200Html;
 
-export type AdminEditHookMutation = {
-  Response: AdminEditHook200;
-  Request: AdminEditHookMutationRequest;
-  PathParams: AdminEditHookPathParams;
-  Errors: any;
+/**
+ * @description EditHookOption options when modify one hook
+ * @type object | undefined
+ */
+export type AdminEditHookBody = EditHookOption | undefined;
+
+export type AdminEditHookOptions = {
+  body: AdminEditHookBody;
+  path: AdminEditHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminEditHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminEditHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminEditHookStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminEditHookResponse = AdminEditHookStatus200;

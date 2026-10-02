@@ -3,41 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  DeleteAdminRunnerMutationResponse,
-  DeleteAdminRunnerPathParams,
-  DeleteAdminRunner400,
-  DeleteAdminRunner404,
-} from '../types/DeleteAdminRunner';
-
-function getDeleteAdminRunnerUrl(runner_id: DeleteAdminRunnerPathParams['runner_id']) {
-  const res = {
-    method: 'DELETE',
-    url: `/admin/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeleteAdminRunnerOptions, DeleteAdminRunnerResponses } from '../types/DeleteAdminRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a particular runner, no matter whether it is a global runner or scoped to an organization, user, or repository
  * {@link /admin/actions/runners/:runner_id}
  */
-export async function deleteAdminRunner(
-  runner_id: DeleteAdminRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deleteAdminRunner<ThrowOnError extends boolean = true>(
+  options: Options<DeleteAdminRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeleteAdminRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    DeleteAdminRunnerMutationResponse,
-    ResponseErrorConfig<DeleteAdminRunner400 | DeleteAdminRunner404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getDeleteAdminRunnerUrl(runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeleteAdminRunnerResponses, ThrowOnError>>;
 }

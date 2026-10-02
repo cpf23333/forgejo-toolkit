@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type PinIssuePathParams = {
+export type PinIssuePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,57 @@ export type PinIssuePathParams = {
   repo: string;
   /**
    * @description index of issue to pin
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type PinIssue204 = any;
+export type PinIssueStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type PinIssue403 = APIForbiddenError;
+export type PinIssueStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type PinIssue404 = APINotFound;
+export type PinIssueStatus403Html = APIForbiddenError;
 
-export type PinIssueMutationResponse = PinIssue204;
+export type PinIssueStatus403 = PinIssueStatus403Json | PinIssueStatus403Html;
 
-export type PinIssueMutation = {
-  Response: PinIssue204;
-  PathParams: PinIssuePathParams;
-  Errors: PinIssue403 | PinIssue404;
+export type PinIssueStatus404Json = APINotFound;
+
+export type PinIssueStatus404Html = APINotFound;
+
+export type PinIssueStatus404 = PinIssueStatus404Json | PinIssueStatus404Html;
+
+export type PinIssueOptions = {
+  body?: never;
+  path: PinIssuePath;
+  query?: never;
+  headers?: never;
 };
+
+export type PinIssueResponses = {
+  '204': PinIssueStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: PinIssueStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: PinIssueStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: PinIssueStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: PinIssueStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type PinIssueResponse = PinIssueStatus204 | PinIssueStatus403 | PinIssueStatus404;

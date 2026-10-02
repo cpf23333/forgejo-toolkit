@@ -3,30 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { OrgGetLabelQueryResponse, OrgGetLabelPathParams, OrgGetLabel404 } from '../types/OrgGetLabel';
-
-function getOrgGetLabelUrl(org: OrgGetLabelPathParams['org'], id: OrgGetLabelPathParams['id']) {
-  const res = { method: 'GET', url: `/orgs/${org}/labels/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgGetLabelOptions, OrgGetLabelResponses } from '../types/OrgGetLabel';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a single label
  * {@link /orgs/:org/labels/:id}
  */
-export async function orgGetLabel(
-  org: OrgGetLabelPathParams['org'],
-  id: OrgGetLabelPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgGetLabel<ThrowOnError extends boolean = true>(
+  options: Options<OrgGetLabelOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgGetLabelResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgGetLabelQueryResponse, ResponseErrorConfig<OrgGetLabel404>, unknown>({
-    method: 'GET',
-    url: getOrgGetLabelUrl(org, id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/orgs/{org}/labels/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgGetLabelResponses, ThrowOnError>>;
 }

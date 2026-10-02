@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditHookMutationRequest,
-  RepoEditHookMutationResponse,
-  RepoEditHookPathParams,
-  RepoEditHook404,
-} from '../types/RepoEditHook';
-
-function getRepoEditHookUrl(
-  owner: RepoEditHookPathParams['owner'],
-  repo: RepoEditHookPathParams['repo'],
-  id: RepoEditHookPathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/hooks/${id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditHookOptions, RepoEditHookResponses } from '../types/RepoEditHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a hook in a repository
  * {@link /repos/:owner/:repo/hooks/:id}
  */
-export async function repoEditHook(
-  owner: RepoEditHookPathParams['owner'],
-  repo: RepoEditHookPathParams['repo'],
-  id: RepoEditHookPathParams['id'],
-  data?: RepoEditHookMutationRequest,
-  config: Partial<RequestConfig<RepoEditHookMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditHook<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditHookMutationResponse,
-    ResponseErrorConfig<RepoEditHook404>,
-    RepoEditHookMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditHookUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/hooks/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditHookResponses, ThrowOnError>>;
 }

@@ -4,20 +4,22 @@
  */
 
 import type {
-  UserCurrentActivityPubFollowMutationResponse,
-  UserCurrentActivityPubFollow401,
-  UserCurrentActivityPubFollow403,
-  UserCurrentActivityPubFollow404,
+  UserCurrentActivityPubFollowResponse,
+  UserCurrentActivityPubFollowStatus401,
+  UserCurrentActivityPubFollowStatus403,
+  UserCurrentActivityPubFollowStatus404,
+  UserCurrentActivityPubFollowBody,
 } from '../types/UserCurrentActivityPubFollow';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userCurrentActivityPubFollowHandlerResponse204(data?: UserCurrentActivityPubFollowMutationResponse) {
+export function userCurrentActivityPubFollowHandlerResponse204(data?: UserCurrentActivityPubFollowResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentActivityPubFollowHandlerResponse401(data: UserCurrentActivityPubFollow401) {
+export function userCurrentActivityPubFollowHandlerResponse401(data: UserCurrentActivityPubFollowStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +28,7 @@ export function userCurrentActivityPubFollowHandlerResponse401(data: UserCurrent
   });
 }
 
-export function userCurrentActivityPubFollowHandlerResponse403(data: UserCurrentActivityPubFollow403) {
+export function userCurrentActivityPubFollowHandlerResponse403(data: UserCurrentActivityPubFollowStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +37,7 @@ export function userCurrentActivityPubFollowHandlerResponse403(data: UserCurrent
   });
 }
 
-export function userCurrentActivityPubFollowHandlerResponse404(data: UserCurrentActivityPubFollow404) {
+export function userCurrentActivityPubFollowHandlerResponse404(data: UserCurrentActivityPubFollowStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -51,13 +53,16 @@ export function userCurrentActivityPubFollowHandler(
     | boolean
     | null
     | object
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | HttpResponseResolver<Record<string, string>, UserCurrentActivityPubFollowBody>,
 ) {
-  return http.post(`/user/activitypub/follow`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, UserCurrentActivityPubFollowBody>(
+    `/user/activitypub/follow`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 204,
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 204,
+      });
+    },
+  );
 }

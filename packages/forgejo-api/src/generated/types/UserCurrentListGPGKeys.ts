@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { GPGKey } from './GPGKey';
 
-export type UserCurrentListGPGKeysQueryParams = {
+export type UserCurrentListGPGKeysQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,65 @@ export type UserCurrentListGPGKeysQueryParams = {
   limit?: number;
 };
 
-/**
- * @description GPGKeyList
- */
-export type UserCurrentListGPGKeys200 = GPGKey[];
+export type UserCurrentListGPGKeysStatus200Json = GPGKey[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListGPGKeys401 = APIUnauthorizedError;
+export type UserCurrentListGPGKeysStatus200Html = GPGKey[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListGPGKeys403 = APIForbiddenError;
+export type UserCurrentListGPGKeysStatus200 = UserCurrentListGPGKeysStatus200Json | UserCurrentListGPGKeysStatus200Html;
 
-export type UserCurrentListGPGKeysQueryResponse = UserCurrentListGPGKeys200;
+export type UserCurrentListGPGKeysStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListGPGKeysQuery = {
-  Response: UserCurrentListGPGKeys200;
-  QueryParams: UserCurrentListGPGKeysQueryParams;
-  Errors: UserCurrentListGPGKeys401 | UserCurrentListGPGKeys403;
+export type UserCurrentListGPGKeysStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListGPGKeysStatus401 = UserCurrentListGPGKeysStatus401Json | UserCurrentListGPGKeysStatus401Html;
+
+export type UserCurrentListGPGKeysStatus403Json = APIForbiddenError;
+
+export type UserCurrentListGPGKeysStatus403Html = APIForbiddenError;
+
+export type UserCurrentListGPGKeysStatus403 = UserCurrentListGPGKeysStatus403Json | UserCurrentListGPGKeysStatus403Html;
+
+export type UserCurrentListGPGKeysOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListGPGKeysQuery;
+  headers?: never;
 };
+
+export type UserCurrentListGPGKeysResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListGPGKeysStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListGPGKeysStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListGPGKeysStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListGPGKeysStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListGPGKeysStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListGPGKeysStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListGPGKeysResponse =
+  | UserCurrentListGPGKeysStatus200
+  | UserCurrentListGPGKeysStatus401
+  | UserCurrentListGPGKeysStatus403;

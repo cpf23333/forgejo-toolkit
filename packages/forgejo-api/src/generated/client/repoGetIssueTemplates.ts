@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetIssueTemplatesQueryResponse,
-  RepoGetIssueTemplatesPathParams,
-  RepoGetIssueTemplates404,
-} from '../types/RepoGetIssueTemplates';
-
-function getRepoGetIssueTemplatesUrl(
-  owner: RepoGetIssueTemplatesPathParams['owner'],
-  repo: RepoGetIssueTemplatesPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issue_templates` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetIssueTemplatesOptions, RepoGetIssueTemplatesResponses } from '../types/RepoGetIssueTemplates';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get available issue templates for a repository
  * {@link /repos/:owner/:repo/issue_templates}
  */
-export async function repoGetIssueTemplates(
-  owner: RepoGetIssueTemplatesPathParams['owner'],
-  repo: RepoGetIssueTemplatesPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetIssueTemplates<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetIssueTemplatesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetIssueTemplatesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetIssueTemplatesQueryResponse, ResponseErrorConfig<RepoGetIssueTemplates404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getRepoGetIssueTemplatesUrl(owner, repo).url.toString(),
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/repos/{owner}/{repo}/issue_templates',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetIssueTemplatesResponses, ThrowOnError>>;
 }

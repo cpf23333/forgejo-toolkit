@@ -8,6 +8,7 @@ import type { QuotaUsed } from './QuotaUsed';
 
 /**
  * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
 export type QuotaInfo = {
   /**

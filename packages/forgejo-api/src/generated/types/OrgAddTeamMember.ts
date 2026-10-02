@@ -5,10 +5,12 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgAddTeamMemberPathParams = {
+export type OrgAddTeamMemberPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -18,20 +20,35 @@ export type OrgAddTeamMemberPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgAddTeamMember204 = any;
+export type OrgAddTeamMemberStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgAddTeamMember404 = APINotFound;
+export type OrgAddTeamMemberStatus404Json = APINotFound;
 
-export type OrgAddTeamMemberMutationResponse = OrgAddTeamMember204;
+export type OrgAddTeamMemberStatus404Html = APINotFound;
 
-export type OrgAddTeamMemberMutation = {
-  Response: OrgAddTeamMember204;
-  PathParams: OrgAddTeamMemberPathParams;
-  Errors: OrgAddTeamMember404;
+export type OrgAddTeamMemberStatus404 = OrgAddTeamMemberStatus404Json | OrgAddTeamMemberStatus404Html;
+
+export type OrgAddTeamMemberOptions = {
+  body?: never;
+  path: OrgAddTeamMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgAddTeamMemberResponses = {
+  '204': OrgAddTeamMemberStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgAddTeamMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgAddTeamMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgAddTeamMemberResponse = OrgAddTeamMemberStatus204 | OrgAddTeamMemberStatus404;

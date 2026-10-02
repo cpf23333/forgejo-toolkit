@@ -3,58 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoCreatePullRequestMutationRequest,
-  RepoCreatePullRequestMutationResponse,
-  RepoCreatePullRequestPathParams,
-  RepoCreatePullRequest404,
-  RepoCreatePullRequest409,
-  RepoCreatePullRequest413,
-  RepoCreatePullRequest422,
-  RepoCreatePullRequest423,
-} from '../types/RepoCreatePullRequest';
-
-function getRepoCreatePullRequestUrl(
-  owner: RepoCreatePullRequestPathParams['owner'],
-  repo: RepoCreatePullRequestPathParams['repo'],
-) {
-  const res = { method: 'POST', url: `/repos/${owner}/${repo}/pulls` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoCreatePullRequestOptions, RepoCreatePullRequestResponses } from '../types/RepoCreatePullRequest';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a pull request
  * {@link /repos/:owner/:repo/pulls}
  */
-export async function repoCreatePullRequest(
-  owner: RepoCreatePullRequestPathParams['owner'],
-  repo: RepoCreatePullRequestPathParams['repo'],
-  data?: RepoCreatePullRequestMutationRequest,
-  config: Partial<RequestConfig<RepoCreatePullRequestMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreatePullRequest<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreatePullRequestOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreatePullRequestResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreatePullRequestMutationResponse,
-    ResponseErrorConfig<
-      | RepoCreatePullRequest404
-      | RepoCreatePullRequest409
-      | RepoCreatePullRequest413
-      | RepoCreatePullRequest422
-      | RepoCreatePullRequest423
-    >,
-    RepoCreatePullRequestMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreatePullRequestUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/pulls',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreatePullRequestResponses, ThrowOnError>>;
 }

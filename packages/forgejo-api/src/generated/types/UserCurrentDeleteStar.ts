@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentDeleteStarPathParams = {
+export type UserCurrentDeleteStarPath = {
   /**
    * @description owner of the repo to unstar
    * @type string
@@ -20,30 +20,69 @@ export type UserCurrentDeleteStarPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentDeleteStar204 = any;
+export type UserCurrentDeleteStarStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentDeleteStar401 = APIUnauthorizedError;
+export type UserCurrentDeleteStarStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentDeleteStar403 = APIForbiddenError;
+export type UserCurrentDeleteStarStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentDeleteStar404 = APINotFound;
+export type UserCurrentDeleteStarStatus401 = UserCurrentDeleteStarStatus401Json | UserCurrentDeleteStarStatus401Html;
 
-export type UserCurrentDeleteStarMutationResponse = UserCurrentDeleteStar204;
+export type UserCurrentDeleteStarStatus403Json = APIForbiddenError;
 
-export type UserCurrentDeleteStarMutation = {
-  Response: UserCurrentDeleteStar204;
-  PathParams: UserCurrentDeleteStarPathParams;
-  Errors: UserCurrentDeleteStar401 | UserCurrentDeleteStar403 | UserCurrentDeleteStar404;
+export type UserCurrentDeleteStarStatus403Html = APIForbiddenError;
+
+export type UserCurrentDeleteStarStatus403 = UserCurrentDeleteStarStatus403Json | UserCurrentDeleteStarStatus403Html;
+
+export type UserCurrentDeleteStarStatus404Json = APINotFound;
+
+export type UserCurrentDeleteStarStatus404Html = APINotFound;
+
+export type UserCurrentDeleteStarStatus404 = UserCurrentDeleteStarStatus404Json | UserCurrentDeleteStarStatus404Html;
+
+export type UserCurrentDeleteStarOptions = {
+  body?: never;
+  path: UserCurrentDeleteStarPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentDeleteStarResponses = {
+  '204': UserCurrentDeleteStarStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteStarStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteStarStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteStarStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteStarStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteStarStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteStarStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentDeleteStarResponse =
+  | UserCurrentDeleteStarStatus204
+  | UserCurrentDeleteStarStatus401
+  | UserCurrentDeleteStarStatus403
+  | UserCurrentDeleteStarStatus404;

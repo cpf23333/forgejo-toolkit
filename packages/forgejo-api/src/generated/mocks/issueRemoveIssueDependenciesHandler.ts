@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssueRemoveIssueDependenciesMutationResponse,
-  IssueRemoveIssueDependencies404,
-  IssueRemoveIssueDependencies423,
+  IssueRemoveIssueDependenciesResponse,
+  IssueRemoveIssueDependenciesStatus404,
+  IssueRemoveIssueDependenciesStatus423,
+  IssueRemoveIssueDependenciesBody,
 } from '../types/IssueRemoveIssueDependencies';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueRemoveIssueDependenciesHandlerResponse200(data: IssueRemoveIssueDependenciesMutationResponse) {
+export function issueRemoveIssueDependenciesHandlerResponse200(data: IssueRemoveIssueDependenciesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +21,7 @@ export function issueRemoveIssueDependenciesHandlerResponse200(data: IssueRemove
   });
 }
 
-export function issueRemoveIssueDependenciesHandlerResponse404(data: IssueRemoveIssueDependencies404) {
+export function issueRemoveIssueDependenciesHandlerResponse404(data: IssueRemoveIssueDependenciesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,7 +30,7 @@ export function issueRemoveIssueDependenciesHandlerResponse404(data: IssueRemove
   });
 }
 
-export function issueRemoveIssueDependenciesHandlerResponse423(data: IssueRemoveIssueDependencies423) {
+export function issueRemoveIssueDependenciesHandlerResponse423(data: IssueRemoveIssueDependenciesStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -39,17 +41,20 @@ export function issueRemoveIssueDependenciesHandlerResponse423(data: IssueRemove
 
 export function issueRemoveIssueDependenciesHandler(
   data?:
-    | IssueRemoveIssueDependenciesMutationResponse
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+    | IssueRemoveIssueDependenciesResponse
+    | HttpResponseResolver<Record<string, string>, IssueRemoveIssueDependenciesBody>,
 ) {
-  return http.delete(`/repos/:owner/:repo/issues/:index/dependencies`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.delete<Record<string, string>, IssueRemoveIssueDependenciesBody>(
+    `/repos/:owner/:repo/issues/:index/dependencies`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

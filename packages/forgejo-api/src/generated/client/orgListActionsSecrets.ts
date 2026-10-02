@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListActionsSecretsQueryResponse,
-  OrgListActionsSecretsPathParams,
-  OrgListActionsSecretsQueryParams,
-  OrgListActionsSecrets404,
-} from '../types/OrgListActionsSecrets';
-
-function getOrgListActionsSecretsUrl(org: OrgListActionsSecretsPathParams['org']) {
-  const res = { method: 'GET', url: `/orgs/${org}/actions/secrets` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListActionsSecretsOptions, OrgListActionsSecretsResponses } from '../types/OrgListActionsSecrets';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List actions secrets of an organization
  * {@link /orgs/:org/actions/secrets}
  */
-export async function orgListActionsSecrets(
-  org: OrgListActionsSecretsPathParams['org'],
-  params?: OrgListActionsSecretsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListActionsSecrets<ThrowOnError extends boolean = true>(
+  options: Options<OrgListActionsSecretsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListActionsSecretsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListActionsSecretsQueryResponse, ResponseErrorConfig<OrgListActionsSecrets404>, unknown>(
-    {
+  return unwrapResult(
+    request({
       method: 'GET',
-      url: getOrgListActionsSecretsUrl(org).url.toString(),
-      params,
-      ...requestConfig,
-    },
-  );
-  return res.data;
+      url: '/orgs/{org}/actions/secrets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListActionsSecretsResponses, ThrowOnError>>;
 }

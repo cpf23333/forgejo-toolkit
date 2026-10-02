@@ -5,7 +5,7 @@
 
 import type { NotificationThread } from './NotificationThread';
 
-export type NotifyReadRepoListPathParams = {
+export type NotifyReadRepoListPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,7 +18,7 @@ export type NotifyReadRepoListPathParams = {
   repo: string;
 };
 
-export type NotifyReadRepoListQueryParams = {
+export type NotifyReadRepoListQuery = {
   /**
    * @description If true, mark all notifications on this repo. Default value is false
    * @type boolean | undefined
@@ -36,21 +36,39 @@ export type NotifyReadRepoListQueryParams = {
   'to-status'?: string;
   /**
    * @description Describes the last point that notifications were checked. Anything updated since this time will not be updated.
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   last_read_at?: string;
 };
 
-/**
- * @description NotificationThreadListWithoutPagination - Notification threads without pagination headers
- */
-export type NotifyReadRepoList205 = NotificationThread[];
+export type NotifyReadRepoListStatus205Json = NotificationThread[];
 
-export type NotifyReadRepoListMutationResponse = NotifyReadRepoList205;
+export type NotifyReadRepoListStatus205Html = NotificationThread[];
 
-export type NotifyReadRepoListMutation = {
-  Response: NotifyReadRepoList205;
-  PathParams: NotifyReadRepoListPathParams;
-  QueryParams: NotifyReadRepoListQueryParams;
-  Errors: any;
+export type NotifyReadRepoListStatus205 = NotifyReadRepoListStatus205Json | NotifyReadRepoListStatus205Html;
+
+export type NotifyReadRepoListOptions = {
+  body?: never;
+  path: NotifyReadRepoListPath;
+  query?: NotifyReadRepoListQuery;
+  headers?: never;
 };
+
+export type NotifyReadRepoListResponses = {
+  '205':
+    | {
+        contentType: 'application/json';
+        data: NotifyReadRepoListStatus205Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: NotifyReadRepoListStatus205Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type NotifyReadRepoListResponse = NotifyReadRepoListStatus205;

@@ -9,7 +9,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { PullReview } from './PullReview';
 import type { PullReviewRequestOptions } from './PullReviewRequestOptions';
 
-export type RepoCreatePullReviewRequestsPathParams = {
+export type RepoCreatePullReviewRequestsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -22,38 +22,112 @@ export type RepoCreatePullReviewRequestsPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description PullReviewListWithoutPagination - Review requests without pagination headers
- */
-export type RepoCreatePullReviewRequests201 = PullReview[];
+export type RepoCreatePullReviewRequestsStatus201Json = PullReview[];
+
+export type RepoCreatePullReviewRequestsStatus201Html = PullReview[];
+
+export type RepoCreatePullReviewRequestsStatus201 =
+  | RepoCreatePullReviewRequestsStatus201Json
+  | RepoCreatePullReviewRequestsStatus201Html;
+
+export type RepoCreatePullReviewRequestsStatus403Json = APIForbiddenError;
+
+export type RepoCreatePullReviewRequestsStatus403Html = APIForbiddenError;
+
+export type RepoCreatePullReviewRequestsStatus403 =
+  | RepoCreatePullReviewRequestsStatus403Json
+  | RepoCreatePullReviewRequestsStatus403Html;
+
+export type RepoCreatePullReviewRequestsStatus404Json = APINotFound;
+
+export type RepoCreatePullReviewRequestsStatus404Html = APINotFound;
+
+export type RepoCreatePullReviewRequestsStatus404 =
+  | RepoCreatePullReviewRequestsStatus404Json
+  | RepoCreatePullReviewRequestsStatus404Html;
+
+export type RepoCreatePullReviewRequestsStatus422Json = APIValidationError;
+
+export type RepoCreatePullReviewRequestsStatus422Html = APIValidationError;
+
+export type RepoCreatePullReviewRequestsStatus422 =
+  | RepoCreatePullReviewRequestsStatus422Json
+  | RepoCreatePullReviewRequestsStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description PullReviewRequestOptions are options to add or remove pull review requests
+ * @type object
  */
-export type RepoCreatePullReviewRequests403 = APIForbiddenError;
+export type RepoCreatePullReviewRequestsBodyJson = PullReviewRequestOptions;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullReviewRequestOptions are options to add or remove pull review requests
+ * @type object
  */
-export type RepoCreatePullReviewRequests404 = APINotFound;
+export type RepoCreatePullReviewRequestsBodyPlain = PullReviewRequestOptions;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoCreatePullReviewRequests422 = APIValidationError;
+export type RepoCreatePullReviewRequestsBody =
+  | RepoCreatePullReviewRequestsBodyJson
+  | RepoCreatePullReviewRequestsBodyPlain;
 
-export type RepoCreatePullReviewRequestsMutationRequest = PullReviewRequestOptions;
-
-export type RepoCreatePullReviewRequestsMutationResponse = RepoCreatePullReviewRequests201;
-
-export type RepoCreatePullReviewRequestsMutation = {
-  Response: RepoCreatePullReviewRequests201;
-  Request: RepoCreatePullReviewRequestsMutationRequest;
-  PathParams: RepoCreatePullReviewRequestsPathParams;
-  Errors: RepoCreatePullReviewRequests403 | RepoCreatePullReviewRequests404 | RepoCreatePullReviewRequests422;
+export type RepoCreatePullReviewRequestsOptions = {
+  body: RepoCreatePullReviewRequestsBody;
+  path: RepoCreatePullReviewRequestsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreatePullReviewRequestsResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewRequestsStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewRequestsStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewRequestsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewRequestsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewRequestsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewRequestsStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewRequestsStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewRequestsStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreatePullReviewRequestsResponse =
+  | RepoCreatePullReviewRequestsStatus201
+  | RepoCreatePullReviewRequestsStatus403
+  | RepoCreatePullReviewRequestsStatus404
+  | RepoCreatePullReviewRequestsStatus422;

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { GetPackageQueryResponse, GetPackage404 } from '../types/GetPackage';
+import type { GetPackageResponse, GetPackageStatus404 } from '../types/GetPackage';
 import { http } from 'msw';
 
-export function getPackageHandlerResponse200(data: GetPackageQueryResponse) {
+export function getPackageHandlerResponse200(data: GetPackageResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function getPackageHandlerResponse200(data: GetPackageQueryResponse) {
   });
 }
 
-export function getPackageHandlerResponse404(data: GetPackage404) {
+export function getPackageHandlerResponse404(data: GetPackageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,9 +25,7 @@ export function getPackageHandlerResponse404(data: GetPackage404) {
 }
 
 export function getPackageHandler(
-  data?:
-    | GetPackageQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: GetPackageResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/packages/:owner/:type/:name/:version`, function handler(info) {
     if (typeof data === 'function') return data(info);

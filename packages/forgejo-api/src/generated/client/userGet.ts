@@ -3,29 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { UserGetQueryResponse, UserGetPathParams, UserGet404 } from '../types/UserGet';
-
-function getUserGetUrl(username: UserGetPathParams['username']) {
-  const res = { method: 'GET', url: `/users/${username}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserGetOptions, UserGetResponses } from '../types/UserGet';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a user
  * {@link /users/:username}
  */
-export async function userGet(
-  username: UserGetPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userGet<ThrowOnError extends boolean = true>(
+  options: Options<UserGetOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserGetResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<UserGetQueryResponse, ResponseErrorConfig<UserGet404>, unknown>({
-    method: 'GET',
-    url: getUserGetUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/users/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserGetResponses, ThrowOnError>>;
 }

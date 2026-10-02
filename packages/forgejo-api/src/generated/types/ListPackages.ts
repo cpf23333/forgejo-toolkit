@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Package } from './Package';
 
-export type ListPackagesPathParams = {
+export type ListPackagesPath = {
   /**
    * @description owner of the packages
    * @type string
@@ -14,7 +14,7 @@ export type ListPackagesPathParams = {
   owner: string;
 };
 
-export const listPackagesQueryParamsTypeEnum = {
+export const listPackagesType = {
   alpine: 'alpine',
   cargo: 'cargo',
   chef: 'chef',
@@ -38,10 +38,9 @@ export const listPackagesQueryParamsTypeEnum = {
   vagrant: 'vagrant',
 } as const;
 
-export type ListPackagesQueryParamsTypeEnumKey =
-  (typeof listPackagesQueryParamsTypeEnum)[keyof typeof listPackagesQueryParamsTypeEnum];
+export type ListPackagesTypeKey = (typeof listPackagesType)[keyof typeof listPackagesType];
 
-export type ListPackagesQueryParams = {
+export type ListPackagesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -56,7 +55,7 @@ export type ListPackagesQueryParams = {
    * @description package type filter
    * @type string | undefined
    */
-  type?: ListPackagesQueryParamsTypeEnumKey;
+  type?: ListPackagesTypeKey;
   /**
    * @description name filter
    * @type string | undefined
@@ -64,21 +63,47 @@ export type ListPackagesQueryParams = {
   q?: string;
 };
 
-/**
- * @description PackageList
- */
-export type ListPackages200 = Package[];
+export type ListPackagesStatus200Json = Package[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type ListPackages404 = APINotFound;
+export type ListPackagesStatus200Html = Package[];
 
-export type ListPackagesQueryResponse = ListPackages200;
+export type ListPackagesStatus200 = ListPackagesStatus200Json | ListPackagesStatus200Html;
 
-export type ListPackagesQuery = {
-  Response: ListPackages200;
-  PathParams: ListPackagesPathParams;
-  QueryParams: ListPackagesQueryParams;
-  Errors: ListPackages404;
+export type ListPackagesStatus404Json = APINotFound;
+
+export type ListPackagesStatus404Html = APINotFound;
+
+export type ListPackagesStatus404 = ListPackagesStatus404Json | ListPackagesStatus404Html;
+
+export type ListPackagesOptions = {
+  body?: never;
+  path: ListPackagesPath;
+  query?: ListPackagesQuery;
+  headers?: never;
 };
+
+export type ListPackagesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListPackagesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListPackagesStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: ListPackagesStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListPackagesStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListPackagesResponse = ListPackagesStatus200 | ListPackagesStatus404;

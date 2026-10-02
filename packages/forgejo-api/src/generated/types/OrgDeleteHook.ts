@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeleteHookPathParams = {
+export type OrgDeleteHookPath = {
   /**
    * @description name of the organization
    * @type string
@@ -13,25 +13,42 @@ export type OrgDeleteHookPathParams = {
   org: string;
   /**
    * @description id of the hook to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgDeleteHook204 = any;
+export type OrgDeleteHookStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDeleteHook404 = APINotFound;
+export type OrgDeleteHookStatus404Json = APINotFound;
 
-export type OrgDeleteHookMutationResponse = OrgDeleteHook204;
+export type OrgDeleteHookStatus404Html = APINotFound;
 
-export type OrgDeleteHookMutation = {
-  Response: OrgDeleteHook204;
-  PathParams: OrgDeleteHookPathParams;
-  Errors: OrgDeleteHook404;
+export type OrgDeleteHookStatus404 = OrgDeleteHookStatus404Json | OrgDeleteHookStatus404Html;
+
+export type OrgDeleteHookOptions = {
+  body?: never;
+  path: OrgDeleteHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteHookResponses = {
+  '204': OrgDeleteHookStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteHookResponse = OrgDeleteHookStatus204 | OrgDeleteHookStatus404;

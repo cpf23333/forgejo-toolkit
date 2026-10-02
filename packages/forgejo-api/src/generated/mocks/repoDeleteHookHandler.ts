@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoDeleteHookMutationResponse, RepoDeleteHook404 } from '../types/RepoDeleteHook';
+import type { RepoDeleteHookResponse, RepoDeleteHookStatus404 } from '../types/RepoDeleteHook';
 import { http } from 'msw';
 
-export function repoDeleteHookHandlerResponse204(data?: RepoDeleteHookMutationResponse) {
+export function repoDeleteHookHandlerResponse204(data?: RepoDeleteHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteHookHandlerResponse404(data: RepoDeleteHook404) {
+export function repoDeleteHookHandlerResponse404(data: RepoDeleteHookStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

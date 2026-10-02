@@ -13,6 +13,7 @@ import type { User } from './User';
 
 /**
  * @description RepoTransfer represents a pending repo transfer
+ * @type object
  */
 export type RepoTransfer = {
   /**
@@ -25,13 +26,10 @@ export type RepoTransfer = {
    * @type object | undefined
    */
   recipient?: User;
-  /**
-   * @type array | undefined
-   */
   teams?: Team[];
 };
 
-export type RepoTransferPathParams = {
+export type RepoTransferPath = {
   /**
    * @description owner of the repo to transfer
    * @type string
@@ -45,40 +43,106 @@ export type RepoTransferPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoTransfer202 = Repository;
+export type RepoTransferStatus202Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoTransfer403 = APIForbiddenError;
+export type RepoTransferStatus202Html = Repository;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoTransfer404 = APINotFound;
+export type RepoTransferStatus202 = RepoTransferStatus202Json | RepoTransferStatus202Html;
 
-/**
- * @description QuotaExceeded
- */
-export type RepoTransfer413 = any;
+export type RepoTransferStatus403Json = APIForbiddenError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoTransfer422 = APIValidationError;
+export type RepoTransferStatus403Html = APIForbiddenError;
+
+export type RepoTransferStatus403 = RepoTransferStatus403Json | RepoTransferStatus403Html;
+
+export type RepoTransferStatus404Json = APINotFound;
+
+export type RepoTransferStatus404Html = APINotFound;
+
+export type RepoTransferStatus404 = RepoTransferStatus404Json | RepoTransferStatus404Html;
+
+export type RepoTransferStatus413 = unknown;
+
+export type RepoTransferStatus422Json = APIValidationError;
+
+export type RepoTransferStatus422Html = APIValidationError;
+
+export type RepoTransferStatus422 = RepoTransferStatus422Json | RepoTransferStatus422Html;
 
 /**
  * @description Transfer Options
+ * @type object
  */
-export type RepoTransferMutationRequest = TransferRepoOption;
+export type RepoTransferBodyJson = TransferRepoOption;
 
-export type RepoTransferMutationResponse = RepoTransfer202;
+/**
+ * @description Transfer Options
+ * @type object
+ */
+export type RepoTransferBodyPlain = TransferRepoOption;
 
-export type RepoTransferMutation = {
-  Response: RepoTransfer202;
-  Request: RepoTransferMutationRequest;
-  PathParams: RepoTransferPathParams;
-  Errors: RepoTransfer403 | RepoTransfer404 | RepoTransfer413 | RepoTransfer422;
+export type RepoTransferBody = RepoTransferBodyJson | RepoTransferBodyPlain;
+
+export type RepoTransferOptions = {
+  body: RepoTransferBody;
+  path: RepoTransferPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoTransferResponses = {
+  '202':
+    | {
+        contentType: 'application/json';
+        data: RepoTransferStatus202Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTransferStatus202Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoTransferStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTransferStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoTransferStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTransferStatus404Html;
+      };
+  '413': RepoTransferStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoTransferStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoTransferStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoTransferResponse =
+  | RepoTransferStatus202
+  | RepoTransferStatus403
+  | RepoTransferStatus404
+  | RepoTransferStatus413
+  | RepoTransferStatus422;

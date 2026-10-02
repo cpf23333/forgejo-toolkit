@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteHookPathParams = {
+export type RepoDeleteHookPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,25 +18,42 @@ export type RepoDeleteHookPathParams = {
   repo: string;
   /**
    * @description id of the hook to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteHook204 = any;
+export type RepoDeleteHookStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteHook404 = APINotFound;
+export type RepoDeleteHookStatus404Json = APINotFound;
 
-export type RepoDeleteHookMutationResponse = RepoDeleteHook204;
+export type RepoDeleteHookStatus404Html = APINotFound;
 
-export type RepoDeleteHookMutation = {
-  Response: RepoDeleteHook204;
-  PathParams: RepoDeleteHookPathParams;
-  Errors: RepoDeleteHook404;
+export type RepoDeleteHookStatus404 = RepoDeleteHookStatus404Json | RepoDeleteHookStatus404Html;
+
+export type RepoDeleteHookOptions = {
+  body?: never;
+  path: RepoDeleteHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteHookResponses = {
+  '204': RepoDeleteHookStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteHookStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteHookStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteHookResponse = RepoDeleteHookStatus204 | RepoDeleteHookStatus404;

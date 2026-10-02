@@ -4,15 +4,17 @@
  */
 
 import type {
-  RepoCreateBranchProtectionMutationResponse,
-  RepoCreateBranchProtection403,
-  RepoCreateBranchProtection404,
-  RepoCreateBranchProtection422,
-  RepoCreateBranchProtection423,
+  RepoCreateBranchProtectionResponse,
+  RepoCreateBranchProtectionStatus403,
+  RepoCreateBranchProtectionStatus404,
+  RepoCreateBranchProtectionStatus422,
+  RepoCreateBranchProtectionStatus423,
+  RepoCreateBranchProtectionBody,
 } from '../types/RepoCreateBranchProtection';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateBranchProtectionHandlerResponse201(data: RepoCreateBranchProtectionMutationResponse) {
+export function repoCreateBranchProtectionHandlerResponse201(data: RepoCreateBranchProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -21,7 +23,7 @@ export function repoCreateBranchProtectionHandlerResponse201(data: RepoCreateBra
   });
 }
 
-export function repoCreateBranchProtectionHandlerResponse403(data: RepoCreateBranchProtection403) {
+export function repoCreateBranchProtectionHandlerResponse403(data: RepoCreateBranchProtectionStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -30,7 +32,7 @@ export function repoCreateBranchProtectionHandlerResponse403(data: RepoCreateBra
   });
 }
 
-export function repoCreateBranchProtectionHandlerResponse404(data: RepoCreateBranchProtection404) {
+export function repoCreateBranchProtectionHandlerResponse404(data: RepoCreateBranchProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +41,7 @@ export function repoCreateBranchProtectionHandlerResponse404(data: RepoCreateBra
   });
 }
 
-export function repoCreateBranchProtectionHandlerResponse422(data: RepoCreateBranchProtection422) {
+export function repoCreateBranchProtectionHandlerResponse422(data: RepoCreateBranchProtectionStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,7 +50,7 @@ export function repoCreateBranchProtectionHandlerResponse422(data: RepoCreateBra
   });
 }
 
-export function repoCreateBranchProtectionHandlerResponse423(data: RepoCreateBranchProtection423) {
+export function repoCreateBranchProtectionHandlerResponse423(data: RepoCreateBranchProtectionStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -59,17 +61,20 @@ export function repoCreateBranchProtectionHandlerResponse423(data: RepoCreateBra
 
 export function repoCreateBranchProtectionHandler(
   data?:
-    | RepoCreateBranchProtectionMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | RepoCreateBranchProtectionResponse
+    | HttpResponseResolver<Record<string, string>, RepoCreateBranchProtectionBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/branch_protections`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateBranchProtectionBody>(
+    `/repos/:owner/:repo/branch_protections`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

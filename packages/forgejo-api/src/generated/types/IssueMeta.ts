@@ -5,18 +5,15 @@
 
 /**
  * @description IssueMeta basic issue information
+ * @type object
  */
 export type IssueMeta = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   index?: number;
-  /**
-   * @type string | undefined
-   */
   owner?: string;
-  /**
-   * @type string | undefined
-   */
   repo?: string;
 };

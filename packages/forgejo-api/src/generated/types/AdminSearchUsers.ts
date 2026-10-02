@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { User } from './User';
 
-export const adminSearchUsersQueryParamsSortEnum = {
+export const adminSearchUsersSort = {
   oldest: 'oldest',
   newest: 'newest',
   alphabetically: 'alphabetically',
@@ -15,13 +15,14 @@ export const adminSearchUsersQueryParamsSortEnum = {
   leastupdate: 'leastupdate',
 } as const;
 
-export type AdminSearchUsersQueryParamsSortEnumKey =
-  (typeof adminSearchUsersQueryParamsSortEnum)[keyof typeof adminSearchUsersQueryParamsSortEnum];
+export type AdminSearchUsersSortKey = (typeof adminSearchUsersSort)[keyof typeof adminSearchUsersSort];
 
-export type AdminSearchUsersQueryParams = {
+export type AdminSearchUsersQuery = {
   /**
    * @description ID of the user\'s login source to search for
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   source_id?: number;
   /**
@@ -38,7 +39,7 @@ export type AdminSearchUsersQueryParams = {
    * @description sort order of results
    * @type string | undefined
    */
-  sort?: AdminSearchUsersQueryParamsSortEnumKey;
+  sort?: AdminSearchUsersSortKey;
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -51,20 +52,47 @@ export type AdminSearchUsersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type AdminSearchUsers200 = User[];
+export type AdminSearchUsersStatus200Json = User[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminSearchUsers403 = APIForbiddenError;
+export type AdminSearchUsersStatus200Html = User[];
 
-export type AdminSearchUsersQueryResponse = AdminSearchUsers200;
+export type AdminSearchUsersStatus200 = AdminSearchUsersStatus200Json | AdminSearchUsersStatus200Html;
 
-export type AdminSearchUsersQuery = {
-  Response: AdminSearchUsers200;
-  QueryParams: AdminSearchUsersQueryParams;
-  Errors: AdminSearchUsers403;
+export type AdminSearchUsersStatus403Json = APIForbiddenError;
+
+export type AdminSearchUsersStatus403Html = APIForbiddenError;
+
+export type AdminSearchUsersStatus403 = AdminSearchUsersStatus403Json | AdminSearchUsersStatus403Html;
+
+export type AdminSearchUsersOptions = {
+  body?: never;
+  path?: never;
+  query?: AdminSearchUsersQuery;
+  headers?: never;
 };
+
+export type AdminSearchUsersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchUsersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchUsersStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminSearchUsersStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminSearchUsersStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminSearchUsersResponse = AdminSearchUsersStatus200 | AdminSearchUsersStatus403;

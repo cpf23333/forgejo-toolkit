@@ -4,19 +4,19 @@
  */
 
 import type {
-  IssueDeleteCommentMutationResponse,
-  IssueDeleteComment403,
-  IssueDeleteComment500,
+  IssueDeleteCommentResponse,
+  IssueDeleteCommentStatus403,
+  IssueDeleteCommentStatus500,
 } from '../types/IssueDeleteComment';
 import { http } from 'msw';
 
-export function issueDeleteCommentHandlerResponse204(data?: IssueDeleteCommentMutationResponse) {
+export function issueDeleteCommentHandlerResponse204(data?: IssueDeleteCommentResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteCommentHandlerResponse403(data: IssueDeleteComment403) {
+export function issueDeleteCommentHandlerResponse403(data: IssueDeleteCommentStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -25,7 +25,7 @@ export function issueDeleteCommentHandlerResponse403(data: IssueDeleteComment403
   });
 }
 
-export function issueDeleteCommentHandlerResponse500(data: IssueDeleteComment500) {
+export function issueDeleteCommentHandlerResponse500(data: IssueDeleteCommentStatus500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {

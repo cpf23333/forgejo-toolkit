@@ -4,13 +4,15 @@
  */
 
 import type {
-  AdminCreatePublicKeyMutationResponse,
-  AdminCreatePublicKey403,
-  AdminCreatePublicKey422,
+  AdminCreatePublicKeyResponse,
+  AdminCreatePublicKeyStatus403,
+  AdminCreatePublicKeyStatus422,
+  AdminCreatePublicKeyBody,
 } from '../types/AdminCreatePublicKey';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreatePublicKeyHandlerResponse201(data: AdminCreatePublicKeyMutationResponse) {
+export function adminCreatePublicKeyHandlerResponse201(data: AdminCreatePublicKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,7 +21,7 @@ export function adminCreatePublicKeyHandlerResponse201(data: AdminCreatePublicKe
   });
 }
 
-export function adminCreatePublicKeyHandlerResponse403(data: AdminCreatePublicKey403) {
+export function adminCreatePublicKeyHandlerResponse403(data: AdminCreatePublicKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +30,7 @@ export function adminCreatePublicKeyHandlerResponse403(data: AdminCreatePublicKe
   });
 }
 
-export function adminCreatePublicKeyHandlerResponse422(data: AdminCreatePublicKey422) {
+export function adminCreatePublicKeyHandlerResponse422(data: AdminCreatePublicKeyStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,18 +40,19 @@ export function adminCreatePublicKeyHandlerResponse422(data: AdminCreatePublicKe
 }
 
 export function adminCreatePublicKeyHandler(
-  data?:
-    | AdminCreatePublicKeyMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: AdminCreatePublicKeyResponse | HttpResponseResolver<Record<string, string>, AdminCreatePublicKeyBody>,
 ) {
-  return http.post(`/admin/users/:username/keys`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, AdminCreatePublicKeyBody>(
+    `/admin/users/:username/keys`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

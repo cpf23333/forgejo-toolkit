@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoSyncForkBranchInfoQueryResponse,
-  RepoSyncForkBranchInfoPathParams,
-  RepoSyncForkBranchInfo400,
-  RepoSyncForkBranchInfo404,
-} from '../types/RepoSyncForkBranchInfo';
-
-function getRepoSyncForkBranchInfoUrl(
-  owner: RepoSyncForkBranchInfoPathParams['owner'],
-  repo: RepoSyncForkBranchInfoPathParams['repo'],
-  branch: RepoSyncForkBranchInfoPathParams['branch'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/sync_fork/${branch}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoSyncForkBranchInfoOptions, RepoSyncForkBranchInfoResponses } from '../types/RepoSyncForkBranchInfo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets information about syncing a fork branch with the base branch
  * {@link /repos/:owner/:repo/sync_fork/:branch}
  */
-export async function repoSyncForkBranchInfo(
-  owner: RepoSyncForkBranchInfoPathParams['owner'],
-  repo: RepoSyncForkBranchInfoPathParams['repo'],
-  branch: RepoSyncForkBranchInfoPathParams['branch'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoSyncForkBranchInfo<ThrowOnError extends boolean = true>(
+  options: Options<RepoSyncForkBranchInfoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoSyncForkBranchInfoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoSyncForkBranchInfoQueryResponse,
-    ResponseErrorConfig<RepoSyncForkBranchInfo400 | RepoSyncForkBranchInfo404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoSyncForkBranchInfoUrl(owner, repo, branch).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/sync_fork/{branch}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoSyncForkBranchInfoResponses, ThrowOnError>>;
 }

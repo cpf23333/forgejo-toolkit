@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreateTeamOption } from './CreateTeamOption';
 import type { Team } from './Team';
 
-export type OrgCreateTeamPathParams = {
+export type OrgCreateTeamPath = {
   /**
    * @description name of the organization
    * @type string
@@ -17,27 +17,75 @@ export type OrgCreateTeamPathParams = {
 };
 
 /**
- * @description Team
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgCreateTeam201 = Team;
+export type OrgCreateTeamStatus201Json = Team;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Team represents a team in an organization
+ * @type object
  */
-export type OrgCreateTeam404 = APINotFound;
+export type OrgCreateTeamStatus201Html = Team;
+
+export type OrgCreateTeamStatus201 = OrgCreateTeamStatus201Json | OrgCreateTeamStatus201Html;
+
+export type OrgCreateTeamStatus404Json = APINotFound;
+
+export type OrgCreateTeamStatus404Html = APINotFound;
+
+export type OrgCreateTeamStatus404 = OrgCreateTeamStatus404Json | OrgCreateTeamStatus404Html;
+
+export type OrgCreateTeamStatus422Json = APIValidationError;
+
+export type OrgCreateTeamStatus422Html = APIValidationError;
+
+export type OrgCreateTeamStatus422 = OrgCreateTeamStatus422Json | OrgCreateTeamStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreateTeamOption options for creating a team
+ * @type object | undefined
  */
-export type OrgCreateTeam422 = APIValidationError;
+export type OrgCreateTeamBody = CreateTeamOption | undefined;
 
-export type OrgCreateTeamMutationRequest = CreateTeamOption;
-
-export type OrgCreateTeamMutationResponse = OrgCreateTeam201;
-
-export type OrgCreateTeamMutation = {
-  Response: OrgCreateTeam201;
-  Request: OrgCreateTeamMutationRequest;
-  PathParams: OrgCreateTeamPathParams;
-  Errors: OrgCreateTeam404 | OrgCreateTeam422;
+export type OrgCreateTeamOptions = {
+  body: OrgCreateTeamBody;
+  path: OrgCreateTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgCreateTeamResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateTeamStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateTeamStatus201Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateTeamStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: OrgCreateTeamStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgCreateTeamStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgCreateTeamResponse = OrgCreateTeamStatus201 | OrgCreateTeamStatus404 | OrgCreateTeamStatus422;

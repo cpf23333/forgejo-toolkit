@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Tag } from './Tag';
 
-export type RepoGetTagPathParams = {
+export type RepoGetTagPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,19 +25,54 @@ export type RepoGetTagPathParams = {
 };
 
 /**
- * @description Tag
+ * @description Tag represents a repository tag
+ * @type object
  */
-export type RepoGetTag200 = Tag;
+export type RepoGetTagStatus200Json = Tag;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Tag represents a repository tag
+ * @type object
  */
-export type RepoGetTag404 = APINotFound;
+export type RepoGetTagStatus200Html = Tag;
 
-export type RepoGetTagQueryResponse = RepoGetTag200;
+export type RepoGetTagStatus200 = RepoGetTagStatus200Json | RepoGetTagStatus200Html;
 
-export type RepoGetTagQuery = {
-  Response: RepoGetTag200;
-  PathParams: RepoGetTagPathParams;
-  Errors: RepoGetTag404;
+export type RepoGetTagStatus404Json = APINotFound;
+
+export type RepoGetTagStatus404Html = APINotFound;
+
+export type RepoGetTagStatus404 = RepoGetTagStatus404Json | RepoGetTagStatus404Html;
+
+export type RepoGetTagOptions = {
+  body?: never;
+  path: RepoGetTagPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetTagResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetTagStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetTagStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetTagStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetTagStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetTagResponse = RepoGetTagStatus200 | RepoGetTagStatus404;

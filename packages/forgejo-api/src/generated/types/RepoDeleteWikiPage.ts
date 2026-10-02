@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
-export type RepoDeleteWikiPagePathParams = {
+export type RepoDeleteWikiPagePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,30 +25,69 @@ export type RepoDeleteWikiPagePathParams = {
   pageName: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteWikiPage204 = any;
+export type RepoDeleteWikiPageStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeleteWikiPage403 = APIForbiddenError;
+export type RepoDeleteWikiPageStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteWikiPage404 = APINotFound;
+export type RepoDeleteWikiPageStatus403Html = APIForbiddenError;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoDeleteWikiPage423 = APIRepoArchivedError;
+export type RepoDeleteWikiPageStatus403 = RepoDeleteWikiPageStatus403Json | RepoDeleteWikiPageStatus403Html;
 
-export type RepoDeleteWikiPageMutationResponse = RepoDeleteWikiPage204;
+export type RepoDeleteWikiPageStatus404Json = APINotFound;
 
-export type RepoDeleteWikiPageMutation = {
-  Response: RepoDeleteWikiPage204;
-  PathParams: RepoDeleteWikiPagePathParams;
-  Errors: RepoDeleteWikiPage403 | RepoDeleteWikiPage404 | RepoDeleteWikiPage423;
+export type RepoDeleteWikiPageStatus404Html = APINotFound;
+
+export type RepoDeleteWikiPageStatus404 = RepoDeleteWikiPageStatus404Json | RepoDeleteWikiPageStatus404Html;
+
+export type RepoDeleteWikiPageStatus423Json = APIRepoArchivedError;
+
+export type RepoDeleteWikiPageStatus423Html = APIRepoArchivedError;
+
+export type RepoDeleteWikiPageStatus423 = RepoDeleteWikiPageStatus423Json | RepoDeleteWikiPageStatus423Html;
+
+export type RepoDeleteWikiPageOptions = {
+  body?: never;
+  path: RepoDeleteWikiPagePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteWikiPageResponses = {
+  '204': RepoDeleteWikiPageStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteWikiPageStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteWikiPageStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteWikiPageStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteWikiPageStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteWikiPageStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteWikiPageStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteWikiPageResponse =
+  | RepoDeleteWikiPageStatus204
+  | RepoDeleteWikiPageStatus403
+  | RepoDeleteWikiPageStatus404
+  | RepoDeleteWikiPageStatus423;

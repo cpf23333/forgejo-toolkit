@@ -23,6 +23,13 @@ Then update the table above, review the diff (a newer spec can change request an
 response shapes), run `pnpm check` and the test suites, and note any behaviour the
 checklist records.
 
+What a regeneration writes: `../src/generated/{client,types,mocks,schemas}` and
+Kubb's own `../src/generated/.kubb/` — the bundled client core, its serializers
+and its Standard Schema helper. That output is produced by `kubb generate` and
+then formatted with `oxfmt`; no post-processing step rewrites it, and nothing in
+the pipeline adds or removes a `.ts` import extension the way the deleted
+`scripts/strip-ts-extensions.js` used to.
+
 > **`swagger.v1.json` is a byte-exact snapshot of `templates/swagger/v1_json.tmpl` at the
 > Forgejo `v16.0.0` release tag and is excluded from formatting** (it is upstream-generated
 > content, not our source — see `ignorePatterns` in `.oxfmtrc.json`). **Never overwrite it
@@ -31,7 +38,11 @@ checklist records.
 >
 > **Use `pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe`.** It refuses to
 > start on a dirty `../src/generated` and restores it from git when the generator
-> fails.
+> fails. The dirty-tree refusal is conservative on purpose: while a migration is
+> uncommitted it will also refuse a tree whose only changes are the migration's own.
+> Reviewing a regeneration in that state means running
+> `pnpm --filter @cpf23333-forgejo-toolkit/api generate` and `pnpm check` directly,
+> and restoring by hand if the run fails.
 >
 > `kubb` deletes `../src/generated` before it writes, so a run that fails (a crash, a
 > bad spec) leaves the directory empty. `generate:safe` restores it from git in that

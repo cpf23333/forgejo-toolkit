@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentCheckFollowingQueryResponse,
-  UserCurrentCheckFollowing401,
-  UserCurrentCheckFollowing403,
-  UserCurrentCheckFollowing404,
+  UserCurrentCheckFollowingResponse,
+  UserCurrentCheckFollowingStatus401,
+  UserCurrentCheckFollowingStatus403,
+  UserCurrentCheckFollowingStatus404,
 } from '../types/UserCurrentCheckFollowing';
 import { http } from 'msw';
 
-export function userCurrentCheckFollowingHandlerResponse204(data?: UserCurrentCheckFollowingQueryResponse) {
+export function userCurrentCheckFollowingHandlerResponse204(data?: UserCurrentCheckFollowingResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse401(data: UserCurrentCheckFollowing401) {
+export function userCurrentCheckFollowingHandlerResponse401(data: UserCurrentCheckFollowingStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentCheckFollowingHandlerResponse401(data: UserCurrentChe
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse403(data: UserCurrentCheckFollowing403) {
+export function userCurrentCheckFollowingHandlerResponse403(data: UserCurrentCheckFollowingStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentCheckFollowingHandlerResponse403(data: UserCurrentChe
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse404(data: UserCurrentCheckFollowing404) {
+export function userCurrentCheckFollowingHandlerResponse404(data: UserCurrentCheckFollowingStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

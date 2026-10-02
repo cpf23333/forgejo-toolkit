@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoEditMutationRequest,
-  RepoEditMutationResponse,
-  RepoEditPathParams,
-  RepoEdit403,
-  RepoEdit404,
-  RepoEdit422,
-} from '../types/RepoEdit';
-
-function getRepoEditUrl(owner: RepoEditPathParams['owner'], repo: RepoEditPathParams['repo']) {
-  const res = { method: 'PATCH', url: `/repos/${owner}/${repo}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoEditOptions, RepoEditResponses } from '../types/RepoEdit';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a repository's properties. Only fields that are set will be changed.
  * {@link /repos/:owner/:repo}
  */
-export async function repoEdit(
-  owner: RepoEditPathParams['owner'],
-  repo: RepoEditPathParams['repo'],
-  data?: RepoEditMutationRequest,
-  config: Partial<RequestConfig<RepoEditMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEdit<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditMutationResponse,
-    ResponseErrorConfig<RepoEdit403 | RepoEdit404 | RepoEdit422>,
-    RepoEditMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditResponses, ThrowOnError>>;
 }

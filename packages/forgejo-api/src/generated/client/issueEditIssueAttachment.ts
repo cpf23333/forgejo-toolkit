@@ -3,57 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueEditIssueAttachmentMutationRequest,
-  IssueEditIssueAttachmentMutationResponse,
-  IssueEditIssueAttachmentPathParams,
-  IssueEditIssueAttachment404,
-  IssueEditIssueAttachment413,
-  IssueEditIssueAttachment423,
+  IssueEditIssueAttachmentOptions,
+  IssueEditIssueAttachmentResponses,
 } from '../types/IssueEditIssueAttachment';
-
-function getIssueEditIssueAttachmentUrl(
-  owner: IssueEditIssueAttachmentPathParams['owner'],
-  repo: IssueEditIssueAttachmentPathParams['repo'],
-  index: IssueEditIssueAttachmentPathParams['index'],
-  attachment_id: IssueEditIssueAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/${index}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit an issue attachment
  * {@link /repos/:owner/:repo/issues/:index/assets/:attachment_id}
  */
-export async function issueEditIssueAttachment(
-  owner: IssueEditIssueAttachmentPathParams['owner'],
-  repo: IssueEditIssueAttachmentPathParams['repo'],
-  index: IssueEditIssueAttachmentPathParams['index'],
-  attachment_id: IssueEditIssueAttachmentPathParams['attachment_id'],
-  data?: IssueEditIssueAttachmentMutationRequest,
-  config: Partial<RequestConfig<IssueEditIssueAttachmentMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditIssueAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditIssueAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditIssueAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditIssueAttachmentMutationResponse,
-    ResponseErrorConfig<IssueEditIssueAttachment404 | IssueEditIssueAttachment413 | IssueEditIssueAttachment423>,
-    IssueEditIssueAttachmentMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditIssueAttachmentUrl(owner, repo, index, attachment_id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditIssueAttachmentResponses, ThrowOnError>>;
 }

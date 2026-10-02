@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoCreateReleaseAttachmentMutationResponse,
-  RepoCreateReleaseAttachment400,
-  RepoCreateReleaseAttachment404,
-  RepoCreateReleaseAttachment413,
+  RepoCreateReleaseAttachmentResponse,
+  RepoCreateReleaseAttachmentStatus400,
+  RepoCreateReleaseAttachmentStatus404,
+  RepoCreateReleaseAttachmentStatus413,
+  RepoCreateReleaseAttachmentBody,
 } from '../types/RepoCreateReleaseAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateReleaseAttachmentHandlerResponse201(data: RepoCreateReleaseAttachmentMutationResponse) {
+export function repoCreateReleaseAttachmentHandlerResponse201(data: RepoCreateReleaseAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function repoCreateReleaseAttachmentHandlerResponse201(data: RepoCreateRe
   });
 }
 
-export function repoCreateReleaseAttachmentHandlerResponse400(data: RepoCreateReleaseAttachment400) {
+export function repoCreateReleaseAttachmentHandlerResponse400(data: RepoCreateReleaseAttachmentStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function repoCreateReleaseAttachmentHandlerResponse400(data: RepoCreateRe
   });
 }
 
-export function repoCreateReleaseAttachmentHandlerResponse404(data: RepoCreateReleaseAttachment404) {
+export function repoCreateReleaseAttachmentHandlerResponse404(data: RepoCreateReleaseAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +40,7 @@ export function repoCreateReleaseAttachmentHandlerResponse404(data: RepoCreateRe
   });
 }
 
-export function repoCreateReleaseAttachmentHandlerResponse413(data?: RepoCreateReleaseAttachment413) {
+export function repoCreateReleaseAttachmentHandlerResponse413(data?: RepoCreateReleaseAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
@@ -46,17 +48,20 @@ export function repoCreateReleaseAttachmentHandlerResponse413(data?: RepoCreateR
 
 export function repoCreateReleaseAttachmentHandler(
   data?:
-    | RepoCreateReleaseAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | RepoCreateReleaseAttachmentResponse
+    | HttpResponseResolver<Record<string, string>, RepoCreateReleaseAttachmentBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/releases/:id/assets`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateReleaseAttachmentBody>(
+    `/repos/:owner/:repo/releases/:id/assets`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

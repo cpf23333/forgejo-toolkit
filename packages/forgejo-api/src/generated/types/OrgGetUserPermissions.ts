@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { OrganizationPermissions } from './OrganizationPermissions';
 
-export type OrgGetUserPermissionsPathParams = {
+export type OrgGetUserPermissionsPath = {
   /**
    * @description username of user
    * @type string
@@ -21,24 +21,72 @@ export type OrgGetUserPermissionsPathParams = {
 };
 
 /**
- * @description OrganizationPermissions
+ * @description OrganizationPermissions list different users permissions on an organization
+ * @type object
  */
-export type OrgGetUserPermissions200 = OrganizationPermissions;
+export type OrgGetUserPermissionsStatus200Json = OrganizationPermissions;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description OrganizationPermissions list different users permissions on an organization
+ * @type object
  */
-export type OrgGetUserPermissions403 = APIForbiddenError;
+export type OrgGetUserPermissionsStatus200Html = OrganizationPermissions;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgGetUserPermissions404 = APINotFound;
+export type OrgGetUserPermissionsStatus200 = OrgGetUserPermissionsStatus200Json | OrgGetUserPermissionsStatus200Html;
 
-export type OrgGetUserPermissionsQueryResponse = OrgGetUserPermissions200;
+export type OrgGetUserPermissionsStatus403Json = APIForbiddenError;
 
-export type OrgGetUserPermissionsQuery = {
-  Response: OrgGetUserPermissions200;
-  PathParams: OrgGetUserPermissionsPathParams;
-  Errors: OrgGetUserPermissions403 | OrgGetUserPermissions404;
+export type OrgGetUserPermissionsStatus403Html = APIForbiddenError;
+
+export type OrgGetUserPermissionsStatus403 = OrgGetUserPermissionsStatus403Json | OrgGetUserPermissionsStatus403Html;
+
+export type OrgGetUserPermissionsStatus404Json = APINotFound;
+
+export type OrgGetUserPermissionsStatus404Html = APINotFound;
+
+export type OrgGetUserPermissionsStatus404 = OrgGetUserPermissionsStatus404Json | OrgGetUserPermissionsStatus404Html;
+
+export type OrgGetUserPermissionsOptions = {
+  body?: never;
+  path: OrgGetUserPermissionsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgGetUserPermissionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgGetUserPermissionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetUserPermissionsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgGetUserPermissionsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetUserPermissionsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgGetUserPermissionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgGetUserPermissionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgGetUserPermissionsResponse =
+  | OrgGetUserPermissionsStatus200
+  | OrgGetUserPermissionsStatus403
+  | OrgGetUserPermissionsStatus404;

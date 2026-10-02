@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoGetPullReviewCommentQueryResponse,
-  RepoGetPullReviewComment403,
-  RepoGetPullReviewComment404,
+  RepoGetPullReviewCommentResponse,
+  RepoGetPullReviewCommentStatus403,
+  RepoGetPullReviewCommentStatus404,
 } from '../types/RepoGetPullReviewComment';
 import { http } from 'msw';
 
-export function repoGetPullReviewCommentHandlerResponse200(data: RepoGetPullReviewCommentQueryResponse) {
+export function repoGetPullReviewCommentHandlerResponse200(data: RepoGetPullReviewCommentResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoGetPullReviewCommentHandlerResponse200(data: RepoGetPullRevi
   });
 }
 
-export function repoGetPullReviewCommentHandlerResponse403(data: RepoGetPullReviewComment403) {
+export function repoGetPullReviewCommentHandlerResponse403(data: RepoGetPullReviewCommentStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function repoGetPullReviewCommentHandlerResponse403(data: RepoGetPullRevi
   });
 }
 
-export function repoGetPullReviewCommentHandlerResponse404(data: RepoGetPullReviewComment404) {
+export function repoGetPullReviewCommentHandlerResponse404(data: RepoGetPullReviewCommentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoGetPullReviewCommentHandlerResponse404(data: RepoGetPullRevi
 
 export function repoGetPullReviewCommentHandler(
   data?:
-    | RepoGetPullReviewCommentQueryResponse
+    | RepoGetPullReviewCommentResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment`, function handler(info) {

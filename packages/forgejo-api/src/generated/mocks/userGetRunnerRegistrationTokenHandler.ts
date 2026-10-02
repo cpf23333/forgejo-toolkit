@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserGetRunnerRegistrationTokenQueryResponse,
-  UserGetRunnerRegistrationToken401,
-  UserGetRunnerRegistrationToken403,
+  UserGetRunnerRegistrationTokenResponse,
+  UserGetRunnerRegistrationTokenStatus401,
+  UserGetRunnerRegistrationTokenStatus403,
 } from '../types/UserGetRunnerRegistrationToken';
 import { http } from 'msw';
 
-export function userGetRunnerRegistrationTokenHandlerResponse200(data: UserGetRunnerRegistrationTokenQueryResponse) {
+export function userGetRunnerRegistrationTokenHandlerResponse200(data: UserGetRunnerRegistrationTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userGetRunnerRegistrationTokenHandlerResponse200(data: UserGetRu
   });
 }
 
-export function userGetRunnerRegistrationTokenHandlerResponse401(data: UserGetRunnerRegistrationToken401) {
+export function userGetRunnerRegistrationTokenHandlerResponse401(data: UserGetRunnerRegistrationTokenStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userGetRunnerRegistrationTokenHandlerResponse401(data: UserGetRu
   });
 }
 
-export function userGetRunnerRegistrationTokenHandlerResponse403(data: UserGetRunnerRegistrationToken403) {
+export function userGetRunnerRegistrationTokenHandlerResponse403(data: UserGetRunnerRegistrationTokenStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userGetRunnerRegistrationTokenHandlerResponse403(data: UserGetRu
 
 export function userGetRunnerRegistrationTokenHandler(
   data?:
-    | UserGetRunnerRegistrationTokenQueryResponse
+    | UserGetRunnerRegistrationTokenResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/runners/registration-token`, function handler(info) {

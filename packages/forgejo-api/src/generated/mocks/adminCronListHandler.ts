@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminCronListQueryResponse, AdminCronList403 } from '../types/AdminCronList';
+import type { AdminCronListResponse, AdminCronListStatus403 } from '../types/AdminCronList';
 import { http } from 'msw';
 
-export function adminCronListHandlerResponse200(data: AdminCronListQueryResponse) {
+export function adminCronListHandlerResponse200(data: AdminCronListResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminCronListHandlerResponse200(data: AdminCronListQueryResponse
   });
 }
 
-export function adminCronListHandlerResponse403(data: AdminCronList403) {
+export function adminCronListHandlerResponse403(data: AdminCronListStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminCronListHandlerResponse403(data: AdminCronList403) {
 
 export function adminCronListHandler(
   data?:
-    | AdminCronListQueryResponse
+    | AdminCronListResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/cron`, function handler(info) {

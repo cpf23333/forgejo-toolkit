@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { Reaction } from './Reaction';
 
-export type IssueGetIssueReactionsPathParams = {
+export type IssueGetIssueReactionsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,12 +20,14 @@ export type IssueGetIssueReactionsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueGetIssueReactionsQueryParams = {
+export type IssueGetIssueReactionsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -38,26 +40,65 @@ export type IssueGetIssueReactionsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description ReactionList
- */
-export type IssueGetIssueReactions200 = Reaction[];
+export type IssueGetIssueReactionsStatus200Json = Reaction[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type IssueGetIssueReactions403 = APIForbiddenError;
+export type IssueGetIssueReactionsStatus200Html = Reaction[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueGetIssueReactions404 = APINotFound;
+export type IssueGetIssueReactionsStatus200 = IssueGetIssueReactionsStatus200Json | IssueGetIssueReactionsStatus200Html;
 
-export type IssueGetIssueReactionsQueryResponse = IssueGetIssueReactions200;
+export type IssueGetIssueReactionsStatus403Json = APIForbiddenError;
 
-export type IssueGetIssueReactionsQuery = {
-  Response: IssueGetIssueReactions200;
-  PathParams: IssueGetIssueReactionsPathParams;
-  QueryParams: IssueGetIssueReactionsQueryParams;
-  Errors: IssueGetIssueReactions403 | IssueGetIssueReactions404;
+export type IssueGetIssueReactionsStatus403Html = APIForbiddenError;
+
+export type IssueGetIssueReactionsStatus403 = IssueGetIssueReactionsStatus403Json | IssueGetIssueReactionsStatus403Html;
+
+export type IssueGetIssueReactionsStatus404Json = APINotFound;
+
+export type IssueGetIssueReactionsStatus404Html = APINotFound;
+
+export type IssueGetIssueReactionsStatus404 = IssueGetIssueReactionsStatus404Json | IssueGetIssueReactionsStatus404Html;
+
+export type IssueGetIssueReactionsOptions = {
+  body?: never;
+  path: IssueGetIssueReactionsPath;
+  query?: IssueGetIssueReactionsQuery;
+  headers?: never;
 };
+
+export type IssueGetIssueReactionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueReactionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueReactionsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueReactionsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueReactionsStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueReactionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueReactionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetIssueReactionsResponse =
+  | IssueGetIssueReactionsStatus200
+  | IssueGetIssueReactionsStatus403
+  | IssueGetIssueReactionsStatus404;

@@ -5,6 +5,7 @@
 
 /**
  * @description RenameOrgOption options when renaming an organization
+ * @type object
  */
 export type RenameOrgOption = {
   /**

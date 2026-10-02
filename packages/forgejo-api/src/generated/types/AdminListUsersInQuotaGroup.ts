@@ -8,7 +8,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type AdminListUsersInQuotaGroupPathParams = {
+export type AdminListUsersInQuotaGroupPath = {
   /**
    * @description quota group to list members of
    * @type string
@@ -16,30 +16,97 @@ export type AdminListUsersInQuotaGroupPathParams = {
   quotagroup: string;
 };
 
-/**
- * @description UserList
- */
-export type AdminListUsersInQuotaGroup200 = User[];
+export type AdminListUsersInQuotaGroupStatus200Json = User[];
+
+export type AdminListUsersInQuotaGroupStatus200Html = User[];
+
+export type AdminListUsersInQuotaGroupStatus200 =
+  | AdminListUsersInQuotaGroupStatus200Json
+  | AdminListUsersInQuotaGroupStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminListUsersInQuotaGroup400 = APIError;
+export type AdminListUsersInQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminListUsersInQuotaGroup403 = APIForbiddenError;
+export type AdminListUsersInQuotaGroupStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminListUsersInQuotaGroup404 = APINotFound;
+export type AdminListUsersInQuotaGroupStatus400 =
+  | AdminListUsersInQuotaGroupStatus400Json
+  | AdminListUsersInQuotaGroupStatus400Html;
 
-export type AdminListUsersInQuotaGroupQueryResponse = AdminListUsersInQuotaGroup200;
+export type AdminListUsersInQuotaGroupStatus403Json = APIForbiddenError;
 
-export type AdminListUsersInQuotaGroupQuery = {
-  Response: AdminListUsersInQuotaGroup200;
-  PathParams: AdminListUsersInQuotaGroupPathParams;
-  Errors: AdminListUsersInQuotaGroup400 | AdminListUsersInQuotaGroup403 | AdminListUsersInQuotaGroup404;
+export type AdminListUsersInQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminListUsersInQuotaGroupStatus403 =
+  | AdminListUsersInQuotaGroupStatus403Json
+  | AdminListUsersInQuotaGroupStatus403Html;
+
+export type AdminListUsersInQuotaGroupStatus404Json = APINotFound;
+
+export type AdminListUsersInQuotaGroupStatus404Html = APINotFound;
+
+export type AdminListUsersInQuotaGroupStatus404 =
+  | AdminListUsersInQuotaGroupStatus404Json
+  | AdminListUsersInQuotaGroupStatus404Html;
+
+export type AdminListUsersInQuotaGroupOptions = {
+  body?: never;
+  path: AdminListUsersInQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminListUsersInQuotaGroupResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListUsersInQuotaGroupStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUsersInQuotaGroupStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminListUsersInQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUsersInQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminListUsersInQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUsersInQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminListUsersInQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListUsersInQuotaGroupStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListUsersInQuotaGroupResponse =
+  | AdminListUsersInQuotaGroupStatus200
+  | AdminListUsersInQuotaGroupStatus400
+  | AdminListUsersInQuotaGroupStatus403
+  | AdminListUsersInQuotaGroupStatus404;

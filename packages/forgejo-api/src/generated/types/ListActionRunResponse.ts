@@ -7,14 +7,14 @@ import type { ActionRun } from './ActionRun';
 
 /**
  * @description ListActionRunResponse return a list of ActionRun
+ * @type object
  */
 export type ListActionRunResponse = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total_count?: number;
-  /**
-   * @type array | undefined
-   */
   workflow_runs?: ActionRun[];
 };

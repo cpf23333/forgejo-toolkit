@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { QuotaInfo } from './QuotaInfo';
 
-export type AdminGetUserQuotaPathParams = {
+export type AdminGetUserQuotaPath = {
   /**
    * @description username of user to query
    * @type string
@@ -18,34 +18,112 @@ export type AdminGetUserQuotaPathParams = {
 };
 
 /**
- * @description QuotaInfo
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type AdminGetUserQuota200 = QuotaInfo;
+export type AdminGetUserQuotaStatus200Json = QuotaInfo;
 
 /**
- * @description APIError is error format response
+ * @description QuotaInfo represents information about a user\'s quota
+ * @type object
  */
-export type AdminGetUserQuota400 = APIError;
+export type AdminGetUserQuotaStatus200Html = QuotaInfo;
+
+export type AdminGetUserQuotaStatus200 = AdminGetUserQuotaStatus200Json | AdminGetUserQuotaStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetUserQuota403 = APIForbiddenError;
+export type AdminGetUserQuotaStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminGetUserQuota404 = APINotFound;
+export type AdminGetUserQuotaStatus400Html = APIError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type AdminGetUserQuota422 = APIValidationError;
+export type AdminGetUserQuotaStatus400 = AdminGetUserQuotaStatus400Json | AdminGetUserQuotaStatus400Html;
 
-export type AdminGetUserQuotaQueryResponse = AdminGetUserQuota200;
+export type AdminGetUserQuotaStatus403Json = APIForbiddenError;
 
-export type AdminGetUserQuotaQuery = {
-  Response: AdminGetUserQuota200;
-  PathParams: AdminGetUserQuotaPathParams;
-  Errors: AdminGetUserQuota400 | AdminGetUserQuota403 | AdminGetUserQuota404 | AdminGetUserQuota422;
+export type AdminGetUserQuotaStatus403Html = APIForbiddenError;
+
+export type AdminGetUserQuotaStatus403 = AdminGetUserQuotaStatus403Json | AdminGetUserQuotaStatus403Html;
+
+export type AdminGetUserQuotaStatus404Json = APINotFound;
+
+export type AdminGetUserQuotaStatus404Html = APINotFound;
+
+export type AdminGetUserQuotaStatus404 = AdminGetUserQuotaStatus404Json | AdminGetUserQuotaStatus404Html;
+
+export type AdminGetUserQuotaStatus422Json = APIValidationError;
+
+export type AdminGetUserQuotaStatus422Html = APIValidationError;
+
+export type AdminGetUserQuotaStatus422 = AdminGetUserQuotaStatus422Json | AdminGetUserQuotaStatus422Html;
+
+export type AdminGetUserQuotaOptions = {
+  body?: never;
+  path: AdminGetUserQuotaPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminGetUserQuotaResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetUserQuotaStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetUserQuotaStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminGetUserQuotaStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetUserQuotaStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminGetUserQuotaStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetUserQuotaStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminGetUserQuotaStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetUserQuotaStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: AdminGetUserQuotaStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetUserQuotaStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetUserQuotaResponse =
+  | AdminGetUserQuotaStatus200
+  | AdminGetUserQuotaStatus400
+  | AdminGetUserQuotaStatus403
+  | AdminGetUserQuotaStatus404
+  | AdminGetUserQuotaStatus422;

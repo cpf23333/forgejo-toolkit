@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeleteMemberPathParams = {
+export type OrgDeleteMemberPath = {
   /**
    * @description name of the organization
    * @type string
@@ -18,20 +18,35 @@ export type OrgDeleteMemberPathParams = {
   username: string;
 };
 
-/**
- * @description member removed
- */
-export type OrgDeleteMember204 = any;
+export type OrgDeleteMemberStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDeleteMember404 = APINotFound;
+export type OrgDeleteMemberStatus404Json = APINotFound;
 
-export type OrgDeleteMemberMutationResponse = OrgDeleteMember204;
+export type OrgDeleteMemberStatus404Html = APINotFound;
 
-export type OrgDeleteMemberMutation = {
-  Response: OrgDeleteMember204;
-  PathParams: OrgDeleteMemberPathParams;
-  Errors: OrgDeleteMember404;
+export type OrgDeleteMemberStatus404 = OrgDeleteMemberStatus404Json | OrgDeleteMemberStatus404Html;
+
+export type OrgDeleteMemberOptions = {
+  body?: never;
+  path: OrgDeleteMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteMemberResponses = {
+  '204': OrgDeleteMemberStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteMemberResponse = OrgDeleteMemberStatus204 | OrgDeleteMemberStatus404;

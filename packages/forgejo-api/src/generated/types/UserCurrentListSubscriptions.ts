@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Repository } from './Repository';
 
-export type UserCurrentListSubscriptionsQueryParams = {
+export type UserCurrentListSubscriptionsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,71 @@ export type UserCurrentListSubscriptionsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type UserCurrentListSubscriptions200 = Repository[];
+export type UserCurrentListSubscriptionsStatus200Json = Repository[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentListSubscriptions401 = APIUnauthorizedError;
+export type UserCurrentListSubscriptionsStatus200Html = Repository[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentListSubscriptions403 = APIForbiddenError;
+export type UserCurrentListSubscriptionsStatus200 =
+  | UserCurrentListSubscriptionsStatus200Json
+  | UserCurrentListSubscriptionsStatus200Html;
 
-export type UserCurrentListSubscriptionsQueryResponse = UserCurrentListSubscriptions200;
+export type UserCurrentListSubscriptionsStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentListSubscriptionsQuery = {
-  Response: UserCurrentListSubscriptions200;
-  QueryParams: UserCurrentListSubscriptionsQueryParams;
-  Errors: UserCurrentListSubscriptions401 | UserCurrentListSubscriptions403;
+export type UserCurrentListSubscriptionsStatus401Html = APIUnauthorizedError;
+
+export type UserCurrentListSubscriptionsStatus401 =
+  | UserCurrentListSubscriptionsStatus401Json
+  | UserCurrentListSubscriptionsStatus401Html;
+
+export type UserCurrentListSubscriptionsStatus403Json = APIForbiddenError;
+
+export type UserCurrentListSubscriptionsStatus403Html = APIForbiddenError;
+
+export type UserCurrentListSubscriptionsStatus403 =
+  | UserCurrentListSubscriptionsStatus403Json
+  | UserCurrentListSubscriptionsStatus403Html;
+
+export type UserCurrentListSubscriptionsOptions = {
+  body?: never;
+  path?: never;
+  query?: UserCurrentListSubscriptionsQuery;
+  headers?: never;
 };
+
+export type UserCurrentListSubscriptionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListSubscriptionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListSubscriptionsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListSubscriptionsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListSubscriptionsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentListSubscriptionsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentListSubscriptionsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentListSubscriptionsResponse =
+  | UserCurrentListSubscriptionsStatus200
+  | UserCurrentListSubscriptionsStatus401
+  | UserCurrentListSubscriptionsStatus403;

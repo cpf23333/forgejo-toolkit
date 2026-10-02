@@ -4,13 +4,15 @@
  */
 
 import type {
-  RepoEditReleaseAttachmentMutationResponse,
-  RepoEditReleaseAttachment404,
-  RepoEditReleaseAttachment413,
+  RepoEditReleaseAttachmentResponse,
+  RepoEditReleaseAttachmentStatus404,
+  RepoEditReleaseAttachmentStatus413,
+  RepoEditReleaseAttachmentBody,
 } from '../types/RepoEditReleaseAttachment';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditReleaseAttachmentHandlerResponse201(data: RepoEditReleaseAttachmentMutationResponse) {
+export function repoEditReleaseAttachmentHandlerResponse201(data: RepoEditReleaseAttachmentResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,7 +21,7 @@ export function repoEditReleaseAttachmentHandlerResponse201(data: RepoEditReleas
   });
 }
 
-export function repoEditReleaseAttachmentHandlerResponse404(data: RepoEditReleaseAttachment404) {
+export function repoEditReleaseAttachmentHandlerResponse404(data: RepoEditReleaseAttachmentStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,7 +30,7 @@ export function repoEditReleaseAttachmentHandlerResponse404(data: RepoEditReleas
   });
 }
 
-export function repoEditReleaseAttachmentHandlerResponse413(data?: RepoEditReleaseAttachment413) {
+export function repoEditReleaseAttachmentHandlerResponse413(data?: RepoEditReleaseAttachmentStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
@@ -36,17 +38,20 @@ export function repoEditReleaseAttachmentHandlerResponse413(data?: RepoEditRelea
 
 export function repoEditReleaseAttachmentHandler(
   data?:
-    | RepoEditReleaseAttachmentMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+    | RepoEditReleaseAttachmentResponse
+    | HttpResponseResolver<Record<string, string>, RepoEditReleaseAttachmentBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/releases/:id/assets/:attachment_id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoEditReleaseAttachmentBody>(
+    `/repos/:owner/:repo/releases/:id/assets/:attachment_id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

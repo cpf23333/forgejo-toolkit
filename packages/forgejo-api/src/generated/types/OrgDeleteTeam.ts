@@ -5,28 +5,45 @@
 
 import type { APINotFound } from './APINotFound';
 
-export type OrgDeleteTeamPathParams = {
+export type OrgDeleteTeamPath = {
   /**
    * @description id of the team to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description team deleted
- */
-export type OrgDeleteTeam204 = any;
+export type OrgDeleteTeamStatus204 = unknown;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgDeleteTeam404 = APINotFound;
+export type OrgDeleteTeamStatus404Json = APINotFound;
 
-export type OrgDeleteTeamMutationResponse = OrgDeleteTeam204;
+export type OrgDeleteTeamStatus404Html = APINotFound;
 
-export type OrgDeleteTeamMutation = {
-  Response: OrgDeleteTeam204;
-  PathParams: OrgDeleteTeamPathParams;
-  Errors: OrgDeleteTeam404;
+export type OrgDeleteTeamStatus404 = OrgDeleteTeamStatus404Json | OrgDeleteTeamStatus404Html;
+
+export type OrgDeleteTeamOptions = {
+  body?: never;
+  path: OrgDeleteTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgDeleteTeamResponses = {
+  '204': OrgDeleteTeamStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgDeleteTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgDeleteTeamStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgDeleteTeamResponse = OrgDeleteTeamStatus204 | OrgDeleteTeamStatus404;

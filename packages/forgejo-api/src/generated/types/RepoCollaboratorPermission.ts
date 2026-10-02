@@ -7,15 +7,10 @@ import type { User } from './User';
 
 /**
  * @description RepoCollaboratorPermission to get repository permission for a collaborator
+ * @type object
  */
 export type RepoCollaboratorPermission = {
-  /**
-   * @type string | undefined
-   */
   permission?: string;
-  /**
-   * @type string | undefined
-   */
   role_name?: string;
   /**
    * @description User represents a user

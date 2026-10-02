@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Hook } from './Hook';
 
-export type UserListHooksQueryParams = {
+export type UserListHooksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -20,25 +20,62 @@ export type UserListHooksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description HookListWithoutPagination - Hooks without pagination headers
- */
-export type UserListHooks200 = Hook[];
+export type UserListHooksStatus200Json = Hook[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserListHooks401 = APIUnauthorizedError;
+export type UserListHooksStatus200Html = Hook[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListHooks403 = APIForbiddenError;
+export type UserListHooksStatus200 = UserListHooksStatus200Json | UserListHooksStatus200Html;
 
-export type UserListHooksQueryResponse = UserListHooks200;
+export type UserListHooksStatus401Json = APIUnauthorizedError;
 
-export type UserListHooksQuery = {
-  Response: UserListHooks200;
-  QueryParams: UserListHooksQueryParams;
-  Errors: UserListHooks401 | UserListHooks403;
+export type UserListHooksStatus401Html = APIUnauthorizedError;
+
+export type UserListHooksStatus401 = UserListHooksStatus401Json | UserListHooksStatus401Html;
+
+export type UserListHooksStatus403Json = APIForbiddenError;
+
+export type UserListHooksStatus403Html = APIForbiddenError;
+
+export type UserListHooksStatus403 = UserListHooksStatus403Json | UserListHooksStatus403Html;
+
+export type UserListHooksOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListHooksQuery;
+  headers?: never;
 };
+
+export type UserListHooksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListHooksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListHooksStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListHooksStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListHooksStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListHooksStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListHooksStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListHooksResponse = UserListHooksStatus200 | UserListHooksStatus401 | UserListHooksStatus403;

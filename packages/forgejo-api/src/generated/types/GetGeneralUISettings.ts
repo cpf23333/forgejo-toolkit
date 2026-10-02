@@ -6,13 +6,39 @@
 import type { GeneralUISettings } from './GeneralUISettings';
 
 /**
- * @description GeneralUISettings
+ * @description GeneralUISettings contains global ui settings exposed by API
+ * @type object
  */
-export type GetGeneralUISettings200 = GeneralUISettings;
+export type GetGeneralUISettingsStatus200Json = GeneralUISettings;
 
-export type GetGeneralUISettingsQueryResponse = GetGeneralUISettings200;
+/**
+ * @description GeneralUISettings contains global ui settings exposed by API
+ * @type object
+ */
+export type GetGeneralUISettingsStatus200Html = GeneralUISettings;
 
-export type GetGeneralUISettingsQuery = {
-  Response: GetGeneralUISettings200;
-  Errors: any;
+export type GetGeneralUISettingsStatus200 = GetGeneralUISettingsStatus200Json | GetGeneralUISettingsStatus200Html;
+
+export type GetGeneralUISettingsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetGeneralUISettingsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetGeneralUISettingsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetGeneralUISettingsStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetGeneralUISettingsResponse = GetGeneralUISettingsStatus200;

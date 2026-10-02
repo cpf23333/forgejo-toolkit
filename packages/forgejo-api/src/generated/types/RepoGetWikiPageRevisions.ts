@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { WikiCommitList } from './WikiCommitList';
 
-export type RepoGetWikiPageRevisionsPathParams = {
+export type RepoGetWikiPageRevisionsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,7 +24,7 @@ export type RepoGetWikiPageRevisionsPathParams = {
   pageName: string;
 };
 
-export type RepoGetWikiPageRevisionsQueryParams = {
+export type RepoGetWikiPageRevisionsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -33,20 +33,58 @@ export type RepoGetWikiPageRevisionsQueryParams = {
 };
 
 /**
- * @description WikiCommitList
+ * @description WikiCommitList commit/revision list
+ * @type object
  */
-export type RepoGetWikiPageRevisions200 = WikiCommitList;
+export type RepoGetWikiPageRevisionsStatus200Json = WikiCommitList;
 
 /**
- * @description APINotFound is a not found error response
+ * @description WikiCommitList commit/revision list
+ * @type object
  */
-export type RepoGetWikiPageRevisions404 = APINotFound;
+export type RepoGetWikiPageRevisionsStatus200Html = WikiCommitList;
 
-export type RepoGetWikiPageRevisionsQueryResponse = RepoGetWikiPageRevisions200;
+export type RepoGetWikiPageRevisionsStatus200 =
+  | RepoGetWikiPageRevisionsStatus200Json
+  | RepoGetWikiPageRevisionsStatus200Html;
 
-export type RepoGetWikiPageRevisionsQuery = {
-  Response: RepoGetWikiPageRevisions200;
-  PathParams: RepoGetWikiPageRevisionsPathParams;
-  QueryParams: RepoGetWikiPageRevisionsQueryParams;
-  Errors: RepoGetWikiPageRevisions404;
+export type RepoGetWikiPageRevisionsStatus404Json = APINotFound;
+
+export type RepoGetWikiPageRevisionsStatus404Html = APINotFound;
+
+export type RepoGetWikiPageRevisionsStatus404 =
+  | RepoGetWikiPageRevisionsStatus404Json
+  | RepoGetWikiPageRevisionsStatus404Html;
+
+export type RepoGetWikiPageRevisionsOptions = {
+  body?: never;
+  path: RepoGetWikiPageRevisionsPath;
+  query?: RepoGetWikiPageRevisionsQuery;
+  headers?: never;
 };
+
+export type RepoGetWikiPageRevisionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetWikiPageRevisionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetWikiPageRevisionsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetWikiPageRevisionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetWikiPageRevisionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetWikiPageRevisionsResponse = RepoGetWikiPageRevisionsStatus200 | RepoGetWikiPageRevisionsStatus404;

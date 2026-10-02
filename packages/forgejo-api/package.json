@@ -15,10 +15,18 @@
     "./mocks": {
       "types": "./src/mocks/index.ts",
       "default": "./src/mocks/index.ts"
+    },
+    "./kubb": {
+      "types": "./src/kubb.ts",
+      "default": "./src/kubb.ts"
+    },
+    "./kubb/serializers": {
+      "types": "./src/generated/.kubb/serializers.ts",
+      "default": "./src/generated/.kubb/serializers.ts"
     }
   },
   "scripts": {
-    "generate": "kubb generate && node scripts/strip-ts-extensions.js && oxfmt src/generated",
+    "generate": "kubb generate && oxfmt src/generated",
     "check": "tsc --noEmit",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -31,12 +39,13 @@
     "@cpf23333-forgejo-toolkit/shared": "workspace:*"
   },
   "devDependencies": {
-    "@kubb/cli": "4.39.2",
-    "@kubb/core": "4.39.2",
-    "@kubb/plugin-client": "4.39.3",
-    "@kubb/plugin-msw": "4.39.2",
-    "@kubb/plugin-oas": "4.39.3",
-    "@kubb/plugin-ts": "4.39.2",
+    "@kubb/adapter-oas": "5.4.2",
+    "@kubb/cli": "5.4.2",
+    "@kubb/core": "5.4.2",
+    "@kubb/plugin-fetch": "5.5.2",
+    "@kubb/plugin-msw": "5.0.5",
+    "@kubb/plugin-ts": "5.0.2",
+    "kubb": "5.4.2",
     "msw": "^2.15.0",
     "prettier": "^3.9.9",
     "typescript": "^6.0.3"

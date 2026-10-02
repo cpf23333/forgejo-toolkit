@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullRequest } from './PullRequest';
 
-export type RepoGetPullRequestPathParams = {
+export type RepoGetPullRequestPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type RepoGetPullRequestPathParams = {
   repo: string;
   /**
    * @description index of the pull request to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description PullRequest
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetPullRequest200 = PullRequest;
+export type RepoGetPullRequestStatus200Json = PullRequest;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetPullRequest404 = APINotFound;
+export type RepoGetPullRequestStatus200Html = PullRequest;
 
-export type RepoGetPullRequestQueryResponse = RepoGetPullRequest200;
+export type RepoGetPullRequestStatus200 = RepoGetPullRequestStatus200Json | RepoGetPullRequestStatus200Html;
 
-export type RepoGetPullRequestQuery = {
-  Response: RepoGetPullRequest200;
-  PathParams: RepoGetPullRequestPathParams;
-  Errors: RepoGetPullRequest404;
+export type RepoGetPullRequestStatus404Json = APINotFound;
+
+export type RepoGetPullRequestStatus404Html = APINotFound;
+
+export type RepoGetPullRequestStatus404 = RepoGetPullRequestStatus404Json | RepoGetPullRequestStatus404Html;
+
+export type RepoGetPullRequestOptions = {
+  body?: never;
+  path: RepoGetPullRequestPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetPullRequestResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullRequestResponse = RepoGetPullRequestStatus200 | RepoGetPullRequestStatus404;

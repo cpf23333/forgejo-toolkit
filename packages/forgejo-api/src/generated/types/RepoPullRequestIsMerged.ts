@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-export type RepoPullRequestIsMergedPathParams = {
+export type RepoPullRequestIsMergedPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -16,25 +16,30 @@ export type RepoPullRequestIsMergedPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description pull request has been merged
- */
-export type RepoPullRequestIsMerged204 = any;
+export type RepoPullRequestIsMergedStatus204 = unknown;
 
-/**
- * @description pull request has not been merged
- */
-export type RepoPullRequestIsMerged404 = any;
+export type RepoPullRequestIsMergedStatus404 = unknown;
 
-export type RepoPullRequestIsMergedQueryResponse = RepoPullRequestIsMerged204;
-
-export type RepoPullRequestIsMergedQuery = {
-  Response: RepoPullRequestIsMerged204;
-  PathParams: RepoPullRequestIsMergedPathParams;
-  Errors: RepoPullRequestIsMerged404;
+export type RepoPullRequestIsMergedOptions = {
+  body?: never;
+  path: RepoPullRequestIsMergedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoPullRequestIsMergedResponses = {
+  '204': RepoPullRequestIsMergedStatus204;
+  '404': RepoPullRequestIsMergedStatus404;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoPullRequestIsMergedResponse = RepoPullRequestIsMergedStatus204 | RepoPullRequestIsMergedStatus404;

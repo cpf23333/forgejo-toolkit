@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { OrgAddTeamMemberMutationResponse, OrgAddTeamMember404 } from '../types/OrgAddTeamMember';
+import type { OrgAddTeamMemberResponse, OrgAddTeamMemberStatus404 } from '../types/OrgAddTeamMember';
 import { http } from 'msw';
 
-export function orgAddTeamMemberHandlerResponse204(data?: OrgAddTeamMemberMutationResponse) {
+export function orgAddTeamMemberHandlerResponse204(data?: OrgAddTeamMemberResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgAddTeamMemberHandlerResponse404(data: OrgAddTeamMember404) {
+export function orgAddTeamMemberHandlerResponse404(data: OrgAddTeamMemberStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

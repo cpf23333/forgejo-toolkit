@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserVerifyGPGKeyMutationRequest,
-  UserVerifyGPGKeyMutationResponse,
-  UserVerifyGPGKey401,
-  UserVerifyGPGKey403,
-  UserVerifyGPGKey404,
-  UserVerifyGPGKey422,
-} from '../types/UserVerifyGPGKey';
-
-function getUserVerifyGPGKeyUrl() {
-  const res = { method: 'POST', url: `/user/gpg_key_verify` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserVerifyGPGKeyOptions, UserVerifyGPGKeyResponses } from '../types/UserVerifyGPGKey';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Verify a GPG key
  * {@link /user/gpg_key_verify}
  */
-export async function userVerifyGPGKey(
-  data: UserVerifyGPGKeyMutationRequest,
-  config: Partial<RequestConfig<UserVerifyGPGKeyMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userVerifyGPGKey<ThrowOnError extends boolean = true>(
+  options: Options<UserVerifyGPGKeyOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserVerifyGPGKeyResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserVerifyGPGKeyMutationResponse,
-    ResponseErrorConfig<UserVerifyGPGKey401 | UserVerifyGPGKey403 | UserVerifyGPGKey404 | UserVerifyGPGKey422>,
-    UserVerifyGPGKeyMutationRequest
-  >({
-    method: 'POST',
-    url: getUserVerifyGPGKeyUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/user/gpg_key_verify',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserVerifyGPGKeyResponses, ThrowOnError>>;
 }

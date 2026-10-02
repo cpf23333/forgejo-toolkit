@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type OrgConcealMemberPathParams = {
+export type OrgConcealMemberPath = {
   /**
    * @description name of the organization
    * @type string
@@ -19,25 +19,53 @@ export type OrgConcealMemberPathParams = {
   username: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgConcealMember204 = any;
+export type OrgConcealMemberStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgConcealMember403 = APIForbiddenError;
+export type OrgConcealMemberStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgConcealMember404 = APINotFound;
+export type OrgConcealMemberStatus403Html = APIForbiddenError;
 
-export type OrgConcealMemberMutationResponse = OrgConcealMember204;
+export type OrgConcealMemberStatus403 = OrgConcealMemberStatus403Json | OrgConcealMemberStatus403Html;
 
-export type OrgConcealMemberMutation = {
-  Response: OrgConcealMember204;
-  PathParams: OrgConcealMemberPathParams;
-  Errors: OrgConcealMember403 | OrgConcealMember404;
+export type OrgConcealMemberStatus404Json = APINotFound;
+
+export type OrgConcealMemberStatus404Html = APINotFound;
+
+export type OrgConcealMemberStatus404 = OrgConcealMemberStatus404Json | OrgConcealMemberStatus404Html;
+
+export type OrgConcealMemberOptions = {
+  body?: never;
+  path: OrgConcealMemberPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgConcealMemberResponses = {
+  '204': OrgConcealMemberStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgConcealMemberStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgConcealMemberStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgConcealMemberStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgConcealMemberStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgConcealMemberResponse =
+  | OrgConcealMemberStatus204
+  | OrgConcealMemberStatus403
+  | OrgConcealMemberStatus404;

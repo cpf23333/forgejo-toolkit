@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoGetBranchProtectionQueryResponse,
-  RepoGetBranchProtection404,
+  RepoGetBranchProtectionResponse,
+  RepoGetBranchProtectionStatus404,
 } from '../types/RepoGetBranchProtection';
 import { http } from 'msw';
 
-export function repoGetBranchProtectionHandlerResponse200(data: RepoGetBranchProtectionQueryResponse) {
+export function repoGetBranchProtectionHandlerResponse200(data: RepoGetBranchProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoGetBranchProtectionHandlerResponse200(data: RepoGetBranchPro
   });
 }
 
-export function repoGetBranchProtectionHandlerResponse404(data: RepoGetBranchProtection404) {
+export function repoGetBranchProtectionHandlerResponse404(data: RepoGetBranchProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoGetBranchProtectionHandlerResponse404(data: RepoGetBranchPro
 
 export function repoGetBranchProtectionHandler(
   data?:
-    | RepoGetBranchProtectionQueryResponse
+    | RepoGetBranchProtectionResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/branch_protections/:name`, function handler(info) {

@@ -4,19 +4,19 @@
  */
 
 import type {
-  RepoCheckCollaboratorQueryResponse,
-  RepoCheckCollaborator404,
-  RepoCheckCollaborator422,
+  RepoCheckCollaboratorResponse,
+  RepoCheckCollaboratorStatus404,
+  RepoCheckCollaboratorStatus422,
 } from '../types/RepoCheckCollaborator';
 import { http } from 'msw';
 
-export function repoCheckCollaboratorHandlerResponse204(data?: RepoCheckCollaboratorQueryResponse) {
+export function repoCheckCollaboratorHandlerResponse204(data?: RepoCheckCollaboratorResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoCheckCollaboratorHandlerResponse404(data: RepoCheckCollaborator404) {
+export function repoCheckCollaboratorHandlerResponse404(data: RepoCheckCollaboratorStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,7 +25,7 @@ export function repoCheckCollaboratorHandlerResponse404(data: RepoCheckCollabora
   });
 }
 
-export function repoCheckCollaboratorHandlerResponse422(data: RepoCheckCollaborator422) {
+export function repoCheckCollaboratorHandlerResponse422(data: RepoCheckCollaboratorStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

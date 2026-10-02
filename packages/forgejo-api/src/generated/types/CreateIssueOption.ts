@@ -5,6 +5,7 @@
 
 /**
  * @description CreateIssueOption options to create one issue
+ * @type object
  */
 export type CreateIssueOption = {
   /**
@@ -12,20 +13,13 @@ export type CreateIssueOption = {
    * @type string | undefined
    */
   assignee?: string;
-  /**
-   * @type array | undefined
-   */
   assignees?: string[];
-  /**
-   * @type string | undefined
-   */
   body?: string;
-  /**
-   * @type boolean | undefined
-   */
   closed?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   due_date?: string;
   /**
@@ -35,15 +29,11 @@ export type CreateIssueOption = {
   labels?: number[];
   /**
    * @description milestone id
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   milestone?: number;
-  /**
-   * @type string | undefined
-   */
   ref?: string;
-  /**
-   * @type string
-   */
   title: string;
 };

@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UserCreateHookMutationResponse, UserCreateHook401, UserCreateHook403 } from '../types/UserCreateHook';
+import type {
+  UserCreateHookResponse,
+  UserCreateHookStatus401,
+  UserCreateHookStatus403,
+  UserCreateHookBody,
+} from '../types/UserCreateHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userCreateHookHandlerResponse201(data: UserCreateHookMutationResponse) {
+export function userCreateHookHandlerResponse201(data: UserCreateHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -15,7 +21,7 @@ export function userCreateHookHandlerResponse201(data: UserCreateHookMutationRes
   });
 }
 
-export function userCreateHookHandlerResponse401(data: UserCreateHook401) {
+export function userCreateHookHandlerResponse401(data: UserCreateHookStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +30,7 @@ export function userCreateHookHandlerResponse401(data: UserCreateHook401) {
   });
 }
 
-export function userCreateHookHandlerResponse403(data: UserCreateHook403) {
+export function userCreateHookHandlerResponse403(data: UserCreateHookStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -34,11 +40,9 @@ export function userCreateHookHandlerResponse403(data: UserCreateHook403) {
 }
 
 export function userCreateHookHandler(
-  data?:
-    | UserCreateHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: UserCreateHookResponse | HttpResponseResolver<Record<string, string>, UserCreateHookBody>,
 ) {
-  return http.post(`/user/hooks`, function handler(info) {
+  return http.post<Record<string, string>, UserCreateHookBody>(`/user/hooks`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

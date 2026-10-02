@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminRemoveUserFromQuotaGroupMutationResponse,
-  AdminRemoveUserFromQuotaGroupPathParams,
-  AdminRemoveUserFromQuotaGroup400,
-  AdminRemoveUserFromQuotaGroup403,
-  AdminRemoveUserFromQuotaGroup404,
+  AdminRemoveUserFromQuotaGroupOptions,
+  AdminRemoveUserFromQuotaGroupResponses,
 } from '../types/AdminRemoveUserFromQuotaGroup';
-
-function getAdminRemoveUserFromQuotaGroupUrl(
-  quotagroup: AdminRemoveUserFromQuotaGroupPathParams['quotagroup'],
-  username: AdminRemoveUserFromQuotaGroupPathParams['username'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/admin/quota/groups/${quotagroup}/users/${username}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a user from a quota group
  * {@link /admin/quota/groups/:quotagroup/users/:username}
  */
-export async function adminRemoveUserFromQuotaGroup(
-  quotagroup: AdminRemoveUserFromQuotaGroupPathParams['quotagroup'],
-  username: AdminRemoveUserFromQuotaGroupPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminRemoveUserFromQuotaGroup<ThrowOnError extends boolean = true>(
+  options: Options<AdminRemoveUserFromQuotaGroupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminRemoveUserFromQuotaGroupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminRemoveUserFromQuotaGroupMutationResponse,
-    ResponseErrorConfig<
-      AdminRemoveUserFromQuotaGroup400 | AdminRemoveUserFromQuotaGroup403 | AdminRemoveUserFromQuotaGroup404
-    >,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getAdminRemoveUserFromQuotaGroupUrl(quotagroup, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/admin/quota/groups/{quotagroup}/users/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminRemoveUserFromQuotaGroupResponses, ThrowOnError>>;
 }

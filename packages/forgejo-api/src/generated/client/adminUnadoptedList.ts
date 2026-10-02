@@ -3,34 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminUnadoptedListQueryResponse,
-  AdminUnadoptedListQueryParams,
-  AdminUnadoptedList403,
-} from '../types/AdminUnadoptedList';
-
-function getAdminUnadoptedListUrl() {
-  const res = { method: 'GET', url: `/admin/unadopted` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminUnadoptedListOptions, AdminUnadoptedListResponses } from '../types/AdminUnadoptedList';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List unadopted repositories
  * {@link /admin/unadopted}
  */
-export async function adminUnadoptedList(
-  params?: AdminUnadoptedListQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminUnadoptedList<ThrowOnError extends boolean = true>(
+  options: Options<AdminUnadoptedListOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<AdminUnadoptedListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<AdminUnadoptedListQueryResponse, ResponseErrorConfig<AdminUnadoptedList403>, unknown>({
-    method: 'GET',
-    url: getAdminUnadoptedListUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/unadopted',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminUnadoptedListResponses, ThrowOnError>>;
 }

@@ -5,5 +5,8 @@
 
 /**
  * @description A Duration represents the elapsed time between two instants\nas an int64 nanosecond count. The representation limits the\nlargest representable duration to approximately 290 years.
+ *
+ * Format: `int64`
+ * @type integer
  */
 export type Duration = number;

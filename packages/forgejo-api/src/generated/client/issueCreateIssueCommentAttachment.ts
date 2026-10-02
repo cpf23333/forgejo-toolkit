@@ -3,65 +3,40 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueCreateIssueCommentAttachmentMutationRequest,
-  IssueCreateIssueCommentAttachmentMutationResponse,
-  IssueCreateIssueCommentAttachmentPathParams,
-  IssueCreateIssueCommentAttachmentQueryParams,
-  IssueCreateIssueCommentAttachment400,
-  IssueCreateIssueCommentAttachment404,
-  IssueCreateIssueCommentAttachment413,
-  IssueCreateIssueCommentAttachment422,
-  IssueCreateIssueCommentAttachment423,
+  IssueCreateIssueCommentAttachmentOptions,
+  IssueCreateIssueCommentAttachmentResponses,
 } from '../types/IssueCreateIssueCommentAttachment';
-import { buildFormData } from '../.kubb/config';
-
-function getIssueCreateIssueCommentAttachmentUrl(
-  owner: IssueCreateIssueCommentAttachmentPathParams['owner'],
-  repo: IssueCreateIssueCommentAttachmentPathParams['repo'],
-  id: IssueCreateIssueCommentAttachmentPathParams['id'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/assets` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a comment attachment
  * {@link /repos/:owner/:repo/issues/comments/:id/assets}
  */
-export async function issueCreateIssueCommentAttachment(
-  owner: IssueCreateIssueCommentAttachmentPathParams['owner'],
-  repo: IssueCreateIssueCommentAttachmentPathParams['repo'],
-  id: IssueCreateIssueCommentAttachmentPathParams['id'],
-  data: IssueCreateIssueCommentAttachmentMutationRequest,
-  params?: IssueCreateIssueCommentAttachmentQueryParams,
-  config: Partial<RequestConfig<IssueCreateIssueCommentAttachmentMutationRequest>> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueCreateIssueCommentAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueCreateIssueCommentAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueCreateIssueCommentAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, contentType, ...config } = options;
 
-  const requestData = data;
-  const formData = buildFormData(requestData);
-  const res = await request<
-    IssueCreateIssueCommentAttachmentMutationResponse,
-    ResponseErrorConfig<
-      | IssueCreateIssueCommentAttachment400
-      | IssueCreateIssueCommentAttachment404
-      | IssueCreateIssueCommentAttachment413
-      | IssueCreateIssueCommentAttachment422
-      | IssueCreateIssueCommentAttachment423
-    >,
-    IssueCreateIssueCommentAttachmentMutationRequest
-  >({
-    method: 'POST',
-    url: getIssueCreateIssueCommentAttachmentUrl(owner, repo, id).url.toString(),
-    params,
-    data: formData as FormData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/assets',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      contentType: {
+        request: 'multipart/form-data',
+        ...(typeof contentType === 'string' ? { request: contentType } : contentType),
+      },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueCreateIssueCommentAttachmentResponses, ThrowOnError>>;
 }

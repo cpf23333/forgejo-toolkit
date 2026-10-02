@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type UserGetPathParams = {
+export type UserGetPath = {
   /**
    * @description username of user to get
    * @type string
@@ -15,19 +15,54 @@ export type UserGetPathParams = {
 };
 
 /**
- * @description User
+ * @description User represents a user
+ * @type object
  */
-export type UserGet200 = User;
+export type UserGetStatus200Json = User;
 
 /**
- * @description APINotFound is a not found error response
+ * @description User represents a user
+ * @type object
  */
-export type UserGet404 = APINotFound;
+export type UserGetStatus200Html = User;
 
-export type UserGetQueryResponse = UserGet200;
+export type UserGetStatus200 = UserGetStatus200Json | UserGetStatus200Html;
 
-export type UserGetQuery = {
-  Response: UserGet200;
-  PathParams: UserGetPathParams;
-  Errors: UserGet404;
+export type UserGetStatus404Json = APINotFound;
+
+export type UserGetStatus404Html = APINotFound;
+
+export type UserGetStatus404 = UserGetStatus404Json | UserGetStatus404Html;
+
+export type UserGetOptions = {
+  body?: never;
+  path: UserGetPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserGetStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetResponse = UserGetStatus200 | UserGetStatus404;

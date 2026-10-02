@@ -8,38 +8,99 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { GPGKey } from './GPGKey';
 
-export type UserCurrentGetGPGKeyPathParams = {
+export type UserCurrentGetGPGKeyPath = {
   /**
    * @description id of key to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description GPGKey
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserCurrentGetGPGKey200 = GPGKey;
+export type UserCurrentGetGPGKeyStatus200Json = GPGKey;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description GPGKey a user GPG key to sign commit and tag in repository
+ * @type object
  */
-export type UserCurrentGetGPGKey401 = APIUnauthorizedError;
+export type UserCurrentGetGPGKeyStatus200Html = GPGKey;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentGetGPGKey403 = APIForbiddenError;
+export type UserCurrentGetGPGKeyStatus200 = UserCurrentGetGPGKeyStatus200Json | UserCurrentGetGPGKeyStatus200Html;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentGetGPGKey404 = APINotFound;
+export type UserCurrentGetGPGKeyStatus401Json = APIUnauthorizedError;
 
-export type UserCurrentGetGPGKeyQueryResponse = UserCurrentGetGPGKey200;
+export type UserCurrentGetGPGKeyStatus401Html = APIUnauthorizedError;
 
-export type UserCurrentGetGPGKeyQuery = {
-  Response: UserCurrentGetGPGKey200;
-  PathParams: UserCurrentGetGPGKeyPathParams;
-  Errors: UserCurrentGetGPGKey401 | UserCurrentGetGPGKey403 | UserCurrentGetGPGKey404;
+export type UserCurrentGetGPGKeyStatus401 = UserCurrentGetGPGKeyStatus401Json | UserCurrentGetGPGKeyStatus401Html;
+
+export type UserCurrentGetGPGKeyStatus403Json = APIForbiddenError;
+
+export type UserCurrentGetGPGKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentGetGPGKeyStatus403 = UserCurrentGetGPGKeyStatus403Json | UserCurrentGetGPGKeyStatus403Html;
+
+export type UserCurrentGetGPGKeyStatus404Json = APINotFound;
+
+export type UserCurrentGetGPGKeyStatus404Html = APINotFound;
+
+export type UserCurrentGetGPGKeyStatus404 = UserCurrentGetGPGKeyStatus404Json | UserCurrentGetGPGKeyStatus404Html;
+
+export type UserCurrentGetGPGKeyOptions = {
+  body?: never;
+  path: UserCurrentGetGPGKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentGetGPGKeyResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetGPGKeyStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetGPGKeyStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetGPGKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetGPGKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetGPGKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetGPGKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentGetGPGKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentGetGPGKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentGetGPGKeyResponse =
+  | UserCurrentGetGPGKeyStatus200
+  | UserCurrentGetGPGKeyStatus401
+  | UserCurrentGetGPGKeyStatus403
+  | UserCurrentGetGPGKeyStatus404;

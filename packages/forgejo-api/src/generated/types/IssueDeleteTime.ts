@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type IssueDeleteTimePathParams = {
+export type IssueDeleteTimePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,40 +20,91 @@ export type IssueDeleteTimePathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of time to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type IssueDeleteTime204 = any;
+export type IssueDeleteTimeStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteTime400 = APIError;
+export type IssueDeleteTimeStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueDeleteTime403 = APIForbiddenError;
+export type IssueDeleteTimeStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueDeleteTime404 = APINotFound;
+export type IssueDeleteTimeStatus400 = IssueDeleteTimeStatus400Json | IssueDeleteTimeStatus400Html;
 
-export type IssueDeleteTimeMutationResponse = IssueDeleteTime204;
+export type IssueDeleteTimeStatus403Json = APIForbiddenError;
 
-export type IssueDeleteTimeMutation = {
-  Response: IssueDeleteTime204;
-  PathParams: IssueDeleteTimePathParams;
-  Errors: IssueDeleteTime400 | IssueDeleteTime403 | IssueDeleteTime404;
+export type IssueDeleteTimeStatus403Html = APIForbiddenError;
+
+export type IssueDeleteTimeStatus403 = IssueDeleteTimeStatus403Json | IssueDeleteTimeStatus403Html;
+
+export type IssueDeleteTimeStatus404Json = APINotFound;
+
+export type IssueDeleteTimeStatus404Html = APINotFound;
+
+export type IssueDeleteTimeStatus404 = IssueDeleteTimeStatus404Json | IssueDeleteTimeStatus404Html;
+
+export type IssueDeleteTimeOptions = {
+  body?: never;
+  path: IssueDeleteTimePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueDeleteTimeResponses = {
+  '204': IssueDeleteTimeStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteTimeStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteTimeStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteTimeStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteTimeStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueDeleteTimeStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueDeleteTimeStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueDeleteTimeResponse =
+  | IssueDeleteTimeStatus204
+  | IssueDeleteTimeStatus400
+  | IssueDeleteTimeStatus403
+  | IssueDeleteTimeStatus404;

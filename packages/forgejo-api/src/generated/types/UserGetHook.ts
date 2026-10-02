@@ -7,33 +7,80 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Hook } from './Hook';
 
-export type UserGetHookPathParams = {
+export type UserGetHookPath = {
   /**
    * @description id of the hook to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Hook
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserGetHook200 = Hook;
+export type UserGetHookStatus200Json = Hook;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description Hook a hook is a web hook when one repository changed
+ * @type object
  */
-export type UserGetHook401 = APIUnauthorizedError;
+export type UserGetHookStatus200Html = Hook;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserGetHook403 = APIForbiddenError;
+export type UserGetHookStatus200 = UserGetHookStatus200Json | UserGetHookStatus200Html;
 
-export type UserGetHookQueryResponse = UserGetHook200;
+export type UserGetHookStatus401Json = APIUnauthorizedError;
 
-export type UserGetHookQuery = {
-  Response: UserGetHook200;
-  PathParams: UserGetHookPathParams;
-  Errors: UserGetHook401 | UserGetHook403;
+export type UserGetHookStatus401Html = APIUnauthorizedError;
+
+export type UserGetHookStatus401 = UserGetHookStatus401Json | UserGetHookStatus401Html;
+
+export type UserGetHookStatus403Json = APIForbiddenError;
+
+export type UserGetHookStatus403Html = APIForbiddenError;
+
+export type UserGetHookStatus403 = UserGetHookStatus403Json | UserGetHookStatus403Html;
+
+export type UserGetHookOptions = {
+  body?: never;
+  path: UserGetHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserGetHookResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserGetHookStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetHookStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserGetHookStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetHookStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserGetHookStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserGetHookStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserGetHookResponse = UserGetHookStatus200 | UserGetHookStatus401 | UserGetHookStatus403;

@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { DeployKey } from './DeployKey';
 
-export type RepoListKeysPathParams = {
+export type RepoListKeysPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoListKeysPathParams = {
   repo: string;
 };
 
-export type RepoListKeysQueryParams = {
+export type RepoListKeysQuery = {
   /**
    * @description the key_id to search for
    * @type integer | undefined
@@ -42,21 +42,47 @@ export type RepoListKeysQueryParams = {
   limit?: number;
 };
 
-/**
- * @description DeployKeyList
- */
-export type RepoListKeys200 = DeployKey[];
+export type RepoListKeysStatus200Json = DeployKey[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListKeys404 = APINotFound;
+export type RepoListKeysStatus200Html = DeployKey[];
 
-export type RepoListKeysQueryResponse = RepoListKeys200;
+export type RepoListKeysStatus200 = RepoListKeysStatus200Json | RepoListKeysStatus200Html;
 
-export type RepoListKeysQuery = {
-  Response: RepoListKeys200;
-  PathParams: RepoListKeysPathParams;
-  QueryParams: RepoListKeysQueryParams;
-  Errors: RepoListKeys404;
+export type RepoListKeysStatus404Json = APINotFound;
+
+export type RepoListKeysStatus404Html = APINotFound;
+
+export type RepoListKeysStatus404 = RepoListKeysStatus404Json | RepoListKeysStatus404Html;
+
+export type RepoListKeysOptions = {
+  body?: never;
+  path: RepoListKeysPath;
+  query?: RepoListKeysQuery;
+  headers?: never;
 };
+
+export type RepoListKeysResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListKeysStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListKeysStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListKeysStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListKeysStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListKeysResponse = RepoListKeysStatus200 | RepoListKeysStatus404;

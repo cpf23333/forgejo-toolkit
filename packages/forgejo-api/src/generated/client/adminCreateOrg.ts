@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminCreateOrgMutationRequest,
-  AdminCreateOrgMutationResponse,
-  AdminCreateOrgPathParams,
-  AdminCreateOrg403,
-  AdminCreateOrg422,
-} from '../types/AdminCreateOrg';
-
-function getAdminCreateOrgUrl(username: AdminCreateOrgPathParams['username']) {
-  const res = { method: 'POST', url: `/admin/users/${username}/orgs` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminCreateOrgOptions, AdminCreateOrgResponses } from '../types/AdminCreateOrg';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create an organization
  * {@link /admin/users/:username/orgs}
  */
-export async function adminCreateOrg(
-  username: AdminCreateOrgPathParams['username'],
-  data: AdminCreateOrgMutationRequest,
-  config: Partial<RequestConfig<AdminCreateOrgMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminCreateOrg<ThrowOnError extends boolean = true>(
+  options: Options<AdminCreateOrgOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminCreateOrgResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    AdminCreateOrgMutationResponse,
-    ResponseErrorConfig<AdminCreateOrg403 | AdminCreateOrg422>,
-    AdminCreateOrgMutationRequest
-  >({
-    method: 'POST',
-    url: getAdminCreateOrgUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/users/{username}/orgs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminCreateOrgResponses, ThrowOnError>>;
 }

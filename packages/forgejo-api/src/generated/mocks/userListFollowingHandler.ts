@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListFollowingQueryResponse, UserListFollowing404 } from '../types/UserListFollowing';
+import type { UserListFollowingResponse, UserListFollowingStatus404 } from '../types/UserListFollowing';
 import { http } from 'msw';
 
-export function userListFollowingHandlerResponse200(data: UserListFollowingQueryResponse) {
+export function userListFollowingHandlerResponse200(data: UserListFollowingResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListFollowingHandlerResponse200(data: UserListFollowingQuery
   });
 }
 
-export function userListFollowingHandlerResponse404(data: UserListFollowing404) {
+export function userListFollowingHandlerResponse404(data: UserListFollowingStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListFollowingHandlerResponse404(data: UserListFollowing404) 
 
 export function userListFollowingHandler(
   data?:
-    | UserListFollowingQueryResponse
+    | UserListFollowingResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/following`, function handler(info) {

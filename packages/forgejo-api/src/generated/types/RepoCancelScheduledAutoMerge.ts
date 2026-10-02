@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
-export type RepoCancelScheduledAutoMergePathParams = {
+export type RepoCancelScheduledAutoMergePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,35 +20,82 @@ export type RepoCancelScheduledAutoMergePathParams = {
   repo: string;
   /**
    * @description index of the pull request to merge
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoCancelScheduledAutoMerge204 = any;
+export type RepoCancelScheduledAutoMergeStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoCancelScheduledAutoMerge403 = APIForbiddenError;
+export type RepoCancelScheduledAutoMergeStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoCancelScheduledAutoMerge404 = APINotFound;
+export type RepoCancelScheduledAutoMergeStatus403Html = APIForbiddenError;
 
-/**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
- */
-export type RepoCancelScheduledAutoMerge423 = APIRepoArchivedError;
+export type RepoCancelScheduledAutoMergeStatus403 =
+  | RepoCancelScheduledAutoMergeStatus403Json
+  | RepoCancelScheduledAutoMergeStatus403Html;
 
-export type RepoCancelScheduledAutoMergeMutationResponse = RepoCancelScheduledAutoMerge204;
+export type RepoCancelScheduledAutoMergeStatus404Json = APINotFound;
 
-export type RepoCancelScheduledAutoMergeMutation = {
-  Response: RepoCancelScheduledAutoMerge204;
-  PathParams: RepoCancelScheduledAutoMergePathParams;
-  Errors: RepoCancelScheduledAutoMerge403 | RepoCancelScheduledAutoMerge404 | RepoCancelScheduledAutoMerge423;
+export type RepoCancelScheduledAutoMergeStatus404Html = APINotFound;
+
+export type RepoCancelScheduledAutoMergeStatus404 =
+  | RepoCancelScheduledAutoMergeStatus404Json
+  | RepoCancelScheduledAutoMergeStatus404Html;
+
+export type RepoCancelScheduledAutoMergeStatus423Json = APIRepoArchivedError;
+
+export type RepoCancelScheduledAutoMergeStatus423Html = APIRepoArchivedError;
+
+export type RepoCancelScheduledAutoMergeStatus423 =
+  | RepoCancelScheduledAutoMergeStatus423Json
+  | RepoCancelScheduledAutoMergeStatus423Html;
+
+export type RepoCancelScheduledAutoMergeOptions = {
+  body?: never;
+  path: RepoCancelScheduledAutoMergePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCancelScheduledAutoMergeResponses = {
+  '204': RepoCancelScheduledAutoMergeStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCancelScheduledAutoMergeStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCancelScheduledAutoMergeStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCancelScheduledAutoMergeStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCancelScheduledAutoMergeStatus404Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCancelScheduledAutoMergeStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCancelScheduledAutoMergeStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCancelScheduledAutoMergeResponse =
+  | RepoCancelScheduledAutoMergeStatus204
+  | RepoCancelScheduledAutoMergeStatus403
+  | RepoCancelScheduledAutoMergeStatus404
+  | RepoCancelScheduledAutoMergeStatus423;

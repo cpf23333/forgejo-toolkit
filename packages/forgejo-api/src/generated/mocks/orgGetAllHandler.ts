@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgGetAllQueryResponse } from '../types/OrgGetAll';
+import type { OrgGetAllResponse } from '../types/OrgGetAll';
 import { http } from 'msw';
 
-export function orgGetAllHandlerResponse200(data: OrgGetAllQueryResponse) {
+export function orgGetAllHandlerResponse200(data: OrgGetAllResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -16,9 +16,7 @@ export function orgGetAllHandlerResponse200(data: OrgGetAllQueryResponse) {
 }
 
 export function orgGetAllHandler(
-  data?:
-    | OrgGetAllQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: OrgGetAllResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs`, function handler(info) {
     if (typeof data === 'function') return data(info);

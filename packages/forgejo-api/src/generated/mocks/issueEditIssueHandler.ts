@@ -4,14 +4,16 @@
  */
 
 import type {
-  IssueEditIssueMutationResponse,
-  IssueEditIssue403,
-  IssueEditIssue404,
-  IssueEditIssue412,
+  IssueEditIssueResponse,
+  IssueEditIssueStatus403,
+  IssueEditIssueStatus404,
+  IssueEditIssueStatus412,
+  IssueEditIssueBody,
 } from '../types/IssueEditIssue';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueEditIssueHandlerResponse201(data: IssueEditIssueMutationResponse) {
+export function issueEditIssueHandlerResponse201(data: IssueEditIssueResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function issueEditIssueHandlerResponse201(data: IssueEditIssueMutationRes
   });
 }
 
-export function issueEditIssueHandlerResponse403(data: IssueEditIssue403) {
+export function issueEditIssueHandlerResponse403(data: IssueEditIssueStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +31,7 @@ export function issueEditIssueHandlerResponse403(data: IssueEditIssue403) {
   });
 }
 
-export function issueEditIssueHandlerResponse404(data: IssueEditIssue404) {
+export function issueEditIssueHandlerResponse404(data: IssueEditIssueStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +40,7 @@ export function issueEditIssueHandlerResponse404(data: IssueEditIssue404) {
   });
 }
 
-export function issueEditIssueHandlerResponse412(data: IssueEditIssue412) {
+export function issueEditIssueHandlerResponse412(data: IssueEditIssueStatus412) {
   return new Response(JSON.stringify(data), {
     status: 412,
     headers: {
@@ -48,18 +50,19 @@ export function issueEditIssueHandlerResponse412(data: IssueEditIssue412) {
 }
 
 export function issueEditIssueHandler(
-  data?:
-    | IssueEditIssueMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueEditIssueResponse | HttpResponseResolver<Record<string, string>, IssueEditIssueBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/issues/:index`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, IssueEditIssueBody>(
+    `/repos/:owner/:repo/issues/:index`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

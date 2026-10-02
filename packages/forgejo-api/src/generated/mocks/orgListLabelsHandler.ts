@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { OrgListLabelsQueryResponse, OrgListLabels404 } from '../types/OrgListLabels';
+import type { OrgListLabelsResponse, OrgListLabelsStatus404 } from '../types/OrgListLabels';
 import { http } from 'msw';
 
-export function orgListLabelsHandlerResponse200(data: OrgListLabelsQueryResponse) {
+export function orgListLabelsHandlerResponse200(data: OrgListLabelsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function orgListLabelsHandlerResponse200(data: OrgListLabelsQueryResponse
   });
 }
 
-export function orgListLabelsHandlerResponse404(data: OrgListLabels404) {
+export function orgListLabelsHandlerResponse404(data: OrgListLabelsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function orgListLabelsHandlerResponse404(data: OrgListLabels404) {
 
 export function orgListLabelsHandler(
   data?:
-    | OrgListLabelsQueryResponse
+    | OrgListLabelsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/labels`, function handler(info) {

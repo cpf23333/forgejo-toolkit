@@ -4,12 +4,12 @@
  */
 
 import type {
-  IssueListIssueDependenciesQueryResponse,
-  IssueListIssueDependencies404,
+  IssueListIssueDependenciesResponse,
+  IssueListIssueDependenciesStatus404,
 } from '../types/IssueListIssueDependencies';
 import { http } from 'msw';
 
-export function issueListIssueDependenciesHandlerResponse200(data: IssueListIssueDependenciesQueryResponse) {
+export function issueListIssueDependenciesHandlerResponse200(data: IssueListIssueDependenciesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function issueListIssueDependenciesHandlerResponse200(data: IssueListIssu
   });
 }
 
-export function issueListIssueDependenciesHandlerResponse404(data: IssueListIssueDependencies404) {
+export function issueListIssueDependenciesHandlerResponse404(data: IssueListIssueDependenciesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function issueListIssueDependenciesHandlerResponse404(data: IssueListIssu
 
 export function issueListIssueDependenciesHandler(
   data?:
-    | IssueListIssueDependenciesQueryResponse
+    | IssueListIssueDependenciesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index/dependencies`, function handler(info) {

@@ -7,24 +7,62 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { Email } from './Email';
 
-/**
- * @description EmailList
- */
-export type UserListEmails200 = Email[];
+export type UserListEmailsStatus200Json = Email[];
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserListEmails401 = APIUnauthorizedError;
+export type UserListEmailsStatus200Html = Email[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListEmails403 = APIForbiddenError;
+export type UserListEmailsStatus200 = UserListEmailsStatus200Json | UserListEmailsStatus200Html;
 
-export type UserListEmailsQueryResponse = UserListEmails200;
+export type UserListEmailsStatus401Json = APIUnauthorizedError;
 
-export type UserListEmailsQuery = {
-  Response: UserListEmails200;
-  Errors: UserListEmails401 | UserListEmails403;
+export type UserListEmailsStatus401Html = APIUnauthorizedError;
+
+export type UserListEmailsStatus401 = UserListEmailsStatus401Json | UserListEmailsStatus401Html;
+
+export type UserListEmailsStatus403Json = APIForbiddenError;
+
+export type UserListEmailsStatus403Html = APIForbiddenError;
+
+export type UserListEmailsStatus403 = UserListEmailsStatus403Json | UserListEmailsStatus403Html;
+
+export type UserListEmailsOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserListEmailsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListEmailsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListEmailsStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListEmailsStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListEmailsStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListEmailsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListEmailsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListEmailsResponse = UserListEmailsStatus200 | UserListEmailsStatus401 | UserListEmailsStatus403;

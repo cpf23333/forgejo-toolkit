@@ -4,16 +4,18 @@
  */
 
 import type {
-  IssueCreateIssueMutationResponse,
-  IssueCreateIssue403,
-  IssueCreateIssue404,
-  IssueCreateIssue412,
-  IssueCreateIssue422,
-  IssueCreateIssue423,
+  IssueCreateIssueResponse,
+  IssueCreateIssueStatus403,
+  IssueCreateIssueStatus404,
+  IssueCreateIssueStatus412,
+  IssueCreateIssueStatus422,
+  IssueCreateIssueStatus423,
+  IssueCreateIssueBody,
 } from '../types/IssueCreateIssue';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateIssueHandlerResponse201(data: IssueCreateIssueMutationResponse) {
+export function issueCreateIssueHandlerResponse201(data: IssueCreateIssueResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -22,7 +24,7 @@ export function issueCreateIssueHandlerResponse201(data: IssueCreateIssueMutatio
   });
 }
 
-export function issueCreateIssueHandlerResponse403(data: IssueCreateIssue403) {
+export function issueCreateIssueHandlerResponse403(data: IssueCreateIssueStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -31,7 +33,7 @@ export function issueCreateIssueHandlerResponse403(data: IssueCreateIssue403) {
   });
 }
 
-export function issueCreateIssueHandlerResponse404(data: IssueCreateIssue404) {
+export function issueCreateIssueHandlerResponse404(data: IssueCreateIssueStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -40,7 +42,7 @@ export function issueCreateIssueHandlerResponse404(data: IssueCreateIssue404) {
   });
 }
 
-export function issueCreateIssueHandlerResponse412(data: IssueCreateIssue412) {
+export function issueCreateIssueHandlerResponse412(data: IssueCreateIssueStatus412) {
   return new Response(JSON.stringify(data), {
     status: 412,
     headers: {
@@ -49,7 +51,7 @@ export function issueCreateIssueHandlerResponse412(data: IssueCreateIssue412) {
   });
 }
 
-export function issueCreateIssueHandlerResponse422(data: IssueCreateIssue422) {
+export function issueCreateIssueHandlerResponse422(data: IssueCreateIssueStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -58,7 +60,7 @@ export function issueCreateIssueHandlerResponse422(data: IssueCreateIssue422) {
   });
 }
 
-export function issueCreateIssueHandlerResponse423(data: IssueCreateIssue423) {
+export function issueCreateIssueHandlerResponse423(data: IssueCreateIssueStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -68,11 +70,9 @@ export function issueCreateIssueHandlerResponse423(data: IssueCreateIssue423) {
 }
 
 export function issueCreateIssueHandler(
-  data?:
-    | IssueCreateIssueMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueCreateIssueResponse | HttpResponseResolver<Record<string, string>, IssueCreateIssueBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues`, function handler(info) {
+  return http.post<Record<string, string>, IssueCreateIssueBody>(`/repos/:owner/:repo/issues`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

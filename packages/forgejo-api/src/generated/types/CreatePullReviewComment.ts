@@ -5,25 +5,29 @@
 
 /**
  * @description CreatePullReviewComment represent a review comment for creation api
+ * @type object
  */
 export type CreatePullReviewComment = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
    * @description number of additional lines after the commented line (0 = single line comment)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   extra_lines_count?: number;
   /**
    * @description if comment to new file line or 0
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   new_position?: number;
   /**
    * @description if comment to old file line or 0
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   old_position?: number;
   /**

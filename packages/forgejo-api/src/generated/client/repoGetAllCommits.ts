@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetAllCommitsQueryResponse,
-  RepoGetAllCommitsPathParams,
-  RepoGetAllCommitsQueryParams,
-  RepoGetAllCommits404,
-  RepoGetAllCommits409,
-} from '../types/RepoGetAllCommits';
-
-function getRepoGetAllCommitsUrl(
-  owner: RepoGetAllCommitsPathParams['owner'],
-  repo: RepoGetAllCommitsPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/commits` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetAllCommitsOptions, RepoGetAllCommitsResponses } from '../types/RepoGetAllCommits';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a list of all commits from a repository
  * {@link /repos/:owner/:repo/commits}
  */
-export async function repoGetAllCommits(
-  owner: RepoGetAllCommitsPathParams['owner'],
-  repo: RepoGetAllCommitsPathParams['repo'],
-  params?: RepoGetAllCommitsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetAllCommits<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetAllCommitsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetAllCommitsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetAllCommitsQueryResponse,
-    ResponseErrorConfig<RepoGetAllCommits404 | RepoGetAllCommits409>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetAllCommitsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/commits',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetAllCommitsResponses, ThrowOnError>>;
 }

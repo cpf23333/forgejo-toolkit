@@ -4,20 +4,20 @@
  */
 
 import type {
-  DeleteActionRunMutationResponse,
-  DeleteActionRun400,
-  DeleteActionRun403,
-  DeleteActionRun404,
+  DeleteActionRunResponse,
+  DeleteActionRunStatus400,
+  DeleteActionRunStatus403,
+  DeleteActionRunStatus404,
 } from '../types/DeleteActionRun';
 import { http } from 'msw';
 
-export function deleteActionRunHandlerResponse204(data?: DeleteActionRunMutationResponse) {
+export function deleteActionRunHandlerResponse204(data?: DeleteActionRunResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteActionRunHandlerResponse400(data: DeleteActionRun400) {
+export function deleteActionRunHandlerResponse400(data: DeleteActionRunStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function deleteActionRunHandlerResponse400(data: DeleteActionRun400) {
   });
 }
 
-export function deleteActionRunHandlerResponse403(data: DeleteActionRun403) {
+export function deleteActionRunHandlerResponse403(data: DeleteActionRunStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function deleteActionRunHandlerResponse403(data: DeleteActionRun403) {
   });
 }
 
-export function deleteActionRunHandlerResponse404(data: DeleteActionRun404) {
+export function deleteActionRunHandlerResponse404(data: DeleteActionRunStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

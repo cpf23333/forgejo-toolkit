@@ -5,6 +5,7 @@
 
 /**
  * @description ActionVariable return value of the query API
+ * @type object
  */
 export type ActionVariable = {
   /**
@@ -19,12 +20,16 @@ export type ActionVariable = {
   name?: string;
   /**
    * @description the owner to which the variable belongs
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   owner_id?: number;
   /**
    * @description the repository to which the variable belongs
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   repo_id?: number;
 };

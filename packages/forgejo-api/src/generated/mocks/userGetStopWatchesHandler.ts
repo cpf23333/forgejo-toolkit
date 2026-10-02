@@ -4,13 +4,13 @@
  */
 
 import type {
-  UserGetStopWatchesQueryResponse,
-  UserGetStopWatches401,
-  UserGetStopWatches403,
+  UserGetStopWatchesResponse,
+  UserGetStopWatchesStatus401,
+  UserGetStopWatchesStatus403,
 } from '../types/UserGetStopWatches';
 import { http } from 'msw';
 
-export function userGetStopWatchesHandlerResponse200(data: UserGetStopWatchesQueryResponse) {
+export function userGetStopWatchesHandlerResponse200(data: UserGetStopWatchesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function userGetStopWatchesHandlerResponse200(data: UserGetStopWatchesQue
   });
 }
 
-export function userGetStopWatchesHandlerResponse401(data: UserGetStopWatches401) {
+export function userGetStopWatchesHandlerResponse401(data: UserGetStopWatchesStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -28,7 +28,7 @@ export function userGetStopWatchesHandlerResponse401(data: UserGetStopWatches401
   });
 }
 
-export function userGetStopWatchesHandlerResponse403(data: UserGetStopWatches403) {
+export function userGetStopWatchesHandlerResponse403(data: UserGetStopWatchesStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -39,7 +39,7 @@ export function userGetStopWatchesHandlerResponse403(data: UserGetStopWatches403
 
 export function userGetStopWatchesHandler(
   data?:
-    | UserGetStopWatchesQueryResponse
+    | UserGetStopWatchesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/stopwatches`, function handler(info) {

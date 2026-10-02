@@ -3,52 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UpdateOrgSecretMutationRequest,
-  UpdateOrgSecretMutationResponse,
-  UpdateOrgSecretPathParams,
-  UpdateOrgSecret400,
-  UpdateOrgSecret404,
-} from '../types/UpdateOrgSecret';
-
-function getUpdateOrgSecretUrl(
-  org: UpdateOrgSecretPathParams['org'],
-  secretname: UpdateOrgSecretPathParams['secretname'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/orgs/${org}/actions/secrets/${secretname}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UpdateOrgSecretOptions, UpdateOrgSecretResponses } from '../types/UpdateOrgSecret';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create or Update a secret value in an organization
  * {@link /orgs/:org/actions/secrets/:secretname}
  */
-export async function updateOrgSecret(
-  org: UpdateOrgSecretPathParams['org'],
-  secretname: UpdateOrgSecretPathParams['secretname'],
-  data: UpdateOrgSecretMutationRequest,
-  config: Partial<RequestConfig<UpdateOrgSecretMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function updateOrgSecret<ThrowOnError extends boolean = true>(
+  options: Options<UpdateOrgSecretOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UpdateOrgSecretResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UpdateOrgSecretMutationResponse,
-    ResponseErrorConfig<UpdateOrgSecret400 | UpdateOrgSecret404>,
-    UpdateOrgSecretMutationRequest
-  >({
-    method: 'PUT',
-    url: getUpdateOrgSecretUrl(org, secretname).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/orgs/{org}/actions/secrets/{secretname}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UpdateOrgSecretResponses, ThrowOnError>>;
 }

@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminRemoveRuleFromQuotaGroupPathParams = {
+export type AdminRemoveRuleFromQuotaGroupPath = {
   /**
    * @description quota group to remove a rule from
    * @type string
@@ -20,30 +20,83 @@ export type AdminRemoveRuleFromQuotaGroupPathParams = {
   quotarule: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminRemoveRuleFromQuotaGroup201 = any;
+export type AdminRemoveRuleFromQuotaGroupStatus201 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminRemoveRuleFromQuotaGroup400 = APIError;
+export type AdminRemoveRuleFromQuotaGroupStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminRemoveRuleFromQuotaGroup403 = APIForbiddenError;
+export type AdminRemoveRuleFromQuotaGroupStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminRemoveRuleFromQuotaGroup404 = APINotFound;
+export type AdminRemoveRuleFromQuotaGroupStatus400 =
+  | AdminRemoveRuleFromQuotaGroupStatus400Json
+  | AdminRemoveRuleFromQuotaGroupStatus400Html;
 
-export type AdminRemoveRuleFromQuotaGroupMutationResponse = AdminRemoveRuleFromQuotaGroup201;
+export type AdminRemoveRuleFromQuotaGroupStatus403Json = APIForbiddenError;
 
-export type AdminRemoveRuleFromQuotaGroupMutation = {
-  Response: AdminRemoveRuleFromQuotaGroup201;
-  PathParams: AdminRemoveRuleFromQuotaGroupPathParams;
-  Errors: AdminRemoveRuleFromQuotaGroup400 | AdminRemoveRuleFromQuotaGroup403 | AdminRemoveRuleFromQuotaGroup404;
+export type AdminRemoveRuleFromQuotaGroupStatus403Html = APIForbiddenError;
+
+export type AdminRemoveRuleFromQuotaGroupStatus403 =
+  | AdminRemoveRuleFromQuotaGroupStatus403Json
+  | AdminRemoveRuleFromQuotaGroupStatus403Html;
+
+export type AdminRemoveRuleFromQuotaGroupStatus404Json = APINotFound;
+
+export type AdminRemoveRuleFromQuotaGroupStatus404Html = APINotFound;
+
+export type AdminRemoveRuleFromQuotaGroupStatus404 =
+  | AdminRemoveRuleFromQuotaGroupStatus404Json
+  | AdminRemoveRuleFromQuotaGroupStatus404Html;
+
+export type AdminRemoveRuleFromQuotaGroupOptions = {
+  body?: never;
+  path: AdminRemoveRuleFromQuotaGroupPath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminRemoveRuleFromQuotaGroupResponses = {
+  '201': AdminRemoveRuleFromQuotaGroupStatus201;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveRuleFromQuotaGroupStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveRuleFromQuotaGroupStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveRuleFromQuotaGroupStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveRuleFromQuotaGroupStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminRemoveRuleFromQuotaGroupStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminRemoveRuleFromQuotaGroupStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminRemoveRuleFromQuotaGroupResponse =
+  | AdminRemoveRuleFromQuotaGroupStatus201
+  | AdminRemoveRuleFromQuotaGroupStatus400
+  | AdminRemoveRuleFromQuotaGroupStatus403
+  | AdminRemoveRuleFromQuotaGroupStatus404;

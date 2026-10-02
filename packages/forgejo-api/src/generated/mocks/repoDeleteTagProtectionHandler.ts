@@ -4,18 +4,18 @@
  */
 
 import type {
-  RepoDeleteTagProtectionMutationResponse,
-  RepoDeleteTagProtection404,
+  RepoDeleteTagProtectionResponse,
+  RepoDeleteTagProtectionStatus404,
 } from '../types/RepoDeleteTagProtection';
 import { http } from 'msw';
 
-export function repoDeleteTagProtectionHandlerResponse204(data?: RepoDeleteTagProtectionMutationResponse) {
+export function repoDeleteTagProtectionHandlerResponse204(data?: RepoDeleteTagProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteTagProtectionHandlerResponse404(data: RepoDeleteTagProtection404) {
+export function repoDeleteTagProtectionHandlerResponse404(data: RepoDeleteTagProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

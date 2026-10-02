@@ -20,79 +20,36 @@ export type RepositoryObjectFormatNameEnumKey =
 
 /**
  * @description Repository represents a repository
+ * @type object
  */
 export type Repository = {
-  /**
-   * @type boolean | undefined
-   */
   allow_fast_forward_only_merge?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_merge_commits?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_rebase?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_rebase_explicit?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_rebase_update?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_squash_merge?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   archived?: boolean;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   archived_at?: string;
-  /**
-   * @type string | undefined
-   */
   avatar_url?: string;
-  /**
-   * @type string | undefined
-   */
   clone_url?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type boolean | undefined
-   */
   default_allow_maintainer_edit?: boolean;
-  /**
-   * @type string | undefined
-   */
   default_branch?: string;
-  /**
-   * @type boolean | undefined
-   */
   default_delete_branch_after_merge?: boolean;
-  /**
-   * @type string | undefined
-   */
   default_merge_style?: string;
-  /**
-   * @type string | undefined
-   */
   default_update_style?: string;
-  /**
-   * @type string | undefined
-   */
   description?: string;
-  /**
-   * @type boolean | undefined
-   */
   empty?: boolean;
   /**
    * @description ExternalTracker represents settings for external tracker
@@ -104,45 +61,20 @@ export type Repository = {
    * @type object | undefined
    */
   external_wiki?: ExternalWiki;
-  /**
-   * @type boolean | undefined
-   */
   fork?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   forks_count?: number;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
-  /**
-   * @type boolean | undefined
-   */
   globally_editable_wiki?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_actions?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_issues?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_packages?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_projects?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_pull_requests?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   has_releases?: boolean;
   /**
    * @description is the wiki enabled
@@ -154,54 +86,31 @@ export type Repository = {
    * @type boolean | undefined
    */
   has_wiki_contents?: boolean;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type boolean | undefined
-   */
   ignore_whitespace_conflicts?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   internal?: boolean;
   /**
    * @description InternalTracker represents settings for internal tracker
    * @type object | undefined
    */
   internal_tracker?: InternalTracker;
-  /**
-   * @type string | undefined
-   */
   language?: string;
-  /**
-   * @type string | undefined
-   */
   languages_url?: string;
-  /**
-   * @type string | undefined
-   */
   link?: string;
-  /**
-   * @type boolean | undefined
-   */
   mirror?: boolean;
-  /**
-   * @type string | undefined
-   */
   mirror_interval?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  mirror_updated?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  mirror_updated?: string;
   name?: string;
   /**
    * @description ObjectFormatName of the underlying git repository
@@ -209,16 +118,17 @@ export type Repository = {
    */
   object_format_name?: RepositoryObjectFormatNameEnumKey;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   open_issues_count?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   open_pr_counter?: number;
-  /**
-   * @type string | undefined
-   */
   original_url?: string;
   /**
    * @description User represents a user
@@ -235,12 +145,11 @@ export type Repository = {
    * @type object | undefined
    */
   permissions?: Permission;
-  /**
-   * @type boolean | undefined
-   */
   private?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   release_counter?: number;
   /**
@@ -249,51 +158,35 @@ export type Repository = {
    */
   repo_transfer?: RepoTransfer;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   size?: number;
-  /**
-   * @type string | undefined
-   */
   ssh_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   stars_count?: number;
-  /**
-   * @type boolean | undefined
-   */
   template?: boolean;
-  /**
-   * @type array | undefined
-   */
   topics?: string[];
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   watchers_count?: number;
-  /**
-   * @type string | undefined
-   */
   website?: string;
-  /**
-   * @type string | undefined
-   */
   wiki_branch?: string;
-  /**
-   * @type string | undefined
-   */
   wiki_clone_url?: string;
-  /**
-   * @type string | undefined
-   */
   wiki_ssh_url?: string;
 };

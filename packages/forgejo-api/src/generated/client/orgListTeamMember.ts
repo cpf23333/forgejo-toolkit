@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListTeamMemberQueryResponse,
-  OrgListTeamMemberPathParams,
-  OrgListTeamMember404,
-} from '../types/OrgListTeamMember';
-
-function getOrgListTeamMemberUrl(
-  id: OrgListTeamMemberPathParams['id'],
-  username: OrgListTeamMemberPathParams['username'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/teams/${id}/members/${username}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListTeamMemberOptions, OrgListTeamMemberResponses } from '../types/OrgListTeamMember';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a particular member of team
  * {@link /teams/:id/members/:username}
  */
-export async function orgListTeamMember(
-  id: OrgListTeamMemberPathParams['id'],
-  username: OrgListTeamMemberPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListTeamMember<ThrowOnError extends boolean = true>(
+  options: Options<OrgListTeamMemberOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListTeamMemberResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListTeamMemberQueryResponse, ResponseErrorConfig<OrgListTeamMember404>, unknown>({
-    method: 'GET',
-    url: getOrgListTeamMemberUrl(id, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/teams/{id}/members/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListTeamMemberResponses, ThrowOnError>>;
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserSearchQueryResponse } from '../types/UserSearch';
+import type { UserSearchResponse } from '../types/UserSearch';
 import { http } from 'msw';
 
-export function userSearchHandlerResponse200(data: UserSearchQueryResponse) {
+export function userSearchHandlerResponse200(data: UserSearchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -16,9 +16,7 @@ export function userSearchHandlerResponse200(data: UserSearchQueryResponse) {
 }
 
 export function userSearchHandler(
-  data?:
-    | UserSearchQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: UserSearchResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/search`, function handler(info) {
     if (typeof data === 'function') return data(info);

@@ -3,29 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RepoGetByIDQueryResponse, RepoGetByIDPathParams, RepoGetByID404 } from '../types/RepoGetByID';
-
-function getRepoGetByIDUrl(id: RepoGetByIDPathParams['id']) {
-  const res = { method: 'GET', url: `/repositories/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetByIDOptions, RepoGetByIDResponses } from '../types/RepoGetByID';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a repository by id
  * {@link /repositories/:id}
  */
-export async function repoGetByID(
-  id: RepoGetByIDPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetByID<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetByIDOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetByIDResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoGetByIDQueryResponse, ResponseErrorConfig<RepoGetByID404>, unknown>({
-    method: 'GET',
-    url: getRepoGetByIDUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repositories/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetByIDResponses, ThrowOnError>>;
 }

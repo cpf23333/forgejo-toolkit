@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { WatchInfo } from './WatchInfo';
 
-export type IssueCheckSubscriptionPathParams = {
+export type IssueCheckSubscriptionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type IssueCheckSubscriptionPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
 /**
- * @description WatchInfo
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type IssueCheckSubscription200 = WatchInfo;
+export type IssueCheckSubscriptionStatus200Json = WatchInfo;
 
 /**
- * @description APINotFound is a not found error response
+ * @description WatchInfo represents an API watch status of one repository
+ * @type object
  */
-export type IssueCheckSubscription404 = APINotFound;
+export type IssueCheckSubscriptionStatus200Html = WatchInfo;
 
-export type IssueCheckSubscriptionQueryResponse = IssueCheckSubscription200;
+export type IssueCheckSubscriptionStatus200 = IssueCheckSubscriptionStatus200Json | IssueCheckSubscriptionStatus200Html;
 
-export type IssueCheckSubscriptionQuery = {
-  Response: IssueCheckSubscription200;
-  PathParams: IssueCheckSubscriptionPathParams;
-  Errors: IssueCheckSubscription404;
+export type IssueCheckSubscriptionStatus404Json = APINotFound;
+
+export type IssueCheckSubscriptionStatus404Html = APINotFound;
+
+export type IssueCheckSubscriptionStatus404 = IssueCheckSubscriptionStatus404Json | IssueCheckSubscriptionStatus404Html;
+
+export type IssueCheckSubscriptionOptions = {
+  body?: never;
+  path: IssueCheckSubscriptionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueCheckSubscriptionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueCheckSubscriptionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCheckSubscriptionStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCheckSubscriptionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCheckSubscriptionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCheckSubscriptionResponse = IssueCheckSubscriptionStatus200 | IssueCheckSubscriptionStatus404;

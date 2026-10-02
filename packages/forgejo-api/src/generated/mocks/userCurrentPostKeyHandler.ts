@@ -4,14 +4,16 @@
  */
 
 import type {
-  UserCurrentPostKeyMutationResponse,
-  UserCurrentPostKey401,
-  UserCurrentPostKey403,
-  UserCurrentPostKey422,
+  UserCurrentPostKeyResponse,
+  UserCurrentPostKeyStatus401,
+  UserCurrentPostKeyStatus403,
+  UserCurrentPostKeyStatus422,
+  UserCurrentPostKeyBody,
 } from '../types/UserCurrentPostKey';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userCurrentPostKeyHandlerResponse201(data: UserCurrentPostKeyMutationResponse) {
+export function userCurrentPostKeyHandlerResponse201(data: UserCurrentPostKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function userCurrentPostKeyHandlerResponse201(data: UserCurrentPostKeyMut
   });
 }
 
-export function userCurrentPostKeyHandlerResponse401(data: UserCurrentPostKey401) {
+export function userCurrentPostKeyHandlerResponse401(data: UserCurrentPostKeyStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +31,7 @@ export function userCurrentPostKeyHandlerResponse401(data: UserCurrentPostKey401
   });
 }
 
-export function userCurrentPostKeyHandlerResponse403(data: UserCurrentPostKey403) {
+export function userCurrentPostKeyHandlerResponse403(data: UserCurrentPostKeyStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function userCurrentPostKeyHandlerResponse403(data: UserCurrentPostKey403
   });
 }
 
-export function userCurrentPostKeyHandlerResponse422(data: UserCurrentPostKey422) {
+export function userCurrentPostKeyHandlerResponse422(data: UserCurrentPostKeyStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -48,11 +50,9 @@ export function userCurrentPostKeyHandlerResponse422(data: UserCurrentPostKey422
 }
 
 export function userCurrentPostKeyHandler(
-  data?:
-    | UserCurrentPostKeyMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: UserCurrentPostKeyResponse | HttpResponseResolver<Record<string, string>, UserCurrentPostKeyBody>,
 ) {
-  return http.post(`/user/keys`, function handler(info) {
+  return http.post<Record<string, string>, UserCurrentPostKeyBody>(`/user/keys`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

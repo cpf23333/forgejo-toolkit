@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubPersonFeedQueryResponse, ActivitypubPersonFeed403 } from '../types/ActivitypubPersonFeed';
+import type { ActivitypubPersonFeedResponse, ActivitypubPersonFeedStatus403 } from '../types/ActivitypubPersonFeed';
 import { http } from 'msw';
 
-export function activitypubPersonFeedHandlerResponse200(data: ActivitypubPersonFeedQueryResponse) {
+export function activitypubPersonFeedHandlerResponse200(data: ActivitypubPersonFeedResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function activitypubPersonFeedHandlerResponse200(data: ActivitypubPersonF
   });
 }
 
-export function activitypubPersonFeedHandlerResponse403(data: ActivitypubPersonFeed403) {
+export function activitypubPersonFeedHandlerResponse403(data: ActivitypubPersonFeedStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,10 +26,10 @@ export function activitypubPersonFeedHandlerResponse403(data: ActivitypubPersonF
 
 export function activitypubPersonFeedHandler(
   data?:
-    | ActivitypubPersonFeedQueryResponse
+    | ActivitypubPersonFeedResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(`/activitypub/user-id/:user-id/outbox`, function handler(info) {
+  return http.get(`/activitypub/user-id/:userId/outbox`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

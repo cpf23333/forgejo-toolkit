@@ -7,12 +7,44 @@ import type { RegistrationToken } from './RegistrationToken';
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
  */
-export type AdminGetRegistrationToken200 = RegistrationToken;
+export type AdminGetRegistrationTokenStatus200Json = RegistrationToken;
 
-export type AdminGetRegistrationTokenQueryResponse = AdminGetRegistrationToken200;
+/**
+ * @description RegistrationToken is a string used to register a runner with a server
+ * @type object
+ */
+export type AdminGetRegistrationTokenStatus200Html = RegistrationToken;
 
-export type AdminGetRegistrationTokenQuery = {
-  Response: AdminGetRegistrationToken200;
-  Errors: any;
+export type AdminGetRegistrationTokenStatus200 =
+  | AdminGetRegistrationTokenStatus200Json
+  | AdminGetRegistrationTokenStatus200Html;
+
+/**
+ * @deprecated
+ * @type object
+ */
+export type AdminGetRegistrationTokenOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminGetRegistrationTokenResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminGetRegistrationTokenStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminGetRegistrationTokenStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminGetRegistrationTokenResponse = AdminGetRegistrationTokenStatus200;

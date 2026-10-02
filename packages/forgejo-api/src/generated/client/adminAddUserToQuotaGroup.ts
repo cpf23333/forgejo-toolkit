@@ -3,54 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  AdminAddUserToQuotaGroupMutationResponse,
-  AdminAddUserToQuotaGroupPathParams,
-  AdminAddUserToQuotaGroup400,
-  AdminAddUserToQuotaGroup403,
-  AdminAddUserToQuotaGroup404,
-  AdminAddUserToQuotaGroup409,
-  AdminAddUserToQuotaGroup422,
+  AdminAddUserToQuotaGroupOptions,
+  AdminAddUserToQuotaGroupResponses,
 } from '../types/AdminAddUserToQuotaGroup';
-
-function getAdminAddUserToQuotaGroupUrl(
-  quotagroup: AdminAddUserToQuotaGroupPathParams['quotagroup'],
-  username: AdminAddUserToQuotaGroupPathParams['username'],
-) {
-  const res = {
-    method: 'PUT',
-    url: `/admin/quota/groups/${quotagroup}/users/${username}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a user to a quota group
  * {@link /admin/quota/groups/:quotagroup/users/:username}
  */
-export async function adminAddUserToQuotaGroup(
-  quotagroup: AdminAddUserToQuotaGroupPathParams['quotagroup'],
-  username: AdminAddUserToQuotaGroupPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminAddUserToQuotaGroup<ThrowOnError extends boolean = true>(
+  options: Options<AdminAddUserToQuotaGroupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminAddUserToQuotaGroupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminAddUserToQuotaGroupMutationResponse,
-    ResponseErrorConfig<
-      | AdminAddUserToQuotaGroup400
-      | AdminAddUserToQuotaGroup403
-      | AdminAddUserToQuotaGroup404
-      | AdminAddUserToQuotaGroup409
-      | AdminAddUserToQuotaGroup422
-    >,
-    unknown
-  >({
-    method: 'PUT',
-    url: getAdminAddUserToQuotaGroupUrl(quotagroup, username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/admin/quota/groups/{quotagroup}/users/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminAddUserToQuotaGroupResponses, ThrowOnError>>;
 }

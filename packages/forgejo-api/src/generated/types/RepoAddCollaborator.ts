@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { AddCollaboratorOption } from './AddCollaboratorOption';
 
-export type RepoAddCollaboratorPathParams = {
+export type RepoAddCollaboratorPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -26,33 +26,83 @@ export type RepoAddCollaboratorPathParams = {
   collaborator: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoAddCollaborator204 = any;
+export type RepoAddCollaboratorStatus204 = unknown;
+
+export type RepoAddCollaboratorStatus403Json = APIForbiddenError;
+
+export type RepoAddCollaboratorStatus403Html = APIForbiddenError;
+
+export type RepoAddCollaboratorStatus403 = RepoAddCollaboratorStatus403Json | RepoAddCollaboratorStatus403Html;
+
+export type RepoAddCollaboratorStatus404Json = APINotFound;
+
+export type RepoAddCollaboratorStatus404Html = APINotFound;
+
+export type RepoAddCollaboratorStatus404 = RepoAddCollaboratorStatus404Json | RepoAddCollaboratorStatus404Html;
+
+export type RepoAddCollaboratorStatus422Json = APIValidationError;
+
+export type RepoAddCollaboratorStatus422Html = APIValidationError;
+
+export type RepoAddCollaboratorStatus422 = RepoAddCollaboratorStatus422Json | RepoAddCollaboratorStatus422Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description AddCollaboratorOption options when adding a user as a collaborator of a repository
+ * @type object | undefined
  */
-export type RepoAddCollaborator403 = APIForbiddenError;
+export type RepoAddCollaboratorBodyJson = AddCollaboratorOption | undefined;
 
 /**
- * @description APINotFound is a not found error response
+ * @description AddCollaboratorOption options when adding a user as a collaborator of a repository
+ * @type object | undefined
  */
-export type RepoAddCollaborator404 = APINotFound;
+export type RepoAddCollaboratorBodyPlain = AddCollaboratorOption | undefined;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoAddCollaborator422 = APIValidationError;
+export type RepoAddCollaboratorBody = RepoAddCollaboratorBodyJson | RepoAddCollaboratorBodyPlain;
 
-export type RepoAddCollaboratorMutationRequest = AddCollaboratorOption;
-
-export type RepoAddCollaboratorMutationResponse = RepoAddCollaborator204;
-
-export type RepoAddCollaboratorMutation = {
-  Response: RepoAddCollaborator204;
-  Request: RepoAddCollaboratorMutationRequest;
-  PathParams: RepoAddCollaboratorPathParams;
-  Errors: RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422;
+export type RepoAddCollaboratorOptions = {
+  body: RepoAddCollaboratorBody;
+  path: RepoAddCollaboratorPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoAddCollaboratorResponses = {
+  '204': RepoAddCollaboratorStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoAddCollaboratorStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddCollaboratorStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoAddCollaboratorStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddCollaboratorStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoAddCollaboratorStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddCollaboratorStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoAddCollaboratorResponse =
+  | RepoAddCollaboratorStatus204
+  | RepoAddCollaboratorStatus403
+  | RepoAddCollaboratorStatus404
+  | RepoAddCollaboratorStatus422;

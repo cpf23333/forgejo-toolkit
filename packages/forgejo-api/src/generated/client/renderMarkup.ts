@@ -3,38 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { RenderMarkupMutationRequest, RenderMarkupMutationResponse, RenderMarkup422 } from '../types/RenderMarkup';
-
-function getRenderMarkupUrl() {
-  const res = { method: 'POST', url: `/markup` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RenderMarkupOptions, RenderMarkupResponses } from '../types/RenderMarkup';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Render a markup document as HTML
  * {@link /markup}
  */
-export async function renderMarkup(
-  data?: RenderMarkupMutationRequest,
-  config: Partial<RequestConfig<RenderMarkupMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function renderMarkup<ThrowOnError extends boolean = true>(
+  options: Options<RenderMarkupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RenderMarkupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RenderMarkupMutationResponse,
-    ResponseErrorConfig<RenderMarkup422>,
-    RenderMarkupMutationRequest
-  >({
-    method: 'POST',
-    url: getRenderMarkupUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/markup',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RenderMarkupResponses, ThrowOnError>>;
 }

@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type UnpinIssuePathParams = {
+export type UnpinIssuePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,57 @@ export type UnpinIssuePathParams = {
   repo: string;
   /**
    * @description index of issue to unpin
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UnpinIssue204 = any;
+export type UnpinIssueStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UnpinIssue403 = APIForbiddenError;
+export type UnpinIssueStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UnpinIssue404 = APINotFound;
+export type UnpinIssueStatus403Html = APIForbiddenError;
 
-export type UnpinIssueMutationResponse = UnpinIssue204;
+export type UnpinIssueStatus403 = UnpinIssueStatus403Json | UnpinIssueStatus403Html;
 
-export type UnpinIssueMutation = {
-  Response: UnpinIssue204;
-  PathParams: UnpinIssuePathParams;
-  Errors: UnpinIssue403 | UnpinIssue404;
+export type UnpinIssueStatus404Json = APINotFound;
+
+export type UnpinIssueStatus404Html = APINotFound;
+
+export type UnpinIssueStatus404 = UnpinIssueStatus404Json | UnpinIssueStatus404Html;
+
+export type UnpinIssueOptions = {
+  body?: never;
+  path: UnpinIssuePath;
+  query?: never;
+  headers?: never;
 };
+
+export type UnpinIssueResponses = {
+  '204': UnpinIssueStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UnpinIssueStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UnpinIssueStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UnpinIssueStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UnpinIssueStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UnpinIssueResponse = UnpinIssueStatus204 | UnpinIssueStatus403 | UnpinIssueStatus404;

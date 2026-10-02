@@ -5,14 +5,9 @@
 
 /**
  * @description NodeInfoServices contains the third party sites this server can connect to via their application API
+ * @type object
  */
 export type NodeInfoServices = {
-  /**
-   * @type array | undefined
-   */
   inbound?: string[];
-  /**
-   * @type array | undefined
-   */
   outbound?: string[];
 };

@@ -4,12 +4,6 @@
  */
 
 export type IssueConfigValidation = {
-  /**
-   * @type string | undefined
-   */
   message?: string;
-  /**
-   * @type boolean | undefined
-   */
   valid?: boolean;
 };

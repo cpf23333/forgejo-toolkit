@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { NotifyNewAvailableQueryResponse } from '../types/NotifyNewAvailable';
+import type { NotifyNewAvailableResponse } from '../types/NotifyNewAvailable';
 import { http } from 'msw';
 
-export function notifyNewAvailableHandlerResponse200(data: NotifyNewAvailableQueryResponse) {
+export function notifyNewAvailableHandlerResponse200(data: NotifyNewAvailableResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function notifyNewAvailableHandlerResponse200(data: NotifyNewAvailableQue
 
 export function notifyNewAvailableHandler(
   data?:
-    | NotifyNewAvailableQueryResponse
+    | NotifyNewAvailableResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/notifications/new`, function handler(info) {

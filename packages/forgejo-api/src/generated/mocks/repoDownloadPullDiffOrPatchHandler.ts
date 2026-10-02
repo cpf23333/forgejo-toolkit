@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoDownloadPullDiffOrPatchQueryResponse,
-  RepoDownloadPullDiffOrPatch404,
+  RepoDownloadPullDiffOrPatchResponse,
+  RepoDownloadPullDiffOrPatchStatus404,
 } from '../types/RepoDownloadPullDiffOrPatch';
 import { http } from 'msw';
 
-export function repoDownloadPullDiffOrPatchHandlerResponse200(data: RepoDownloadPullDiffOrPatchQueryResponse) {
+export function repoDownloadPullDiffOrPatchHandlerResponse200(data: RepoDownloadPullDiffOrPatchResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoDownloadPullDiffOrPatchHandlerResponse200(data: RepoDownload
   });
 }
 
-export function repoDownloadPullDiffOrPatchHandlerResponse404(data: RepoDownloadPullDiffOrPatch404) {
+export function repoDownloadPullDiffOrPatchHandlerResponse404(data: RepoDownloadPullDiffOrPatchStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,10 +29,10 @@ export function repoDownloadPullDiffOrPatchHandlerResponse404(data: RepoDownload
 
 export function repoDownloadPullDiffOrPatchHandler(
   data?:
-    | RepoDownloadPullDiffOrPatchQueryResponse
+    | RepoDownloadPullDiffOrPatchResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(`/repos/:owner/:repo/pulls/:index.\\\\:diffType`, function handler(info) {
+  return http.get(`/repos/:owner/:repo/pulls/:index.\\:diffType`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

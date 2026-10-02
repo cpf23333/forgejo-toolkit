@@ -8,14 +8,14 @@ import type { User } from './User';
 
 /**
  * @description CommitStatus holds a single status of a single Commit
+ * @type object
  */
 export type CommitStatus = {
-  /**
-   * @type string | undefined
-   */
   context?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**
@@ -23,12 +23,11 @@ export type CommitStatus = {
    * @type object | undefined
    */
   creator?: User;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
   /**
@@ -36,16 +35,12 @@ export type CommitStatus = {
    * @type string | undefined
    */
   status?: CommitStatusState;
-  /**
-   * @type string | undefined
-   */
   target_url?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
 };

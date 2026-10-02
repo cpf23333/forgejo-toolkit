@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoSyncForkDefaultPathParams = {
+export type RepoSyncForkDefaultPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,61 @@ export type RepoSyncForkDefaultPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoSyncForkDefault204 = any;
+export type RepoSyncForkDefaultStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoSyncForkDefault400 = APIError;
+export type RepoSyncForkDefaultStatus400Json = APIError;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoSyncForkDefault404 = APINotFound;
+export type RepoSyncForkDefaultStatus400Html = APIError;
 
-export type RepoSyncForkDefaultMutationResponse = RepoSyncForkDefault204;
+export type RepoSyncForkDefaultStatus400 = RepoSyncForkDefaultStatus400Json | RepoSyncForkDefaultStatus400Html;
 
-export type RepoSyncForkDefaultMutation = {
-  Response: RepoSyncForkDefault204;
-  PathParams: RepoSyncForkDefaultPathParams;
-  Errors: RepoSyncForkDefault400 | RepoSyncForkDefault404;
+export type RepoSyncForkDefaultStatus404Json = APINotFound;
+
+export type RepoSyncForkDefaultStatus404Html = APINotFound;
+
+export type RepoSyncForkDefaultStatus404 = RepoSyncForkDefaultStatus404Json | RepoSyncForkDefaultStatus404Html;
+
+export type RepoSyncForkDefaultOptions = {
+  body?: never;
+  path: RepoSyncForkDefaultPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoSyncForkDefaultResponses = {
+  '204': RepoSyncForkDefaultStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkDefaultStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkDefaultStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoSyncForkDefaultStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSyncForkDefaultStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSyncForkDefaultResponse =
+  | RepoSyncForkDefaultStatus204
+  | RepoSyncForkDefaultStatus400
+  | RepoSyncForkDefaultStatus404;

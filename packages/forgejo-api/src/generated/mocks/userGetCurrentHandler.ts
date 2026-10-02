@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetCurrentQueryResponse, UserGetCurrent401, UserGetCurrent403 } from '../types/UserGetCurrent';
+import type { UserGetCurrentResponse, UserGetCurrentStatus401, UserGetCurrentStatus403 } from '../types/UserGetCurrent';
 import { http } from 'msw';
 
-export function userGetCurrentHandlerResponse200(data: UserGetCurrentQueryResponse) {
+export function userGetCurrentHandlerResponse200(data: UserGetCurrentResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetCurrentHandlerResponse200(data: UserGetCurrentQueryRespon
   });
 }
 
-export function userGetCurrentHandlerResponse401(data: UserGetCurrent401) {
+export function userGetCurrentHandlerResponse401(data: UserGetCurrentStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +24,7 @@ export function userGetCurrentHandlerResponse401(data: UserGetCurrent401) {
   });
 }
 
-export function userGetCurrentHandlerResponse403(data: UserGetCurrent403) {
+export function userGetCurrentHandlerResponse403(data: UserGetCurrentStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userGetCurrentHandlerResponse403(data: UserGetCurrent403) {
 
 export function userGetCurrentHandler(
   data?:
-    | UserGetCurrentQueryResponse
+    | UserGetCurrentResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user`, function handler(info) {

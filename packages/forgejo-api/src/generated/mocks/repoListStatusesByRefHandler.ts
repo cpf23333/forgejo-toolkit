@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoListStatusesByRefQueryResponse,
-  RepoListStatusesByRef400,
-  RepoListStatusesByRef404,
+  RepoListStatusesByRefResponse,
+  RepoListStatusesByRefStatus400,
+  RepoListStatusesByRefStatus404,
 } from '../types/RepoListStatusesByRef';
 import { http } from 'msw';
 
-export function repoListStatusesByRefHandlerResponse200(data: RepoListStatusesByRefQueryResponse) {
+export function repoListStatusesByRefHandlerResponse200(data: RepoListStatusesByRefResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoListStatusesByRefHandlerResponse200(data: RepoListStatusesBy
   });
 }
 
-export function repoListStatusesByRefHandlerResponse400(data: RepoListStatusesByRef400) {
+export function repoListStatusesByRefHandlerResponse400(data: RepoListStatusesByRefStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function repoListStatusesByRefHandlerResponse400(data: RepoListStatusesBy
   });
 }
 
-export function repoListStatusesByRefHandlerResponse404(data: RepoListStatusesByRef404) {
+export function repoListStatusesByRefHandlerResponse404(data: RepoListStatusesByRefStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoListStatusesByRefHandlerResponse404(data: RepoListStatusesBy
 
 export function repoListStatusesByRefHandler(
   data?:
-    | RepoListStatusesByRefQueryResponse
+    | RepoListStatusesByRefResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/commits/:ref/statuses`, function handler(info) {

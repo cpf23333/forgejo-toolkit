@@ -5,6 +5,7 @@
 
 /**
  * @description ExternalWiki represents setting for external wiki
+ * @type object
  */
 export type ExternalWiki = {
   /**

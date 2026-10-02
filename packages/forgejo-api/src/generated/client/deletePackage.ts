@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { DeletePackageMutationResponse, DeletePackagePathParams, DeletePackage404 } from '../types/DeletePackage';
-
-function getDeletePackageUrl(
-  owner: DeletePackagePathParams['owner'],
-  type: DeletePackagePathParams['type'],
-  name: DeletePackagePathParams['name'],
-  version: DeletePackagePathParams['version'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/packages/${owner}/${type}/${name}/${version}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { DeletePackageOptions, DeletePackageResponses } from '../types/DeletePackage';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete a package
  * {@link /packages/:owner/:type/:name/:version}
  */
-export async function deletePackage(
-  owner: DeletePackagePathParams['owner'],
-  type: DeletePackagePathParams['type'],
-  name: DeletePackagePathParams['name'],
-  version: DeletePackagePathParams['version'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function deletePackage<ThrowOnError extends boolean = true>(
+  options: Options<DeletePackageOptions, ThrowOnError>,
+): Promise<UnwrappedResult<DeletePackageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<DeletePackageMutationResponse, ResponseErrorConfig<DeletePackage404>, unknown>({
-    method: 'DELETE',
-    url: getDeletePackageUrl(owner, type, name, version).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/packages/{owner}/{type}/{name}/{version}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<DeletePackageResponses, ThrowOnError>>;
 }

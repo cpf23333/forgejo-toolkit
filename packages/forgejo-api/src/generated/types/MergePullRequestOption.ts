@@ -17,38 +17,15 @@ export type MergePullRequestOptionDoEnumKey =
 
 /**
  * @description MergePullRequestForm form for merging Pull Request
+ * @type object
  */
 export type MergePullRequestOption = {
-  /**
-   * @type string
-   */
   Do: MergePullRequestOptionDoEnumKey;
-  /**
-   * @type string | undefined
-   */
   MergeCommitID?: string;
-  /**
-   * @type string | undefined
-   */
   MergeMessageField?: string;
-  /**
-   * @type string | undefined
-   */
   MergeTitleField?: string;
-  /**
-   * @type boolean | undefined
-   */
   delete_branch_after_merge?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   force_merge?: boolean;
-  /**
-   * @type string | undefined
-   */
   head_commit_id?: string;
-  /**
-   * @type boolean | undefined
-   */
   merge_when_checks_succeed?: boolean;
 };

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AdminGetAllOrgsQueryResponse, AdminGetAllOrgs403 } from '../types/AdminGetAllOrgs';
+import type { AdminGetAllOrgsResponse, AdminGetAllOrgsStatus403 } from '../types/AdminGetAllOrgs';
 import { http } from 'msw';
 
-export function adminGetAllOrgsHandlerResponse200(data: AdminGetAllOrgsQueryResponse) {
+export function adminGetAllOrgsHandlerResponse200(data: AdminGetAllOrgsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function adminGetAllOrgsHandlerResponse200(data: AdminGetAllOrgsQueryResp
   });
 }
 
-export function adminGetAllOrgsHandlerResponse403(data: AdminGetAllOrgs403) {
+export function adminGetAllOrgsHandlerResponse403(data: AdminGetAllOrgsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function adminGetAllOrgsHandlerResponse403(data: AdminGetAllOrgs403) {
 
 export function adminGetAllOrgsHandler(
   data?:
-    | AdminGetAllOrgsQueryResponse
+    | AdminGetAllOrgsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/orgs`, function handler(info) {

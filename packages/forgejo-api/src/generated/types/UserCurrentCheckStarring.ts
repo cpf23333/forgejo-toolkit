@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentCheckStarringPathParams = {
+export type UserCurrentCheckStarringPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,30 +20,75 @@ export type UserCurrentCheckStarringPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentCheckStarring204 = any;
+export type UserCurrentCheckStarringStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentCheckStarring401 = APIUnauthorizedError;
+export type UserCurrentCheckStarringStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentCheckStarring403 = APIForbiddenError;
+export type UserCurrentCheckStarringStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentCheckStarring404 = APINotFound;
+export type UserCurrentCheckStarringStatus401 =
+  | UserCurrentCheckStarringStatus401Json
+  | UserCurrentCheckStarringStatus401Html;
 
-export type UserCurrentCheckStarringQueryResponse = UserCurrentCheckStarring204;
+export type UserCurrentCheckStarringStatus403Json = APIForbiddenError;
 
-export type UserCurrentCheckStarringQuery = {
-  Response: UserCurrentCheckStarring204;
-  PathParams: UserCurrentCheckStarringPathParams;
-  Errors: UserCurrentCheckStarring401 | UserCurrentCheckStarring403 | UserCurrentCheckStarring404;
+export type UserCurrentCheckStarringStatus403Html = APIForbiddenError;
+
+export type UserCurrentCheckStarringStatus403 =
+  | UserCurrentCheckStarringStatus403Json
+  | UserCurrentCheckStarringStatus403Html;
+
+export type UserCurrentCheckStarringStatus404Json = APINotFound;
+
+export type UserCurrentCheckStarringStatus404Html = APINotFound;
+
+export type UserCurrentCheckStarringStatus404 =
+  | UserCurrentCheckStarringStatus404Json
+  | UserCurrentCheckStarringStatus404Html;
+
+export type UserCurrentCheckStarringOptions = {
+  body?: never;
+  path: UserCurrentCheckStarringPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentCheckStarringResponses = {
+  '204': UserCurrentCheckStarringStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckStarringStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckStarringStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckStarringStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckStarringStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentCheckStarringStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentCheckStarringStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentCheckStarringResponse =
+  | UserCurrentCheckStarringStatus204
+  | UserCurrentCheckStarringStatus401
+  | UserCurrentCheckStarringStatus403
+  | UserCurrentCheckStarringStatus404;

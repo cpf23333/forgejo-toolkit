@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoSearchRunJobsQueryResponse,
-  RepoSearchRunJobsPathParams,
-  RepoSearchRunJobsQueryParams,
-  RepoSearchRunJobs403,
-} from '../types/RepoSearchRunJobs';
-
-function getRepoSearchRunJobsUrl(
-  owner: RepoSearchRunJobsPathParams['owner'],
-  repo: RepoSearchRunJobsPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runners/jobs` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoSearchRunJobsOptions, RepoSearchRunJobsResponses } from '../types/RepoSearchRunJobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Search for repository's action jobs according filter conditions
  * {@link /repos/:owner/:repo/actions/runners/jobs}
  */
-export async function repoSearchRunJobs(
-  owner: RepoSearchRunJobsPathParams['owner'],
-  repo: RepoSearchRunJobsPathParams['repo'],
-  params?: RepoSearchRunJobsQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoSearchRunJobs<ThrowOnError extends boolean = true>(
+  options: Options<RepoSearchRunJobsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoSearchRunJobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoSearchRunJobsQueryResponse, ResponseErrorConfig<RepoSearchRunJobs403>, unknown>({
-    method: 'GET',
-    url: getRepoSearchRunJobsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runners/jobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoSearchRunJobsResponses, ThrowOnError>>;
 }

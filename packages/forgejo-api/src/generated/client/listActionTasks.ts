@@ -3,50 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ListActionTasksQueryResponse,
-  ListActionTasksPathParams,
-  ListActionTasksQueryParams,
-  ListActionTasks400,
-  ListActionTasks403,
-  ListActionTasks404,
-  ListActionTasks409,
-  ListActionTasks422,
-} from '../types/ListActionTasks';
-
-function getListActionTasksUrl(owner: ListActionTasksPathParams['owner'], repo: ListActionTasksPathParams['repo']) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/tasks` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ListActionTasksOptions, ListActionTasksResponses } from '../types/ListActionTasks';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repository's action tasks
  * {@link /repos/:owner/:repo/actions/tasks}
  */
-export async function listActionTasks(
-  owner: ListActionTasksPathParams['owner'],
-  repo: ListActionTasksPathParams['repo'],
-  params?: ListActionTasksQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function listActionTasks<ThrowOnError extends boolean = true>(
+  options: Options<ListActionTasksOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ListActionTasksResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    ListActionTasksQueryResponse,
-    ResponseErrorConfig<
-      ListActionTasks400 | ListActionTasks403 | ListActionTasks404 | ListActionTasks409 | ListActionTasks422
-    >,
-    unknown
-  >({
-    method: 'GET',
-    url: getListActionTasksUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/tasks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      styles: { query: { status: { style: 'form', explode: false } } },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ListActionTasksResponses, ThrowOnError>>;
 }

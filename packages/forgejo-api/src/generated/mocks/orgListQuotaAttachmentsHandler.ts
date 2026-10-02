@@ -4,13 +4,13 @@
  */
 
 import type {
-  OrgListQuotaAttachmentsQueryResponse,
-  OrgListQuotaAttachments403,
-  OrgListQuotaAttachments404,
+  OrgListQuotaAttachmentsResponse,
+  OrgListQuotaAttachmentsStatus403,
+  OrgListQuotaAttachmentsStatus404,
 } from '../types/OrgListQuotaAttachments';
 import { http } from 'msw';
 
-export function orgListQuotaAttachmentsHandlerResponse200(data: OrgListQuotaAttachmentsQueryResponse) {
+export function orgListQuotaAttachmentsHandlerResponse200(data: OrgListQuotaAttachmentsResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function orgListQuotaAttachmentsHandlerResponse200(data: OrgListQuotaAtta
   });
 }
 
-export function orgListQuotaAttachmentsHandlerResponse403(data: OrgListQuotaAttachments403) {
+export function orgListQuotaAttachmentsHandlerResponse403(data: OrgListQuotaAttachmentsStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function orgListQuotaAttachmentsHandlerResponse403(data: OrgListQuotaAtta
   });
 }
 
-export function orgListQuotaAttachmentsHandlerResponse404(data: OrgListQuotaAttachments404) {
+export function orgListQuotaAttachmentsHandlerResponse404(data: OrgListQuotaAttachmentsStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function orgListQuotaAttachmentsHandlerResponse404(data: OrgListQuotaAtta
 
 export function orgListQuotaAttachmentsHandler(
   data?:
-    | OrgListQuotaAttachmentsQueryResponse
+    | OrgListQuotaAttachmentsResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/quota/attachments`, function handler(info) {

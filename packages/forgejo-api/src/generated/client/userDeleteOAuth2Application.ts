@@ -3,44 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserDeleteOAuth2ApplicationMutationResponse,
-  UserDeleteOAuth2ApplicationPathParams,
-  UserDeleteOAuth2Application401,
-  UserDeleteOAuth2Application403,
-  UserDeleteOAuth2Application404,
+  UserDeleteOAuth2ApplicationOptions,
+  UserDeleteOAuth2ApplicationResponses,
 } from '../types/UserDeleteOAuth2Application';
-
-function getUserDeleteOAuth2ApplicationUrl(id: UserDeleteOAuth2ApplicationPathParams['id']) {
-  const res = {
-    method: 'DELETE',
-    url: `/user/applications/oauth2/${id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an OAuth2 application
  * {@link /user/applications/oauth2/:id}
  */
-export async function userDeleteOAuth2Application(
-  id: UserDeleteOAuth2ApplicationPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userDeleteOAuth2Application<ThrowOnError extends boolean = true>(
+  options: Options<UserDeleteOAuth2ApplicationOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserDeleteOAuth2ApplicationResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserDeleteOAuth2ApplicationMutationResponse,
-    ResponseErrorConfig<
-      UserDeleteOAuth2Application401 | UserDeleteOAuth2Application403 | UserDeleteOAuth2Application404
-    >,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserDeleteOAuth2ApplicationUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/applications/oauth2/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserDeleteOAuth2ApplicationResponses, ThrowOnError>>;
 }

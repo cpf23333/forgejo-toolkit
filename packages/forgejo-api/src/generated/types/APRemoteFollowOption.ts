@@ -4,8 +4,5 @@
  */
 
 export type APRemoteFollowOption = {
-  /**
-   * @type string | undefined
-   */
   target?: string;
 };

@@ -4,14 +4,16 @@
  */
 
 import type {
-  AdminCreateUserAccessTokenMutationResponse,
-  AdminCreateUserAccessToken400,
-  AdminCreateUserAccessToken403,
-  AdminCreateUserAccessToken404,
+  AdminCreateUserAccessTokenResponse,
+  AdminCreateUserAccessTokenStatus400,
+  AdminCreateUserAccessTokenStatus403,
+  AdminCreateUserAccessTokenStatus404,
+  AdminCreateUserAccessTokenBody,
 } from '../types/AdminCreateUserAccessToken';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function adminCreateUserAccessTokenHandlerResponse201(data: AdminCreateUserAccessTokenMutationResponse) {
+export function adminCreateUserAccessTokenHandlerResponse201(data: AdminCreateUserAccessTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -20,7 +22,7 @@ export function adminCreateUserAccessTokenHandlerResponse201(data: AdminCreateUs
   });
 }
 
-export function adminCreateUserAccessTokenHandlerResponse400(data: AdminCreateUserAccessToken400) {
+export function adminCreateUserAccessTokenHandlerResponse400(data: AdminCreateUserAccessTokenStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +31,7 @@ export function adminCreateUserAccessTokenHandlerResponse400(data: AdminCreateUs
   });
 }
 
-export function adminCreateUserAccessTokenHandlerResponse403(data: AdminCreateUserAccessToken403) {
+export function adminCreateUserAccessTokenHandlerResponse403(data: AdminCreateUserAccessTokenStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +40,7 @@ export function adminCreateUserAccessTokenHandlerResponse403(data: AdminCreateUs
   });
 }
 
-export function adminCreateUserAccessTokenHandlerResponse404(data: AdminCreateUserAccessToken404) {
+export function adminCreateUserAccessTokenHandlerResponse404(data: AdminCreateUserAccessTokenStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,17 +51,20 @@ export function adminCreateUserAccessTokenHandlerResponse404(data: AdminCreateUs
 
 export function adminCreateUserAccessTokenHandler(
   data?:
-    | AdminCreateUserAccessTokenMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | AdminCreateUserAccessTokenResponse
+    | HttpResponseResolver<Record<string, string>, AdminCreateUserAccessTokenBody>,
 ) {
-  return http.post(`/admin/users/:username/tokens`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, AdminCreateUserAccessTokenBody>(
+    `/admin/users/:username/tokens`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

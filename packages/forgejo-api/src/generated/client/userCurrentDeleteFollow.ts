@@ -3,39 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  UserCurrentDeleteFollowMutationResponse,
-  UserCurrentDeleteFollowPathParams,
-  UserCurrentDeleteFollow401,
-  UserCurrentDeleteFollow403,
-  UserCurrentDeleteFollow404,
+  UserCurrentDeleteFollowOptions,
+  UserCurrentDeleteFollowResponses,
 } from '../types/UserCurrentDeleteFollow';
-
-function getUserCurrentDeleteFollowUrl(username: UserCurrentDeleteFollowPathParams['username']) {
-  const res = { method: 'DELETE', url: `/user/following/${username}` as const };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unfollow a user
  * {@link /user/following/:username}
  */
-export async function userCurrentDeleteFollow(
-  username: UserCurrentDeleteFollowPathParams['username'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentDeleteFollow<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentDeleteFollowOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCurrentDeleteFollowResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentDeleteFollowMutationResponse,
-    ResponseErrorConfig<UserCurrentDeleteFollow401 | UserCurrentDeleteFollow403 | UserCurrentDeleteFollow404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getUserCurrentDeleteFollowUrl(username).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/user/following/{username}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentDeleteFollowResponses, ThrowOnError>>;
 }

@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserCurrentDeleteStarMutationResponse,
-  UserCurrentDeleteStar401,
-  UserCurrentDeleteStar403,
-  UserCurrentDeleteStar404,
+  UserCurrentDeleteStarResponse,
+  UserCurrentDeleteStarStatus401,
+  UserCurrentDeleteStarStatus403,
+  UserCurrentDeleteStarStatus404,
 } from '../types/UserCurrentDeleteStar';
 import { http } from 'msw';
 
-export function userCurrentDeleteStarHandlerResponse204(data?: UserCurrentDeleteStarMutationResponse) {
+export function userCurrentDeleteStarHandlerResponse204(data?: UserCurrentDeleteStarResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse401(data: UserCurrentDeleteStar401) {
+export function userCurrentDeleteStarHandlerResponse401(data: UserCurrentDeleteStarStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userCurrentDeleteStarHandlerResponse401(data: UserCurrentDeleteS
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse403(data: UserCurrentDeleteStar403) {
+export function userCurrentDeleteStarHandlerResponse403(data: UserCurrentDeleteStarStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userCurrentDeleteStarHandlerResponse403(data: UserCurrentDeleteS
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse404(data: UserCurrentDeleteStar404) {
+export function userCurrentDeleteStarHandlerResponse404(data: UserCurrentDeleteStarStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

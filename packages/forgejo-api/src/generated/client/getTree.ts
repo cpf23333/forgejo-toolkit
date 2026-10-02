@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetTreeQueryResponse,
-  GetTreePathParams,
-  GetTreeQueryParams,
-  GetTree400,
-  GetTree404,
-} from '../types/GetTree';
-
-function getGetTreeUrl(
-  owner: GetTreePathParams['owner'],
-  repo: GetTreePathParams['repo'],
-  sha: GetTreePathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/trees/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetTreeOptions, GetTreeResponses } from '../types/GetTree';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Gets the tree of a repository.
  * {@link /repos/:owner/:repo/git/trees/:sha}
  */
-export async function getTree(
-  owner: GetTreePathParams['owner'],
-  repo: GetTreePathParams['repo'],
-  sha: GetTreePathParams['sha'],
-  params?: GetTreeQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getTree<ThrowOnError extends boolean = true>(
+  options: Options<GetTreeOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetTreeResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetTreeQueryResponse, ResponseErrorConfig<GetTree400 | GetTree404>, unknown>({
-    method: 'GET',
-    url: getGetTreeUrl(owner, repo, sha).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/trees/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetTreeResponses, ThrowOnError>>;
 }

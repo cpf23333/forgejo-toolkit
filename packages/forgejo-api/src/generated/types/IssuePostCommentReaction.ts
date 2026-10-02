@@ -8,7 +8,7 @@ import type { APINotFound } from './APINotFound';
 import type { EditReactionOption } from './EditReactionOption';
 import type { Reaction } from './Reaction';
 
-export type IssuePostCommentReactionPathParams = {
+export type IssuePostCommentReactionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,38 +21,118 @@ export type IssuePostCommentReactionPathParams = {
   repo: string;
   /**
    * @description id of the comment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Reaction
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostCommentReaction200 = Reaction;
+export type IssuePostCommentReactionStatus200Json = Reaction;
 
 /**
- * @description Reaction
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostCommentReaction201 = Reaction;
+export type IssuePostCommentReactionStatus200Html = Reaction;
+
+export type IssuePostCommentReactionStatus200 =
+  | IssuePostCommentReactionStatus200Json
+  | IssuePostCommentReactionStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostCommentReaction403 = APIForbiddenError;
+export type IssuePostCommentReactionStatus201Json = Reaction;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Reaction contain one reaction
+ * @type object
  */
-export type IssuePostCommentReaction404 = APINotFound;
+export type IssuePostCommentReactionStatus201Html = Reaction;
 
-export type IssuePostCommentReactionMutationRequest = EditReactionOption;
+export type IssuePostCommentReactionStatus201 =
+  | IssuePostCommentReactionStatus201Json
+  | IssuePostCommentReactionStatus201Html;
 
-export type IssuePostCommentReactionMutationResponse = IssuePostCommentReaction200 | IssuePostCommentReaction201;
+export type IssuePostCommentReactionStatus403Json = APIForbiddenError;
 
-export type IssuePostCommentReactionMutation = {
-  Response: IssuePostCommentReaction200 | IssuePostCommentReaction201;
-  Request: IssuePostCommentReactionMutationRequest;
-  PathParams: IssuePostCommentReactionPathParams;
-  Errors: IssuePostCommentReaction403 | IssuePostCommentReaction404;
+export type IssuePostCommentReactionStatus403Html = APIForbiddenError;
+
+export type IssuePostCommentReactionStatus403 =
+  | IssuePostCommentReactionStatus403Json
+  | IssuePostCommentReactionStatus403Html;
+
+export type IssuePostCommentReactionStatus404Json = APINotFound;
+
+export type IssuePostCommentReactionStatus404Html = APINotFound;
+
+export type IssuePostCommentReactionStatus404 =
+  | IssuePostCommentReactionStatus404Json
+  | IssuePostCommentReactionStatus404Html;
+
+/**
+ * @description EditReactionOption contain the reaction type
+ * @type object | undefined
+ */
+export type IssuePostCommentReactionBody = EditReactionOption | undefined;
+
+export type IssuePostCommentReactionOptions = {
+  body: IssuePostCommentReactionBody;
+  path: IssuePostCommentReactionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssuePostCommentReactionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssuePostCommentReactionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostCommentReactionStatus200Html;
+      };
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssuePostCommentReactionStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostCommentReactionStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssuePostCommentReactionStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostCommentReactionStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssuePostCommentReactionStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssuePostCommentReactionStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssuePostCommentReactionResponse =
+  | IssuePostCommentReactionStatus200
+  | IssuePostCommentReactionStatus201
+  | IssuePostCommentReactionStatus403
+  | IssuePostCommentReactionStatus404;

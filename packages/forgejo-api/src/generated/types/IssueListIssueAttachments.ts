@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { Attachment } from './Attachment';
 
-export type IssueListIssueAttachmentsPathParams = {
+export type IssueListIssueAttachmentsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,66 @@ export type IssueListIssueAttachmentsPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-/**
- * @description AttachmentList
- */
-export type IssueListIssueAttachments200 = Attachment[];
+export type IssueListIssueAttachmentsStatus200Json = Attachment[];
+
+export type IssueListIssueAttachmentsStatus200Html = Attachment[];
+
+export type IssueListIssueAttachmentsStatus200 =
+  | IssueListIssueAttachmentsStatus200Json
+  | IssueListIssueAttachmentsStatus200Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueListIssueAttachments404 = APIError;
+export type IssueListIssueAttachmentsStatus404Json = APIError;
 
-export type IssueListIssueAttachmentsQueryResponse = IssueListIssueAttachments200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueListIssueAttachmentsStatus404Html = APIError;
 
-export type IssueListIssueAttachmentsQuery = {
-  Response: IssueListIssueAttachments200;
-  PathParams: IssueListIssueAttachmentsPathParams;
-  Errors: IssueListIssueAttachments404;
+export type IssueListIssueAttachmentsStatus404 =
+  | IssueListIssueAttachmentsStatus404Json
+  | IssueListIssueAttachmentsStatus404Html;
+
+export type IssueListIssueAttachmentsOptions = {
+  body?: never;
+  path: IssueListIssueAttachmentsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueListIssueAttachmentsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueAttachmentsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueAttachmentsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListIssueAttachmentsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListIssueAttachmentsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueListIssueAttachmentsResponse = IssueListIssueAttachmentsStatus200 | IssueListIssueAttachmentsStatus404;

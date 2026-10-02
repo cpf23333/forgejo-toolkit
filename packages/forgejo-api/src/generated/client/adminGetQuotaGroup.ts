@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminGetQuotaGroupQueryResponse,
-  AdminGetQuotaGroupPathParams,
-  AdminGetQuotaGroup400,
-  AdminGetQuotaGroup403,
-  AdminGetQuotaGroup404,
-} from '../types/AdminGetQuotaGroup';
-
-function getAdminGetQuotaGroupUrl(quotagroup: AdminGetQuotaGroupPathParams['quotagroup']) {
-  const res = {
-    method: 'GET',
-    url: `/admin/quota/groups/${quotagroup}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminGetQuotaGroupOptions, AdminGetQuotaGroupResponses } from '../types/AdminGetQuotaGroup';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get information about the quota group
  * {@link /admin/quota/groups/:quotagroup}
  */
-export async function adminGetQuotaGroup(
-  quotagroup: AdminGetQuotaGroupPathParams['quotagroup'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminGetQuotaGroup<ThrowOnError extends boolean = true>(
+  options: Options<AdminGetQuotaGroupOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminGetQuotaGroupResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    AdminGetQuotaGroupQueryResponse,
-    ResponseErrorConfig<AdminGetQuotaGroup400 | AdminGetQuotaGroup403 | AdminGetQuotaGroup404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getAdminGetQuotaGroupUrl(quotagroup).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/admin/quota/groups/{quotagroup}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminGetQuotaGroupResponses, ThrowOnError>>;
 }

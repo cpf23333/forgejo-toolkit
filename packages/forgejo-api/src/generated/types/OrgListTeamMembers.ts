@@ -6,15 +6,17 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type OrgListTeamMembersPathParams = {
+export type OrgListTeamMembersPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type OrgListTeamMembersQueryParams = {
+export type OrgListTeamMembersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +29,47 @@ export type OrgListTeamMembersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type OrgListTeamMembers200 = User[];
+export type OrgListTeamMembersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListTeamMembers404 = APINotFound;
+export type OrgListTeamMembersStatus200Html = User[];
 
-export type OrgListTeamMembersQueryResponse = OrgListTeamMembers200;
+export type OrgListTeamMembersStatus200 = OrgListTeamMembersStatus200Json | OrgListTeamMembersStatus200Html;
 
-export type OrgListTeamMembersQuery = {
-  Response: OrgListTeamMembers200;
-  PathParams: OrgListTeamMembersPathParams;
-  QueryParams: OrgListTeamMembersQueryParams;
-  Errors: OrgListTeamMembers404;
+export type OrgListTeamMembersStatus404Json = APINotFound;
+
+export type OrgListTeamMembersStatus404Html = APINotFound;
+
+export type OrgListTeamMembersStatus404 = OrgListTeamMembersStatus404Json | OrgListTeamMembersStatus404Html;
+
+export type OrgListTeamMembersOptions = {
+  body?: never;
+  path: OrgListTeamMembersPath;
+  query?: OrgListTeamMembersQuery;
+  headers?: never;
 };
+
+export type OrgListTeamMembersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamMembersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamMembersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListTeamMembersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListTeamMembersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListTeamMembersResponse = OrgListTeamMembersStatus200 | OrgListTeamMembersStatus404;

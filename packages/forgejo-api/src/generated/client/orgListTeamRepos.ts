@@ -3,36 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgListTeamReposQueryResponse,
-  OrgListTeamReposPathParams,
-  OrgListTeamReposQueryParams,
-  OrgListTeamRepos404,
-} from '../types/OrgListTeamRepos';
-
-function getOrgListTeamReposUrl(id: OrgListTeamReposPathParams['id']) {
-  const res = { method: 'GET', url: `/teams/${id}/repos` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgListTeamReposOptions, OrgListTeamReposResponses } from '../types/OrgListTeamRepos';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a team's repos
  * {@link /teams/:id/repos}
  */
-export async function orgListTeamRepos(
-  id: OrgListTeamReposPathParams['id'],
-  params?: OrgListTeamReposQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgListTeamRepos<ThrowOnError extends boolean = true>(
+  options: Options<OrgListTeamReposOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgListTeamReposResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgListTeamReposQueryResponse, ResponseErrorConfig<OrgListTeamRepos404>, unknown>({
-    method: 'GET',
-    url: getOrgListTeamReposUrl(id).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/teams/{id}/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgListTeamReposResponses, ThrowOnError>>;
 }

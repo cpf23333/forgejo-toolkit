@@ -5,6 +5,7 @@
 
 /**
  * @description RepoTopicOptions a collection of repo topic names
+ * @type object
  */
 export type RepoTopicOptions = {
   /**

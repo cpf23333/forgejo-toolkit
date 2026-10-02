@@ -4,14 +4,14 @@
  */
 
 import type {
-  AcceptRepoTransferMutationResponse,
-  AcceptRepoTransfer403,
-  AcceptRepoTransfer404,
-  AcceptRepoTransfer413,
+  AcceptRepoTransferResponse,
+  AcceptRepoTransferStatus403,
+  AcceptRepoTransferStatus404,
+  AcceptRepoTransferStatus413,
 } from '../types/AcceptRepoTransfer';
 import { http } from 'msw';
 
-export function acceptRepoTransferHandlerResponse202(data: AcceptRepoTransferMutationResponse) {
+export function acceptRepoTransferHandlerResponse202(data: AcceptRepoTransferResponse) {
   return new Response(JSON.stringify(data), {
     status: 202,
     headers: {
@@ -20,7 +20,7 @@ export function acceptRepoTransferHandlerResponse202(data: AcceptRepoTransferMut
   });
 }
 
-export function acceptRepoTransferHandlerResponse403(data: AcceptRepoTransfer403) {
+export function acceptRepoTransferHandlerResponse403(data: AcceptRepoTransferStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -29,7 +29,7 @@ export function acceptRepoTransferHandlerResponse403(data: AcceptRepoTransfer403
   });
 }
 
-export function acceptRepoTransferHandlerResponse404(data: AcceptRepoTransfer404) {
+export function acceptRepoTransferHandlerResponse404(data: AcceptRepoTransferStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -38,7 +38,7 @@ export function acceptRepoTransferHandlerResponse404(data: AcceptRepoTransfer404
   });
 }
 
-export function acceptRepoTransferHandlerResponse413(data?: AcceptRepoTransfer413) {
+export function acceptRepoTransferHandlerResponse413(data?: AcceptRepoTransferStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
@@ -46,7 +46,7 @@ export function acceptRepoTransferHandlerResponse413(data?: AcceptRepoTransfer41
 
 export function acceptRepoTransferHandler(
   data?:
-    | AcceptRepoTransferMutationResponse
+    | AcceptRepoTransferResponse
     | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/transfer/accept`, function handler(info) {

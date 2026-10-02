@@ -7,38 +7,79 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentDeleteKeyPathParams = {
+export type UserCurrentDeleteKeyPath = {
   /**
    * @description id of key to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentDeleteKey204 = any;
+export type UserCurrentDeleteKeyStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentDeleteKey401 = APIUnauthorizedError;
+export type UserCurrentDeleteKeyStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentDeleteKey403 = APIForbiddenError;
+export type UserCurrentDeleteKeyStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentDeleteKey404 = APINotFound;
+export type UserCurrentDeleteKeyStatus401 = UserCurrentDeleteKeyStatus401Json | UserCurrentDeleteKeyStatus401Html;
 
-export type UserCurrentDeleteKeyMutationResponse = UserCurrentDeleteKey204;
+export type UserCurrentDeleteKeyStatus403Json = APIForbiddenError;
 
-export type UserCurrentDeleteKeyMutation = {
-  Response: UserCurrentDeleteKey204;
-  PathParams: UserCurrentDeleteKeyPathParams;
-  Errors: UserCurrentDeleteKey401 | UserCurrentDeleteKey403 | UserCurrentDeleteKey404;
+export type UserCurrentDeleteKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentDeleteKeyStatus403 = UserCurrentDeleteKeyStatus403Json | UserCurrentDeleteKeyStatus403Html;
+
+export type UserCurrentDeleteKeyStatus404Json = APINotFound;
+
+export type UserCurrentDeleteKeyStatus404Html = APINotFound;
+
+export type UserCurrentDeleteKeyStatus404 = UserCurrentDeleteKeyStatus404Json | UserCurrentDeleteKeyStatus404Html;
+
+export type UserCurrentDeleteKeyOptions = {
+  body?: never;
+  path: UserCurrentDeleteKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentDeleteKeyResponses = {
+  '204': UserCurrentDeleteKeyStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentDeleteKeyResponse =
+  | UserCurrentDeleteKeyStatus204
+  | UserCurrentDeleteKeyStatus401
+  | UserCurrentDeleteKeyStatus403
+  | UserCurrentDeleteKeyStatus404;

@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserDeleteOAuth2ApplicationMutationResponse,
-  UserDeleteOAuth2Application401,
-  UserDeleteOAuth2Application403,
-  UserDeleteOAuth2Application404,
+  UserDeleteOAuth2ApplicationResponse,
+  UserDeleteOAuth2ApplicationStatus401,
+  UserDeleteOAuth2ApplicationStatus403,
+  UserDeleteOAuth2ApplicationStatus404,
 } from '../types/UserDeleteOAuth2Application';
 import { http } from 'msw';
 
-export function userDeleteOAuth2ApplicationHandlerResponse204(data?: UserDeleteOAuth2ApplicationMutationResponse) {
+export function userDeleteOAuth2ApplicationHandlerResponse204(data?: UserDeleteOAuth2ApplicationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse401(data: UserDeleteOAuth2Application401) {
+export function userDeleteOAuth2ApplicationHandlerResponse401(data: UserDeleteOAuth2ApplicationStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +26,7 @@ export function userDeleteOAuth2ApplicationHandlerResponse401(data: UserDeleteOA
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse403(data: UserDeleteOAuth2Application403) {
+export function userDeleteOAuth2ApplicationHandlerResponse403(data: UserDeleteOAuth2ApplicationStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function userDeleteOAuth2ApplicationHandlerResponse403(data: UserDeleteOA
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse404(data: UserDeleteOAuth2Application404) {
+export function userDeleteOAuth2ApplicationHandlerResponse404(data: UserDeleteOAuth2ApplicationStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

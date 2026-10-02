@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserGetQuotaQueryResponse, UserGetQuota401, UserGetQuota403 } from '../types/UserGetQuota';
+import type { UserGetQuotaResponse, UserGetQuotaStatus401, UserGetQuotaStatus403 } from '../types/UserGetQuota';
 import { http } from 'msw';
 
-export function userGetQuotaHandlerResponse200(data: UserGetQuotaQueryResponse) {
+export function userGetQuotaHandlerResponse200(data: UserGetQuotaResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userGetQuotaHandlerResponse200(data: UserGetQuotaQueryResponse) 
   });
 }
 
-export function userGetQuotaHandlerResponse401(data: UserGetQuota401) {
+export function userGetQuotaHandlerResponse401(data: UserGetQuotaStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +24,7 @@ export function userGetQuotaHandlerResponse401(data: UserGetQuota401) {
   });
 }
 
-export function userGetQuotaHandlerResponse403(data: UserGetQuota403) {
+export function userGetQuotaHandlerResponse403(data: UserGetQuotaStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -34,9 +34,7 @@ export function userGetQuotaHandlerResponse403(data: UserGetQuota403) {
 }
 
 export function userGetQuotaHandler(
-  data?:
-    | UserGetQuotaQueryResponse
-    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
+  data?: UserGetQuotaResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota`, function handler(info) {
     if (typeof data === 'function') return data(info);

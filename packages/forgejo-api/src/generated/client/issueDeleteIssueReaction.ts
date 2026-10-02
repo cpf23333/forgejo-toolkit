@@ -3,54 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueDeleteIssueReactionMutationRequest,
-  IssueDeleteIssueReactionMutationResponse,
-  IssueDeleteIssueReactionPathParams,
-  IssueDeleteIssueReaction403,
-  IssueDeleteIssueReaction404,
+  IssueDeleteIssueReactionOptions,
+  IssueDeleteIssueReactionResponses,
 } from '../types/IssueDeleteIssueReaction';
-
-function getIssueDeleteIssueReactionUrl(
-  owner: IssueDeleteIssueReactionPathParams['owner'],
-  repo: IssueDeleteIssueReactionPathParams['repo'],
-  index: IssueDeleteIssueReactionPathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/reactions` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a reaction from an issue
  * {@link /repos/:owner/:repo/issues/:index/reactions}
  */
-export async function issueDeleteIssueReaction(
-  owner: IssueDeleteIssueReactionPathParams['owner'],
-  repo: IssueDeleteIssueReactionPathParams['repo'],
-  index: IssueDeleteIssueReactionPathParams['index'],
-  data?: IssueDeleteIssueReactionMutationRequest,
-  config: Partial<RequestConfig<IssueDeleteIssueReactionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteIssueReaction<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteIssueReactionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteIssueReactionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueDeleteIssueReactionMutationResponse,
-    ResponseErrorConfig<IssueDeleteIssueReaction403 | IssueDeleteIssueReaction404>,
-    IssueDeleteIssueReactionMutationRequest
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteIssueReactionUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/reactions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteIssueReactionResponses, ThrowOnError>>;
 }

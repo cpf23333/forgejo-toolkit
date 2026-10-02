@@ -3,10 +3,11 @@
  * Do not edit manually.
  */
 
-import type { OrgEditMutationResponse, OrgEdit404, OrgEdit422 } from '../types/OrgEdit';
+import type { OrgEditResponse, OrgEditStatus404, OrgEditStatus422, OrgEditBody } from '../types/OrgEdit';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function orgEditHandlerResponse200(data: OrgEditMutationResponse) {
+export function orgEditHandlerResponse200(data: OrgEditResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +16,7 @@ export function orgEditHandlerResponse200(data: OrgEditMutationResponse) {
   });
 }
 
-export function orgEditHandlerResponse404(data: OrgEdit404) {
+export function orgEditHandlerResponse404(data: OrgEditStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -24,7 +25,7 @@ export function orgEditHandlerResponse404(data: OrgEdit404) {
   });
 }
 
-export function orgEditHandlerResponse422(data: OrgEdit422) {
+export function orgEditHandlerResponse422(data: OrgEditStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -33,12 +34,8 @@ export function orgEditHandlerResponse422(data: OrgEdit422) {
   });
 }
 
-export function orgEditHandler(
-  data?:
-    | OrgEditMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
-) {
-  return http.patch(`/orgs/:org`, function handler(info) {
+export function orgEditHandler(data?: OrgEditResponse | HttpResponseResolver<Record<string, string>, OrgEditBody>) {
+  return http.patch<Record<string, string>, OrgEditBody>(`/orgs/:org`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

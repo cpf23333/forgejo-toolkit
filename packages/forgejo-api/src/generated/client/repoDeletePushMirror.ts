@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDeletePushMirrorMutationResponse,
-  RepoDeletePushMirrorPathParams,
-  RepoDeletePushMirror400,
-  RepoDeletePushMirror404,
-} from '../types/RepoDeletePushMirror';
-
-function getRepoDeletePushMirrorUrl(
-  owner: RepoDeletePushMirrorPathParams['owner'],
-  repo: RepoDeletePushMirrorPathParams['repo'],
-  name: RepoDeletePushMirrorPathParams['name'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/push_mirrors/${name}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDeletePushMirrorOptions, RepoDeletePushMirrorResponses } from '../types/RepoDeletePushMirror';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Remove a push mirror from a repository by remoteName
  * {@link /repos/:owner/:repo/push_mirrors/:name}
  */
-export async function repoDeletePushMirror(
-  owner: RepoDeletePushMirrorPathParams['owner'],
-  repo: RepoDeletePushMirrorPathParams['repo'],
-  name: RepoDeletePushMirrorPathParams['name'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDeletePushMirror<ThrowOnError extends boolean = true>(
+  options: Options<RepoDeletePushMirrorOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDeletePushMirrorResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDeletePushMirrorMutationResponse,
-    ResponseErrorConfig<RepoDeletePushMirror400 | RepoDeletePushMirror404>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getRepoDeletePushMirrorUrl(owner, repo, name).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/push_mirrors/{name}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDeletePushMirrorResponses, ThrowOnError>>;
 }

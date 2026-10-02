@@ -4,14 +4,14 @@
  */
 
 import type {
-  AdminListUsersInQuotaGroupQueryResponse,
-  AdminListUsersInQuotaGroup400,
-  AdminListUsersInQuotaGroup403,
-  AdminListUsersInQuotaGroup404,
+  AdminListUsersInQuotaGroupResponse,
+  AdminListUsersInQuotaGroupStatus400,
+  AdminListUsersInQuotaGroupStatus403,
+  AdminListUsersInQuotaGroupStatus404,
 } from '../types/AdminListUsersInQuotaGroup';
 import { http } from 'msw';
 
-export function adminListUsersInQuotaGroupHandlerResponse200(data: AdminListUsersInQuotaGroupQueryResponse) {
+export function adminListUsersInQuotaGroupHandlerResponse200(data: AdminListUsersInQuotaGroupResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function adminListUsersInQuotaGroupHandlerResponse200(data: AdminListUser
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse400(data: AdminListUsersInQuotaGroup400) {
+export function adminListUsersInQuotaGroupHandlerResponse400(data: AdminListUsersInQuotaGroupStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -29,7 +29,7 @@ export function adminListUsersInQuotaGroupHandlerResponse400(data: AdminListUser
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse403(data: AdminListUsersInQuotaGroup403) {
+export function adminListUsersInQuotaGroupHandlerResponse403(data: AdminListUsersInQuotaGroupStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function adminListUsersInQuotaGroupHandlerResponse403(data: AdminListUser
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse404(data: AdminListUsersInQuotaGroup404) {
+export function adminListUsersInQuotaGroupHandlerResponse404(data: AdminListUsersInQuotaGroupStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function adminListUsersInQuotaGroupHandlerResponse404(data: AdminListUser
 
 export function adminListUsersInQuotaGroupHandler(
   data?:
-    | AdminListUsersInQuotaGroupQueryResponse
+    | AdminListUsersInQuotaGroupResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/groups/:quotagroup/users`, function handler(info) {

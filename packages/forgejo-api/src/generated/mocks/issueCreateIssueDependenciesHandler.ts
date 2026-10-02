@@ -4,13 +4,15 @@
  */
 
 import type {
-  IssueCreateIssueDependenciesMutationResponse,
-  IssueCreateIssueDependencies404,
-  IssueCreateIssueDependencies423,
+  IssueCreateIssueDependenciesResponse,
+  IssueCreateIssueDependenciesStatus404,
+  IssueCreateIssueDependenciesStatus423,
+  IssueCreateIssueDependenciesBody,
 } from '../types/IssueCreateIssueDependencies';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueCreateIssueDependenciesHandlerResponse201(data: IssueCreateIssueDependenciesMutationResponse) {
+export function issueCreateIssueDependenciesHandlerResponse201(data: IssueCreateIssueDependenciesResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -19,13 +21,13 @@ export function issueCreateIssueDependenciesHandlerResponse201(data: IssueCreate
   });
 }
 
-export function issueCreateIssueDependenciesHandlerResponse404(data?: IssueCreateIssueDependencies404) {
+export function issueCreateIssueDependenciesHandlerResponse404(data?: IssueCreateIssueDependenciesStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
 }
 
-export function issueCreateIssueDependenciesHandlerResponse423(data: IssueCreateIssueDependencies423) {
+export function issueCreateIssueDependenciesHandlerResponse423(data: IssueCreateIssueDependenciesStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -36,17 +38,20 @@ export function issueCreateIssueDependenciesHandlerResponse423(data: IssueCreate
 
 export function issueCreateIssueDependenciesHandler(
   data?:
-    | IssueCreateIssueDependenciesMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+    | IssueCreateIssueDependenciesResponse
+    | HttpResponseResolver<Record<string, string>, IssueCreateIssueDependenciesBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/issues/:index/dependencies`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, IssueCreateIssueDependenciesBody>(
+    `/repos/:owner/:repo/issues/:index/dependencies`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { LinkPackageMutationResponse, LinkPackage404 } from '../types/LinkPackage';
+import type { LinkPackageResponse, LinkPackageStatus404 } from '../types/LinkPackage';
 import { http } from 'msw';
 
-export function linkPackageHandlerResponse201(data?: LinkPackageMutationResponse) {
+export function linkPackageHandlerResponse201(data?: LinkPackageResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function linkPackageHandlerResponse404(data: LinkPackage404) {
+export function linkPackageHandlerResponse404(data: LinkPackageStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

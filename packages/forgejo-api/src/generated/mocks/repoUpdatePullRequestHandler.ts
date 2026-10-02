@@ -4,22 +4,22 @@
  */
 
 import type {
-  RepoUpdatePullRequestMutationResponse,
-  RepoUpdatePullRequest403,
-  RepoUpdatePullRequest404,
-  RepoUpdatePullRequest409,
-  RepoUpdatePullRequest413,
-  RepoUpdatePullRequest422,
+  RepoUpdatePullRequestResponse,
+  RepoUpdatePullRequestStatus403,
+  RepoUpdatePullRequestStatus404,
+  RepoUpdatePullRequestStatus409,
+  RepoUpdatePullRequestStatus413,
+  RepoUpdatePullRequestStatus422,
 } from '../types/RepoUpdatePullRequest';
 import { http } from 'msw';
 
-export function repoUpdatePullRequestHandlerResponse200(data?: RepoUpdatePullRequestMutationResponse) {
+export function repoUpdatePullRequestHandlerResponse200(data?: RepoUpdatePullRequestResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse403(data: RepoUpdatePullRequest403) {
+export function repoUpdatePullRequestHandlerResponse403(data: RepoUpdatePullRequestStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function repoUpdatePullRequestHandlerResponse403(data: RepoUpdatePullRequ
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse404(data: RepoUpdatePullRequest404) {
+export function repoUpdatePullRequestHandlerResponse404(data: RepoUpdatePullRequestStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -37,7 +37,7 @@ export function repoUpdatePullRequestHandlerResponse404(data: RepoUpdatePullRequ
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse409(data: RepoUpdatePullRequest409) {
+export function repoUpdatePullRequestHandlerResponse409(data: RepoUpdatePullRequestStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
@@ -46,13 +46,13 @@ export function repoUpdatePullRequestHandlerResponse409(data: RepoUpdatePullRequ
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse413(data?: RepoUpdatePullRequest413) {
+export function repoUpdatePullRequestHandlerResponse413(data?: RepoUpdatePullRequestStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse422(data: RepoUpdatePullRequest422) {
+export function repoUpdatePullRequestHandlerResponse422(data: RepoUpdatePullRequestStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

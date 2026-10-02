@@ -3,10 +3,15 @@
  * Do not edit manually.
  */
 
-import type { IssueEditMilestoneMutationResponse, IssueEditMilestone404 } from '../types/IssueEditMilestone';
+import type {
+  IssueEditMilestoneResponse,
+  IssueEditMilestoneStatus404,
+  IssueEditMilestoneBody,
+} from '../types/IssueEditMilestone';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function issueEditMilestoneHandlerResponse200(data: IssueEditMilestoneMutationResponse) {
+export function issueEditMilestoneHandlerResponse200(data: IssueEditMilestoneResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +20,7 @@ export function issueEditMilestoneHandlerResponse200(data: IssueEditMilestoneMut
   });
 }
 
-export function issueEditMilestoneHandlerResponse404(data: IssueEditMilestone404) {
+export function issueEditMilestoneHandlerResponse404(data: IssueEditMilestoneStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -25,18 +30,19 @@ export function issueEditMilestoneHandlerResponse404(data: IssueEditMilestone404
 }
 
 export function issueEditMilestoneHandler(
-  data?:
-    | IssueEditMilestoneMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: IssueEditMilestoneResponse | HttpResponseResolver<Record<string, string>, IssueEditMilestoneBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/milestones/:id`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, IssueEditMilestoneBody>(
+    `/repos/:owner/:repo/milestones/:id`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

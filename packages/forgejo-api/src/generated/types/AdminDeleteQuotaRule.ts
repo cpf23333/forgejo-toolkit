@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type AdminDeleteQuotaRulePathParams = {
+export type AdminDeleteQuotaRulePath = {
   /**
    * @description quota rule to delete
    * @type string
@@ -15,30 +15,77 @@ export type AdminDeleteQuotaRulePathParams = {
   quotarule: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type AdminDeleteQuotaRule204 = any;
+export type AdminDeleteQuotaRuleStatus204 = unknown;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteQuotaRule400 = APIError;
+export type AdminDeleteQuotaRuleStatus400Json = APIError;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type AdminDeleteQuotaRule403 = APIForbiddenError;
+export type AdminDeleteQuotaRuleStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type AdminDeleteQuotaRule404 = APINotFound;
+export type AdminDeleteQuotaRuleStatus400 = AdminDeleteQuotaRuleStatus400Json | AdminDeleteQuotaRuleStatus400Html;
 
-export type AdminDeleteQuotaRuleMutationResponse = AdminDeleteQuotaRule204;
+export type AdminDeleteQuotaRuleStatus403Json = APIForbiddenError;
 
-export type AdminDeleteQuotaRuleMutation = {
-  Response: AdminDeleteQuotaRule204;
-  PathParams: AdminDeleteQuotaRulePathParams;
-  Errors: AdminDeleteQuotaRule400 | AdminDeleteQuotaRule403 | AdminDeleteQuotaRule404;
+export type AdminDeleteQuotaRuleStatus403Html = APIForbiddenError;
+
+export type AdminDeleteQuotaRuleStatus403 = AdminDeleteQuotaRuleStatus403Json | AdminDeleteQuotaRuleStatus403Html;
+
+export type AdminDeleteQuotaRuleStatus404Json = APINotFound;
+
+export type AdminDeleteQuotaRuleStatus404Html = APINotFound;
+
+export type AdminDeleteQuotaRuleStatus404 = AdminDeleteQuotaRuleStatus404Json | AdminDeleteQuotaRuleStatus404Html;
+
+export type AdminDeleteQuotaRuleOptions = {
+  body?: never;
+  path: AdminDeleteQuotaRulePath;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminDeleteQuotaRuleResponses = {
+  '204': AdminDeleteQuotaRuleStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaRuleStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaRuleStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaRuleStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaRuleStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: AdminDeleteQuotaRuleStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminDeleteQuotaRuleStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminDeleteQuotaRuleResponse =
+  | AdminDeleteQuotaRuleStatus204
+  | AdminDeleteQuotaRuleStatus400
+  | AdminDeleteQuotaRuleStatus403
+  | AdminDeleteQuotaRuleStatus404;

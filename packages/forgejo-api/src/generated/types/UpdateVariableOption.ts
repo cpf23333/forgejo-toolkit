@@ -3,9 +3,6 @@
  * Do not edit manually.
  */
 
-/**
- * UpdateVariableOption defines the properties of the variable to update.
- */
 export type UpdateVariableOption = {
   /**
    * @description New name for the variable. If the field is empty, the variable name won\'t be updated. Forgejo will convert it to\nuppercase.

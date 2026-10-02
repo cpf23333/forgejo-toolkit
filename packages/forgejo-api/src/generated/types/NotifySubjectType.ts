@@ -5,5 +5,6 @@
 
 /**
  * @description NotifySubjectType represent type of notification subject
+ * @type string
  */
 export type NotifySubjectType = string;

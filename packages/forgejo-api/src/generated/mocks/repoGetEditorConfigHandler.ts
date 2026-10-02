@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetEditorConfigQueryResponse, RepoGetEditorConfig404 } from '../types/RepoGetEditorConfig';
+import type { RepoGetEditorConfigResponse, RepoGetEditorConfigStatus404 } from '../types/RepoGetEditorConfig';
 import { http } from 'msw';
 
-export function repoGetEditorConfigHandlerResponse200(data: RepoGetEditorConfigQueryResponse) {
+export function repoGetEditorConfigHandlerResponse200(data: RepoGetEditorConfigResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetEditorConfigHandlerResponse200(data: RepoGetEditorConfigQ
   });
 }
 
-export function repoGetEditorConfigHandlerResponse404(data: RepoGetEditorConfig404) {
+export function repoGetEditorConfigHandlerResponse404(data: RepoGetEditorConfigStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetEditorConfigHandlerResponse404(data: RepoGetEditorConfig4
 
 export function repoGetEditorConfigHandler(
   data?:
-    | RepoGetEditorConfigQueryResponse
+    | RepoGetEditorConfigResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/editorconfig/:filepath`, function handler(info) {

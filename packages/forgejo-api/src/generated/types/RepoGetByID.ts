@@ -6,28 +6,65 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type RepoGetByIDPathParams = {
+export type RepoGetByIDPath = {
   /**
    * @description id of the repo to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoGetByID200 = Repository;
+export type RepoGetByIDStatus200Json = Repository;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RepoGetByID404 = APINotFound;
+export type RepoGetByIDStatus200Html = Repository;
 
-export type RepoGetByIDQueryResponse = RepoGetByID200;
+export type RepoGetByIDStatus200 = RepoGetByIDStatus200Json | RepoGetByIDStatus200Html;
 
-export type RepoGetByIDQuery = {
-  Response: RepoGetByID200;
-  PathParams: RepoGetByIDPathParams;
-  Errors: RepoGetByID404;
+export type RepoGetByIDStatus404Json = APINotFound;
+
+export type RepoGetByIDStatus404Html = APINotFound;
+
+export type RepoGetByIDStatus404 = RepoGetByIDStatus404Json | RepoGetByIDStatus404Html;
+
+export type RepoGetByIDOptions = {
+  body?: never;
+  path: RepoGetByIDPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetByIDResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetByIDStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetByIDStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetByIDStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetByIDStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetByIDResponse = RepoGetByIDStatus200 | RepoGetByIDStatus404;

@@ -3,23 +3,30 @@
  * Do not edit manually.
  */
 
-export type ActivitypubPersonInboxPathParams = {
+export type ActivitypubPersonInboxPath = {
   /**
    * @description user ID of the user
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   'user-id': number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type ActivitypubPersonInbox202 = any;
+export type ActivitypubPersonInboxStatus202 = unknown;
 
-export type ActivitypubPersonInboxMutationResponse = ActivitypubPersonInbox202;
-
-export type ActivitypubPersonInboxMutation = {
-  Response: ActivitypubPersonInbox202;
-  PathParams: ActivitypubPersonInboxPathParams;
-  Errors: any;
+export type ActivitypubPersonInboxOptions = {
+  body?: never;
+  path: ActivitypubPersonInboxPath;
+  query?: never;
+  headers?: never;
 };
+
+export type ActivitypubPersonInboxResponses = {
+  '202': ActivitypubPersonInboxStatus202;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ActivitypubPersonInboxResponse = ActivitypubPersonInboxStatus202;

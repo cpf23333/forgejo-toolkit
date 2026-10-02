@@ -3,43 +3,37 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RenderMarkdownRawMutationRequest,
-  RenderMarkdownRawMutationResponse,
-  RenderMarkdownRaw422,
-} from '../types/RenderMarkdownRaw';
-
-function getRenderMarkdownRawUrl() {
-  const res = { method: 'POST', url: `/markdown/raw` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RenderMarkdownRawOptions, RenderMarkdownRawResponses } from '../types/RenderMarkdownRaw';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Render raw markdown as HTML
  * {@link /markdown/raw}
  */
-export async function renderMarkdownRaw(
-  data: RenderMarkdownRawMutationRequest,
-  config: Partial<RequestConfig<RenderMarkdownRawMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function renderMarkdownRaw<ThrowOnError extends boolean = true>(
+  options: Options<RenderMarkdownRawOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RenderMarkdownRawResponses, ThrowOnError>> {
+  const { client: request = client, contentType, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RenderMarkdownRawMutationResponse,
-    ResponseErrorConfig<RenderMarkdownRaw422>,
-    RenderMarkdownRawMutationRequest
-  >({
-    method: 'POST',
-    url: getRenderMarkdownRawUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-    headers: { 'Content-Type': 'text/plain', ...requestConfig.headers },
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/markdown/raw',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      contentType: {
+        request: 'text/plain',
+        ...(typeof contentType === 'string' ? { request: contentType } : contentType),
+      },
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RenderMarkdownRawResponses, ThrowOnError>>;
 }

@@ -3,46 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCreateTokenMutationRequest,
-  UserCreateTokenMutationResponse,
-  UserCreateTokenPathParams,
-  UserCreateToken400,
-  UserCreateToken403,
-  UserCreateToken404,
-} from '../types/UserCreateToken';
-
-function getUserCreateTokenUrl(username: UserCreateTokenPathParams['username']) {
-  const res = { method: 'POST', url: `/users/${username}/tokens` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCreateTokenOptions, UserCreateTokenResponses } from '../types/UserCreateToken';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Generate an access token for the specified user
  * {@link /users/:username/tokens}
  */
-export async function userCreateToken(
-  username: UserCreateTokenPathParams['username'],
-  data: UserCreateTokenMutationRequest,
-  config: Partial<RequestConfig<UserCreateTokenMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCreateToken<ThrowOnError extends boolean = true>(
+  options: Options<UserCreateTokenOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCreateTokenResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UserCreateTokenMutationResponse,
-    ResponseErrorConfig<UserCreateToken400 | UserCreateToken403 | UserCreateToken404>,
-    UserCreateTokenMutationRequest
-  >({
-    method: 'POST',
-    url: getUserCreateTokenUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/users/{username}/tokens',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCreateTokenResponses, ThrowOnError>>;
 }

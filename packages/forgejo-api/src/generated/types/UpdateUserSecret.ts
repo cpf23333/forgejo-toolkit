@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
-export type UpdateUserSecretPathParams = {
+export type UpdateUserSecretPath = {
   /**
    * @description name of the secret
    * @type string
@@ -17,46 +17,99 @@ export type UpdateUserSecretPathParams = {
   secretname: string;
 };
 
-/**
- * @description response when creating a secret
- */
-export type UpdateUserSecret201 = any;
+export type UpdateUserSecretStatus201 = unknown;
+
+export type UpdateUserSecretStatus204 = unknown;
 
 /**
- * @description response when updating a secret
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateUserSecret204 = any;
+export type UpdateUserSecretStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type UpdateUserSecret400 = APIError;
+export type UpdateUserSecretStatus400Html = APIError;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UpdateUserSecret401 = APIUnauthorizedError;
+export type UpdateUserSecretStatus400 = UpdateUserSecretStatus400Json | UpdateUserSecretStatus400Html;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UpdateUserSecret403 = APIForbiddenError;
+export type UpdateUserSecretStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UpdateUserSecret404 = APINotFound;
+export type UpdateUserSecretStatus401Html = APIUnauthorizedError;
 
-/**
- * CreateOrUpdateSecretOption defines the properties of the secret to create or update.
- */
-export type UpdateUserSecretMutationRequest = CreateOrUpdateSecretOption;
+export type UpdateUserSecretStatus401 = UpdateUserSecretStatus401Json | UpdateUserSecretStatus401Html;
 
-export type UpdateUserSecretMutationResponse = UpdateUserSecret201 | UpdateUserSecret204;
+export type UpdateUserSecretStatus403Json = APIForbiddenError;
 
-export type UpdateUserSecretMutation = {
-  Response: UpdateUserSecret201 | UpdateUserSecret204;
-  Request: UpdateUserSecretMutationRequest;
-  PathParams: UpdateUserSecretPathParams;
-  Errors: UpdateUserSecret400 | UpdateUserSecret401 | UpdateUserSecret403 | UpdateUserSecret404;
+export type UpdateUserSecretStatus403Html = APIForbiddenError;
+
+export type UpdateUserSecretStatus403 = UpdateUserSecretStatus403Json | UpdateUserSecretStatus403Html;
+
+export type UpdateUserSecretStatus404Json = APINotFound;
+
+export type UpdateUserSecretStatus404Html = APINotFound;
+
+export type UpdateUserSecretStatus404 = UpdateUserSecretStatus404Json | UpdateUserSecretStatus404Html;
+
+export type UpdateUserSecretBody = CreateOrUpdateSecretOption | undefined;
+
+export type UpdateUserSecretOptions = {
+  body: UpdateUserSecretBody;
+  path: UpdateUserSecretPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UpdateUserSecretResponses = {
+  '201': UpdateUserSecretStatus201;
+  '204': UpdateUserSecretStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSecretStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSecretStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSecretStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSecretStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSecretStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSecretStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UpdateUserSecretStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UpdateUserSecretStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UpdateUserSecretResponse =
+  | UpdateUserSecretStatus201
+  | UpdateUserSecretStatus204
+  | UpdateUserSecretStatus400
+  | UpdateUserSecretStatus401
+  | UpdateUserSecretStatus403
+  | UpdateUserSecretStatus404;

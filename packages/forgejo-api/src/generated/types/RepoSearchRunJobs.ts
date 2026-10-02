@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ActionRunJob } from './ActionRunJob';
 
-export type RepoSearchRunJobsPathParams = {
+export type RepoSearchRunJobsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,7 +19,7 @@ export type RepoSearchRunJobsPathParams = {
   repo: string;
 };
 
-export type RepoSearchRunJobsQueryParams = {
+export type RepoSearchRunJobsQuery = {
   /**
    * @description a comma separated list of run job labels to search for
    * @type string | undefined
@@ -27,21 +27,47 @@ export type RepoSearchRunJobsQueryParams = {
   labels?: string;
 };
 
-/**
- * @description RunJobList is a list of action run jobs
- */
-export type RepoSearchRunJobs200 = ActionRunJob[];
+export type RepoSearchRunJobsStatus200Json = ActionRunJob[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoSearchRunJobs403 = APIForbiddenError;
+export type RepoSearchRunJobsStatus200Html = ActionRunJob[];
 
-export type RepoSearchRunJobsQueryResponse = RepoSearchRunJobs200;
+export type RepoSearchRunJobsStatus200 = RepoSearchRunJobsStatus200Json | RepoSearchRunJobsStatus200Html;
 
-export type RepoSearchRunJobsQuery = {
-  Response: RepoSearchRunJobs200;
-  PathParams: RepoSearchRunJobsPathParams;
-  QueryParams: RepoSearchRunJobsQueryParams;
-  Errors: RepoSearchRunJobs403;
+export type RepoSearchRunJobsStatus403Json = APIForbiddenError;
+
+export type RepoSearchRunJobsStatus403Html = APIForbiddenError;
+
+export type RepoSearchRunJobsStatus403 = RepoSearchRunJobsStatus403Json | RepoSearchRunJobsStatus403Html;
+
+export type RepoSearchRunJobsOptions = {
+  body?: never;
+  path: RepoSearchRunJobsPath;
+  query?: RepoSearchRunJobsQuery;
+  headers?: never;
 };
+
+export type RepoSearchRunJobsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoSearchRunJobsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSearchRunJobsStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoSearchRunJobsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoSearchRunJobsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoSearchRunJobsResponse = RepoSearchRunJobsStatus200 | RepoSearchRunJobsStatus403;

@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListTagProtectionQueryResponse,
-  RepoListTagProtectionPathParams,
-} from '../types/RepoListTagProtection';
-
-function getRepoListTagProtectionUrl(
-  owner: RepoListTagProtectionPathParams['owner'],
-  repo: RepoListTagProtectionPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/tag_protections` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListTagProtectionOptions, RepoListTagProtectionResponses } from '../types/RepoListTagProtection';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List tag protections for a repository
  * {@link /repos/:owner/:repo/tag_protections}
  */
-export async function repoListTagProtection(
-  owner: RepoListTagProtectionPathParams['owner'],
-  repo: RepoListTagProtectionPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListTagProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoListTagProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListTagProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListTagProtectionQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getRepoListTagProtectionUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/tag_protections',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListTagProtectionResponses, ThrowOnError>>;
 }

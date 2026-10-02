@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeletePathParams = {
+export type RepoDeletePath = {
   /**
    * @description owner of the repo to delete
    * @type string
@@ -19,25 +19,50 @@ export type RepoDeletePathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDelete204 = any;
+export type RepoDeleteStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDelete403 = APIForbiddenError;
+export type RepoDeleteStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDelete404 = APINotFound;
+export type RepoDeleteStatus403Html = APIForbiddenError;
 
-export type RepoDeleteMutationResponse = RepoDelete204;
+export type RepoDeleteStatus403 = RepoDeleteStatus403Json | RepoDeleteStatus403Html;
 
-export type RepoDeleteMutation = {
-  Response: RepoDelete204;
-  PathParams: RepoDeletePathParams;
-  Errors: RepoDelete403 | RepoDelete404;
+export type RepoDeleteStatus404Json = APINotFound;
+
+export type RepoDeleteStatus404Html = APINotFound;
+
+export type RepoDeleteStatus404 = RepoDeleteStatus404Json | RepoDeleteStatus404Html;
+
+export type RepoDeleteOptions = {
+  body?: never;
+  path: RepoDeletePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteResponses = {
+  '204': RepoDeleteStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteResponse = RepoDeleteStatus204 | RepoDeleteStatus403 | RepoDeleteStatus404;

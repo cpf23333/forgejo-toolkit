@@ -3,55 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoEditBranchProtectionMutationRequest,
-  RepoEditBranchProtectionMutationResponse,
-  RepoEditBranchProtectionPathParams,
-  RepoEditBranchProtection404,
-  RepoEditBranchProtection422,
-  RepoEditBranchProtection423,
+  RepoEditBranchProtectionOptions,
+  RepoEditBranchProtectionResponses,
 } from '../types/RepoEditBranchProtection';
-
-function getRepoEditBranchProtectionUrl(
-  owner: RepoEditBranchProtectionPathParams['owner'],
-  repo: RepoEditBranchProtectionPathParams['repo'],
-  name: RepoEditBranchProtectionPathParams['name'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/branch_protections/${name}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a branch protections for a repository. Only fields that are set will be changed
  * {@link /repos/:owner/:repo/branch_protections/:name}
  */
-export async function repoEditBranchProtection(
-  owner: RepoEditBranchProtectionPathParams['owner'],
-  repo: RepoEditBranchProtectionPathParams['repo'],
-  name: RepoEditBranchProtectionPathParams['name'],
-  data?: RepoEditBranchProtectionMutationRequest,
-  config: Partial<RequestConfig<RepoEditBranchProtectionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoEditBranchProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoEditBranchProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoEditBranchProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoEditBranchProtectionMutationResponse,
-    ResponseErrorConfig<RepoEditBranchProtection404 | RepoEditBranchProtection422 | RepoEditBranchProtection423>,
-    RepoEditBranchProtectionMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoEditBranchProtectionUrl(owner, repo, name).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/branch_protections/{name}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoEditBranchProtectionResponses, ThrowOnError>>;
 }

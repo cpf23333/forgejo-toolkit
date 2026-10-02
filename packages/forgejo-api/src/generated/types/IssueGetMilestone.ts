@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Milestone } from './Milestone';
 
-export type IssueGetMilestonePathParams = {
+export type IssueGetMilestonePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,25 +19,62 @@ export type IssueGetMilestonePathParams = {
   repo: string;
   /**
    * @description the milestone to get, identified by ID and if not available by name
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Milestone
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueGetMilestone200 = Milestone;
+export type IssueGetMilestoneStatus200Json = Milestone;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Milestone milestone is a collection of issues on one repository
+ * @type object
  */
-export type IssueGetMilestone404 = APINotFound;
+export type IssueGetMilestoneStatus200Html = Milestone;
 
-export type IssueGetMilestoneQueryResponse = IssueGetMilestone200;
+export type IssueGetMilestoneStatus200 = IssueGetMilestoneStatus200Json | IssueGetMilestoneStatus200Html;
 
-export type IssueGetMilestoneQuery = {
-  Response: IssueGetMilestone200;
-  PathParams: IssueGetMilestonePathParams;
-  Errors: IssueGetMilestone404;
+export type IssueGetMilestoneStatus404Json = APINotFound;
+
+export type IssueGetMilestoneStatus404Html = APINotFound;
+
+export type IssueGetMilestoneStatus404 = IssueGetMilestoneStatus404Json | IssueGetMilestoneStatus404Html;
+
+export type IssueGetMilestoneOptions = {
+  body?: never;
+  path: IssueGetMilestonePath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetMilestoneResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetMilestoneStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetMilestoneStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetMilestoneStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetMilestoneStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetMilestoneResponse = IssueGetMilestoneStatus200 | IssueGetMilestoneStatus404;

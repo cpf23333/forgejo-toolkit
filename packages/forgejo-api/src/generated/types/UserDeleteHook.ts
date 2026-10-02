@@ -6,33 +6,60 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserDeleteHookPathParams = {
+export type UserDeleteHookPath = {
   /**
    * @description id of the hook to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserDeleteHook204 = any;
+export type UserDeleteHookStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserDeleteHook401 = APIUnauthorizedError;
+export type UserDeleteHookStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserDeleteHook403 = APIForbiddenError;
+export type UserDeleteHookStatus401Html = APIUnauthorizedError;
 
-export type UserDeleteHookMutationResponse = UserDeleteHook204;
+export type UserDeleteHookStatus401 = UserDeleteHookStatus401Json | UserDeleteHookStatus401Html;
 
-export type UserDeleteHookMutation = {
-  Response: UserDeleteHook204;
-  PathParams: UserDeleteHookPathParams;
-  Errors: UserDeleteHook401 | UserDeleteHook403;
+export type UserDeleteHookStatus403Json = APIForbiddenError;
+
+export type UserDeleteHookStatus403Html = APIForbiddenError;
+
+export type UserDeleteHookStatus403 = UserDeleteHookStatus403Json | UserDeleteHookStatus403Html;
+
+export type UserDeleteHookOptions = {
+  body?: never;
+  path: UserDeleteHookPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserDeleteHookResponses = {
+  '204': UserDeleteHookStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteHookStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteHookStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserDeleteHookStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserDeleteHookStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserDeleteHookResponse = UserDeleteHookStatus204 | UserDeleteHookStatus401 | UserDeleteHookStatus403;

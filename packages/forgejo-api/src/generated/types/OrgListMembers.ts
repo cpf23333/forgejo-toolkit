@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { User } from './User';
 
-export type OrgListMembersPathParams = {
+export type OrgListMembersPath = {
   /**
    * @description name of the organization
    * @type string
@@ -14,7 +14,7 @@ export type OrgListMembersPathParams = {
   org: string;
 };
 
-export type OrgListMembersQueryParams = {
+export type OrgListMembersQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type OrgListMembersQueryParams = {
   limit?: number;
 };
 
-/**
- * @description UserList
- */
-export type OrgListMembers200 = User[];
+export type OrgListMembersStatus200Json = User[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgListMembers404 = APINotFound;
+export type OrgListMembersStatus200Html = User[];
 
-export type OrgListMembersQueryResponse = OrgListMembers200;
+export type OrgListMembersStatus200 = OrgListMembersStatus200Json | OrgListMembersStatus200Html;
 
-export type OrgListMembersQuery = {
-  Response: OrgListMembers200;
-  PathParams: OrgListMembersPathParams;
-  QueryParams: OrgListMembersQueryParams;
-  Errors: OrgListMembers404;
+export type OrgListMembersStatus404Json = APINotFound;
+
+export type OrgListMembersStatus404Html = APINotFound;
+
+export type OrgListMembersStatus404 = OrgListMembersStatus404Json | OrgListMembersStatus404Html;
+
+export type OrgListMembersOptions = {
+  body?: never;
+  path: OrgListMembersPath;
+  query?: OrgListMembersQuery;
+  headers?: never;
 };
+
+export type OrgListMembersResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: OrgListMembersStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListMembersStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgListMembersStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgListMembersStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgListMembersResponse = OrgListMembersStatus200 | OrgListMembersStatus404;

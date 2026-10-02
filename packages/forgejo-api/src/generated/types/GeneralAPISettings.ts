@@ -5,22 +5,31 @@
 
 /**
  * @description GeneralAPISettings contains global api settings exposed by it
+ * @type object
  */
 export type GeneralAPISettings = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   default_git_trees_per_page?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   default_max_blob_size?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   default_paging_num?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   max_response_items?: number;
 };

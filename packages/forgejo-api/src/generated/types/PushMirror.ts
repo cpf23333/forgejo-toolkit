@@ -5,46 +5,27 @@
 
 /**
  * @description PushMirror represents information of a push mirror
+ * @type object
  */
 export type PushMirror = {
-  /**
-   * @type string | undefined
-   */
   branch_filter?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
-  /**
-   * @type string | undefined
-   */
   interval?: string;
-  /**
-   * @type string | undefined
-   */
   last_error?: string;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   last_update?: string;
-  /**
-   * @type string | undefined
-   */
   public_key?: string;
-  /**
-   * @type string | undefined
-   */
   remote_address?: string;
-  /**
-   * @type string | undefined
-   */
   remote_name?: string;
-  /**
-   * @type string | undefined
-   */
   repo_name?: string;
-  /**
-   * @type boolean | undefined
-   */
   sync_on_commit?: boolean;
 };

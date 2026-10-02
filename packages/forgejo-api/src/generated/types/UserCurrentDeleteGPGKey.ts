@@ -7,38 +7,85 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
-export type UserCurrentDeleteGPGKeyPathParams = {
+export type UserCurrentDeleteGPGKeyPath = {
   /**
    * @description id of key to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserCurrentDeleteGPGKey204 = any;
+export type UserCurrentDeleteGPGKeyStatus204 = unknown;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type UserCurrentDeleteGPGKey401 = APIUnauthorizedError;
+export type UserCurrentDeleteGPGKeyStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserCurrentDeleteGPGKey403 = APIForbiddenError;
+export type UserCurrentDeleteGPGKeyStatus401Html = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserCurrentDeleteGPGKey404 = APINotFound;
+export type UserCurrentDeleteGPGKeyStatus401 =
+  | UserCurrentDeleteGPGKeyStatus401Json
+  | UserCurrentDeleteGPGKeyStatus401Html;
 
-export type UserCurrentDeleteGPGKeyMutationResponse = UserCurrentDeleteGPGKey204;
+export type UserCurrentDeleteGPGKeyStatus403Json = APIForbiddenError;
 
-export type UserCurrentDeleteGPGKeyMutation = {
-  Response: UserCurrentDeleteGPGKey204;
-  PathParams: UserCurrentDeleteGPGKeyPathParams;
-  Errors: UserCurrentDeleteGPGKey401 | UserCurrentDeleteGPGKey403 | UserCurrentDeleteGPGKey404;
+export type UserCurrentDeleteGPGKeyStatus403Html = APIForbiddenError;
+
+export type UserCurrentDeleteGPGKeyStatus403 =
+  | UserCurrentDeleteGPGKeyStatus403Json
+  | UserCurrentDeleteGPGKeyStatus403Html;
+
+export type UserCurrentDeleteGPGKeyStatus404Json = APINotFound;
+
+export type UserCurrentDeleteGPGKeyStatus404Html = APINotFound;
+
+export type UserCurrentDeleteGPGKeyStatus404 =
+  | UserCurrentDeleteGPGKeyStatus404Json
+  | UserCurrentDeleteGPGKeyStatus404Html;
+
+export type UserCurrentDeleteGPGKeyOptions = {
+  body?: never;
+  path: UserCurrentDeleteGPGKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type UserCurrentDeleteGPGKeyResponses = {
+  '204': UserCurrentDeleteGPGKeyStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteGPGKeyStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteGPGKeyStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteGPGKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteGPGKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserCurrentDeleteGPGKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserCurrentDeleteGPGKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserCurrentDeleteGPGKeyResponse =
+  | UserCurrentDeleteGPGKeyStatus204
+  | UserCurrentDeleteGPGKeyStatus401
+  | UserCurrentDeleteGPGKeyStatus403
+  | UserCurrentDeleteGPGKeyStatus404;

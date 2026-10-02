@@ -3,45 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueListBlocksQueryResponse,
-  IssueListBlocksPathParams,
-  IssueListBlocksQueryParams,
-  IssueListBlocks404,
-} from '../types/IssueListBlocks';
-
-function getIssueListBlocksUrl(
-  owner: IssueListBlocksPathParams['owner'],
-  repo: IssueListBlocksPathParams['repo'],
-  index: IssueListBlocksPathParams['index'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/${index}/blocks` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueListBlocksOptions, IssueListBlocksResponses } from '../types/IssueListBlocks';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List issues that are blocked by this issue
  * {@link /repos/:owner/:repo/issues/:index/blocks}
  */
-export async function issueListBlocks(
-  owner: IssueListBlocksPathParams['owner'],
-  repo: IssueListBlocksPathParams['repo'],
-  index: IssueListBlocksPathParams['index'],
-  params?: IssueListBlocksQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueListBlocks<ThrowOnError extends boolean = true>(
+  options: Options<IssueListBlocksOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueListBlocksResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<IssueListBlocksQueryResponse, ResponseErrorConfig<IssueListBlocks404>, unknown>({
-    method: 'GET',
-    url: getIssueListBlocksUrl(owner, repo, index).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/{index}/blocks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueListBlocksResponses, ThrowOnError>>;
 }

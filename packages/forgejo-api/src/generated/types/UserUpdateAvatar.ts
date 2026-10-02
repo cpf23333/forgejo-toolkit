@@ -7,27 +7,67 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { UpdateUserAvatarOption } from './UpdateUserAvatarOption';
 
-/**
- * @description APIEmpty is an empty response
- */
-export type UserUpdateAvatar204 = any;
+export type UserUpdateAvatarStatus204 = unknown;
+
+export type UserUpdateAvatarStatus401Json = APIUnauthorizedError;
+
+export type UserUpdateAvatarStatus401Html = APIUnauthorizedError;
+
+export type UserUpdateAvatarStatus401 = UserUpdateAvatarStatus401Json | UserUpdateAvatarStatus401Html;
+
+export type UserUpdateAvatarStatus403Json = APIForbiddenError;
+
+export type UserUpdateAvatarStatus403Html = APIForbiddenError;
+
+export type UserUpdateAvatarStatus403 = UserUpdateAvatarStatus403Json | UserUpdateAvatarStatus403Html;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description UpdateUserAvatarUserOption options when updating the user avatar
+ * @type object | undefined
  */
-export type UserUpdateAvatar401 = APIUnauthorizedError;
+export type UserUpdateAvatarBodyJson = UpdateUserAvatarOption | undefined;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description UpdateUserAvatarUserOption options when updating the user avatar
+ * @type object | undefined
  */
-export type UserUpdateAvatar403 = APIForbiddenError;
+export type UserUpdateAvatarBodyPlain = UpdateUserAvatarOption | undefined;
 
-export type UserUpdateAvatarMutationRequest = UpdateUserAvatarOption;
+export type UserUpdateAvatarBody = UserUpdateAvatarBodyJson | UserUpdateAvatarBodyPlain;
 
-export type UserUpdateAvatarMutationResponse = UserUpdateAvatar204;
-
-export type UserUpdateAvatarMutation = {
-  Response: UserUpdateAvatar204;
-  Request: UserUpdateAvatarMutationRequest;
-  Errors: UserUpdateAvatar401 | UserUpdateAvatar403;
+export type UserUpdateAvatarOptions = {
+  body: UserUpdateAvatarBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type UserUpdateAvatarResponses = {
+  '204': UserUpdateAvatarStatus204;
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateAvatarStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateAvatarStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserUpdateAvatarStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserUpdateAvatarStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserUpdateAvatarResponse =
+  | UserUpdateAvatarStatus204
+  | UserUpdateAvatarStatus401
+  | UserUpdateAvatarStatus403;

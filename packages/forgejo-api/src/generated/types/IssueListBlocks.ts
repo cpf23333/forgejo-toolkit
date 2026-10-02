@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Issue } from './Issue';
 
-export type IssueListBlocksPathParams = {
+export type IssueListBlocksPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,12 +19,14 @@ export type IssueListBlocksPathParams = {
   repo: string;
   /**
    * @description index of the issue
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
 };
 
-export type IssueListBlocksQueryParams = {
+export type IssueListBlocksQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -37,21 +39,47 @@ export type IssueListBlocksQueryParams = {
   limit?: number;
 };
 
-/**
- * @description IssueListWithoutPagination - Issues without pagination headers (used for pinned issues, dependencies, etc.)
- */
-export type IssueListBlocks200 = Issue[];
+export type IssueListBlocksStatus200Json = Issue[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type IssueListBlocks404 = APINotFound;
+export type IssueListBlocksStatus200Html = Issue[];
 
-export type IssueListBlocksQueryResponse = IssueListBlocks200;
+export type IssueListBlocksStatus200 = IssueListBlocksStatus200Json | IssueListBlocksStatus200Html;
 
-export type IssueListBlocksQuery = {
-  Response: IssueListBlocks200;
-  PathParams: IssueListBlocksPathParams;
-  QueryParams: IssueListBlocksQueryParams;
-  Errors: IssueListBlocks404;
+export type IssueListBlocksStatus404Json = APINotFound;
+
+export type IssueListBlocksStatus404Html = APINotFound;
+
+export type IssueListBlocksStatus404 = IssueListBlocksStatus404Json | IssueListBlocksStatus404Html;
+
+export type IssueListBlocksOptions = {
+  body?: never;
+  path: IssueListBlocksPath;
+  query?: IssueListBlocksQuery;
+  headers?: never;
 };
+
+export type IssueListBlocksResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueListBlocksStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListBlocksStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueListBlocksStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueListBlocksStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueListBlocksResponse = IssueListBlocksStatus200 | IssueListBlocksStatus404;

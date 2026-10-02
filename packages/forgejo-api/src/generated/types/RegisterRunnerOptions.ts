@@ -3,9 +3,6 @@
  * Do not edit manually.
  */
 
-/**
- * RegisterRunnerOptions declares the accepted options for registering runners.
- */
 export type RegisterRunnerOptions = {
   /**
    * @description Description of the runner to register.

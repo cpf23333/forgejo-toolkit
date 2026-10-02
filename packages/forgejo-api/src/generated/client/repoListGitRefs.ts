@@ -3,42 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListGitRefsQueryResponse,
-  RepoListGitRefsPathParams,
-  RepoListGitRefs404,
-} from '../types/RepoListGitRefs';
-
-function getRepoListGitRefsUrl(
-  owner: RepoListGitRefsPathParams['owner'],
-  repo: RepoListGitRefsPathParams['repo'],
-  ref: RepoListGitRefsPathParams['ref'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/refs/${ref}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListGitRefsOptions, RepoListGitRefsResponses } from '../types/RepoListGitRefs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get specified ref or filtered repository's refs
  * {@link /repos/:owner/:repo/git/refs/:ref}
  */
-export async function repoListGitRefs(
-  owner: RepoListGitRefsPathParams['owner'],
-  repo: RepoListGitRefsPathParams['repo'],
-  ref: RepoListGitRefsPathParams['ref'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListGitRefs<ThrowOnError extends boolean = true>(
+  options: Options<RepoListGitRefsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListGitRefsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListGitRefsQueryResponse, ResponseErrorConfig<RepoListGitRefs404>, unknown>({
-    method: 'GET',
-    url: getRepoListGitRefsUrl(owner, repo, ref).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/refs/{ref}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListGitRefsResponses, ThrowOnError>>;
 }

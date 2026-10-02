@@ -3,49 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueDeleteIssueAttachmentMutationResponse,
-  IssueDeleteIssueAttachmentPathParams,
-  IssueDeleteIssueAttachment404,
-  IssueDeleteIssueAttachment423,
+  IssueDeleteIssueAttachmentOptions,
+  IssueDeleteIssueAttachmentResponses,
 } from '../types/IssueDeleteIssueAttachment';
-
-function getIssueDeleteIssueAttachmentUrl(
-  owner: IssueDeleteIssueAttachmentPathParams['owner'],
-  repo: IssueDeleteIssueAttachmentPathParams['repo'],
-  index: IssueDeleteIssueAttachmentPathParams['index'],
-  attachment_id: IssueDeleteIssueAttachmentPathParams['attachment_id'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/assets/${attachment_id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an issue attachment
  * {@link /repos/:owner/:repo/issues/:index/assets/:attachment_id}
  */
-export async function issueDeleteIssueAttachment(
-  owner: IssueDeleteIssueAttachmentPathParams['owner'],
-  repo: IssueDeleteIssueAttachmentPathParams['repo'],
-  index: IssueDeleteIssueAttachmentPathParams['index'],
-  attachment_id: IssueDeleteIssueAttachmentPathParams['attachment_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteIssueAttachment<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteIssueAttachmentOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteIssueAttachmentResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueDeleteIssueAttachmentMutationResponse,
-    ResponseErrorConfig<IssueDeleteIssueAttachment404 | IssueDeleteIssueAttachment423>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteIssueAttachmentUrl(owner, repo, index, attachment_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteIssueAttachmentResponses, ThrowOnError>>;
 }

@@ -4,22 +4,22 @@
  */
 
 import type {
-  RepoDeleteTagMutationResponse,
-  RepoDeleteTag404,
-  RepoDeleteTag405,
-  RepoDeleteTag409,
-  RepoDeleteTag422,
-  RepoDeleteTag423,
+  RepoDeleteTagResponse,
+  RepoDeleteTagStatus404,
+  RepoDeleteTagStatus405,
+  RepoDeleteTagStatus409,
+  RepoDeleteTagStatus422,
+  RepoDeleteTagStatus423,
 } from '../types/RepoDeleteTag';
 import { http } from 'msw';
 
-export function repoDeleteTagHandlerResponse204(data?: RepoDeleteTagMutationResponse) {
+export function repoDeleteTagHandlerResponse204(data?: RepoDeleteTagResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteTagHandlerResponse404(data: RepoDeleteTag404) {
+export function repoDeleteTagHandlerResponse404(data: RepoDeleteTagStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -28,19 +28,19 @@ export function repoDeleteTagHandlerResponse404(data: RepoDeleteTag404) {
   });
 }
 
-export function repoDeleteTagHandlerResponse405(data?: RepoDeleteTag405) {
+export function repoDeleteTagHandlerResponse405(data?: RepoDeleteTagStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
   });
 }
 
-export function repoDeleteTagHandlerResponse409(data?: RepoDeleteTag409) {
+export function repoDeleteTagHandlerResponse409(data?: RepoDeleteTagStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function repoDeleteTagHandlerResponse422(data: RepoDeleteTag422) {
+export function repoDeleteTagHandlerResponse422(data: RepoDeleteTagStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -49,7 +49,7 @@ export function repoDeleteTagHandlerResponse422(data: RepoDeleteTag422) {
   });
 }
 
-export function repoDeleteTagHandlerResponse423(data: RepoDeleteTag423) {
+export function repoDeleteTagHandlerResponse423(data: RepoDeleteTagStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {

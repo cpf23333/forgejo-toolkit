@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { RepoRemoveNoteMutationResponse, RepoRemoveNote404, RepoRemoveNote422 } from '../types/RepoRemoveNote';
+import type { RepoRemoveNoteResponse, RepoRemoveNoteStatus404, RepoRemoveNoteStatus422 } from '../types/RepoRemoveNote';
 import { http } from 'msw';
 
-export function repoRemoveNoteHandlerResponse204(data?: RepoRemoveNoteMutationResponse) {
+export function repoRemoveNoteHandlerResponse204(data?: RepoRemoveNoteResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoRemoveNoteHandlerResponse404(data: RepoRemoveNote404) {
+export function repoRemoveNoteHandlerResponse404(data: RepoRemoveNoteStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -21,7 +21,7 @@ export function repoRemoveNoteHandlerResponse404(data: RepoRemoveNote404) {
   });
 }
 
-export function repoRemoveNoteHandlerResponse422(data: RepoRemoveNote422) {
+export function repoRemoveNoteHandlerResponse422(data: RepoRemoveNoteStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

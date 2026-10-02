@@ -5,10 +5,8 @@
 
 /**
  * @description EditGitHookOption options when modifying one Git hook
+ * @type object
  */
 export type EditGitHookOption = {
-  /**
-   * @type string | undefined
-   */
   content?: string;
 };

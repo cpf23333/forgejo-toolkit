@@ -6,7 +6,7 @@
 import type { APIError } from './APIError';
 import type { Attachment } from './Attachment';
 
-export type IssueGetIssueCommentAttachmentPathParams = {
+export type IssueGetIssueCommentAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,83 @@ export type IssueGetIssueCommentAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
    * @description id of the attachment to get
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   attachment_id: number;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueGetIssueCommentAttachment200 = Attachment;
+export type IssueGetIssueCommentAttachmentStatus200Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueGetIssueCommentAttachment404 = APIError;
+export type IssueGetIssueCommentAttachmentStatus200Html = Attachment;
 
-export type IssueGetIssueCommentAttachmentQueryResponse = IssueGetIssueCommentAttachment200;
+export type IssueGetIssueCommentAttachmentStatus200 =
+  | IssueGetIssueCommentAttachmentStatus200Json
+  | IssueGetIssueCommentAttachmentStatus200Html;
 
-export type IssueGetIssueCommentAttachmentQuery = {
-  Response: IssueGetIssueCommentAttachment200;
-  PathParams: IssueGetIssueCommentAttachmentPathParams;
-  Errors: IssueGetIssueCommentAttachment404;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueGetIssueCommentAttachmentStatus404Json = APIError;
+
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type IssueGetIssueCommentAttachmentStatus404Html = APIError;
+
+export type IssueGetIssueCommentAttachmentStatus404 =
+  | IssueGetIssueCommentAttachmentStatus404Json
+  | IssueGetIssueCommentAttachmentStatus404Html;
+
+export type IssueGetIssueCommentAttachmentOptions = {
+  body?: never;
+  path: IssueGetIssueCommentAttachmentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueGetIssueCommentAttachmentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueCommentAttachmentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueCommentAttachmentStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueGetIssueCommentAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueGetIssueCommentAttachmentStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueGetIssueCommentAttachmentResponse =
+  | IssueGetIssueCommentAttachmentStatus200
+  | IssueGetIssueCommentAttachmentStatus404;

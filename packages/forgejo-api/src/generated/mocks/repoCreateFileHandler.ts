@@ -4,17 +4,19 @@
  */
 
 import type {
-  RepoCreateFileMutationResponse,
-  RepoCreateFile403,
-  RepoCreateFile404,
-  RepoCreateFile409,
-  RepoCreateFile413,
-  RepoCreateFile422,
-  RepoCreateFile423,
+  RepoCreateFileResponse,
+  RepoCreateFileStatus403,
+  RepoCreateFileStatus404,
+  RepoCreateFileStatus409,
+  RepoCreateFileStatus413,
+  RepoCreateFileStatus422,
+  RepoCreateFileStatus423,
+  RepoCreateFileBody,
 } from '../types/RepoCreateFile';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoCreateFileHandlerResponse201(data: RepoCreateFileMutationResponse) {
+export function repoCreateFileHandlerResponse201(data: RepoCreateFileResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
@@ -23,7 +25,7 @@ export function repoCreateFileHandlerResponse201(data: RepoCreateFileMutationRes
   });
 }
 
-export function repoCreateFileHandlerResponse403(data: RepoCreateFile403) {
+export function repoCreateFileHandlerResponse403(data: RepoCreateFileStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -32,7 +34,7 @@ export function repoCreateFileHandlerResponse403(data: RepoCreateFile403) {
   });
 }
 
-export function repoCreateFileHandlerResponse404(data: RepoCreateFile404) {
+export function repoCreateFileHandlerResponse404(data: RepoCreateFileStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -41,19 +43,19 @@ export function repoCreateFileHandlerResponse404(data: RepoCreateFile404) {
   });
 }
 
-export function repoCreateFileHandlerResponse409(data?: RepoCreateFile409) {
+export function repoCreateFileHandlerResponse409(data?: RepoCreateFileStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function repoCreateFileHandlerResponse413(data?: RepoCreateFile413) {
+export function repoCreateFileHandlerResponse413(data?: RepoCreateFileStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoCreateFileHandlerResponse422(data: RepoCreateFile422) {
+export function repoCreateFileHandlerResponse422(data: RepoCreateFileStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -62,7 +64,7 @@ export function repoCreateFileHandlerResponse422(data: RepoCreateFile422) {
   });
 }
 
-export function repoCreateFileHandlerResponse423(data: RepoCreateFile423) {
+export function repoCreateFileHandlerResponse423(data: RepoCreateFileStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -72,18 +74,19 @@ export function repoCreateFileHandlerResponse423(data: RepoCreateFile423) {
 }
 
 export function repoCreateFileHandler(
-  data?:
-    | RepoCreateFileMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoCreateFileResponse | HttpResponseResolver<Record<string, string>, RepoCreateFileBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/contents/:filepath`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.post<Record<string, string>, RepoCreateFileBody>(
+    `/repos/:owner/:repo/contents/:filepath`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 201,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

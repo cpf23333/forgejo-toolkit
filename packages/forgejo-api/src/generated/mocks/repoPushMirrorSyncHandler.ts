@@ -4,21 +4,21 @@
  */
 
 import type {
-  RepoPushMirrorSyncMutationResponse,
-  RepoPushMirrorSync400,
-  RepoPushMirrorSync403,
-  RepoPushMirrorSync404,
-  RepoPushMirrorSync413,
+  RepoPushMirrorSyncResponse,
+  RepoPushMirrorSyncStatus400,
+  RepoPushMirrorSyncStatus403,
+  RepoPushMirrorSyncStatus404,
+  RepoPushMirrorSyncStatus413,
 } from '../types/RepoPushMirrorSync';
 import { http } from 'msw';
 
-export function repoPushMirrorSyncHandlerResponse200(data?: RepoPushMirrorSyncMutationResponse) {
+export function repoPushMirrorSyncHandlerResponse200(data?: RepoPushMirrorSyncResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse400(data: RepoPushMirrorSync400) {
+export function repoPushMirrorSyncHandlerResponse400(data: RepoPushMirrorSyncStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -27,7 +27,7 @@ export function repoPushMirrorSyncHandlerResponse400(data: RepoPushMirrorSync400
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse403(data: RepoPushMirrorSync403) {
+export function repoPushMirrorSyncHandlerResponse403(data: RepoPushMirrorSyncStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -36,7 +36,7 @@ export function repoPushMirrorSyncHandlerResponse403(data: RepoPushMirrorSync403
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse404(data: RepoPushMirrorSync404) {
+export function repoPushMirrorSyncHandlerResponse404(data: RepoPushMirrorSyncStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -45,7 +45,7 @@ export function repoPushMirrorSyncHandlerResponse404(data: RepoPushMirrorSync404
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse413(data?: RepoPushMirrorSync413) {
+export function repoPushMirrorSyncHandlerResponse413(data?: RepoPushMirrorSyncStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });

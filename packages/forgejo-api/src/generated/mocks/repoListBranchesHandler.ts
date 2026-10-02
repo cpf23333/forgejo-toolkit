@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoListBranchesQueryResponse } from '../types/RepoListBranches';
+import type { RepoListBranchesResponse } from '../types/RepoListBranches';
 import { http } from 'msw';
 
-export function repoListBranchesHandlerResponse200(data: RepoListBranchesQueryResponse) {
+export function repoListBranchesHandlerResponse200(data: RepoListBranchesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function repoListBranchesHandlerResponse200(data: RepoListBranchesQueryRe
 
 export function repoListBranchesHandler(
   data?:
-    | RepoListBranchesQueryResponse
+    | RepoListBranchesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/branches`, function handler(info) {

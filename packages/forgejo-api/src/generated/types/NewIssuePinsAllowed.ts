@@ -5,14 +5,9 @@
 
 /**
  * @description NewIssuePinsAllowed represents an API response that says if new Issue Pins are allowed
+ * @type object
  */
 export type NewIssuePinsAllowed = {
-  /**
-   * @type boolean | undefined
-   */
   issues?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   pull_requests?: boolean;
 };

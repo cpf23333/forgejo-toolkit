@@ -3,47 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GetRepoRunnerQueryResponse,
-  GetRepoRunnerPathParams,
-  GetRepoRunner400,
-  GetRepoRunner404,
-} from '../types/GetRepoRunner';
-
-function getGetRepoRunnerUrl(
-  owner: GetRepoRunnerPathParams['owner'],
-  repo: GetRepoRunnerPathParams['repo'],
-  runner_id: GetRepoRunnerPathParams['runner_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runners/${runner_id}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetRepoRunnerOptions, GetRepoRunnerResponses } from '../types/GetRepoRunner';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a particular runner that belongs to the repository
  * {@link /repos/:owner/:repo/actions/runners/:runner_id}
  */
-export async function getRepoRunner(
-  owner: GetRepoRunnerPathParams['owner'],
-  repo: GetRepoRunnerPathParams['repo'],
-  runner_id: GetRepoRunnerPathParams['runner_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getRepoRunner<ThrowOnError extends boolean = true>(
+  options: Options<GetRepoRunnerOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GetRepoRunnerResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    GetRepoRunnerQueryResponse,
-    ResponseErrorConfig<GetRepoRunner400 | GetRepoRunner404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getGetRepoRunnerUrl(owner, repo, runner_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runners/{runner_id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetRepoRunnerResponses, ThrowOnError>>;
 }

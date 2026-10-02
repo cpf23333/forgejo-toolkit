@@ -3,57 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoDismissPullReviewMutationRequest,
-  RepoDismissPullReviewMutationResponse,
-  RepoDismissPullReviewPathParams,
-  RepoDismissPullReview403,
-  RepoDismissPullReview404,
-  RepoDismissPullReview422,
-} from '../types/RepoDismissPullReview';
-
-function getRepoDismissPullReviewUrl(
-  owner: RepoDismissPullReviewPathParams['owner'],
-  repo: RepoDismissPullReviewPathParams['repo'],
-  index: RepoDismissPullReviewPathParams['index'],
-  id: RepoDismissPullReviewPathParams['id'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/dismissals` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoDismissPullReviewOptions, RepoDismissPullReviewResponses } from '../types/RepoDismissPullReview';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Dismiss a review for a pull request
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/dismissals}
  */
-export async function repoDismissPullReview(
-  owner: RepoDismissPullReviewPathParams['owner'],
-  repo: RepoDismissPullReviewPathParams['repo'],
-  index: RepoDismissPullReviewPathParams['index'],
-  id: RepoDismissPullReviewPathParams['id'],
-  data: RepoDismissPullReviewMutationRequest,
-  config: Partial<RequestConfig<RepoDismissPullReviewMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDismissPullReview<ThrowOnError extends boolean = true>(
+  options: Options<RepoDismissPullReviewOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDismissPullReviewResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoDismissPullReviewMutationResponse,
-    ResponseErrorConfig<RepoDismissPullReview403 | RepoDismissPullReview404 | RepoDismissPullReview422>,
-    RepoDismissPullReviewMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoDismissPullReviewUrl(owner, repo, index, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/dismissals',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDismissPullReviewResponses, ThrowOnError>>;
 }

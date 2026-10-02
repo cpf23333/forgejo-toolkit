@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { UserListStarredQueryResponse, UserListStarred404 } from '../types/UserListStarred';
+import type { UserListStarredResponse, UserListStarredStatus404 } from '../types/UserListStarred';
 import { http } from 'msw';
 
-export function userListStarredHandlerResponse200(data: UserListStarredQueryResponse) {
+export function userListStarredHandlerResponse200(data: UserListStarredResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function userListStarredHandlerResponse200(data: UserListStarredQueryResp
   });
 }
 
-export function userListStarredHandlerResponse404(data: UserListStarred404) {
+export function userListStarredHandlerResponse404(data: UserListStarredStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function userListStarredHandlerResponse404(data: UserListStarred404) {
 
 export function userListStarredHandler(
   data?:
-    | UserListStarredQueryResponse
+    | UserListStarredResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/starred`, function handler(info) {

@@ -4,14 +4,16 @@
  */
 
 import type {
-  RepoEditBranchProtectionMutationResponse,
-  RepoEditBranchProtection404,
-  RepoEditBranchProtection422,
-  RepoEditBranchProtection423,
+  RepoEditBranchProtectionResponse,
+  RepoEditBranchProtectionStatus404,
+  RepoEditBranchProtectionStatus422,
+  RepoEditBranchProtectionStatus423,
+  RepoEditBranchProtectionBody,
 } from '../types/RepoEditBranchProtection';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function repoEditBranchProtectionHandlerResponse200(data: RepoEditBranchProtectionMutationResponse) {
+export function repoEditBranchProtectionHandlerResponse200(data: RepoEditBranchProtectionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +22,7 @@ export function repoEditBranchProtectionHandlerResponse200(data: RepoEditBranchP
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse404(data: RepoEditBranchProtection404) {
+export function repoEditBranchProtectionHandlerResponse404(data: RepoEditBranchProtectionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +31,7 @@ export function repoEditBranchProtectionHandlerResponse404(data: RepoEditBranchP
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse422(data: RepoEditBranchProtection422) {
+export function repoEditBranchProtectionHandlerResponse422(data: RepoEditBranchProtectionStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -38,7 +40,7 @@ export function repoEditBranchProtectionHandlerResponse422(data: RepoEditBranchP
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse423(data: RepoEditBranchProtection423) {
+export function repoEditBranchProtectionHandlerResponse423(data: RepoEditBranchProtectionStatus423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
@@ -48,18 +50,19 @@ export function repoEditBranchProtectionHandlerResponse423(data: RepoEditBranchP
 }
 
 export function repoEditBranchProtectionHandler(
-  data?:
-    | RepoEditBranchProtectionMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: RepoEditBranchProtectionResponse | HttpResponseResolver<Record<string, string>, RepoEditBranchProtectionBody>,
 ) {
-  return http.patch(`/repos/:owner/:repo/branch_protections/:name`, function handler(info) {
-    if (typeof data === 'function') return data(info);
+  return http.patch<Record<string, string>, RepoEditBranchProtectionBody>(
+    `/repos/:owner/:repo/branch_protections/:name`,
+    function handler(info) {
+      if (typeof data === 'function') return data(info);
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+  );
 }

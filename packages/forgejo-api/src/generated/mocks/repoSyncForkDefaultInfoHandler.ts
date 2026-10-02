@@ -4,13 +4,13 @@
  */
 
 import type {
-  RepoSyncForkDefaultInfoQueryResponse,
-  RepoSyncForkDefaultInfo400,
-  RepoSyncForkDefaultInfo404,
+  RepoSyncForkDefaultInfoResponse,
+  RepoSyncForkDefaultInfoStatus400,
+  RepoSyncForkDefaultInfoStatus404,
 } from '../types/RepoSyncForkDefaultInfo';
 import { http } from 'msw';
 
-export function repoSyncForkDefaultInfoHandlerResponse200(data: RepoSyncForkDefaultInfoQueryResponse) {
+export function repoSyncForkDefaultInfoHandlerResponse200(data: RepoSyncForkDefaultInfoResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function repoSyncForkDefaultInfoHandlerResponse200(data: RepoSyncForkDefa
   });
 }
 
-export function repoSyncForkDefaultInfoHandlerResponse400(data: RepoSyncForkDefaultInfo400) {
+export function repoSyncForkDefaultInfoHandlerResponse400(data: RepoSyncForkDefaultInfoStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -28,7 +28,7 @@ export function repoSyncForkDefaultInfoHandlerResponse400(data: RepoSyncForkDefa
   });
 }
 
-export function repoSyncForkDefaultInfoHandlerResponse404(data: RepoSyncForkDefaultInfo404) {
+export function repoSyncForkDefaultInfoHandlerResponse404(data: RepoSyncForkDefaultInfoStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function repoSyncForkDefaultInfoHandlerResponse404(data: RepoSyncForkDefa
 
 export function repoSyncForkDefaultInfoHandler(
   data?:
-    | RepoSyncForkDefaultInfoQueryResponse
+    | RepoSyncForkDefaultInfoResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/sync_fork`, function handler(info) {

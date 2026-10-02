@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type UserListSubscriptionsPathParams = {
+export type UserListSubscriptionsPath = {
   /**
    * @description username of the user
    * @type string
@@ -14,7 +14,7 @@ export type UserListSubscriptionsPathParams = {
   username: string;
 };
 
-export type UserListSubscriptionsQueryParams = {
+export type UserListSubscriptionsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -27,21 +27,47 @@ export type UserListSubscriptionsQueryParams = {
   limit?: number;
 };
 
-/**
- * @description RepositoryList
- */
-export type UserListSubscriptions200 = Repository[];
+export type UserListSubscriptionsStatus200Json = Repository[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type UserListSubscriptions404 = APINotFound;
+export type UserListSubscriptionsStatus200Html = Repository[];
 
-export type UserListSubscriptionsQueryResponse = UserListSubscriptions200;
+export type UserListSubscriptionsStatus200 = UserListSubscriptionsStatus200Json | UserListSubscriptionsStatus200Html;
 
-export type UserListSubscriptionsQuery = {
-  Response: UserListSubscriptions200;
-  PathParams: UserListSubscriptionsPathParams;
-  QueryParams: UserListSubscriptionsQueryParams;
-  Errors: UserListSubscriptions404;
+export type UserListSubscriptionsStatus404Json = APINotFound;
+
+export type UserListSubscriptionsStatus404Html = APINotFound;
+
+export type UserListSubscriptionsStatus404 = UserListSubscriptionsStatus404Json | UserListSubscriptionsStatus404Html;
+
+export type UserListSubscriptionsOptions = {
+  body?: never;
+  path: UserListSubscriptionsPath;
+  query?: UserListSubscriptionsQuery;
+  headers?: never;
 };
+
+export type UserListSubscriptionsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListSubscriptionsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListSubscriptionsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: UserListSubscriptionsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListSubscriptionsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListSubscriptionsResponse = UserListSubscriptionsStatus200 | UserListSubscriptionsStatus404;

@@ -3,44 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgCreateHookMutationRequest,
-  OrgCreateHookMutationResponse,
-  OrgCreateHookPathParams,
-  OrgCreateHook404,
-} from '../types/OrgCreateHook';
-
-function getOrgCreateHookUrl(org: OrgCreateHookPathParams['org']) {
-  const res = { method: 'POST', url: `/orgs/${org}/hooks` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgCreateHookOptions, OrgCreateHookResponses } from '../types/OrgCreateHook';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a hook
  * {@link /orgs/:org/hooks}
  */
-export async function orgCreateHook(
-  org: OrgCreateHookPathParams['org'],
-  data: OrgCreateHookMutationRequest,
-  config: Partial<RequestConfig<OrgCreateHookMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgCreateHook<ThrowOnError extends boolean = true>(
+  options: Options<OrgCreateHookOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgCreateHookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    OrgCreateHookMutationResponse,
-    ResponseErrorConfig<OrgCreateHook404>,
-    OrgCreateHookMutationRequest
-  >({
-    method: 'POST',
-    url: getOrgCreateHookUrl(org).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/orgs/{org}/hooks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgCreateHookResponses, ThrowOnError>>;
 }

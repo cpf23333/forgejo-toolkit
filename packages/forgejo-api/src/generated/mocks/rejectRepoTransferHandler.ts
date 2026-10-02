@@ -4,13 +4,13 @@
  */
 
 import type {
-  RejectRepoTransferMutationResponse,
-  RejectRepoTransfer403,
-  RejectRepoTransfer404,
+  RejectRepoTransferResponse,
+  RejectRepoTransferStatus403,
+  RejectRepoTransferStatus404,
 } from '../types/RejectRepoTransfer';
 import { http } from 'msw';
 
-export function rejectRepoTransferHandlerResponse200(data: RejectRepoTransferMutationResponse) {
+export function rejectRepoTransferHandlerResponse200(data: RejectRepoTransferResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -19,7 +19,7 @@ export function rejectRepoTransferHandlerResponse200(data: RejectRepoTransferMut
   });
 }
 
-export function rejectRepoTransferHandlerResponse403(data: RejectRepoTransfer403) {
+export function rejectRepoTransferHandlerResponse403(data: RejectRepoTransferStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -28,7 +28,7 @@ export function rejectRepoTransferHandlerResponse403(data: RejectRepoTransfer403
   });
 }
 
-export function rejectRepoTransferHandlerResponse404(data: RejectRepoTransfer404) {
+export function rejectRepoTransferHandlerResponse404(data: RejectRepoTransferStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -39,7 +39,7 @@ export function rejectRepoTransferHandlerResponse404(data: RejectRepoTransfer404
 
 export function rejectRepoTransferHandler(
   data?:
-    | RejectRepoTransferMutationResponse
+    | RejectRepoTransferResponse
     | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/transfer/reject`, function handler(info) {

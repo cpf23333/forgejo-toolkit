@@ -4,20 +4,20 @@
  */
 
 import type {
-  IssueDeleteTimeMutationResponse,
-  IssueDeleteTime400,
-  IssueDeleteTime403,
-  IssueDeleteTime404,
+  IssueDeleteTimeResponse,
+  IssueDeleteTimeStatus400,
+  IssueDeleteTimeStatus403,
+  IssueDeleteTimeStatus404,
 } from '../types/IssueDeleteTime';
 import { http } from 'msw';
 
-export function issueDeleteTimeHandlerResponse204(data?: IssueDeleteTimeMutationResponse) {
+export function issueDeleteTimeHandlerResponse204(data?: IssueDeleteTimeResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteTimeHandlerResponse400(data: IssueDeleteTime400) {
+export function issueDeleteTimeHandlerResponse400(data: IssueDeleteTimeStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -26,7 +26,7 @@ export function issueDeleteTimeHandlerResponse400(data: IssueDeleteTime400) {
   });
 }
 
-export function issueDeleteTimeHandlerResponse403(data: IssueDeleteTime403) {
+export function issueDeleteTimeHandlerResponse403(data: IssueDeleteTimeStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +35,7 @@ export function issueDeleteTimeHandlerResponse403(data: IssueDeleteTime403) {
   });
 }
 
-export function issueDeleteTimeHandlerResponse404(data: IssueDeleteTime404) {
+export function issueDeleteTimeHandlerResponse404(data: IssueDeleteTimeStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

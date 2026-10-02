@@ -6,10 +6,12 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type OrgRemoveTeamRepositoryPathParams = {
+export type OrgRemoveTeamRepositoryPath = {
   /**
    * @description id of the team
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
   /**
@@ -24,25 +26,57 @@ export type OrgRemoveTeamRepositoryPathParams = {
   repo: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type OrgRemoveTeamRepository204 = any;
+export type OrgRemoveTeamRepositoryStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type OrgRemoveTeamRepository403 = APIForbiddenError;
+export type OrgRemoveTeamRepositoryStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type OrgRemoveTeamRepository404 = APINotFound;
+export type OrgRemoveTeamRepositoryStatus403Html = APIForbiddenError;
 
-export type OrgRemoveTeamRepositoryMutationResponse = OrgRemoveTeamRepository204;
+export type OrgRemoveTeamRepositoryStatus403 =
+  | OrgRemoveTeamRepositoryStatus403Json
+  | OrgRemoveTeamRepositoryStatus403Html;
 
-export type OrgRemoveTeamRepositoryMutation = {
-  Response: OrgRemoveTeamRepository204;
-  PathParams: OrgRemoveTeamRepositoryPathParams;
-  Errors: OrgRemoveTeamRepository403 | OrgRemoveTeamRepository404;
+export type OrgRemoveTeamRepositoryStatus404Json = APINotFound;
+
+export type OrgRemoveTeamRepositoryStatus404Html = APINotFound;
+
+export type OrgRemoveTeamRepositoryStatus404 =
+  | OrgRemoveTeamRepositoryStatus404Json
+  | OrgRemoveTeamRepositoryStatus404Html;
+
+export type OrgRemoveTeamRepositoryOptions = {
+  body?: never;
+  path: OrgRemoveTeamRepositoryPath;
+  query?: never;
+  headers?: never;
 };
+
+export type OrgRemoveTeamRepositoryResponses = {
+  '204': OrgRemoveTeamRepositoryStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: OrgRemoveTeamRepositoryStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgRemoveTeamRepositoryStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: OrgRemoveTeamRepositoryStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: OrgRemoveTeamRepositoryStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type OrgRemoveTeamRepositoryResponse =
+  | OrgRemoveTeamRepositoryStatus204
+  | OrgRemoveTeamRepositoryStatus403
+  | OrgRemoveTeamRepositoryStatus404;

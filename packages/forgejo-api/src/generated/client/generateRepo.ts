@@ -3,55 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  GenerateRepoMutationRequest,
-  GenerateRepoMutationResponse,
-  GenerateRepoPathParams,
-  GenerateRepo403,
-  GenerateRepo404,
-  GenerateRepo409,
-  GenerateRepo413,
-  GenerateRepo422,
-} from '../types/GenerateRepo';
-
-function getGenerateRepoUrl(
-  template_owner: GenerateRepoPathParams['template_owner'],
-  template_repo: GenerateRepoPathParams['template_repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${template_owner}/${template_repo}/generate` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GenerateRepoOptions, GenerateRepoResponses } from '../types/GenerateRepo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a repository using a template
  * {@link /repos/:template_owner/:template_repo/generate}
  */
-export async function generateRepo(
-  template_owner: GenerateRepoPathParams['template_owner'],
-  template_repo: GenerateRepoPathParams['template_repo'],
-  data: GenerateRepoMutationRequest,
-  config: Partial<RequestConfig<GenerateRepoMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function generateRepo<ThrowOnError extends boolean = true>(
+  options: Options<GenerateRepoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<GenerateRepoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    GenerateRepoMutationResponse,
-    ResponseErrorConfig<GenerateRepo403 | GenerateRepo404 | GenerateRepo409 | GenerateRepo413 | GenerateRepo422>,
-    GenerateRepoMutationRequest
-  >({
-    method: 'POST',
-    url: getGenerateRepoUrl(template_owner, template_repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{template_owner}/{template_repo}/generate',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GenerateRepoResponses, ThrowOnError>>;
 }

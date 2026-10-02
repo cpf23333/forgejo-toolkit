@@ -3,54 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssuePostCommentReactionMutationRequest,
-  IssuePostCommentReactionMutationResponse,
-  IssuePostCommentReactionPathParams,
-  IssuePostCommentReaction403,
-  IssuePostCommentReaction404,
+  IssuePostCommentReactionOptions,
+  IssuePostCommentReactionResponses,
 } from '../types/IssuePostCommentReaction';
-
-function getIssuePostCommentReactionUrl(
-  owner: IssuePostCommentReactionPathParams['owner'],
-  repo: IssuePostCommentReactionPathParams['repo'],
-  id: IssuePostCommentReactionPathParams['id'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Add a reaction to a comment of an issue
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
-export async function issuePostCommentReaction(
-  owner: IssuePostCommentReactionPathParams['owner'],
-  repo: IssuePostCommentReactionPathParams['repo'],
-  id: IssuePostCommentReactionPathParams['id'],
-  data?: IssuePostCommentReactionMutationRequest,
-  config: Partial<RequestConfig<IssuePostCommentReactionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issuePostCommentReaction<ThrowOnError extends boolean = true>(
+  options: Options<IssuePostCommentReactionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssuePostCommentReactionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssuePostCommentReactionMutationResponse,
-    ResponseErrorConfig<IssuePostCommentReaction403 | IssuePostCommentReaction404>,
-    IssuePostCommentReactionMutationRequest
-  >({
-    method: 'POST',
-    url: getIssuePostCommentReactionUrl(owner, repo, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/issues/comments/{id}/reactions',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssuePostCommentReactionResponses, ThrowOnError>>;
 }

@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { CreateVariableOption } from './CreateVariableOption';
 
-export type CreateUserVariablePathParams = {
+export type CreateUserVariablePath = {
   /**
    * @description name of the variable
    * @type string
@@ -17,46 +17,99 @@ export type CreateUserVariablePathParams = {
   variablename: string;
 };
 
-/**
- * @description response when creating a variable
- */
-export type CreateUserVariable201 = any;
+export type CreateUserVariableStatus201 = unknown;
+
+export type CreateUserVariableStatus204 = unknown;
 
 /**
- * @description response when creating a variable
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateUserVariable204 = any;
+export type CreateUserVariableStatus400Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type CreateUserVariable400 = APIError;
+export type CreateUserVariableStatus400Html = APIError;
 
-/**
- * @description APIUnauthorizedError is a unauthorized error response
- */
-export type CreateUserVariable401 = APIUnauthorizedError;
+export type CreateUserVariableStatus400 = CreateUserVariableStatus400Json | CreateUserVariableStatus400Html;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type CreateUserVariable403 = APIForbiddenError;
+export type CreateUserVariableStatus401Json = APIUnauthorizedError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type CreateUserVariable404 = APINotFound;
+export type CreateUserVariableStatus401Html = APIUnauthorizedError;
 
-/**
- * CreateVariableOption defines the properties of the variable to create.
- */
-export type CreateUserVariableMutationRequest = CreateVariableOption;
+export type CreateUserVariableStatus401 = CreateUserVariableStatus401Json | CreateUserVariableStatus401Html;
 
-export type CreateUserVariableMutationResponse = CreateUserVariable201 | CreateUserVariable204;
+export type CreateUserVariableStatus403Json = APIForbiddenError;
 
-export type CreateUserVariableMutation = {
-  Response: CreateUserVariable201 | CreateUserVariable204;
-  Request: CreateUserVariableMutationRequest;
-  PathParams: CreateUserVariablePathParams;
-  Errors: CreateUserVariable400 | CreateUserVariable401 | CreateUserVariable403 | CreateUserVariable404;
+export type CreateUserVariableStatus403Html = APIForbiddenError;
+
+export type CreateUserVariableStatus403 = CreateUserVariableStatus403Json | CreateUserVariableStatus403Html;
+
+export type CreateUserVariableStatus404Json = APINotFound;
+
+export type CreateUserVariableStatus404Html = APINotFound;
+
+export type CreateUserVariableStatus404 = CreateUserVariableStatus404Json | CreateUserVariableStatus404Html;
+
+export type CreateUserVariableBody = CreateVariableOption | undefined;
+
+export type CreateUserVariableOptions = {
+  body: CreateUserVariableBody;
+  path: CreateUserVariablePath;
+  query?: never;
+  headers?: never;
 };
+
+export type CreateUserVariableResponses = {
+  '201': CreateUserVariableStatus201;
+  '204': CreateUserVariableStatus204;
+  '400':
+    | {
+        contentType: 'application/json';
+        data: CreateUserVariableStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateUserVariableStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: CreateUserVariableStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateUserVariableStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: CreateUserVariableStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateUserVariableStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: CreateUserVariableStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: CreateUserVariableStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type CreateUserVariableResponse =
+  | CreateUserVariableStatus201
+  | CreateUserVariableStatus204
+  | CreateUserVariableStatus400
+  | CreateUserVariableStatus401
+  | CreateUserVariableStatus403
+  | CreateUserVariableStatus404;

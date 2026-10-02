@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoListPinnedIssuesQueryResponse,
-  RepoListPinnedIssuesPathParams,
-  RepoListPinnedIssues404,
-} from '../types/RepoListPinnedIssues';
-
-function getRepoListPinnedIssuesUrl(
-  owner: RepoListPinnedIssuesPathParams['owner'],
-  repo: RepoListPinnedIssuesPathParams['repo'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/issues/pinned` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoListPinnedIssuesOptions, RepoListPinnedIssuesResponses } from '../types/RepoListPinnedIssues';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List a repo's pinned issues
  * {@link /repos/:owner/:repo/issues/pinned}
  */
-export async function repoListPinnedIssues(
-  owner: RepoListPinnedIssuesPathParams['owner'],
-  repo: RepoListPinnedIssuesPathParams['repo'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoListPinnedIssues<ThrowOnError extends boolean = true>(
+  options: Options<RepoListPinnedIssuesOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoListPinnedIssuesResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<RepoListPinnedIssuesQueryResponse, ResponseErrorConfig<RepoListPinnedIssues404>, unknown>({
-    method: 'GET',
-    url: getRepoListPinnedIssuesUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/issues/pinned',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoListPinnedIssuesResponses, ThrowOnError>>;
 }

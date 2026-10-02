@@ -5,5 +5,6 @@
 
 /**
  * @description ReviewStateType review state type
+ * @type string
  */
 export type ReviewStateType = string;

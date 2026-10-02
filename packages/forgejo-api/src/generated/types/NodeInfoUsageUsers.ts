@@ -5,18 +5,25 @@
 
 /**
  * @description NodeInfoUsageUsers contains statistics about the users of this server
+ * @type object
  */
 export type NodeInfoUsageUsers = {
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   activeHalfyear?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   activeMonth?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total?: number;
 };

@@ -3,58 +3,37 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueEditCommentDeprecatedMutationRequest,
-  IssueEditCommentDeprecatedMutationResponse,
-  IssueEditCommentDeprecatedPathParams,
-  IssueEditCommentDeprecated403,
-  IssueEditCommentDeprecated404,
-  IssueEditCommentDeprecated500,
+  IssueEditCommentDeprecatedOptions,
+  IssueEditCommentDeprecatedResponses,
 } from '../types/IssueEditCommentDeprecated';
-
-function getIssueEditCommentDeprecatedUrl(
-  owner: IssueEditCommentDeprecatedPathParams['owner'],
-  repo: IssueEditCommentDeprecatedPathParams['repo'],
-  index: IssueEditCommentDeprecatedPathParams['index'],
-  id: IssueEditCommentDeprecatedPathParams['id'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/issues/${index}/comments/${id}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Edit a comment
  * {@link /repos/:owner/:repo/issues/:index/comments/:id}
  * @deprecated
  */
-export async function issueEditCommentDeprecated(
-  owner: IssueEditCommentDeprecatedPathParams['owner'],
-  repo: IssueEditCommentDeprecatedPathParams['repo'],
-  index: IssueEditCommentDeprecatedPathParams['index'],
-  id: IssueEditCommentDeprecatedPathParams['id'],
-  data: IssueEditCommentDeprecatedMutationRequest,
-  config: Partial<RequestConfig<IssueEditCommentDeprecatedMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueEditCommentDeprecated<ThrowOnError extends boolean = true>(
+  options: Options<IssueEditCommentDeprecatedOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueEditCommentDeprecatedResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueEditCommentDeprecatedMutationResponse,
-    ResponseErrorConfig<IssueEditCommentDeprecated403 | IssueEditCommentDeprecated404 | IssueEditCommentDeprecated500>,
-    IssueEditCommentDeprecatedMutationRequest
-  >({
-    method: 'PATCH',
-    url: getIssueEditCommentDeprecatedUrl(owner, repo, index, id).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/issues/{index}/comments/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueEditCommentDeprecatedResponses, ThrowOnError>>;
 }

@@ -8,15 +8,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { APIValidationError } from './APIValidationError';
 import type { Attachment } from './Attachment';
 
-export type IssueCreateIssueCommentAttachment = {
-  /**
-   * @description attachment to upload
-   * @type string, binary
-   */
-  attachment: Blob;
-};
-
-export type IssueCreateIssueCommentAttachmentPathParams = {
+export type IssueCreateIssueCommentAttachmentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -29,12 +21,14 @@ export type IssueCreateIssueCommentAttachmentPathParams = {
   repo: string;
   /**
    * @description id of the comment
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-export type IssueCreateIssueCommentAttachmentQueryParams = {
+export type IssueCreateIssueCommentAttachmentQuery = {
   /**
    * @description name of the attachment
    * @type string | undefined
@@ -42,60 +36,152 @@ export type IssueCreateIssueCommentAttachmentQueryParams = {
   name?: string;
   /**
    * @description time of the attachment\'s creation. This is a timestamp in RFC 3339 format
-   * @type string | undefined, date-time
+   *
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
 };
 
 /**
- * @description Attachment
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment201 = Attachment;
+export type IssueCreateIssueCommentAttachmentStatus201Json = Attachment;
 
 /**
- * @description APIError is error format response
+ * @description Attachment a generic attachment
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment400 = APIError;
+export type IssueCreateIssueCommentAttachmentStatus201Html = Attachment;
+
+export type IssueCreateIssueCommentAttachmentStatus201 =
+  | IssueCreateIssueCommentAttachmentStatus201Json
+  | IssueCreateIssueCommentAttachmentStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment404 = APIError;
+export type IssueCreateIssueCommentAttachmentStatus400Json = APIError;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment413 = any;
+export type IssueCreateIssueCommentAttachmentStatus400Html = APIError;
+
+export type IssueCreateIssueCommentAttachmentStatus400 =
+  | IssueCreateIssueCommentAttachmentStatus400Json
+  | IssueCreateIssueCommentAttachmentStatus400Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment422 = APIValidationError;
+export type IssueCreateIssueCommentAttachmentStatus404Json = APIError;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type IssueCreateIssueCommentAttachment423 = APIRepoArchivedError;
+export type IssueCreateIssueCommentAttachmentStatus404Html = APIError;
 
-export type IssueCreateIssueCommentAttachmentMutationRequest = {
-  /**
-   * @description attachment to upload
-   * @type string, binary
-   */
-  attachment: Blob;
+export type IssueCreateIssueCommentAttachmentStatus404 =
+  | IssueCreateIssueCommentAttachmentStatus404Json
+  | IssueCreateIssueCommentAttachmentStatus404Html;
+
+export type IssueCreateIssueCommentAttachmentStatus413 = unknown;
+
+export type IssueCreateIssueCommentAttachmentStatus422Json = APIValidationError;
+
+export type IssueCreateIssueCommentAttachmentStatus422Html = APIValidationError;
+
+export type IssueCreateIssueCommentAttachmentStatus422 =
+  | IssueCreateIssueCommentAttachmentStatus422Json
+  | IssueCreateIssueCommentAttachmentStatus422Html;
+
+export type IssueCreateIssueCommentAttachmentStatus423Json = APIRepoArchivedError;
+
+export type IssueCreateIssueCommentAttachmentStatus423Html = APIRepoArchivedError;
+
+export type IssueCreateIssueCommentAttachmentStatus423 =
+  | IssueCreateIssueCommentAttachmentStatus423Json
+  | IssueCreateIssueCommentAttachmentStatus423Html;
+
+export type IssueCreateIssueCommentAttachmentBody =
+  | {
+      /**
+       * @description attachment to upload
+       * @type string
+       */
+      attachment: Blob;
+    }
+  | undefined;
+
+export type IssueCreateIssueCommentAttachmentOptions = {
+  body: IssueCreateIssueCommentAttachmentBody;
+  path: IssueCreateIssueCommentAttachmentPath;
+  query?: IssueCreateIssueCommentAttachmentQuery;
+  headers?: never;
 };
 
-export type IssueCreateIssueCommentAttachmentMutationResponse = IssueCreateIssueCommentAttachment201;
-
-export type IssueCreateIssueCommentAttachmentMutation = {
-  Response: IssueCreateIssueCommentAttachment201;
-  Request: IssueCreateIssueCommentAttachmentMutationRequest;
-  PathParams: IssueCreateIssueCommentAttachmentPathParams;
-  QueryParams: IssueCreateIssueCommentAttachmentQueryParams;
-  Errors:
-    | IssueCreateIssueCommentAttachment400
-    | IssueCreateIssueCommentAttachment404
-    | IssueCreateIssueCommentAttachment413
-    | IssueCreateIssueCommentAttachment422
-    | IssueCreateIssueCommentAttachment423;
+export type IssueCreateIssueCommentAttachmentResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueCommentAttachmentStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueCommentAttachmentStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueCommentAttachmentStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueCommentAttachmentStatus400Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueCommentAttachmentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueCommentAttachmentStatus404Html;
+      };
+  '413': IssueCreateIssueCommentAttachmentStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueCommentAttachmentStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueCommentAttachmentStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: IssueCreateIssueCommentAttachmentStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueCreateIssueCommentAttachmentStatus423Html;
+      };
 };
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueCreateIssueCommentAttachmentResponse =
+  | IssueCreateIssueCommentAttachmentStatus201
+  | IssueCreateIssueCommentAttachmentStatus400
+  | IssueCreateIssueCommentAttachmentStatus404
+  | IssueCreateIssueCommentAttachmentStatus413
+  | IssueCreateIssueCommentAttachmentStatus422
+  | IssueCreateIssueCommentAttachmentStatus423;

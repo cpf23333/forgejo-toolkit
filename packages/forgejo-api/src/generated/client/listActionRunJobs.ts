@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  ListActionRunJobsQueryResponse,
-  ListActionRunJobsPathParams,
-  ListActionRunJobs400,
-  ListActionRunJobs403,
-  ListActionRunJobs404,
-} from '../types/ListActionRunJobs';
-
-function getListActionRunJobsUrl(
-  owner: ListActionRunJobsPathParams['owner'],
-  repo: ListActionRunJobsPathParams['repo'],
-  run_id: ListActionRunJobsPathParams['run_id'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/actions/runs/${run_id}/jobs` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { ListActionRunJobsOptions, ListActionRunJobsResponses } from '../types/ListActionRunJobs';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary List jobs of a workflow run
  * {@link /repos/:owner/:repo/actions/runs/:run_id/jobs}
  */
-export async function listActionRunJobs(
-  owner: ListActionRunJobsPathParams['owner'],
-  repo: ListActionRunJobsPathParams['repo'],
-  run_id: ListActionRunJobsPathParams['run_id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function listActionRunJobs<ThrowOnError extends boolean = true>(
+  options: Options<ListActionRunJobsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<ListActionRunJobsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    ListActionRunJobsQueryResponse,
-    ResponseErrorConfig<ListActionRunJobs400 | ListActionRunJobs403 | ListActionRunJobs404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getListActionRunJobsUrl(owner, repo, run_id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/actions/runs/{run_id}/jobs',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<ListActionRunJobsResponses, ThrowOnError>>;
 }

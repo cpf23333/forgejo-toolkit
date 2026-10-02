@@ -3,50 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UpdateUserSecretMutationRequest,
-  UpdateUserSecretMutationResponse,
-  UpdateUserSecretPathParams,
-  UpdateUserSecret400,
-  UpdateUserSecret401,
-  UpdateUserSecret403,
-  UpdateUserSecret404,
-} from '../types/UpdateUserSecret';
-
-function getUpdateUserSecretUrl(secretname: UpdateUserSecretPathParams['secretname']) {
-  const res = {
-    method: 'PUT',
-    url: `/user/actions/secrets/${secretname}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UpdateUserSecretOptions, UpdateUserSecretResponses } from '../types/UpdateUserSecret';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create or Update a secret value in a user scope
  * {@link /user/actions/secrets/:secretname}
  */
-export async function updateUserSecret(
-  secretname: UpdateUserSecretPathParams['secretname'],
-  data: UpdateUserSecretMutationRequest,
-  config: Partial<RequestConfig<UpdateUserSecretMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function updateUserSecret<ThrowOnError extends boolean = true>(
+  options: Options<UpdateUserSecretOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UpdateUserSecretResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UpdateUserSecretMutationResponse,
-    ResponseErrorConfig<UpdateUserSecret400 | UpdateUserSecret401 | UpdateUserSecret403 | UpdateUserSecret404>,
-    UpdateUserSecretMutationRequest
-  >({
-    method: 'PUT',
-    url: getUpdateUserSecretUrl(secretname).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PUT',
+      url: '/user/actions/secrets/{secretname}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UpdateUserSecretResponses, ThrowOnError>>;
 }

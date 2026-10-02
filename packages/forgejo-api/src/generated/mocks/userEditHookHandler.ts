@@ -3,10 +3,16 @@
  * Do not edit manually.
  */
 
-import type { UserEditHookMutationResponse, UserEditHook401, UserEditHook403 } from '../types/UserEditHook';
+import type {
+  UserEditHookResponse,
+  UserEditHookStatus401,
+  UserEditHookStatus403,
+  UserEditHookBody,
+} from '../types/UserEditHook';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userEditHookHandlerResponse200(data: UserEditHookMutationResponse) {
+export function userEditHookHandlerResponse200(data: UserEditHookResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +21,7 @@ export function userEditHookHandlerResponse200(data: UserEditHookMutationRespons
   });
 }
 
-export function userEditHookHandlerResponse401(data: UserEditHook401) {
+export function userEditHookHandlerResponse401(data: UserEditHookStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -24,7 +30,7 @@ export function userEditHookHandlerResponse401(data: UserEditHook401) {
   });
 }
 
-export function userEditHookHandlerResponse403(data: UserEditHook403) {
+export function userEditHookHandlerResponse403(data: UserEditHookStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -34,11 +40,9 @@ export function userEditHookHandlerResponse403(data: UserEditHook403) {
 }
 
 export function userEditHookHandler(
-  data?:
-    | UserEditHookMutationResponse
-    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
+  data?: UserEditHookResponse | HttpResponseResolver<Record<string, string>, UserEditHookBody>,
 ) {
-  return http.patch(`/user/hooks/:id`, function handler(info) {
+  return http.patch<Record<string, string>, UserEditHookBody>(`/user/hooks/:id`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

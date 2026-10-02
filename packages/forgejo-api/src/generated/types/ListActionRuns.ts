@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { ListActionRunResponse } from './ListActionRunResponse';
 
-export type ListActionRunsPathParams = {
+export type ListActionRunsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -20,7 +20,7 @@ export type ListActionRunsPathParams = {
   repo: string;
 };
 
-export const listActionRunsQueryParamsStatusEnum = {
+export const listActionRunsStatusEnum = {
   unknown: 'unknown',
   waiting: 'waiting',
   running: 'running',
@@ -31,10 +31,9 @@ export const listActionRunsQueryParamsStatusEnum = {
   blocked: 'blocked',
 } as const;
 
-export type ListActionRunsQueryParamsStatusEnumKey =
-  (typeof listActionRunsQueryParamsStatusEnum)[keyof typeof listActionRunsQueryParamsStatusEnum];
+export type ListActionRunsStatusEnumKey = (typeof listActionRunsStatusEnum)[keyof typeof listActionRunsStatusEnum];
 
-export type ListActionRunsQueryParams = {
+export type ListActionRunsQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -54,10 +53,12 @@ export type ListActionRunsQueryParams = {
    * @description Returns workflow runs with the check run status or conclusion that is specified. For example, a conclusion can be success or a status can be in_progress. Only Forgejo Actions can set a status of waiting, pending, or requested.\n
    * @type array | undefined
    */
-  status?: ListActionRunsQueryParamsStatusEnumKey[];
+  status?: ListActionRunsStatusEnumKey[];
   /**
    * @description Returns the workflow run associated with the run number.\n
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   run_number?: number;
   /**
@@ -78,25 +79,77 @@ export type ListActionRunsQueryParams = {
 };
 
 /**
- * @description ActionRunList
+ * @description ListActionRunResponse return a list of ActionRun
+ * @type object
  */
-export type ListActionRuns200 = ListActionRunResponse;
+export type ListActionRunsStatus200Json = ListActionRunResponse;
 
 /**
- * @description APIError is error format response
+ * @description ListActionRunResponse return a list of ActionRun
+ * @type object
  */
-export type ListActionRuns400 = APIError;
+export type ListActionRunsStatus200Html = ListActionRunResponse;
+
+export type ListActionRunsStatus200 = ListActionRunsStatus200Json | ListActionRunsStatus200Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type ListActionRuns403 = APIForbiddenError;
+export type ListActionRunsStatus400Json = APIError;
 
-export type ListActionRunsQueryResponse = ListActionRuns200;
+/**
+ * @description APIError is an api error with a message
+ * @type object
+ */
+export type ListActionRunsStatus400Html = APIError;
 
-export type ListActionRunsQuery = {
-  Response: ListActionRuns200;
-  PathParams: ListActionRunsPathParams;
-  QueryParams: ListActionRunsQueryParams;
-  Errors: ListActionRuns400 | ListActionRuns403;
+export type ListActionRunsStatus400 = ListActionRunsStatus400Json | ListActionRunsStatus400Html;
+
+export type ListActionRunsStatus403Json = APIForbiddenError;
+
+export type ListActionRunsStatus403Html = APIForbiddenError;
+
+export type ListActionRunsStatus403 = ListActionRunsStatus403Json | ListActionRunsStatus403Html;
+
+export type ListActionRunsOptions = {
+  body?: never;
+  path: ListActionRunsPath;
+  query?: ListActionRunsQuery;
+  headers?: never;
 };
+
+export type ListActionRunsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunsStatus200Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunsStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunsStatus400Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: ListActionRunsStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: ListActionRunsStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type ListActionRunsResponse = ListActionRunsStatus200 | ListActionRunsStatus400 | ListActionRunsStatus403;

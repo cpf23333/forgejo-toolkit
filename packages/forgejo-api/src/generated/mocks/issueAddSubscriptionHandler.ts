@@ -3,22 +3,32 @@
  * Do not edit manually.
  */
 
-import type { IssueAddSubscriptionMutationResponse, IssueAddSubscription404 } from '../types/IssueAddSubscription';
+import type {
+  IssueAddSubscriptionResponse,
+  IssueAddSubscriptionStatus304,
+  IssueAddSubscriptionStatus404,
+} from '../types/IssueAddSubscription';
 import { http } from 'msw';
 
-export function issueAddSubscriptionHandlerResponse200(data?: IssueAddSubscriptionMutationResponse) {
+export function issueAddSubscriptionHandlerResponse200(data?: IssueAddSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function issueAddSubscriptionHandlerResponse201(data?: IssueAddSubscriptionMutationResponse) {
+export function issueAddSubscriptionHandlerResponse201(data?: IssueAddSubscriptionResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueAddSubscriptionHandlerResponse404(data: IssueAddSubscription404) {
+export function issueAddSubscriptionHandlerResponse304(data?: IssueAddSubscriptionStatus304) {
+  return new Response(JSON.stringify(data), {
+    status: 304,
+  });
+}
+
+export function issueAddSubscriptionHandlerResponse404(data: IssueAddSubscriptionStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

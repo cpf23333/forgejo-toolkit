@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 import type { Repository } from './Repository';
 
-export type RejectRepoTransferPathParams = {
+export type RejectRepoTransferPath = {
   /**
    * @description owner of the repo to transfer
    * @type string
@@ -21,24 +21,72 @@ export type RejectRepoTransferPathParams = {
 };
 
 /**
- * @description Repository
+ * @description Repository represents a repository
+ * @type object
  */
-export type RejectRepoTransfer200 = Repository;
+export type RejectRepoTransferStatus200Json = Repository;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description Repository represents a repository
+ * @type object
  */
-export type RejectRepoTransfer403 = APIForbiddenError;
+export type RejectRepoTransferStatus200Html = Repository;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RejectRepoTransfer404 = APINotFound;
+export type RejectRepoTransferStatus200 = RejectRepoTransferStatus200Json | RejectRepoTransferStatus200Html;
 
-export type RejectRepoTransferMutationResponse = RejectRepoTransfer200;
+export type RejectRepoTransferStatus403Json = APIForbiddenError;
 
-export type RejectRepoTransferMutation = {
-  Response: RejectRepoTransfer200;
-  PathParams: RejectRepoTransferPathParams;
-  Errors: RejectRepoTransfer403 | RejectRepoTransfer404;
+export type RejectRepoTransferStatus403Html = APIForbiddenError;
+
+export type RejectRepoTransferStatus403 = RejectRepoTransferStatus403Json | RejectRepoTransferStatus403Html;
+
+export type RejectRepoTransferStatus404Json = APINotFound;
+
+export type RejectRepoTransferStatus404Html = APINotFound;
+
+export type RejectRepoTransferStatus404 = RejectRepoTransferStatus404Json | RejectRepoTransferStatus404Html;
+
+export type RejectRepoTransferOptions = {
+  body?: never;
+  path: RejectRepoTransferPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RejectRepoTransferResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RejectRepoTransferStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RejectRepoTransferStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RejectRepoTransferStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RejectRepoTransferStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RejectRepoTransferStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RejectRepoTransferStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RejectRepoTransferResponse =
+  | RejectRepoTransferStatus200
+  | RejectRepoTransferStatus403
+  | RejectRepoTransferStatus404;

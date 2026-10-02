@@ -5,7 +5,7 @@
 
 import type { TagProtection } from './TagProtection';
 
-export type RepoListTagProtectionPathParams = {
+export type RepoListTagProtectionPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -18,15 +18,32 @@ export type RepoListTagProtectionPathParams = {
   repo: string;
 };
 
-/**
- * @description TagProtectionList
- */
-export type RepoListTagProtection200 = TagProtection[];
+export type RepoListTagProtectionStatus200Json = TagProtection[];
 
-export type RepoListTagProtectionQueryResponse = RepoListTagProtection200;
+export type RepoListTagProtectionStatus200Html = TagProtection[];
 
-export type RepoListTagProtectionQuery = {
-  Response: RepoListTagProtection200;
-  PathParams: RepoListTagProtectionPathParams;
-  Errors: any;
+export type RepoListTagProtectionStatus200 = RepoListTagProtectionStatus200Json | RepoListTagProtectionStatus200Html;
+
+export type RepoListTagProtectionOptions = {
+  body?: never;
+  path: RepoListTagProtectionPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListTagProtectionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListTagProtectionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListTagProtectionStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListTagProtectionResponse = RepoListTagProtectionStatus200;

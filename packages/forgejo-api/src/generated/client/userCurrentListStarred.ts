@@ -3,39 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCurrentListStarredQueryResponse,
-  UserCurrentListStarredQueryParams,
-  UserCurrentListStarred401,
-  UserCurrentListStarred403,
-} from '../types/UserCurrentListStarred';
-
-function getUserCurrentListStarredUrl() {
-  const res = { method: 'GET', url: `/user/starred` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCurrentListStarredOptions, UserCurrentListStarredResponses } from '../types/UserCurrentListStarred';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary The repos that the authenticated user has starred
  * {@link /user/starred}
  */
-export async function userCurrentListStarred(
-  params?: UserCurrentListStarredQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCurrentListStarred<ThrowOnError extends boolean = true>(
+  options: Options<UserCurrentListStarredOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<UserCurrentListStarredResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCurrentListStarredQueryResponse,
-    ResponseErrorConfig<UserCurrentListStarred401 | UserCurrentListStarred403>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCurrentListStarredUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/starred',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCurrentListStarredResponses, ThrowOnError>>;
 }

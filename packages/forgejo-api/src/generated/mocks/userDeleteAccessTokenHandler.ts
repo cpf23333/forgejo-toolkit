@@ -4,20 +4,20 @@
  */
 
 import type {
-  UserDeleteAccessTokenMutationResponse,
-  UserDeleteAccessToken403,
-  UserDeleteAccessToken404,
-  UserDeleteAccessToken422,
+  UserDeleteAccessTokenResponse,
+  UserDeleteAccessTokenStatus403,
+  UserDeleteAccessTokenStatus404,
+  UserDeleteAccessTokenStatus422,
 } from '../types/UserDeleteAccessToken';
 import { http } from 'msw';
 
-export function userDeleteAccessTokenHandlerResponse204(data?: UserDeleteAccessTokenMutationResponse) {
+export function userDeleteAccessTokenHandlerResponse204(data?: UserDeleteAccessTokenResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse403(data: UserDeleteAccessToken403) {
+export function userDeleteAccessTokenHandlerResponse403(data: UserDeleteAccessTokenStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -26,7 +26,7 @@ export function userDeleteAccessTokenHandlerResponse403(data: UserDeleteAccessTo
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse404(data: UserDeleteAccessToken404) {
+export function userDeleteAccessTokenHandlerResponse404(data: UserDeleteAccessTokenStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -35,7 +35,7 @@ export function userDeleteAccessTokenHandlerResponse404(data: UserDeleteAccessTo
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse422(data: UserDeleteAccessToken422) {
+export function userDeleteAccessTokenHandlerResponse422(data: UserDeleteAccessTokenStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

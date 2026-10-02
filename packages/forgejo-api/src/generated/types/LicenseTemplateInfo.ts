@@ -5,26 +5,12 @@
 
 /**
  * @description LicensesInfo contains information about a License
+ * @type object
  */
 export type LicenseTemplateInfo = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
-  /**
-   * @type string | undefined
-   */
   implementation?: string;
-  /**
-   * @type string | undefined
-   */
   key?: string;
-  /**
-   * @type string | undefined
-   */
   name?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

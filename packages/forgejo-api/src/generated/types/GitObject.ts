@@ -3,20 +3,8 @@
  * Do not edit manually.
  */
 
-/**
- * GitObject represents a Git object.
- */
 export type GitObject = {
-  /**
-   * @type string | undefined
-   */
   sha?: string;
-  /**
-   * @type string | undefined
-   */
   type?: string;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

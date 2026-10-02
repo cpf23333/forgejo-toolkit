@@ -9,36 +9,27 @@ import type { Repository } from './Repository';
 
 /**
  * @description CombinedStatus holds the combined state of several statuses for a single commit
+ * @type object
  */
 export type CombinedStatus = {
-  /**
-   * @type string | undefined
-   */
   commit_url?: string;
   /**
    * @description Repository represents a repository
    * @type object | undefined
    */
   repository?: Repository;
-  /**
-   * @type string | undefined
-   */
   sha?: string;
   /**
    * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"
    * @type string | undefined
    */
   state?: CommitStatusState;
-  /**
-   * @type array | undefined
-   */
   statuses?: CommitStatus[];
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   total_count?: number;
-  /**
-   * @type string | undefined
-   */
   url?: string;
 };

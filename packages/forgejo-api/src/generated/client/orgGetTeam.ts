@@ -3,29 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { OrgGetTeamQueryResponse, OrgGetTeamPathParams, OrgGetTeam404 } from '../types/OrgGetTeam';
-
-function getOrgGetTeamUrl(id: OrgGetTeamPathParams['id']) {
-  const res = { method: 'GET', url: `/teams/${id}` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgGetTeamOptions, OrgGetTeamResponses } from '../types/OrgGetTeam';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a team
  * {@link /teams/:id}
  */
-export async function orgGetTeam(
-  id: OrgGetTeamPathParams['id'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgGetTeam<ThrowOnError extends boolean = true>(
+  options: Options<OrgGetTeamOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgGetTeamResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgGetTeamQueryResponse, ResponseErrorConfig<OrgGetTeam404>, unknown>({
-    method: 'GET',
-    url: getOrgGetTeamUrl(id).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/teams/{id}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgGetTeamResponses, ThrowOnError>>;
 }

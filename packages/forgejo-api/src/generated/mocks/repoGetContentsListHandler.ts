@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { RepoGetContentsListQueryResponse, RepoGetContentsList404 } from '../types/RepoGetContentsList';
+import type { RepoGetContentsListResponse, RepoGetContentsListStatus404 } from '../types/RepoGetContentsList';
 import { http } from 'msw';
 
-export function repoGetContentsListHandlerResponse200(data: RepoGetContentsListQueryResponse) {
+export function repoGetContentsListHandlerResponse200(data: RepoGetContentsListResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -15,7 +15,7 @@ export function repoGetContentsListHandlerResponse200(data: RepoGetContentsListQ
   });
 }
 
-export function repoGetContentsListHandlerResponse404(data: RepoGetContentsList404) {
+export function repoGetContentsListHandlerResponse404(data: RepoGetContentsListStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -26,7 +26,7 @@ export function repoGetContentsListHandlerResponse404(data: RepoGetContentsList4
 
 export function repoGetContentsListHandler(
   data?:
-    | RepoGetContentsListQueryResponse
+    | RepoGetContentsListResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/contents`, function handler(info) {

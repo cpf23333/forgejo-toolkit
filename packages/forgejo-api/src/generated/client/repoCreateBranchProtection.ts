@@ -3,59 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoCreateBranchProtectionMutationRequest,
-  RepoCreateBranchProtectionMutationResponse,
-  RepoCreateBranchProtectionPathParams,
-  RepoCreateBranchProtection403,
-  RepoCreateBranchProtection404,
-  RepoCreateBranchProtection422,
-  RepoCreateBranchProtection423,
+  RepoCreateBranchProtectionOptions,
+  RepoCreateBranchProtectionResponses,
 } from '../types/RepoCreateBranchProtection';
-
-function getRepoCreateBranchProtectionUrl(
-  owner: RepoCreateBranchProtectionPathParams['owner'],
-  repo: RepoCreateBranchProtectionPathParams['repo'],
-) {
-  const res = {
-    method: 'POST',
-    url: `/repos/${owner}/${repo}/branch_protections` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a branch protections for a repository
  * {@link /repos/:owner/:repo/branch_protections}
  */
-export async function repoCreateBranchProtection(
-  owner: RepoCreateBranchProtectionPathParams['owner'],
-  repo: RepoCreateBranchProtectionPathParams['repo'],
-  data?: RepoCreateBranchProtectionMutationRequest,
-  config: Partial<RequestConfig<RepoCreateBranchProtectionMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoCreateBranchProtection<ThrowOnError extends boolean = true>(
+  options: Options<RepoCreateBranchProtectionOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoCreateBranchProtectionResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoCreateBranchProtectionMutationResponse,
-    ResponseErrorConfig<
-      | RepoCreateBranchProtection403
-      | RepoCreateBranchProtection404
-      | RepoCreateBranchProtection422
-      | RepoCreateBranchProtection423
-    >,
-    RepoCreateBranchProtectionMutationRequest
-  >({
-    method: 'POST',
-    url: getRepoCreateBranchProtectionUrl(owner, repo).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/repos/{owner}/{repo}/branch_protections',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoCreateBranchProtectionResponses, ThrowOnError>>;
 }

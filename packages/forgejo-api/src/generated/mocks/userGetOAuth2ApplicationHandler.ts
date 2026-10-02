@@ -4,14 +4,14 @@
  */
 
 import type {
-  UserGetOAuth2ApplicationQueryResponse,
-  UserGetOAuth2Application401,
-  UserGetOAuth2Application403,
-  UserGetOAuth2Application404,
+  UserGetOAuth2ApplicationResponse,
+  UserGetOAuth2ApplicationStatus401,
+  UserGetOAuth2ApplicationStatus403,
+  UserGetOAuth2ApplicationStatus404,
 } from '../types/UserGetOAuth2Application';
 import { http } from 'msw';
 
-export function userGetOAuth2ApplicationHandlerResponse200(data: UserGetOAuth2ApplicationQueryResponse) {
+export function userGetOAuth2ApplicationHandlerResponse200(data: UserGetOAuth2ApplicationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -20,7 +20,7 @@ export function userGetOAuth2ApplicationHandlerResponse200(data: UserGetOAuth2Ap
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse401(data: UserGetOAuth2Application401) {
+export function userGetOAuth2ApplicationHandlerResponse401(data: UserGetOAuth2ApplicationStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -29,7 +29,7 @@ export function userGetOAuth2ApplicationHandlerResponse401(data: UserGetOAuth2Ap
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse403(data: UserGetOAuth2Application403) {
+export function userGetOAuth2ApplicationHandlerResponse403(data: UserGetOAuth2ApplicationStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -38,7 +38,7 @@ export function userGetOAuth2ApplicationHandlerResponse403(data: UserGetOAuth2Ap
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse404(data: UserGetOAuth2Application404) {
+export function userGetOAuth2ApplicationHandlerResponse404(data: UserGetOAuth2ApplicationStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,7 +49,7 @@ export function userGetOAuth2ApplicationHandlerResponse404(data: UserGetOAuth2Ap
 
 export function userGetOAuth2ApplicationHandler(
   data?:
-    | UserGetOAuth2ApplicationQueryResponse
+    | UserGetOAuth2ApplicationResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/applications/oauth2/:id`, function handler(info) {

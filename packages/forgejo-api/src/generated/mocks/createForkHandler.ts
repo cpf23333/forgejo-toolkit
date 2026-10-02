@@ -4,16 +4,18 @@
  */
 
 import type {
-  CreateForkMutationResponse,
-  CreateFork403,
-  CreateFork404,
-  CreateFork409,
-  CreateFork413,
-  CreateFork422,
+  CreateForkResponse,
+  CreateForkStatus403,
+  CreateForkStatus404,
+  CreateForkStatus409,
+  CreateForkStatus413,
+  CreateForkStatus422,
+  CreateForkBody,
 } from '../types/CreateFork';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function createForkHandlerResponse202(data: CreateForkMutationResponse) {
+export function createForkHandlerResponse202(data: CreateForkResponse) {
   return new Response(JSON.stringify(data), {
     status: 202,
     headers: {
@@ -22,7 +24,7 @@ export function createForkHandlerResponse202(data: CreateForkMutationResponse) {
   });
 }
 
-export function createForkHandlerResponse403(data: CreateFork403) {
+export function createForkHandlerResponse403(data: CreateForkStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -31,7 +33,7 @@ export function createForkHandlerResponse403(data: CreateFork403) {
   });
 }
 
-export function createForkHandlerResponse404(data: CreateFork404) {
+export function createForkHandlerResponse404(data: CreateForkStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -40,19 +42,19 @@ export function createForkHandlerResponse404(data: CreateFork404) {
   });
 }
 
-export function createForkHandlerResponse409(data?: CreateFork409) {
+export function createForkHandlerResponse409(data?: CreateForkStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function createForkHandlerResponse413(data?: CreateFork413) {
+export function createForkHandlerResponse413(data?: CreateForkStatus413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function createForkHandlerResponse422(data: CreateFork422) {
+export function createForkHandlerResponse422(data: CreateForkStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -62,11 +64,9 @@ export function createForkHandlerResponse422(data: CreateFork422) {
 }
 
 export function createForkHandler(
-  data?:
-    | CreateForkMutationResponse
-    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
+  data?: CreateForkResponse | HttpResponseResolver<Record<string, string>, CreateForkBody>,
 ) {
-  return http.post(`/repos/:owner/:repo/forks`, function handler(info) {
+  return http.post<Record<string, string>, CreateForkBody>(`/repos/:owner/:repo/forks`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

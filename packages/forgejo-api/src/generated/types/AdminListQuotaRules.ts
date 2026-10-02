@@ -6,19 +6,47 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
-/**
- * @description QuotaRuleInfoList
- */
-export type AdminListQuotaRules200 = QuotaRuleInfo[];
+export type AdminListQuotaRulesStatus200Json = QuotaRuleInfo[];
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type AdminListQuotaRules403 = APIForbiddenError;
+export type AdminListQuotaRulesStatus200Html = QuotaRuleInfo[];
 
-export type AdminListQuotaRulesQueryResponse = AdminListQuotaRules200;
+export type AdminListQuotaRulesStatus200 = AdminListQuotaRulesStatus200Json | AdminListQuotaRulesStatus200Html;
 
-export type AdminListQuotaRulesQuery = {
-  Response: AdminListQuotaRules200;
-  Errors: AdminListQuotaRules403;
+export type AdminListQuotaRulesStatus403Json = APIForbiddenError;
+
+export type AdminListQuotaRulesStatus403Html = APIForbiddenError;
+
+export type AdminListQuotaRulesStatus403 = AdminListQuotaRulesStatus403Json | AdminListQuotaRulesStatus403Html;
+
+export type AdminListQuotaRulesOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type AdminListQuotaRulesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: AdminListQuotaRulesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListQuotaRulesStatus200Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: AdminListQuotaRulesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: AdminListQuotaRulesStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type AdminListQuotaRulesResponse = AdminListQuotaRulesStatus200 | AdminListQuotaRulesStatus403;

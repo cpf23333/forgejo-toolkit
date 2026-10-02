@@ -3,40 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UserCheckQuotaQueryResponse,
-  UserCheckQuotaQueryParams,
-  UserCheckQuota401,
-  UserCheckQuota403,
-  UserCheckQuota422,
-} from '../types/UserCheckQuota';
-
-function getUserCheckQuotaUrl() {
-  const res = { method: 'GET', url: `/user/quota/check` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UserCheckQuotaOptions, UserCheckQuotaResponses } from '../types/UserCheckQuota';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Check if the authenticated user is over quota for a given subject
  * {@link /user/quota/check}
  */
-export async function userCheckQuota(
-  params: UserCheckQuotaQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function userCheckQuota<ThrowOnError extends boolean = true>(
+  options: Options<UserCheckQuotaOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UserCheckQuotaResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    UserCheckQuotaQueryResponse,
-    ResponseErrorConfig<UserCheckQuota401 | UserCheckQuota403 | UserCheckQuota422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getUserCheckQuotaUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/user/quota/check',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UserCheckQuotaResponses, ThrowOnError>>;
 }

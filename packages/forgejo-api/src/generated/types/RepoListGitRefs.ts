@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Reference } from './Reference';
 
-export type RepoListGitRefsPathParams = {
+export type RepoListGitRefsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -24,20 +24,47 @@ export type RepoListGitRefsPathParams = {
   ref: string;
 };
 
-/**
- * @description ReferenceList
- */
-export type RepoListGitRefs200 = Reference[];
+export type RepoListGitRefsStatus200Json = Reference[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListGitRefs404 = APINotFound;
+export type RepoListGitRefsStatus200Html = Reference[];
 
-export type RepoListGitRefsQueryResponse = RepoListGitRefs200;
+export type RepoListGitRefsStatus200 = RepoListGitRefsStatus200Json | RepoListGitRefsStatus200Html;
 
-export type RepoListGitRefsQuery = {
-  Response: RepoListGitRefs200;
-  PathParams: RepoListGitRefsPathParams;
-  Errors: RepoListGitRefs404;
+export type RepoListGitRefsStatus404Json = APINotFound;
+
+export type RepoListGitRefsStatus404Html = APINotFound;
+
+export type RepoListGitRefsStatus404 = RepoListGitRefsStatus404Json | RepoListGitRefsStatus404Html;
+
+export type RepoListGitRefsOptions = {
+  body?: never;
+  path: RepoListGitRefsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListGitRefsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListGitRefsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListGitRefsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListGitRefsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListGitRefsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListGitRefsResponse = RepoListGitRefsStatus200 | RepoListGitRefsStatus404;

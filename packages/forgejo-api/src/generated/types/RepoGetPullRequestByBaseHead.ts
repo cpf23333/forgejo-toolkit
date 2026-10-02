@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { PullRequest } from './PullRequest';
 
-export type RepoGetPullRequestByBaseHeadPathParams = {
+export type RepoGetPullRequestByBaseHeadPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -30,19 +30,60 @@ export type RepoGetPullRequestByBaseHeadPathParams = {
 };
 
 /**
- * @description PullRequest
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetPullRequestByBaseHead200 = PullRequest;
+export type RepoGetPullRequestByBaseHeadStatus200Json = PullRequest;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullRequest represents a pull request
+ * @type object
  */
-export type RepoGetPullRequestByBaseHead404 = APINotFound;
+export type RepoGetPullRequestByBaseHeadStatus200Html = PullRequest;
 
-export type RepoGetPullRequestByBaseHeadQueryResponse = RepoGetPullRequestByBaseHead200;
+export type RepoGetPullRequestByBaseHeadStatus200 =
+  | RepoGetPullRequestByBaseHeadStatus200Json
+  | RepoGetPullRequestByBaseHeadStatus200Html;
 
-export type RepoGetPullRequestByBaseHeadQuery = {
-  Response: RepoGetPullRequestByBaseHead200;
-  PathParams: RepoGetPullRequestByBaseHeadPathParams;
-  Errors: RepoGetPullRequestByBaseHead404;
+export type RepoGetPullRequestByBaseHeadStatus404Json = APINotFound;
+
+export type RepoGetPullRequestByBaseHeadStatus404Html = APINotFound;
+
+export type RepoGetPullRequestByBaseHeadStatus404 =
+  | RepoGetPullRequestByBaseHeadStatus404Json
+  | RepoGetPullRequestByBaseHeadStatus404Html;
+
+export type RepoGetPullRequestByBaseHeadOptions = {
+  body?: never;
+  path: RepoGetPullRequestByBaseHeadPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoGetPullRequestByBaseHeadResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestByBaseHeadStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestByBaseHeadStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetPullRequestByBaseHeadStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetPullRequestByBaseHeadStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetPullRequestByBaseHeadResponse =
+  | RepoGetPullRequestByBaseHeadStatus200
+  | RepoGetPullRequestByBaseHeadStatus404;

@@ -4,20 +4,22 @@
  */
 
 import type {
-  UserDeleteEmailMutationResponse,
-  UserDeleteEmail401,
-  UserDeleteEmail403,
-  UserDeleteEmail404,
+  UserDeleteEmailResponse,
+  UserDeleteEmailStatus401,
+  UserDeleteEmailStatus403,
+  UserDeleteEmailStatus404,
+  UserDeleteEmailBody,
 } from '../types/UserDeleteEmail';
+import type { HttpResponseResolver } from 'msw';
 import { http } from 'msw';
 
-export function userDeleteEmailHandlerResponse204(data?: UserDeleteEmailMutationResponse) {
+export function userDeleteEmailHandlerResponse204(data?: UserDeleteEmailResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteEmailHandlerResponse401(data: UserDeleteEmail401) {
+export function userDeleteEmailHandlerResponse401(data: UserDeleteEmailStatus401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
@@ -26,7 +28,7 @@ export function userDeleteEmailHandlerResponse401(data: UserDeleteEmail401) {
   });
 }
 
-export function userDeleteEmailHandlerResponse403(data: UserDeleteEmail403) {
+export function userDeleteEmailHandlerResponse403(data: UserDeleteEmailStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -35,7 +37,7 @@ export function userDeleteEmailHandlerResponse403(data: UserDeleteEmail403) {
   });
 }
 
-export function userDeleteEmailHandlerResponse404(data: UserDeleteEmail404) {
+export function userDeleteEmailHandlerResponse404(data: UserDeleteEmailStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -45,15 +47,9 @@ export function userDeleteEmailHandlerResponse404(data: UserDeleteEmail404) {
 }
 
 export function userDeleteEmailHandler(
-  data?:
-    | string
-    | number
-    | boolean
-    | null
-    | object
-    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
+  data?: string | number | boolean | null | object | HttpResponseResolver<Record<string, string>, UserDeleteEmailBody>,
 ) {
-  return http.delete(`/user/emails`, function handler(info) {
+  return http.delete<Record<string, string>, UserDeleteEmailBody>(`/user/emails`, function handler(info) {
     if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {

@@ -3,50 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoGetSingleCommitQueryResponse,
-  RepoGetSingleCommitPathParams,
-  RepoGetSingleCommitQueryParams,
-  RepoGetSingleCommit404,
-  RepoGetSingleCommit422,
-} from '../types/RepoGetSingleCommit';
-
-function getRepoGetSingleCommitUrl(
-  owner: RepoGetSingleCommitPathParams['owner'],
-  repo: RepoGetSingleCommitPathParams['repo'],
-  sha: RepoGetSingleCommitPathParams['sha'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/commits/${sha}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoGetSingleCommitOptions, RepoGetSingleCommitResponses } from '../types/RepoGetSingleCommit';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a single commit from a repository
  * {@link /repos/:owner/:repo/git/commits/:sha}
  */
-export async function repoGetSingleCommit(
-  owner: RepoGetSingleCommitPathParams['owner'],
-  repo: RepoGetSingleCommitPathParams['repo'],
-  sha: RepoGetSingleCommitPathParams['sha'],
-  params?: RepoGetSingleCommitQueryParams,
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoGetSingleCommit<ThrowOnError extends boolean = true>(
+  options: Options<RepoGetSingleCommitOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoGetSingleCommitResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoGetSingleCommitQueryResponse,
-    ResponseErrorConfig<RepoGetSingleCommit404 | RepoGetSingleCommit422>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoGetSingleCommitUrl(owner, repo, sha).url.toString(),
-    params,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/commits/{sha}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoGetSingleCommitResponses, ThrowOnError>>;
 }

@@ -6,13 +6,39 @@
 import type { ServerVersion } from './ServerVersion';
 
 /**
- * @description ServerVersion
+ * @description ServerVersion wraps the version of the server
+ * @type object
  */
-export type GetVersion200 = ServerVersion;
+export type GetVersionStatus200Json = ServerVersion;
 
-export type GetVersionQueryResponse = GetVersion200;
+/**
+ * @description ServerVersion wraps the version of the server
+ * @type object
+ */
+export type GetVersionStatus200Html = ServerVersion;
 
-export type GetVersionQuery = {
-  Response: GetVersion200;
-  Errors: any;
+export type GetVersionStatus200 = GetVersionStatus200Json | GetVersionStatus200Html;
+
+export type GetVersionOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type GetVersionResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: GetVersionStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: GetVersionStatus200Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type GetVersionResponse = GetVersionStatus200;

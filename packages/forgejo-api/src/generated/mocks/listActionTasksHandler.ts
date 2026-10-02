@@ -4,16 +4,16 @@
  */
 
 import type {
-  ListActionTasksQueryResponse,
-  ListActionTasks400,
-  ListActionTasks403,
-  ListActionTasks404,
-  ListActionTasks409,
-  ListActionTasks422,
+  ListActionTasksResponse,
+  ListActionTasksStatus400,
+  ListActionTasksStatus403,
+  ListActionTasksStatus404,
+  ListActionTasksStatus409,
+  ListActionTasksStatus422,
 } from '../types/ListActionTasks';
 import { http } from 'msw';
 
-export function listActionTasksHandlerResponse200(data: ListActionTasksQueryResponse) {
+export function listActionTasksHandlerResponse200(data: ListActionTasksResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -22,7 +22,7 @@ export function listActionTasksHandlerResponse200(data: ListActionTasksQueryResp
   });
 }
 
-export function listActionTasksHandlerResponse400(data: ListActionTasks400) {
+export function listActionTasksHandlerResponse400(data: ListActionTasksStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -31,7 +31,7 @@ export function listActionTasksHandlerResponse400(data: ListActionTasks400) {
   });
 }
 
-export function listActionTasksHandlerResponse403(data: ListActionTasks403) {
+export function listActionTasksHandlerResponse403(data: ListActionTasksStatus403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
@@ -40,7 +40,7 @@ export function listActionTasksHandlerResponse403(data: ListActionTasks403) {
   });
 }
 
-export function listActionTasksHandlerResponse404(data: ListActionTasks404) {
+export function listActionTasksHandlerResponse404(data: ListActionTasksStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -49,13 +49,13 @@ export function listActionTasksHandlerResponse404(data: ListActionTasks404) {
   });
 }
 
-export function listActionTasksHandlerResponse409(data?: ListActionTasks409) {
+export function listActionTasksHandlerResponse409(data?: ListActionTasksStatus409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function listActionTasksHandlerResponse422(data: ListActionTasks422) {
+export function listActionTasksHandlerResponse422(data: ListActionTasksStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
@@ -66,7 +66,7 @@ export function listActionTasksHandlerResponse422(data: ListActionTasks422) {
 
 export function listActionTasksHandler(
   data?:
-    | ListActionTasksQueryResponse
+    | ListActionTasksResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/actions/tasks`, function handler(info) {

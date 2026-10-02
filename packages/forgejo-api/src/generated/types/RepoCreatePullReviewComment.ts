@@ -8,7 +8,7 @@ import type { APIValidationError } from './APIValidationError';
 import type { CreatePullReviewCommentOptions } from './CreatePullReviewCommentOptions';
 import type { PullReviewComment } from './PullReviewComment';
 
-export type RepoCreatePullReviewCommentPathParams = {
+export type RepoCreatePullReviewCommentPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -21,38 +21,109 @@ export type RepoCreatePullReviewCommentPathParams = {
   repo: string;
   /**
    * @description index of the pull request
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   index: number;
   /**
    * @description id of the review
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description PullComment
+ * @description PullReviewComment represents a comment on a pull request review
+ * @type object
  */
-export type RepoCreatePullReviewComment200 = PullReviewComment;
+export type RepoCreatePullReviewCommentStatus200Json = PullReviewComment;
 
 /**
- * @description APINotFound is a not found error response
+ * @description PullReviewComment represents a comment on a pull request review
+ * @type object
  */
-export type RepoCreatePullReviewComment404 = APINotFound;
+export type RepoCreatePullReviewCommentStatus200Html = PullReviewComment;
+
+export type RepoCreatePullReviewCommentStatus200 =
+  | RepoCreatePullReviewCommentStatus200Json
+  | RepoCreatePullReviewCommentStatus200Html;
+
+export type RepoCreatePullReviewCommentStatus404Json = APINotFound;
+
+export type RepoCreatePullReviewCommentStatus404Html = APINotFound;
+
+export type RepoCreatePullReviewCommentStatus404 =
+  | RepoCreatePullReviewCommentStatus404Json
+  | RepoCreatePullReviewCommentStatus404Html;
+
+export type RepoCreatePullReviewCommentStatus422Json = APIValidationError;
+
+export type RepoCreatePullReviewCommentStatus422Html = APIValidationError;
+
+export type RepoCreatePullReviewCommentStatus422 =
+  | RepoCreatePullReviewCommentStatus422Json
+  | RepoCreatePullReviewCommentStatus422Html;
 
 /**
- * @description APIValidationError is error format response related to input validation
+ * @description CreatePullReviewComment represent a review comment for creation api
+ * @type object
  */
-export type RepoCreatePullReviewComment422 = APIValidationError;
+export type RepoCreatePullReviewCommentBodyJson = CreatePullReviewCommentOptions;
 
-export type RepoCreatePullReviewCommentMutationRequest = CreatePullReviewCommentOptions;
+/**
+ * @description CreatePullReviewComment represent a review comment for creation api
+ * @type object
+ */
+export type RepoCreatePullReviewCommentBodyPlain = CreatePullReviewCommentOptions;
 
-export type RepoCreatePullReviewCommentMutationResponse = RepoCreatePullReviewComment200;
+export type RepoCreatePullReviewCommentBody =
+  | RepoCreatePullReviewCommentBodyJson
+  | RepoCreatePullReviewCommentBodyPlain;
 
-export type RepoCreatePullReviewCommentMutation = {
-  Response: RepoCreatePullReviewComment200;
-  Request: RepoCreatePullReviewCommentMutationRequest;
-  PathParams: RepoCreatePullReviewCommentPathParams;
-  Errors: RepoCreatePullReviewComment404 | RepoCreatePullReviewComment422;
+export type RepoCreatePullReviewCommentOptions = {
+  body: RepoCreatePullReviewCommentBody;
+  path: RepoCreatePullReviewCommentPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreatePullReviewCommentResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewCommentStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewCommentStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewCommentStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewCommentStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreatePullReviewCommentStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreatePullReviewCommentStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreatePullReviewCommentResponse =
+  | RepoCreatePullReviewCommentStatus200
+  | RepoCreatePullReviewCommentStatus404
+  | RepoCreatePullReviewCommentStatus422;

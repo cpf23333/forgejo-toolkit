@@ -9,7 +9,7 @@ import type { APINotFound } from './APINotFound';
 import type { Comment } from './Comment';
 import type { EditIssueCommentOption } from './EditIssueCommentOption';
 
-export type IssueEditCommentDeprecatedPathParams = {
+export type IssueEditCommentDeprecatedPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -27,43 +27,118 @@ export type IssueEditCommentDeprecatedPathParams = {
   index: number;
   /**
    * @description id of the comment to edit
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
 /**
- * @description Comment
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueEditCommentDeprecated200 = Comment;
+export type IssueEditCommentDeprecatedStatus200Json = Comment;
 
 /**
- * @description APIEmpty is an empty response
+ * @description Comment represents a comment on a commit or issue
+ * @type object
  */
-export type IssueEditCommentDeprecated204 = any;
+export type IssueEditCommentDeprecatedStatus200Html = Comment;
+
+export type IssueEditCommentDeprecatedStatus200 =
+  | IssueEditCommentDeprecatedStatus200Json
+  | IssueEditCommentDeprecatedStatus200Html;
+
+export type IssueEditCommentDeprecatedStatus204 = unknown;
+
+export type IssueEditCommentDeprecatedStatus403Json = APIForbiddenError;
+
+export type IssueEditCommentDeprecatedStatus403Html = APIForbiddenError;
+
+export type IssueEditCommentDeprecatedStatus403 =
+  | IssueEditCommentDeprecatedStatus403Json
+  | IssueEditCommentDeprecatedStatus403Html;
+
+export type IssueEditCommentDeprecatedStatus404Json = APINotFound;
+
+export type IssueEditCommentDeprecatedStatus404Html = APINotFound;
+
+export type IssueEditCommentDeprecatedStatus404 =
+  | IssueEditCommentDeprecatedStatus404Json
+  | IssueEditCommentDeprecatedStatus404Html;
+
+export type IssueEditCommentDeprecatedStatus500Json = APIInternalServerError;
+
+export type IssueEditCommentDeprecatedStatus500Html = APIInternalServerError;
+
+export type IssueEditCommentDeprecatedStatus500 =
+  | IssueEditCommentDeprecatedStatus500Json
+  | IssueEditCommentDeprecatedStatus500Html;
 
 /**
- * @description APIForbiddenError is a forbidden error response
+ * @description EditIssueCommentOption options for editing a comment
+ * @type object | undefined
  */
-export type IssueEditCommentDeprecated403 = APIForbiddenError;
+export type IssueEditCommentDeprecatedBody = EditIssueCommentOption | undefined;
 
 /**
- * @description APINotFound is a not found error response
+ * @deprecated
+ * @type object
  */
-export type IssueEditCommentDeprecated404 = APINotFound;
-
-/**
- * @description APIInternalServerError is an error that is raised when an internal server error occurs
- */
-export type IssueEditCommentDeprecated500 = APIInternalServerError;
-
-export type IssueEditCommentDeprecatedMutationRequest = EditIssueCommentOption;
-
-export type IssueEditCommentDeprecatedMutationResponse = IssueEditCommentDeprecated200 | IssueEditCommentDeprecated204;
-
-export type IssueEditCommentDeprecatedMutation = {
-  Response: IssueEditCommentDeprecated200 | IssueEditCommentDeprecated204;
-  Request: IssueEditCommentDeprecatedMutationRequest;
-  PathParams: IssueEditCommentDeprecatedPathParams;
-  Errors: IssueEditCommentDeprecated403 | IssueEditCommentDeprecated404 | IssueEditCommentDeprecated500;
+export type IssueEditCommentDeprecatedOptions = {
+  body: IssueEditCommentDeprecatedBody;
+  path: IssueEditCommentDeprecatedPath;
+  query?: never;
+  headers?: never;
 };
+
+export type IssueEditCommentDeprecatedResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentDeprecatedStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentDeprecatedStatus200Html;
+      };
+  '204': IssueEditCommentDeprecatedStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentDeprecatedStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentDeprecatedStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentDeprecatedStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentDeprecatedStatus404Html;
+      };
+  '500':
+    | {
+        contentType: 'application/json';
+        data: IssueEditCommentDeprecatedStatus500Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: IssueEditCommentDeprecatedStatus500Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type IssueEditCommentDeprecatedResponse =
+  | IssueEditCommentDeprecatedStatus200
+  | IssueEditCommentDeprecatedStatus204
+  | IssueEditCommentDeprecatedStatus403
+  | IssueEditCommentDeprecatedStatus404
+  | IssueEditCommentDeprecatedStatus500;

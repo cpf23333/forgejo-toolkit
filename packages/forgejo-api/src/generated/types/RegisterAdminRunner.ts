@@ -9,36 +9,91 @@ import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { RegisterRunnerOptions } from './RegisterRunnerOptions';
 import type { RegisterRunnerResponse } from './RegisterRunnerResponse';
 
-/**
- * RegisterRunnerResponse contains the details of the just registered runner.
- * @description RegisterRunnerResponse contains the details of the just registered runner.
- */
-export type RegisterAdminRunner201 = RegisterRunnerResponse;
+export type RegisterAdminRunnerStatus201Json = RegisterRunnerResponse;
+
+export type RegisterAdminRunnerStatus201Html = RegisterRunnerResponse;
+
+export type RegisterAdminRunnerStatus201 = RegisterAdminRunnerStatus201Json | RegisterAdminRunnerStatus201Html;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RegisterAdminRunner400 = APIError;
+export type RegisterAdminRunnerStatus400Json = APIError;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RegisterAdminRunner401 = APIUnauthorizedError;
+export type RegisterAdminRunnerStatus400Html = APIError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RegisterAdminRunner404 = APINotFound;
+export type RegisterAdminRunnerStatus400 = RegisterAdminRunnerStatus400Json | RegisterAdminRunnerStatus400Html;
 
-/**
- * RegisterRunnerOptions declares the accepted options for registering runners.
- */
-export type RegisterAdminRunnerMutationRequest = RegisterRunnerOptions;
+export type RegisterAdminRunnerStatus401Json = APIUnauthorizedError;
 
-export type RegisterAdminRunnerMutationResponse = RegisterAdminRunner201;
+export type RegisterAdminRunnerStatus401Html = APIUnauthorizedError;
 
-export type RegisterAdminRunnerMutation = {
-  Response: RegisterAdminRunner201;
-  Request: RegisterAdminRunnerMutationRequest;
-  Errors: RegisterAdminRunner400 | RegisterAdminRunner401 | RegisterAdminRunner404;
+export type RegisterAdminRunnerStatus401 = RegisterAdminRunnerStatus401Json | RegisterAdminRunnerStatus401Html;
+
+export type RegisterAdminRunnerStatus404Json = APINotFound;
+
+export type RegisterAdminRunnerStatus404Html = APINotFound;
+
+export type RegisterAdminRunnerStatus404 = RegisterAdminRunnerStatus404Json | RegisterAdminRunnerStatus404Html;
+
+export type RegisterAdminRunnerBody = RegisterRunnerOptions | undefined;
+
+export type RegisterAdminRunnerOptions = {
+  body: RegisterAdminRunnerBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
+
+export type RegisterAdminRunnerResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RegisterAdminRunnerStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterAdminRunnerStatus201Html;
+      };
+  '400':
+    | {
+        contentType: 'application/json';
+        data: RegisterAdminRunnerStatus400Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterAdminRunnerStatus400Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: RegisterAdminRunnerStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterAdminRunnerStatus401Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RegisterAdminRunnerStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RegisterAdminRunnerStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RegisterAdminRunnerResponse =
+  | RegisterAdminRunnerStatus201
+  | RegisterAdminRunnerStatus400
+  | RegisterAdminRunnerStatus401
+  | RegisterAdminRunnerStatus404;

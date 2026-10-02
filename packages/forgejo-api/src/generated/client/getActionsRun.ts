@@ -3,27 +3,34 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { GetActionsRunQueryResponse } from '../types/GetActionsRun';
-
-function getGetActionsRunUrl() {
-  const res = { method: 'GET', url: `/actions/run` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { GetActionsRunOptions, GetActionsRunResponses } from '../types/GetActionsRun';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @description The automatic actions token must be used as the authentication mechanism (<code>Authorization: Bearer $&#x7b;&#x7b; forgejo.token &#x7d;&#x7d;</code>); other types of tokens cannot be used. The token is associated with the job, which must be still running for the request to this endpoint to succeed.
  * @summary Get a workflow run associated with a token
  * {@link /actions/run}
  */
-export async function getActionsRun(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function getActionsRun<ThrowOnError extends boolean = true>(
+  options: Options<GetActionsRunOptions, ThrowOnError> = {},
+): Promise<UnwrappedResult<GetActionsRunResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<GetActionsRunQueryResponse, ResponseErrorConfig<Error>, unknown>({
-    method: 'GET',
-    url: getGetActionsRunUrl().url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/actions/run',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<GetActionsRunResponses, ThrowOnError>>;
 }

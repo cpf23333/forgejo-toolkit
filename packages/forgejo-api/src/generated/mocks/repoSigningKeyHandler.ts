@@ -3,21 +3,21 @@
  * Do not edit manually.
  */
 
-import type { RepoSigningKeyQueryResponse } from '../types/RepoSigningKey';
+import type { RepoSigningKeyResponse } from '../types/RepoSigningKey';
 import { http } from 'msw';
 
-export function repoSigningKeyHandlerResponse200(data: RepoSigningKeyQueryResponse) {
+export function repoSigningKeyHandlerResponse200(data: RepoSigningKeyResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/json',
     },
   });
 }
 
 export function repoSigningKeyHandler(
   data?:
-    | RepoSigningKeyQueryResponse
+    | RepoSigningKeyResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/signing-key.gpg`, function handler(info) {
@@ -26,7 +26,7 @@ export function repoSigningKeyHandler(
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
     });
   });

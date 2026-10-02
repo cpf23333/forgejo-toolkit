@@ -4,19 +4,19 @@
  */
 
 import type {
-  DeleteAdminRunnerMutationResponse,
-  DeleteAdminRunner400,
-  DeleteAdminRunner404,
+  DeleteAdminRunnerResponse,
+  DeleteAdminRunnerStatus400,
+  DeleteAdminRunnerStatus404,
 } from '../types/DeleteAdminRunner';
 import { http } from 'msw';
 
-export function deleteAdminRunnerHandlerResponse204(data?: DeleteAdminRunnerMutationResponse) {
+export function deleteAdminRunnerHandlerResponse204(data?: DeleteAdminRunnerResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteAdminRunnerHandlerResponse400(data: DeleteAdminRunner400) {
+export function deleteAdminRunnerHandlerResponse400(data: DeleteAdminRunnerStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
@@ -25,7 +25,7 @@ export function deleteAdminRunnerHandlerResponse400(data: DeleteAdminRunner400) 
   });
 }
 
-export function deleteAdminRunnerHandlerResponse404(data: DeleteAdminRunner404) {
+export function deleteAdminRunnerHandlerResponse404(data: DeleteAdminRunnerStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {

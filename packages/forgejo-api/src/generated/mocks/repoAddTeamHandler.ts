@@ -3,16 +3,21 @@
  * Do not edit manually.
  */
 
-import type { RepoAddTeamMutationResponse, RepoAddTeam404, RepoAddTeam405, RepoAddTeam422 } from '../types/RepoAddTeam';
+import type {
+  RepoAddTeamResponse,
+  RepoAddTeamStatus404,
+  RepoAddTeamStatus405,
+  RepoAddTeamStatus422,
+} from '../types/RepoAddTeam';
 import { http } from 'msw';
 
-export function repoAddTeamHandlerResponse204(data?: RepoAddTeamMutationResponse) {
+export function repoAddTeamHandlerResponse204(data?: RepoAddTeamResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoAddTeamHandlerResponse404(data: RepoAddTeam404) {
+export function repoAddTeamHandlerResponse404(data: RepoAddTeamStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -21,7 +26,7 @@ export function repoAddTeamHandlerResponse404(data: RepoAddTeam404) {
   });
 }
 
-export function repoAddTeamHandlerResponse405(data: RepoAddTeam405) {
+export function repoAddTeamHandlerResponse405(data: RepoAddTeamStatus405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
@@ -30,7 +35,7 @@ export function repoAddTeamHandlerResponse405(data: RepoAddTeam405) {
   });
 }
 
-export function repoAddTeamHandlerResponse422(data: RepoAddTeam422) {
+export function repoAddTeamHandlerResponse422(data: RepoAddTeamStatus422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {

@@ -1,7 +1,0 @@
-{
-  "description": "TimeStamp defines a timestamp",
-  "type": "integer",
-  "format": "int64",
-  "x-go-package": "forgejo.org/modules/timeutil",
-  "x-readme-ref-name": "TimeStamp"
-}

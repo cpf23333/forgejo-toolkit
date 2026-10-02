@@ -3,43 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  UpdateUserSettingsMutationRequest,
-  UpdateUserSettingsMutationResponse,
-  UpdateUserSettings401,
-  UpdateUserSettings403,
-} from '../types/UpdateUserSettings';
-
-function getUpdateUserSettingsUrl() {
-  const res = { method: 'PATCH', url: `/user/settings` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { UpdateUserSettingsOptions, UpdateUserSettingsResponses } from '../types/UpdateUserSettings';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update settings in current user's account
  * {@link /user/settings}
  */
-export async function updateUserSettings(
-  data?: UpdateUserSettingsMutationRequest,
-  config: Partial<RequestConfig<UpdateUserSettingsMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function updateUserSettings<ThrowOnError extends boolean = true>(
+  options: Options<UpdateUserSettingsOptions, ThrowOnError>,
+): Promise<UnwrappedResult<UpdateUserSettingsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    UpdateUserSettingsMutationResponse,
-    ResponseErrorConfig<UpdateUserSettings401 | UpdateUserSettings403>,
-    UpdateUserSettingsMutationRequest
-  >({
-    method: 'PATCH',
-    url: getUpdateUserSettingsUrl().url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/user/settings',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<UpdateUserSettingsResponses, ThrowOnError>>;
 }

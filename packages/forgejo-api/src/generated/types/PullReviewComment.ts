@@ -7,60 +7,52 @@ import type { User } from './User';
 
 /**
  * @description PullReviewComment represents a comment on a pull request review
+ * @type object
  */
 export type PullReviewComment = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
-  /**
-   * @type string | undefined
-   */
   commit_id?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  created_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  created_at?: string;
   diff_hunk?: string;
   /**
    * @description number of additional lines after the commented line (0 = single line comment)
-   * @type integer | undefined, int64
+   *
+   * Format: `int64`
+   * @type integer | undefined
    */
   extra_lines_count?: number;
-  /**
-   * @type string | undefined
-   */
   html_url?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   original_commit_id?: string;
   /**
-   * @type integer | undefined, uint64
+   * @description
+   * Format: `uint64`
+   * @type integer | undefined
    */
   original_position?: number;
-  /**
-   * @type string | undefined
-   */
   path?: string;
   /**
-   * @type integer | undefined, uint64
+   * @description
+   * Format: `uint64`
+   * @type integer | undefined
    */
   position?: number;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   pull_request_review_id?: number;
-  /**
-   * @type string | undefined
-   */
   pull_request_url?: string;
   /**
    * @description User represents a user
@@ -68,7 +60,9 @@ export type PullReviewComment = {
    */
   resolver?: User;
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   updated_at?: string;
   /**

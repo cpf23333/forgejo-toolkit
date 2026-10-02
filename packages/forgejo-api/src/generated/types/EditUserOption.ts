@@ -5,86 +5,42 @@
 
 /**
  * @description EditUserOption edit user options
+ * @type object
  */
 export type EditUserOption = {
-  /**
-   * @type boolean | undefined
-   */
   active?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   admin?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_create_organization?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_git_hook?: boolean;
-  /**
-   * @type boolean | undefined
-   */
   allow_import_local?: boolean;
-  /**
-   * @type string | undefined
-   */
   description?: string;
   /**
-   * @type string | undefined, email
+   * @description
+   * Format: `email`
+   * @type string | undefined
    */
   email?: string;
-  /**
-   * @type string | undefined
-   */
   full_name?: string;
-  /**
-   * @type boolean | undefined
-   */
   hide_email?: boolean;
-  /**
-   * @type string | undefined
-   */
   location?: string;
-  /**
-   * @type string | undefined
-   */
   login_name?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   max_repo_creation?: number;
-  /**
-   * @type boolean | undefined
-   */
   must_change_password?: boolean;
-  /**
-   * @type string | undefined
-   */
   password?: string;
-  /**
-   * @type boolean | undefined
-   */
   prohibit_login?: boolean;
-  /**
-   * @type string | undefined
-   */
   pronouns?: string;
-  /**
-   * @type boolean | undefined
-   */
   restricted?: boolean;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   source_id?: number;
-  /**
-   * @type string | undefined
-   */
   visibility?: string;
-  /**
-   * @type string | undefined
-   */
   website?: string;
 };

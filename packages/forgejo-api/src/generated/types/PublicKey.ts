@@ -7,51 +7,37 @@ import type { User } from './User';
 
 /**
  * @description PublicKey publickey is a user key to push code to repository
+ * @type object
  */
 export type PublicKey = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
-  /**
-   * @type string | undefined
-   */
   fingerprint?: string;
   /**
-   * @type integer | undefined, int64
+   * @description
+   * Format: `int64`
+   * @type integer | undefined
    */
   id?: number;
-  /**
-   * @type string | undefined
-   */
   key?: string;
-  /**
-   * @type string | undefined
-   */
   key_type?: string;
-  /**
-   * @type boolean | undefined
-   */
   read_only?: boolean;
-  /**
-   * @type string | undefined
-   */
   title?: string;
   /**
-   * @type string | undefined, date-time
-   */
-  updated_at?: string;
-  /**
+   * @description
+   * Format: `date-time`
    * @type string | undefined
    */
+  updated_at?: string;
   url?: string;
   /**
    * @description User represents a user
    * @type object | undefined
    */
   user?: User;
-  /**
-   * @type boolean | undefined
-   */
   verified?: boolean;
 };

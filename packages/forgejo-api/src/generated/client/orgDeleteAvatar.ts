@@ -3,33 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  OrgDeleteAvatarMutationResponse,
-  OrgDeleteAvatarPathParams,
-  OrgDeleteAvatar404,
-} from '../types/OrgDeleteAvatar';
-
-function getOrgDeleteAvatarUrl(org: OrgDeleteAvatarPathParams['org']) {
-  const res = { method: 'DELETE', url: `/orgs/${org}/avatar` as const };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { OrgDeleteAvatarOptions, OrgDeleteAvatarResponses } from '../types/OrgDeleteAvatar';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an organization's avatar. It will be replaced by a default one
  * {@link /orgs/:org/avatar}
  */
-export async function orgDeleteAvatar(
-  org: OrgDeleteAvatarPathParams['org'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function orgDeleteAvatar<ThrowOnError extends boolean = true>(
+  options: Options<OrgDeleteAvatarOptions, ThrowOnError>,
+): Promise<UnwrappedResult<OrgDeleteAvatarResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<OrgDeleteAvatarMutationResponse, ResponseErrorConfig<OrgDeleteAvatar404>, unknown>({
-    method: 'DELETE',
-    url: getOrgDeleteAvatarUrl(org).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/orgs/{org}/avatar',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<OrgDeleteAvatarResponses, ThrowOnError>>;
 }

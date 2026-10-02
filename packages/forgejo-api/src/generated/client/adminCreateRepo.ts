@@ -3,53 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  AdminCreateRepoMutationRequest,
-  AdminCreateRepoMutationResponse,
-  AdminCreateRepoPathParams,
-  AdminCreateRepo400,
-  AdminCreateRepo403,
-  AdminCreateRepo404,
-  AdminCreateRepo409,
-  AdminCreateRepo422,
-} from '../types/AdminCreateRepo';
-
-function getAdminCreateRepoUrl(username: AdminCreateRepoPathParams['username']) {
-  const res = {
-    method: 'POST',
-    url: `/admin/users/${username}/repos` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { AdminCreateRepoOptions, AdminCreateRepoResponses } from '../types/AdminCreateRepo';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Create a repository on behalf of a user
  * {@link /admin/users/:username/repos}
  */
-export async function adminCreateRepo(
-  username: AdminCreateRepoPathParams['username'],
-  data: AdminCreateRepoMutationRequest,
-  config: Partial<RequestConfig<AdminCreateRepoMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function adminCreateRepo<ThrowOnError extends boolean = true>(
+  options: Options<AdminCreateRepoOptions, ThrowOnError>,
+): Promise<UnwrappedResult<AdminCreateRepoResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    AdminCreateRepoMutationResponse,
-    ResponseErrorConfig<
-      AdminCreateRepo400 | AdminCreateRepo403 | AdminCreateRepo404 | AdminCreateRepo409 | AdminCreateRepo422
-    >,
-    AdminCreateRepoMutationRequest
-  >({
-    method: 'POST',
-    url: getAdminCreateRepoUrl(username).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'POST',
+      url: '/admin/users/{username}/repos',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<AdminCreateRepoResponses, ThrowOnError>>;
 }

@@ -5,10 +5,13 @@
 
 /**
  * @description Secret represents a secret
+ * @type object
  */
 export type Secret = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created_at?: string;
   /**

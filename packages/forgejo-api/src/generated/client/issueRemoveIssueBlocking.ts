@@ -3,53 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  IssueRemoveIssueBlockingMutationRequest,
-  IssueRemoveIssueBlockingMutationResponse,
-  IssueRemoveIssueBlockingPathParams,
-  IssueRemoveIssueBlocking404,
+  IssueRemoveIssueBlockingOptions,
+  IssueRemoveIssueBlockingResponses,
 } from '../types/IssueRemoveIssueBlocking';
-
-function getIssueRemoveIssueBlockingUrl(
-  owner: IssueRemoveIssueBlockingPathParams['owner'],
-  repo: IssueRemoveIssueBlockingPathParams['repo'],
-  index: IssueRemoveIssueBlockingPathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/blocks` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Unblock the issue given in the body by the issue in path
  * {@link /repos/:owner/:repo/issues/:index/blocks}
  */
-export async function issueRemoveIssueBlocking(
-  owner: IssueRemoveIssueBlockingPathParams['owner'],
-  repo: IssueRemoveIssueBlockingPathParams['repo'],
-  index: IssueRemoveIssueBlockingPathParams['index'],
-  data?: IssueRemoveIssueBlockingMutationRequest,
-  config: Partial<RequestConfig<IssueRemoveIssueBlockingMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueRemoveIssueBlocking<ThrowOnError extends boolean = true>(
+  options: Options<IssueRemoveIssueBlockingOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueRemoveIssueBlockingResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    IssueRemoveIssueBlockingMutationResponse,
-    ResponseErrorConfig<IssueRemoveIssueBlocking404>,
-    IssueRemoveIssueBlockingMutationRequest
-  >({
-    method: 'DELETE',
-    url: getIssueRemoveIssueBlockingUrl(owner, repo, index).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/blocks',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueRemoveIssueBlockingResponses, ThrowOnError>>;
 }

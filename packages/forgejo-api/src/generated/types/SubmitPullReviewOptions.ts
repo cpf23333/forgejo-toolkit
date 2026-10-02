@@ -7,11 +7,9 @@ import type { ReviewStateType } from './ReviewStateType';
 
 /**
  * @description SubmitPullReviewOptions are options to submit a pending pull review
+ * @type object
  */
 export type SubmitPullReviewOptions = {
-  /**
-   * @type string | undefined
-   */
   body?: string;
   /**
    * @description ReviewStateType review state type

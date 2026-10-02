@@ -4,12 +4,12 @@
  */
 
 import type {
-  RepoValidateIssueConfigQueryResponse,
-  RepoValidateIssueConfig404,
+  RepoValidateIssueConfigResponse,
+  RepoValidateIssueConfigStatus404,
 } from '../types/RepoValidateIssueConfig';
 import { http } from 'msw';
 
-export function repoValidateIssueConfigHandlerResponse200(data: RepoValidateIssueConfigQueryResponse) {
+export function repoValidateIssueConfigHandlerResponse200(data: RepoValidateIssueConfigResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -18,7 +18,7 @@ export function repoValidateIssueConfigHandlerResponse200(data: RepoValidateIssu
   });
 }
 
-export function repoValidateIssueConfigHandlerResponse404(data: RepoValidateIssueConfig404) {
+export function repoValidateIssueConfigHandlerResponse404(data: RepoValidateIssueConfigStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
@@ -29,7 +29,7 @@ export function repoValidateIssueConfigHandlerResponse404(data: RepoValidateIssu
 
 export function repoValidateIssueConfigHandler(
   data?:
-    | RepoValidateIssueConfigQueryResponse
+    | RepoValidateIssueConfigResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issue_config/validate`, function handler(info) {

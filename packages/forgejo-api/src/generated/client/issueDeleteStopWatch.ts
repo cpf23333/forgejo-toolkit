@@ -3,48 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  IssueDeleteStopWatchMutationResponse,
-  IssueDeleteStopWatchPathParams,
-  IssueDeleteStopWatch403,
-  IssueDeleteStopWatch404,
-  IssueDeleteStopWatch409,
-} from '../types/IssueDeleteStopWatch';
-
-function getIssueDeleteStopWatchUrl(
-  owner: IssueDeleteStopWatchPathParams['owner'],
-  repo: IssueDeleteStopWatchPathParams['repo'],
-  index: IssueDeleteStopWatchPathParams['index'],
-) {
-  const res = {
-    method: 'DELETE',
-    url: `/repos/${owner}/${repo}/issues/${index}/stopwatch/delete` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { IssueDeleteStopWatchOptions, IssueDeleteStopWatchResponses } from '../types/IssueDeleteStopWatch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Delete an issue's existing stopwatch.
  * {@link /repos/:owner/:repo/issues/:index/stopwatch/delete}
  */
-export async function issueDeleteStopWatch(
-  owner: IssueDeleteStopWatchPathParams['owner'],
-  repo: IssueDeleteStopWatchPathParams['repo'],
-  index: IssueDeleteStopWatchPathParams['index'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function issueDeleteStopWatch<ThrowOnError extends boolean = true>(
+  options: Options<IssueDeleteStopWatchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<IssueDeleteStopWatchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    IssueDeleteStopWatchMutationResponse,
-    ResponseErrorConfig<IssueDeleteStopWatch403 | IssueDeleteStopWatch404 | IssueDeleteStopWatch409>,
-    unknown
-  >({
-    method: 'DELETE',
-    url: getIssueDeleteStopWatchUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'DELETE',
+      url: '/repos/{owner}/{repo}/issues/{index}/stopwatch/delete',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<IssueDeleteStopWatchResponses, ThrowOnError>>;
 }

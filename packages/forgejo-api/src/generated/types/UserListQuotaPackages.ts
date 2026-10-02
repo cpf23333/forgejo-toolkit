@@ -7,7 +7,7 @@ import type { APIForbiddenError } from './APIForbiddenError';
 import type { APIUnauthorizedError } from './APIUnauthorizedError';
 import type { QuotaUsedPackageList } from './QuotaUsedPackageList';
 
-export type UserListQuotaPackagesQueryParams = {
+export type UserListQuotaPackagesQuery = {
   /**
    * @description page number of results to return (1-based)
    * @type integer | undefined
@@ -21,24 +21,72 @@ export type UserListQuotaPackagesQueryParams = {
 };
 
 /**
- * @description QuotaUsedPackageList
+ * @description QuotaUsedPackageList represents a list of packages counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaPackages200 = QuotaUsedPackageList;
+export type UserListQuotaPackagesStatus200Json = QuotaUsedPackageList;
 
 /**
- * @description APIUnauthorizedError is a unauthorized error response
+ * @description QuotaUsedPackageList represents a list of packages counting towards a user\'s quota
+ * @type array
  */
-export type UserListQuotaPackages401 = APIUnauthorizedError;
+export type UserListQuotaPackagesStatus200Html = QuotaUsedPackageList;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type UserListQuotaPackages403 = APIForbiddenError;
+export type UserListQuotaPackagesStatus200 = UserListQuotaPackagesStatus200Json | UserListQuotaPackagesStatus200Html;
 
-export type UserListQuotaPackagesQueryResponse = UserListQuotaPackages200;
+export type UserListQuotaPackagesStatus401Json = APIUnauthorizedError;
 
-export type UserListQuotaPackagesQuery = {
-  Response: UserListQuotaPackages200;
-  QueryParams: UserListQuotaPackagesQueryParams;
-  Errors: UserListQuotaPackages401 | UserListQuotaPackages403;
+export type UserListQuotaPackagesStatus401Html = APIUnauthorizedError;
+
+export type UserListQuotaPackagesStatus401 = UserListQuotaPackagesStatus401Json | UserListQuotaPackagesStatus401Html;
+
+export type UserListQuotaPackagesStatus403Json = APIForbiddenError;
+
+export type UserListQuotaPackagesStatus403Html = APIForbiddenError;
+
+export type UserListQuotaPackagesStatus403 = UserListQuotaPackagesStatus403Json | UserListQuotaPackagesStatus403Html;
+
+export type UserListQuotaPackagesOptions = {
+  body?: never;
+  path?: never;
+  query?: UserListQuotaPackagesQuery;
+  headers?: never;
 };
+
+export type UserListQuotaPackagesResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaPackagesStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaPackagesStatus200Html;
+      };
+  '401':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaPackagesStatus401Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaPackagesStatus401Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: UserListQuotaPackagesStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: UserListQuotaPackagesStatus403Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type UserListQuotaPackagesResponse =
+  | UserListQuotaPackagesStatus200
+  | UserListQuotaPackagesStatus401
+  | UserListQuotaPackagesStatus403;

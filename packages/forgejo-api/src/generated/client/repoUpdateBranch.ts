@@ -3,55 +3,33 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
-import type {
-  RepoUpdateBranchMutationRequest,
-  RepoUpdateBranchMutationResponse,
-  RepoUpdateBranchPathParams,
-  RepoUpdateBranch403,
-  RepoUpdateBranch404,
-  RepoUpdateBranch422,
-} from '../types/RepoUpdateBranch';
-
-function getRepoUpdateBranchUrl(
-  owner: RepoUpdateBranchPathParams['owner'],
-  repo: RepoUpdateBranchPathParams['repo'],
-  branch: RepoUpdateBranchPathParams['branch'],
-) {
-  const res = {
-    method: 'PATCH',
-    url: `/repos/${owner}/${repo}/branches/${branch}` as const,
-  };
-  return res;
-}
+import type { Options, UnwrappedResult } from '../.kubb/client';
+import type { RepoUpdateBranchOptions, RepoUpdateBranchResponses } from '../types/RepoUpdateBranch';
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Update a branch
  * {@link /repos/:owner/:repo/branches/:branch}
  */
-export async function repoUpdateBranch(
-  owner: RepoUpdateBranchPathParams['owner'],
-  repo: RepoUpdateBranchPathParams['repo'],
-  branch: RepoUpdateBranchPathParams['branch'],
-  data: RepoUpdateBranchMutationRequest,
-  config: Partial<RequestConfig<RepoUpdateBranchMutationRequest>> & {
-    client?: Client;
-  } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoUpdateBranch<ThrowOnError extends boolean = true>(
+  options: Options<RepoUpdateBranchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoUpdateBranchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const requestData = data;
-
-  const res = await request<
-    RepoUpdateBranchMutationResponse,
-    ResponseErrorConfig<RepoUpdateBranch403 | RepoUpdateBranch404 | RepoUpdateBranch422>,
-    RepoUpdateBranchMutationRequest
-  >({
-    method: 'PATCH',
-    url: getRepoUpdateBranchUrl(owner, repo, branch).url.toString(),
-    data: requestData,
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'PATCH',
+      url: '/repos/{owner}/{repo}/branches/{branch}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoUpdateBranchResponses, ThrowOnError>>;
 }

@@ -5,15 +5,20 @@
 
 /**
  * @description AddTimeOption options for adding time to an issue
+ * @type object
  */
 export type AddTimeOption = {
   /**
-   * @type string | undefined, date-time
+   * @description
+   * Format: `date-time`
+   * @type string | undefined
    */
   created?: string;
   /**
    * @description time in seconds
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   time: number;
   /**

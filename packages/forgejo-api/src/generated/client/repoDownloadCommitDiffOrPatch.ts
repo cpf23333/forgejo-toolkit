@@ -3,48 +3,36 @@
  * Do not edit manually.
  */
 
-import fetch from '@cpf23333-forgejo-toolkit/shared/request';
-import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Options, UnwrappedResult } from '../.kubb/client';
 import type {
-  RepoDownloadCommitDiffOrPatchQueryResponse,
-  RepoDownloadCommitDiffOrPatchPathParams,
-  RepoDownloadCommitDiffOrPatch404,
+  RepoDownloadCommitDiffOrPatchOptions,
+  RepoDownloadCommitDiffOrPatchResponses,
 } from '../types/RepoDownloadCommitDiffOrPatch';
-
-function getRepoDownloadCommitDiffOrPatchUrl(
-  owner: RepoDownloadCommitDiffOrPatchPathParams['owner'],
-  repo: RepoDownloadCommitDiffOrPatchPathParams['repo'],
-  sha: RepoDownloadCommitDiffOrPatchPathParams['sha'],
-  diffType: RepoDownloadCommitDiffOrPatchPathParams['diffType'],
-) {
-  const res = {
-    method: 'GET',
-    url: `/repos/${owner}/${repo}/git/commits/${sha}.${diffType}` as const,
-  };
-  return res;
-}
+import { client, unwrapResult } from '../.kubb/client';
 
 /**
  * @summary Get a commit's diff or patch
  * {@link /repos/:owner/:repo/git/commits/:sha.:diffType}
  */
-export async function repoDownloadCommitDiffOrPatch(
-  owner: RepoDownloadCommitDiffOrPatchPathParams['owner'],
-  repo: RepoDownloadCommitDiffOrPatchPathParams['repo'],
-  sha: RepoDownloadCommitDiffOrPatchPathParams['sha'],
-  diffType: RepoDownloadCommitDiffOrPatchPathParams['diffType'],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
-  const { client: request = fetch, ...requestConfig } = config;
+export function repoDownloadCommitDiffOrPatch<ThrowOnError extends boolean = true>(
+  options: Options<RepoDownloadCommitDiffOrPatchOptions, ThrowOnError>,
+): Promise<UnwrappedResult<RepoDownloadCommitDiffOrPatchResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options;
 
-  const res = await request<
-    RepoDownloadCommitDiffOrPatchQueryResponse,
-    ResponseErrorConfig<RepoDownloadCommitDiffOrPatch404>,
-    unknown
-  >({
-    method: 'GET',
-    url: getRepoDownloadCommitDiffOrPatchUrl(owner, repo, sha, diffType).url.toString(),
-    ...requestConfig,
-  });
-  return res.data;
+  return unwrapResult(
+    request({
+      method: 'GET',
+      url: '/repos/{owner}/{repo}/git/commits/{sha}.{diffType}',
+      security: [
+        { type: 'http', scheme: 'basic' },
+        { type: 'apiKey', name: 'Authorization', in: 'header' },
+        { type: 'apiKey', name: 'sudo', in: 'query' },
+        { type: 'apiKey', name: 'Sudo', in: 'header' },
+        { type: 'apiKey', name: 'X-FORGEJO-OTP', in: 'header' },
+      ],
+      ...config,
+      throwOnError: config.throwOnError ?? true,
+    }),
+    config.throwOnError ?? true,
+  ) as Promise<UnwrappedResult<RepoDownloadCommitDiffOrPatchResponses, ThrowOnError>>;
 }

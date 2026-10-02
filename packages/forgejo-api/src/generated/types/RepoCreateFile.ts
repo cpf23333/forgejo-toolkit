@@ -9,7 +9,7 @@ import type { APIRepoArchivedError } from './APIRepoArchivedError';
 import type { CreateFileOptions } from './CreateFileOptions';
 import type { FileResponse } from './FileResponse';
 
-export type RepoCreateFilePathParams = {
+export type RepoCreateFilePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -28,53 +28,134 @@ export type RepoCreateFilePathParams = {
 };
 
 /**
- * @description FileResponse
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoCreateFile201 = FileResponse;
+export type RepoCreateFileStatus201Json = FileResponse;
 
 /**
- * @description APIError is error format response
+ * @description FileResponse contains information about a repo\'s file
+ * @type object
  */
-export type RepoCreateFile403 = APIError;
+export type RepoCreateFileStatus201Html = FileResponse;
+
+export type RepoCreateFileStatus201 = RepoCreateFileStatus201Json | RepoCreateFileStatus201Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateFile404 = APINotFound;
+export type RepoCreateFileStatus403Json = APIError;
 
 /**
- * @description APIConflict is a conflict empty response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateFile409 = any;
+export type RepoCreateFileStatus403Html = APIError;
+
+export type RepoCreateFileStatus403 = RepoCreateFileStatus403Json | RepoCreateFileStatus403Html;
+
+export type RepoCreateFileStatus404Json = APINotFound;
+
+export type RepoCreateFileStatus404Html = APINotFound;
+
+export type RepoCreateFileStatus404 = RepoCreateFileStatus404Json | RepoCreateFileStatus404Html;
+
+export type RepoCreateFileStatus409 = unknown;
+
+export type RepoCreateFileStatus413 = unknown;
 
 /**
- * @description QuotaExceeded
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateFile413 = any;
+export type RepoCreateFileStatus422Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoCreateFile422 = APIError;
+export type RepoCreateFileStatus422Html = APIError;
+
+export type RepoCreateFileStatus422 = RepoCreateFileStatus422Json | RepoCreateFileStatus422Html;
+
+export type RepoCreateFileStatus423Json = APIRepoArchivedError;
+
+export type RepoCreateFileStatus423Html = APIRepoArchivedError;
+
+export type RepoCreateFileStatus423 = RepoCreateFileStatus423Json | RepoCreateFileStatus423Html;
 
 /**
- * @description APIRepoArchivedError is an error that is raised when an archived repo should be modified
+ * @description CreateFileOptions options for creating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)
+ * @type object
  */
-export type RepoCreateFile423 = APIRepoArchivedError;
+export type RepoCreateFileBody = CreateFileOptions;
 
-export type RepoCreateFileMutationRequest = CreateFileOptions;
-
-export type RepoCreateFileMutationResponse = RepoCreateFile201;
-
-export type RepoCreateFileMutation = {
-  Response: RepoCreateFile201;
-  Request: RepoCreateFileMutationRequest;
-  PathParams: RepoCreateFilePathParams;
-  Errors:
-    | RepoCreateFile403
-    | RepoCreateFile404
-    | RepoCreateFile409
-    | RepoCreateFile413
-    | RepoCreateFile422
-    | RepoCreateFile423;
+export type RepoCreateFileOptions = {
+  body: RepoCreateFileBody;
+  path: RepoCreateFilePath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoCreateFileResponses = {
+  '201':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateFileStatus201Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateFileStatus201Html;
+      };
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateFileStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateFileStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateFileStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateFileStatus404Html;
+      };
+  '409': RepoCreateFileStatus409;
+  '413': RepoCreateFileStatus413;
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateFileStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateFileStatus422Html;
+      };
+  '423':
+    | {
+        contentType: 'application/json';
+        data: RepoCreateFileStatus423Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoCreateFileStatus423Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoCreateFileResponse =
+  | RepoCreateFileStatus201
+  | RepoCreateFileStatus403
+  | RepoCreateFileStatus404
+  | RepoCreateFileStatus409
+  | RepoCreateFileStatus413
+  | RepoCreateFileStatus422
+  | RepoCreateFileStatus423;

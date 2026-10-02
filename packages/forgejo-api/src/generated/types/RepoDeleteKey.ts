@@ -6,7 +6,7 @@
 import type { APIForbiddenError } from './APIForbiddenError';
 import type { APINotFound } from './APINotFound';
 
-export type RepoDeleteKeyPathParams = {
+export type RepoDeleteKeyPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,30 +19,57 @@ export type RepoDeleteKeyPathParams = {
   repo: string;
   /**
    * @description id of the key to delete
-   * @type integer, int64
+   *
+   * Format: `int64`
+   * @type integer
    */
   id: number;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoDeleteKey204 = any;
+export type RepoDeleteKeyStatus204 = unknown;
 
-/**
- * @description APIForbiddenError is a forbidden error response
- */
-export type RepoDeleteKey403 = APIForbiddenError;
+export type RepoDeleteKeyStatus403Json = APIForbiddenError;
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoDeleteKey404 = APINotFound;
+export type RepoDeleteKeyStatus403Html = APIForbiddenError;
 
-export type RepoDeleteKeyMutationResponse = RepoDeleteKey204;
+export type RepoDeleteKeyStatus403 = RepoDeleteKeyStatus403Json | RepoDeleteKeyStatus403Html;
 
-export type RepoDeleteKeyMutation = {
-  Response: RepoDeleteKey204;
-  PathParams: RepoDeleteKeyPathParams;
-  Errors: RepoDeleteKey403 | RepoDeleteKey404;
+export type RepoDeleteKeyStatus404Json = APINotFound;
+
+export type RepoDeleteKeyStatus404Html = APINotFound;
+
+export type RepoDeleteKeyStatus404 = RepoDeleteKeyStatus404Json | RepoDeleteKeyStatus404Html;
+
+export type RepoDeleteKeyOptions = {
+  body?: never;
+  path: RepoDeleteKeyPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoDeleteKeyResponses = {
+  '204': RepoDeleteKeyStatus204;
+  '403':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteKeyStatus403Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteKeyStatus403Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoDeleteKeyStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoDeleteKeyStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoDeleteKeyResponse = RepoDeleteKeyStatus204 | RepoDeleteKeyStatus403 | RepoDeleteKeyStatus404;

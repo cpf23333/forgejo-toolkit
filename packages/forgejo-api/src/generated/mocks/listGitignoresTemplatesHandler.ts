@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ListGitignoresTemplatesQueryResponse } from '../types/ListGitignoresTemplates';
+import type { ListGitignoresTemplatesResponse } from '../types/ListGitignoresTemplates';
 import { http } from 'msw';
 
-export function listGitignoresTemplatesHandlerResponse200(data: ListGitignoresTemplatesQueryResponse) {
+export function listGitignoresTemplatesHandlerResponse200(data: ListGitignoresTemplatesResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -17,7 +17,7 @@ export function listGitignoresTemplatesHandlerResponse200(data: ListGitignoresTe
 
 export function listGitignoresTemplatesHandler(
   data?:
-    | ListGitignoresTemplatesQueryResponse
+    | ListGitignoresTemplatesResponse
     | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/gitignore/templates`, function handler(info) {

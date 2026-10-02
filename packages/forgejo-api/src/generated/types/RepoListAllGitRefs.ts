@@ -6,7 +6,7 @@
 import type { APINotFound } from './APINotFound';
 import type { Reference } from './Reference';
 
-export type RepoListAllGitRefsPathParams = {
+export type RepoListAllGitRefsPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -19,20 +19,47 @@ export type RepoListAllGitRefsPathParams = {
   repo: string;
 };
 
-/**
- * @description ReferenceList
- */
-export type RepoListAllGitRefs200 = Reference[];
+export type RepoListAllGitRefsStatus200Json = Reference[];
 
-/**
- * @description APINotFound is a not found error response
- */
-export type RepoListAllGitRefs404 = APINotFound;
+export type RepoListAllGitRefsStatus200Html = Reference[];
 
-export type RepoListAllGitRefsQueryResponse = RepoListAllGitRefs200;
+export type RepoListAllGitRefsStatus200 = RepoListAllGitRefsStatus200Json | RepoListAllGitRefsStatus200Html;
 
-export type RepoListAllGitRefsQuery = {
-  Response: RepoListAllGitRefs200;
-  PathParams: RepoListAllGitRefsPathParams;
-  Errors: RepoListAllGitRefs404;
+export type RepoListAllGitRefsStatus404Json = APINotFound;
+
+export type RepoListAllGitRefsStatus404Html = APINotFound;
+
+export type RepoListAllGitRefsStatus404 = RepoListAllGitRefsStatus404Json | RepoListAllGitRefsStatus404Html;
+
+export type RepoListAllGitRefsOptions = {
+  body?: never;
+  path: RepoListAllGitRefsPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoListAllGitRefsResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoListAllGitRefsStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListAllGitRefsStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoListAllGitRefsStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoListAllGitRefsStatus404Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoListAllGitRefsResponse = RepoListAllGitRefsStatus200 | RepoListAllGitRefsStatus404;

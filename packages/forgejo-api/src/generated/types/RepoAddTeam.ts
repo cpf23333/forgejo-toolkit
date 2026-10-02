@@ -7,7 +7,7 @@ import type { APIError } from './APIError';
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 
-export type RepoAddTeamPathParams = {
+export type RepoAddTeamPath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,30 +25,77 @@ export type RepoAddTeamPathParams = {
   team: string;
 };
 
-/**
- * @description APIEmpty is an empty response
- */
-export type RepoAddTeam204 = any;
+export type RepoAddTeamStatus204 = unknown;
+
+export type RepoAddTeamStatus404Json = APINotFound;
+
+export type RepoAddTeamStatus404Html = APINotFound;
+
+export type RepoAddTeamStatus404 = RepoAddTeamStatus404Json | RepoAddTeamStatus404Html;
 
 /**
- * @description APINotFound is a not found error response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoAddTeam404 = APINotFound;
+export type RepoAddTeamStatus405Json = APIError;
 
 /**
- * @description APIError is error format response
+ * @description APIError is an api error with a message
+ * @type object
  */
-export type RepoAddTeam405 = APIError;
+export type RepoAddTeamStatus405Html = APIError;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoAddTeam422 = APIValidationError;
+export type RepoAddTeamStatus405 = RepoAddTeamStatus405Json | RepoAddTeamStatus405Html;
 
-export type RepoAddTeamMutationResponse = RepoAddTeam204;
+export type RepoAddTeamStatus422Json = APIValidationError;
 
-export type RepoAddTeamMutation = {
-  Response: RepoAddTeam204;
-  PathParams: RepoAddTeamPathParams;
-  Errors: RepoAddTeam404 | RepoAddTeam405 | RepoAddTeam422;
+export type RepoAddTeamStatus422Html = APIValidationError;
+
+export type RepoAddTeamStatus422 = RepoAddTeamStatus422Json | RepoAddTeamStatus422Html;
+
+export type RepoAddTeamOptions = {
+  body?: never;
+  path: RepoAddTeamPath;
+  query?: never;
+  headers?: never;
 };
+
+export type RepoAddTeamResponses = {
+  '204': RepoAddTeamStatus204;
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoAddTeamStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddTeamStatus404Html;
+      };
+  '405':
+    | {
+        contentType: 'application/json';
+        data: RepoAddTeamStatus405Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddTeamStatus405Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoAddTeamStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoAddTeamStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoAddTeamResponse =
+  | RepoAddTeamStatus204
+  | RepoAddTeamStatus404
+  | RepoAddTeamStatus405
+  | RepoAddTeamStatus422;

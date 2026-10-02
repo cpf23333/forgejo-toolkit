@@ -7,7 +7,7 @@ import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
 import type { Note } from './Note';
 
-export type RepoGetNotePathParams = {
+export type RepoGetNotePath = {
   /**
    * @description owner of the repo
    * @type string
@@ -25,7 +25,7 @@ export type RepoGetNotePathParams = {
   sha: string;
 };
 
-export type RepoGetNoteQueryParams = {
+export type RepoGetNoteQuery = {
   /**
    * @description include verification for every commit (disable for speedup, default \'true\')
    * @type boolean | undefined
@@ -39,25 +39,69 @@ export type RepoGetNoteQueryParams = {
 };
 
 /**
- * @description Note
+ * @description Note contains information related to a git note
+ * @type object
  */
-export type RepoGetNote200 = Note;
+export type RepoGetNoteStatus200Json = Note;
 
 /**
- * @description APINotFound is a not found error response
+ * @description Note contains information related to a git note
+ * @type object
  */
-export type RepoGetNote404 = APINotFound;
+export type RepoGetNoteStatus200Html = Note;
 
-/**
- * @description APIValidationError is error format response related to input validation
- */
-export type RepoGetNote422 = APIValidationError;
+export type RepoGetNoteStatus200 = RepoGetNoteStatus200Json | RepoGetNoteStatus200Html;
 
-export type RepoGetNoteQueryResponse = RepoGetNote200;
+export type RepoGetNoteStatus404Json = APINotFound;
 
-export type RepoGetNoteQuery = {
-  Response: RepoGetNote200;
-  PathParams: RepoGetNotePathParams;
-  QueryParams: RepoGetNoteQueryParams;
-  Errors: RepoGetNote404 | RepoGetNote422;
+export type RepoGetNoteStatus404Html = APINotFound;
+
+export type RepoGetNoteStatus404 = RepoGetNoteStatus404Json | RepoGetNoteStatus404Html;
+
+export type RepoGetNoteStatus422Json = APIValidationError;
+
+export type RepoGetNoteStatus422Html = APIValidationError;
+
+export type RepoGetNoteStatus422 = RepoGetNoteStatus422Json | RepoGetNoteStatus422Html;
+
+export type RepoGetNoteOptions = {
+  body?: never;
+  path: RepoGetNotePath;
+  query?: RepoGetNoteQuery;
+  headers?: never;
 };
+
+export type RepoGetNoteResponses = {
+  '200':
+    | {
+        contentType: 'application/json';
+        data: RepoGetNoteStatus200Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetNoteStatus200Html;
+      };
+  '404':
+    | {
+        contentType: 'application/json';
+        data: RepoGetNoteStatus404Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetNoteStatus404Html;
+      };
+  '422':
+    | {
+        contentType: 'application/json';
+        data: RepoGetNoteStatus422Json;
+      }
+    | {
+        contentType: 'text/html';
+        data: RepoGetNoteStatus422Html;
+      };
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type RepoGetNoteResponse = RepoGetNoteStatus200 | RepoGetNoteStatus404 | RepoGetNoteStatus422;
