@@ -24,6 +24,7 @@
  */
 
 import { redactInstanceUrl } from '../api/versionProbe';
+import type { ServerVersionSource } from '../api/serverVersion';
 import { LEASE_EXPIRY_MS } from './leaseConstants';
 import { isPidAlive } from './leaseStore';
 import type { ClaimRequestObservation, LeaseHandoverRecord, LeaseRead } from './leaseTypes';
@@ -91,19 +92,34 @@ export interface PollingDiagnosticsLease {
 }
 
 /**
- * One instance in the shared probe cache (§9 route 2), as far as this window
- * can see it.
+ * One instance's server version, as far as this window can see it.
  *
- * `version` is reported even when the entry has expired, so a reader can see
- * what the cache holds; `stale` says whether that value may still be used, and
- * `probedAt` when it was written. Both stay `null` for a value that exists only
- * in this process's memory — the fallback when the shared store is unusable —
- * because such a value has no write time and therefore no TTL.
+ * `source` is what answers "why is this feature offered, or refused, for this
+ * instance" from a bug report: `declared` when the user stated the version on
+ * the instance record (the escape hatch for a probe that sees the wrong answer
+ * or none), `probed` when the automatic probe answered, `unknown` when neither
+ * did. `version` is the value those gates use, except in one case, documented
+ * with `stale` below.
+ *
+ * `declaredVersion` carries the instance record's declared string verbatim,
+ * whether or not it parses, so a declaration that is being ignored is visible as
+ * such. It is `null` when the instance declares nothing.
+ *
+ * `probedAt` is when the shared cache entry the row's value was read from was
+ * written, and `stale` is whether that entry is past its TTL. Both are `null`
+ * when the row's value did not come from the shared cache: a value that exists
+ * only in this process's memory has no write time and no TTL, and a declared
+ * value does not come from the cache at all. When the gates have no value but
+ * the cache still holds one (`stale: true`, nothing renewed it), the row reports
+ * that entry's own value so a reader can see what the probe found — the value is
+ * then *not* what the gates use, and `source` is `unknown`.
  */
 export interface PollingDiagnosticsVersionRow {
   instanceId: string;
   url: string;
   version: string | null;
+  source: ServerVersionSource;
+  declaredVersion: string | null;
   probedAt: number | null;
   stale: boolean | null;
 }
@@ -211,8 +227,16 @@ export interface PollingDiagnosticsInput {
       url: string;
       version?: string | undefined;
       /**
+       * Where the version the gates use came from, as the caller's resolution
+       * reported it. Absent in the older shape, where a row only said what the
+       * shared cache held.
+       */
+      source?: ServerVersionSource | undefined;
+      /** The instance record's declared string, verbatim, when it has one. */
+      declaredVersion?: string | undefined;
+      /**
        * When the shared cache entry was written (§9 route 2). `null` or absent
-       * for a value this window only holds in memory.
+       * for a value this window only holds in memory, and for a declared value.
        */
       probedAt?: number | null | undefined;
       /** Whether that entry is past its TTL; `null` when there is no shared entry. */
@@ -374,8 +398,16 @@ export function buildPollingDiagnostics(input: PollingDiagnosticsInput): Polling
         // removed by the same rule the log lines use.
         url: redactInstanceUrl(instance.url),
         version: instance.version ?? null,
+        // Where that value came from — declared versus probed — which is what
+        // tells a reader whether the gates are honouring the user's own
+        // statement or the probe's answer (see PollingDiagnosticsVersionRow).
+        // A row from the older shape, which only said what the cache held, has
+        // no source: a version it does carry is a probe result by construction.
+        source: instance.source ?? (instance.version === undefined ? 'unknown' : 'probed'),
+        declaredVersion: instance.declaredVersion ?? null,
         // The shared cache's write time and TTL verdict (§9 route 2). Both are
-        // `null` for the process-local fallback, which has neither.
+        // `null` for the process-local fallback, which has neither, and for a
+        // declared value, which is not read from the cache.
         probedAt: instance.probedAt ?? null,
         stale: instance.stale ?? null,
       })),

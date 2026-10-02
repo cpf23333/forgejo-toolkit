@@ -5,8 +5,10 @@ import {
   isSharedEntryUsable,
   isVersionSupported,
   MIN_SUPPORTED_VERSION_TEXT,
+  resolveServerVersion,
   reusableSharedServerVersion,
   setServerVersion,
+  type ServerVersionSource,
 } from './serverVersion';
 import {
   readSharedServerVersionNotice,
@@ -42,8 +44,15 @@ function alreadyWarnedLocally(url: string, version: string): boolean {
  * Best-effort server version probe: the result feeds the feature gates in
  * `serverVersion.ts`. Failures are logged at debug level and swallowed —
  * an instance that cannot be probed simply keeps every feature enabled
- * (the gates fail open for unknown versions). A probed version below the
- * supported floor triggers a soft host notification; nothing is blocked.
+ * (the gates fail open for unknown versions). A version below the supported
+ * floor triggers a soft host notification; nothing is blocked.
+ *
+ * A **declared** version short-circuits all of this: the user stated the truth
+ * for this instance (a reverse proxy that blocks `/api/v1/version`, an
+ * unrecognised fork), so the request is not sent at all. The declaration is what
+ * the gates use (`resolveServerVersion`), and the low-version notice is raised
+ * from the declared value with wording that names the declaration, so a
+ * declaration below the floor still tells the user why features are missing.
  *
  * The logger is the client-facing interface on purpose: the MCP server process
  * runs this too, and it only has the console-backed `ClientLogger` (the editor's
@@ -82,6 +91,14 @@ export async function probeServerVersion(
   logger?: ClientLogger,
   syncApiUrlsToInstanceUrl?: boolean,
 ): Promise<void> {
+  const resolution = resolveServerVersion(url);
+  if (resolution.source === 'declared' && resolution.version !== undefined) {
+    logger?.debug(
+      `Server version for ${redactInstanceUrl(url)}: ${resolution.version} (declared for this instance; not probing)`,
+    );
+    await warnIfUnsupported(url, resolution.version, 'declared');
+    return;
+  }
   const cached = reusableSharedServerVersion(url);
   if (cached !== undefined) {
     logger?.debug(
@@ -111,7 +128,7 @@ export async function probeServerVersion(
     // Only the window that probed warns: a value adopted from the cache was
     // already reported by whichever window produced it (§9 route 1).
     if (outcome.probed) {
-      await warnIfUnsupported(url, outcome.version);
+      await warnIfUnsupported(url, outcome.version, 'probed');
     }
   } catch (error) {
     // The failure detail can echo the request URL (fetch refuses a URL that
@@ -124,8 +141,8 @@ export async function probeServerVersion(
 }
 
 /**
- * Raises the low-version notice for a version this window probed, unless it is
- * already covered.
+ * Raises the low-version notice for a version this window learned — probed, or
+ * declared for the instance by the user, which is why the source travels with it.
  *
  * The shared record is read *before* notifying and written before notifying on
  * purpose: the window that loses a simultaneous-marker race re-reads this record
@@ -133,7 +150,7 @@ export async function probeServerVersion(
  * remains the fast path for the ordinary repeat (activation, a save, a
  * connection test in the same session).
  */
-async function warnIfUnsupported(url: string, version: string): Promise<void> {
+async function warnIfUnsupported(url: string, version: string, source: ServerVersionSource): Promise<void> {
   if (isVersionSupported(version) || alreadyWarnedLocally(url, version)) {
     return;
   }
@@ -144,7 +161,7 @@ async function warnIfUnsupported(url: string, version: string): Promise<void> {
     return;
   }
   warnedUnsupportedVersions.add(`${url}\n${version}`);
-  getForgejoClientHost().notifyUnsupportedInstance(url, MIN_SUPPORTED_VERSION_TEXT, version);
+  getForgejoClientHost().notifyUnsupportedInstance(url, MIN_SUPPORTED_VERSION_TEXT, version, source);
 }
 
 /** Drops the in-process notice dedupe (tests). */

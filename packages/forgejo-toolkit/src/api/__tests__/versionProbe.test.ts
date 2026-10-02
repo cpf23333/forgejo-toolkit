@@ -3,7 +3,12 @@ import { spawn, type ChildProcess } from 'child_process';
 import { http, HttpResponse } from 'msw';
 import * as vscode from 'vscode';
 import { clearUnsupportedVersionWarnings, probeServerVersion } from '../versionProbe';
-import { clearServerVersion, clearServerVersions, getServerVersion } from '../serverVersion';
+import {
+  clearServerVersion,
+  clearServerVersions,
+  getServerVersion,
+  setDeclaredServerVersionResolver,
+} from '../serverVersion';
 import {
   isPidAlive,
   readSharedServerVersion,
@@ -119,6 +124,70 @@ describe('probeServerVersion', () => {
 
     expect(warningsForVersion('15.0.0')).toBe(1);
     expect(warningsForVersion('14.0.0')).toBe(1);
+  });
+
+  /**
+   * The declared server version is the escape hatch for a probe that cannot see
+   * the truth: with one, there is no request at all, and the low-version notice
+   * is raised from the declared value with wording that names the declaration.
+   */
+  describe('with a declared server version', () => {
+    const declaredUrl = 'https://declared.example.com';
+
+    beforeEach(() => {
+      setDeclaredServerVersionResolver((url) => (url === declaredUrl ? '15.0.0' : undefined));
+    });
+
+    /** Counts the probes that actually reach the server. */
+    function countProbes(version: string): () => number {
+      let probes = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/version', () => {
+          probes += 1;
+          return HttpResponse.json({ version });
+        }),
+      );
+      return () => probes;
+    }
+
+    it('uses the declaration without probing, and warns about the declared value', async () => {
+      // The server would answer a supported version — the whole reason the user
+      // declared one is that the answer cannot be trusted (or never arrives).
+      const probes = countProbes('17.0.0');
+
+      await probeServerVersion(declaredUrl, 'mock-token');
+
+      expect(probes()).toBe(0);
+      expect(getServerVersion(declaredUrl)).toBe('15.0.0');
+      expect(showWarningMessage).toHaveBeenCalledTimes(1);
+      const message = showWarningMessage.mock.calls[0][0] as string;
+      expect(message).toContain('15.0.0');
+      expect(message).toContain('16.0.0');
+      // The notice is about the user's own statement, not about what the server
+      // "runs" — the declaration is what makes the extension refuse features.
+      expect(message).toContain('You declared');
+    });
+
+    it('stays quiet for a declaration that meets the floor, still without probing', async () => {
+      setDeclaredServerVersionResolver(() => '16.0.2');
+      const probes = countProbes('17.0.0');
+
+      await probeServerVersion(declaredUrl, 'mock-token');
+
+      expect(probes()).toBe(0);
+      expect(getServerVersion(declaredUrl)).toBe('16.0.2');
+      expect(showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it('probes when the record declares nothing after all', async () => {
+      setDeclaredServerVersionResolver(() => undefined);
+      const probes = countProbes('16.0.1');
+
+      await probeServerVersion(declaredUrl, 'mock-token');
+
+      expect(probes()).toBe(1);
+      expect(getServerVersion(declaredUrl)).toBe('16.0.1');
+    });
   });
 
   /**

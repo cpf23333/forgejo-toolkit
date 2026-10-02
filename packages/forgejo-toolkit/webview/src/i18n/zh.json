@@ -544,6 +544,11 @@
       "label": "将 API 返回的 URL 同步为实例地址",
       "description": "把 Forgejo 返回的 URL（html_url、avatar_url、download_url 等）重写为上方配置的实例地址。如需保留服务端声明的原始地址，请关闭此选项。"
     },
+    "declaredServerVersion": {
+      "label": "服务器版本",
+      "placeholder": "major.minor.patch",
+      "description": "当自动探测读不到 /api/v1/version 时可手动声明该实例的 Forgejo 版本——反向代理或路径前缀挡掉了该接口、无法识别的分支版本、请求超时。{version} 可以接受，它带上 +gitea-… 这类构建后缀也可以。留空则使用自动探测。声明的版本始终优先于探测结果，并决定哪些功能可用。"
+    },
     "testConnection": "测试连接",
     "testing": "测试中...",
     "addInstance": "添加实例",

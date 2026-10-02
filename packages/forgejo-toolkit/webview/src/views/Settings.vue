@@ -25,6 +25,10 @@ watch(
 
 const url = ref('');
 const token = ref('');
+// The declared server version, as typed. Empty means "no declaration, use the
+// probe" — the host validates it on save and shows its own message when the
+// value cannot be a version, which is why this view never drops the input.
+const declaredServerVersion = ref('');
 
 // Forgejo's token management page lives at a fixed path under the instance
 // (same helper as the onboarding form). The typed URL may carry credentials
@@ -151,7 +155,12 @@ function handleSave() {
   saving.value = true;
   submittedTarget = { kind: 'new' };
   setStatus(t('settings.status.testing'));
-  state.saveInstance(url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
+  state.saveInstance(
+    url.value.trim(),
+    token.value.trim(),
+    syncApiUrlsToInstanceUrl.value,
+    declaredServerVersion.value.trim(),
+  );
 }
 
 function handleUpdate() {
@@ -161,7 +170,13 @@ function handleUpdate() {
   saving.value = true;
   submittedTarget = { kind: 'instance', instanceId: editingInstance.value.id };
   setStatus(t('settings.status.testing'));
-  state.editInstance(editingInstance.value.id, url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
+  state.editInstance(
+    editingInstance.value.id,
+    url.value.trim(),
+    token.value.trim(),
+    syncApiUrlsToInstanceUrl.value,
+    declaredServerVersion.value.trim(),
+  );
 }
 
 function startEdit(instance: ForgejoInstance) {
@@ -177,6 +192,9 @@ function startEdit(instance: ForgejoInstance) {
   // stored token (see the editInstance host handler).
   token.value = '';
   syncApiUrlsToInstanceUrl.value = instance.syncApiUrlsToInstanceUrl ?? true;
+  // Prefill the declaration the record carries; an instance that declares none
+  // shows an empty field, which is exactly what "use the probe" means.
+  declaredServerVersion.value = instance.declaredServerVersion ?? '';
   setStatus('');
 }
 
@@ -190,6 +208,7 @@ function cancelEdit() {
   url.value = '';
   token.value = '';
   syncApiUrlsToInstanceUrl.value = true;
+  declaredServerVersion.value = '';
   setStatus('');
 }
 
@@ -596,6 +615,7 @@ watch(
       setStatus(t('settings.status.successSaved'), 'success');
       url.value = '';
       token.value = '';
+      declaredServerVersion.value = '';
       editingInstance.value = null;
       // The edit form just closed back to the add form.
       submittedTarget = { kind: 'new' };
@@ -853,6 +873,36 @@ defineExpose({
           {{ t('settings.syncApiUrlsToInstanceUrl.label') }}
         </vscode-checkbox>
         <p class="field-description">{{ t('settings.syncApiUrlsToInstanceUrl.description') }}</p>
+      </div>
+
+      <!--
+        The declared server version: the escape hatch for the automatic probe
+        (a reverse proxy that blocks /api/v1/version, a fork or version string
+        the probe cannot read, an unreachable instance). Left empty it keeps the
+        probe; filled in it wins over the probe and the cached result, so the
+        feature gates follow what the user states. The host validates it and
+        answers with its own message, which the status region below shows.
+
+        The description's version example is the host's own floor text, passed
+        in as an interpolation argument: a number written into the catalog would
+        be a second copy of that fact and would keep naming an old release after
+        the floor moves. The placeholder is a shape hint instead of that value,
+        so it does not read as "type exactly this" on an instance that is far
+        newer.
+      -->
+      <div class="form-row">
+        <label for="forgejo-declared-version">{{ t('settings.declaredServerVersion.label') }}</label>
+        <vscode-textfield
+          id="forgejo-declared-version"
+          :value="declaredServerVersion"
+          :label="t('settings.declaredServerVersion.label')"
+          :placeholder="t('settings.declaredServerVersion.placeholder')"
+          type="text"
+          @input="declaredServerVersion = ($event.target as HTMLInputElement).value"
+        />
+        <p class="field-description">
+          {{ t('settings.declaredServerVersion.description', { version: state.minSupportedServerVersion.value }) }}
+        </p>
       </div>
 
       <div class="actions">

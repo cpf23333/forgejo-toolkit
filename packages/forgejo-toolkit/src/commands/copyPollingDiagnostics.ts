@@ -1,8 +1,7 @@
 import * as os from 'os';
 import * as vscode from 'vscode';
 import { userFacingErrorMessage } from '../api/errors';
-import { getServerVersion } from '../api/serverVersion';
-import { readSharedServerVersion } from '../api/serverVersionCache';
+import { resolveServerVersion } from '../api/serverVersion';
 import type { ConfigManager } from '../config';
 import { COPY_POLLING_DIAGNOSTICS_COMMAND } from '../lease/leaseDegradedNotice';
 import { buildPollingDiagnostics, type PollingDiagnostics } from '../lease/pollingDiagnostics';
@@ -142,27 +141,34 @@ export async function collectPollingDiagnostics(
       // gates read, so a follower window reports what it actually has rather
       // than what it probed itself. Never the token — only the version.
       instances: instances.map((instance) => {
-        const shared = readSharedServerVersion(instance.url, now);
-        if (shared !== undefined) {
-          return {
-            id: instance.id,
-            url: instance.url,
-            version: shared.version,
-            probedAt: shared.writtenAt,
-            stale: shared.stale,
-          };
-        }
-        // No shared entry: either the store is unusable in this host or nothing
-        // has written this URL. The process-local value has no write time and
-        // no TTL, so both stay unknown rather than being invented.
-        const version = getServerVersion(instance.url);
-        return version === undefined
-          ? { id: instance.id, url: instance.url }
-          : { id: instance.id, url: instance.url, version };
+        // `resolveServerVersion` is the gates' own resolution order (declared →
+        // probed → unknown), given the declaration from the record this command
+        // read (when it has none, the resolution reads the same instance record
+        // the gates do), so the report cannot disagree with what the gates did.
+        const resolution = resolveServerVersion(instance.url, instance.declaredServerVersion);
+        const cached = resolution.cached;
+        // The gates' value, or — when they have none and the cache still holds
+        // an expired entry — the value that entry holds, so a reader can see
+        // what the probe found. `stale` says which of the two this is.
+        const version = resolution.version ?? cached?.version;
+        // The cache's write time and TTL verdict describe the row's value only
+        // when that value was read from the shared entry; the process-local
+        // fallback has neither, and a declared value comes from the record.
+        const fromCache = cached !== undefined && version !== undefined && cached.version === version;
+        const declaredVersion = instance.declaredServerVersion;
+        return {
+          id: instance.id,
+          url: instance.url,
+          ...(version === undefined ? {} : { version }),
+          source: resolution.source,
+          ...(declaredVersion === undefined ? {} : { declaredVersion }),
+          ...(fromCache ? { probedAt: cached.writtenAt, stale: cached.stale } : {}),
+        };
       }),
       // §9 route 2 is implemented: the probe cache is the shared one, stored
       // beside the instance list, so this is a fact about the build and not a
-      // per-window observation.
+      // per-window observation. The declared version is a *field of that list*,
+      // which is why a declaration can never be displaced by the probe cache.
       followsInstanceConfig: true,
     },
     env: {

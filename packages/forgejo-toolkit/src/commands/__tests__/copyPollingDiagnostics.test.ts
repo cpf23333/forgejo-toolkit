@@ -169,7 +169,15 @@ describe('the copy-polling-diagnostics command', () => {
     // the pre-route-2 process-local cache.
     expect(payload.versions.followsInstanceConfig).toBe(true);
     expect(payload.versions.probeCache).toEqual([
-      { instanceId: 'instance-1', url: 'https://forgejo.example.com', version: null, probedAt: null, stale: null },
+      {
+        instanceId: 'instance-1',
+        url: 'https://forgejo.example.com',
+        version: null,
+        source: 'unknown',
+        declaredVersion: null,
+        probedAt: null,
+        stale: null,
+      },
     ]);
   });
 
@@ -203,6 +211,8 @@ describe('the copy-polling-diagnostics command', () => {
           instanceId: 'fresh',
           url: 'https://forgejo.example.com',
           version: '16.0.1',
+          source: 'probed',
+          declaredVersion: null,
           probedAt: now - 1_000,
           stale: false,
         },
@@ -210,12 +220,78 @@ describe('the copy-polling-diagnostics command', () => {
           instanceId: 'expired',
           url: 'https://old.example.com',
           version: '15.0.0',
+          // The value is still shown, but the gates have none: it is past its
+          // TTL, which is what `source: 'unknown'` plus `stale: true` says.
+          source: 'unknown',
+          declaredVersion: null,
           probedAt: now - 120_000,
           stale: true,
         },
       ]);
       // The rows never carry the token, shared cache or not.
       expect(JSON.stringify(payload)).not.toContain('s3cr3t-token');
+    } finally {
+      setServerVersionCacheStorage(undefined);
+    }
+  });
+
+  it('names the declared version as the source, and the declared string with it', async () => {
+    // A declaration is what the feature gates use, so a bug report has to be
+    // able to tell it apart from a probed value — and to read the string the
+    // user typed, even when it is not what is gating.
+    const now = Date.now();
+    const store: MemoryVersionCacheStore = makeMemoryVersionCacheStore({
+      'https://declared.example.com': { version: '16.0.1', writtenAt: now },
+    });
+    setServerVersionCacheStorage(store.storage);
+    try {
+      const payload = await collectPollingDiagnostics(
+        sources({
+          config: {
+            getInstances: () => [
+              {
+                ...instance,
+                id: 'declared',
+                url: 'https://declared.example.com',
+                declaredServerVersion: '1.18.0',
+              },
+              {
+                ...instance,
+                id: 'hand-edited',
+                url: 'https://hand-edited.example.com',
+                declaredServerVersion: 'not-a-version',
+              },
+            ],
+            isNotificationPollingEnabled: () => true,
+            getNotificationPollingInterval: () => 300,
+          } as unknown as PollingDiagnosticsCommandSources['config'],
+        }),
+      );
+
+      expect(payload.versions.probeCache).toEqual([
+        {
+          instanceId: 'declared',
+          url: 'https://declared.example.com',
+          // The declaration wins over the fresh cache entry above, and the
+          // cache's timestamps do not describe it.
+          version: '1.18.0',
+          source: 'declared',
+          declaredVersion: '1.18.0',
+          probedAt: null,
+          stale: null,
+        },
+        {
+          instanceId: 'hand-edited',
+          url: 'https://hand-edited.example.com',
+          version: null,
+          source: 'unknown',
+          // Reported verbatim, so a declaration that is being ignored is
+          // visible as such instead of silently absent.
+          declaredVersion: 'not-a-version',
+          probedAt: null,
+          stale: null,
+        },
+      ]);
     } finally {
       setServerVersionCacheStorage(undefined);
     }

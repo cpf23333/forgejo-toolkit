@@ -544,6 +544,11 @@
       "label": "Sync API URLs to instance URL",
       "description": "Rewrite URLs returned by Forgejo (html_url, avatar_url, download_url, etc.) to use the configured instance URL. Turn off if you want to keep the server-declared addresses."
     },
+    "declaredServerVersion": {
+      "label": "Server version",
+      "placeholder": "major.minor.patch",
+      "description": "Declare this instance's Forgejo version for when the automatic probe cannot read /api/v1/version — a reverse proxy or path prefix that blocks it, an unrecognised fork, a timeout. {version} is accepted, and so is that version with a build suffix such as +gitea-…. Leave empty to use the probe. A declared version always wins over the probe and decides which features are offered."
+    },
     "testConnection": "Test Connection",
     "testing": "Testing...",
     "addInstance": "Add Instance",

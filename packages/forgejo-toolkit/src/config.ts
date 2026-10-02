@@ -11,7 +11,13 @@ import {
   createMementoServerVersionCache,
   deleteSharedServerVersion,
   setServerVersionCacheStorage,
+  versionCacheKey,
 } from './api/serverVersionCache';
+import {
+  MIN_SUPPORTED_VERSION_TEXT,
+  parseDeclaredServerVersion,
+  setDeclaredServerVersionResolver,
+} from './api/serverVersion';
 
 export type { ForgejoInstance };
 
@@ -28,6 +34,44 @@ const TOKEN_SECRET_PREFIX = 'forgejoToolkit.instanceToken.';
 const DEFAULT_INTERVAL_SECONDS = 300;
 const MIN_INTERVAL_SECONDS = 60;
 const MAX_INTERVAL_SECONDS = 3600;
+
+/**
+ * The stored form of a user-declared server version: the trimmed string when
+ * one parses, and **no field at all** otherwise — a missing field is what "no
+ * declaration, use the probe" means, so clearing a declaration removes the key
+ * rather than storing `''`.
+ *
+ * `parseServerVersion` is the same parser the probe's answer goes through, so a
+ * declaration accepts what `/api/v1/version` can return (`16.0.2`,
+ * `16.0.2+gitea-1.22.0`). Anything else is refused instead of being stored and
+ * silently ignored.
+ */
+function normalizeDeclaredServerVersion(raw: unknown): string | undefined {
+  const parsed = parseDeclaredServerVersion(raw);
+  if (parsed.kind === 'invalid') {
+    throw new Error(
+      vscode.l10n.t(
+        'Enter a Forgejo version such as {0}, or leave the field empty to use the automatic version probe.',
+        // The example is the floor itself, not a literal of its own: a number
+        // written here would be a second copy of the one fact this message is
+        // about, and it would keep naming an old release after the floor moves.
+        MIN_SUPPORTED_VERSION_TEXT,
+      ),
+    );
+  }
+  return parsed.kind === 'declared' ? parsed.version : undefined;
+}
+
+/** A stored record with the declaration set, or removed when it declares none. */
+function withDeclaredServerVersion(instance: ForgejoInstance, declared: string | undefined): ForgejoInstance {
+  const next = { ...instance };
+  if (declared === undefined) {
+    delete next.declaredServerVersion;
+  } else {
+    next.declaredServerVersion = declared;
+  }
+  return next;
+}
 
 export class ConfigManager {
   private readonly _onInstancesChanged = new vscode.EventEmitter<ForgejoInstance[]>();
@@ -51,6 +95,18 @@ export class ConfigManager {
     setServerVersionCacheStorage(
       createMementoServerVersionCache(context.globalState, SERVER_VERSIONS_KEY, (message) => logger.debug(message)),
     );
+    // The declared server version is a field of the instance record, so the
+    // probe resolution (`serverVersion.ts`, which must stay free of `vscode`)
+    // reads it through this reader rather than a copy kept anywhere. It is read
+    // from `globalState` on every lookup, so a declaration another window edits
+    // is honoured here as soon as it lands — and the declaration can never be
+    // displaced by the probe cache, which this reader does not touch.
+    setDeclaredServerVersionResolver((url) => {
+      const declared = this._getStoredInstances().find(
+        (instance) => versionCacheKey(instance.url) === url,
+      )?.declaredServerVersion;
+      return typeof declared === 'string' ? declared : undefined;
+    });
   }
 
   private get _worktrees(): WorktreeManager {
@@ -152,6 +208,12 @@ export class ConfigManager {
     if (hasUrlUserinfo(instance.url)) {
       throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
+    // The declared server version goes through the same boundary rule as the
+    // URL: a value that does not parse is refused here rather than stored and
+    // then silently ignored by the gates. A record that carries no declaration
+    // (an older build's, or a cleared field) simply has no such key, which is
+    // how "use the probe" is spelled.
+    const declaredServerVersion = normalizeDeclaredServerVersion(instance.declaredServerVersion);
     // A stored entry with the same id but a different URL is a different
     // instance, not an edit of this one: instanceIdFor folds path punctuation
     // (`/a-b` and `/a/b` slug identically), and an import file can name a known
@@ -161,10 +223,13 @@ export class ConfigManager {
     // paired with. The newcomer gets a fresh id derived from its URL instead,
     // so the existing entry and its credential stay untouched; a re-add of the
     // unchanged instance keeps its id and still updates in place.
-    const entry = {
-      ...instance,
-      id: resolveInstanceIdCollision(instance.id, instance.url, this._getStoredInstances()),
-    };
+    const entry = withDeclaredServerVersion(
+      {
+        ...instance,
+        id: resolveInstanceIdCollision(instance.id, instance.url, this._getStoredInstances()),
+      },
+      declaredServerVersion,
+    );
     // Token semantics (shared with updateInstance): a non-empty token is
     // stored in SecretStorage; an empty token means "keep the existing
     // credential" (e.g. re-import). Keeping is only possible for the unchanged
@@ -233,6 +298,16 @@ export class ConfigManager {
     if (updates.url !== undefined && (!isHttpUrl(updates.url) || hasUrlUserinfo(updates.url))) {
       throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
+    // The declared version, validated before anything is mutated: an update
+    // that carries the field replaces it (an empty or whitespace-only value
+    // *clears* it, which is how the form says "use the probe again"), and an
+    // update that does not carry the field leaves the stored declaration alone.
+    // A value that does not parse is refused like a bad URL — never stored to
+    // be silently ignored later.
+    const declaredServerVersion =
+      updates.declaredServerVersion === undefined
+        ? undefined
+        : normalizeDeclaredServerVersion(updates.declaredServerVersion);
     // An empty token update means "unchanged", so the stored secret is kept —
     // unless the URL moves to another origin. The secret belongs to the stored
     // URL and must not follow the entry to a host it was never paired with:
@@ -272,7 +347,9 @@ export class ConfigManager {
         throw error;
       }
     }
-    instances[index] = { ...instances[index], ...updates, token: '' };
+    const next = { ...instances[index], ...updates, token: '' };
+    instances[index] =
+      updates.declaredServerVersion === undefined ? next : withDeclaredServerVersion(next, declaredServerVersion);
     try {
       await this._writeInstancesMerged(instances);
     } catch (error) {

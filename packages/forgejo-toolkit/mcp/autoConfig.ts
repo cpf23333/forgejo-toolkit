@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { McpInstanceRegistryEntry } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
+import { parseDeclaredServerVersion, setDeclaredServerVersionResolver } from '../src/api/serverVersion';
+import { versionCacheKey } from '../src/api/serverVersionCache';
 import { stripUrlUserinfo } from '../src/utils/redactUrlUserinfo';
 
 /**
@@ -17,7 +19,11 @@ import { stripUrlUserinfo } from '../src/utils/redactUrlUserinfo';
  *   1. locate the extension's globalStorage directory (or honor the explicit
  *      FORGEJO_MCP_DATA_DIR override),
  *   2. read the instance registry (`mcp-instances.json`) the extension host
- *      publishes there (writer: src/mcpWorkspaceState.ts),
+ *      publishes there (writer: src/mcpWorkspaceState.ts), whose entries also
+ *      carry each instance's declared server version — installed here as this
+ *      process's declared-version reader, so the no-broker route resolves
+ *      declared → probed → unknown like the host
+ *      (`registerDeclaredServerVersions`),
  *   3. try the workspace state files first: the newest readable
  *      `mcp-workspace-*.json` whose entries place the process's working
  *      directory inside a known checkout answers the instance URL directly,
@@ -228,16 +234,64 @@ async function readRegistries(
         continue;
       }
       seenIds.add(candidate.id);
+      const declared = parseDeclaredServerVersion(candidate.declaredServerVersion);
       instances.push({
         id: candidate.id,
         // Stripped defensively: the writer already strips userinfo, but this
         // file is a trust boundary — its URLs are logged and connected to.
         url: stripUrlUserinfo(candidate.url),
         name: typeof candidate.name === 'string' ? candidate.name : '',
+        // A carried value that cannot be a version is dropped here, so the
+        // entry keeps meaning "no declaration, probe" rather than passing junk
+        // into a gate. Never an error: this file may have been written by
+        // another extension version, or hand-edited.
+        ...(declared.kind === 'declared' ? { declaredServerVersion: declared.version } : {}),
       });
     }
   }
   return found ? { instances, corruptPaths } : undefined;
+}
+
+/**
+ * The declared server versions the instance registry carries, keyed by the
+ * normalised instance URL the version resolution looks up
+ * (`versionCacheKey`), then installed as this process's declared-version reader.
+ *
+ * This is the **no-broker** half of the declared server version. A launch the
+ * extension provides forwards into the host's broker, and the host resolves the
+ * declaration from the instance record; a launch that builds its own client —
+ * the static `mcp.json` / Agents-window route, with no broker reachable — has no
+ * instance record, so the registry is the only channel through which the user's
+ * declaration can arrive. Installing it through
+ * `setDeclaredServerVersionResolver` gives the child the same resolution as the
+ * host (`resolveServerVersion`: **declared → probed → unknown**, with the same
+ * `source` reporting) rather than a second implementation of the order: every
+ * gate, including the client's on-demand Actions gate, reads it.
+ *
+ * The map is read once, at startup. The child serves exactly one instance for
+ * its lifetime, so a declaration edited afterwards belongs to the next process —
+ * and the extension host rewrites the registry on every instance change, so the
+ * next child sees it. An empty map is not a behaviour change: the resolver
+ * answers `undefined` for every URL and the probe answers exactly as it did
+ * before this existed. Nothing here fails a launch: an absent, unreadable or
+ * corrupt registry yields no declarations, and an unparseable carried value is
+ * dropped during the read.
+ *
+ * @returns the installed map, keyed by normalised URL, so a caller can report
+ * what this process learned.
+ */
+export async function registerDeclaredServerVersions(
+  options: AutoConfigOptions = defaultOptions(),
+): Promise<Map<string, string>> {
+  const { dirs } = await discoverDataDirs(options);
+  const declared = new Map<string, string>();
+  for (const instance of (await readRegistries(dirs))?.instances ?? []) {
+    if (instance.declaredServerVersion !== undefined) {
+      declared.set(versionCacheKey(instance.url), instance.declaredServerVersion);
+    }
+  }
+  setDeclaredServerVersionResolver((url) => declared.get(url));
+  return declared;
 }
 
 /**

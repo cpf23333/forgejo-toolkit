@@ -8,6 +8,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isHttpUrl } from './connectionTest';
 import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { parseDeclaredServerVersion } from '../api/serverVersion';
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
 
@@ -201,6 +202,12 @@ export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoIns
       typeof instance.name === 'string' &&
       typeof instance.username === 'string'
     ) {
+      // The declared server version is a user setting, so it round-trips with
+      // the instance. It goes through the same parser every other write uses:
+      // a hand-edited file naming something unparseable keeps its `undefined`
+      // (the entry imports and uses the probe), because a value that could never
+      // gate anything must not be presented as a declaration.
+      const declared = parseDeclaredServerVersion(instance.declaredServerVersion);
       valid.push({
         id: instance.id,
         url: instance.url,
@@ -210,6 +217,7 @@ export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoIns
         ...(typeof instance.syncApiUrlsToInstanceUrl === 'boolean'
           ? { syncApiUrlsToInstanceUrl: instance.syncApiUrlsToInstanceUrl }
           : {}),
+        ...(declared.kind === 'declared' ? { declaredServerVersion: declared.version } : {}),
       });
     } else {
       dropped += 1;

@@ -55,7 +55,7 @@ import { userFacingErrorMessage } from '../api/errors';
 import { getProxyFetch } from '../api/proxy';
 import { missingPayloadNotice } from '../prFileSystemProvider';
 import { probeServerVersion } from '../api/versionProbe';
-import { clearServerVersion } from '../api/serverVersion';
+import { clearServerVersion, MIN_SUPPORTED_VERSION_TEXT, parseDeclaredServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { redactUrlUserinfo, stripUrlUserinfo, hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { writeFileAtomically } from '../utils/atomicWrite';
@@ -79,6 +79,25 @@ import {
   isAiPreReviewEnabled,
   writeAiPreReviewModelSetting,
 } from '../aiPreReviewSettings';
+
+/**
+ * The refusal a save/edit gets for a declared server version that does not
+ * parse. One reading of `parseDeclaredServerVersion` serves the form and
+ * `ConfigManager` (which repeats the same rule at the storage boundary), so the
+ * two can never disagree about what "no declaration" means — and the message
+ * names a value in the accepted shape instead of leaving the field unexplained.
+ *
+ * That example is the supported floor itself, not a literal of its own: a
+ * number written here would be a second copy of the fact and would keep
+ * offering an old release after the floor moves. It is the same value the
+ * Settings form interpolates into its description (`initialState`).
+ */
+function declaredVersionRejection(): string {
+  return vscode.l10n.t(
+    'Enter a Forgejo version such as {0}, or leave the field empty to use the automatic version probe.',
+    MIN_SUPPORTED_VERSION_TEXT,
+  );
+}
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -838,6 +857,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           // about, and the run re-checks the setting itself so a stale boolean
           // can only hide or show a button, never allow a run.
           aiPreReview: isAiPreReviewEnabled(),
+          // The floor the host's own version notices use, so the Settings
+          // form's "Server version" example names the release this build
+          // actually supports instead of a number written into a translation
+          // file that would keep showing it after the floor moves.
+          minSupportedServerVersion: MIN_SUPPORTED_VERSION_TEXT,
           worktrees: this._worktreeManager.getWorktrees(),
           worktreeOpenMode: this._config.getWorktreeOpenMode(),
           worktreeCacheDirectory: directory,
@@ -918,7 +942,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'saveInstance': {
-        const { url, token, syncApiUrlsToInstanceUrl } = message;
+        const { url, token, syncApiUrlsToInstanceUrl, declaredServerVersion } = message;
         if (typeof url !== 'string' || typeof token !== 'string') {
           this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
           return;
@@ -946,6 +970,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           return;
         }
+        // The declared version is validated *before* the connection test, and
+        // refused with the reason rather than dropped: `ConfigManager` would
+        // throw for it too, but that throw lands in the catch below, whose reply
+        // says "the connection test failed" — a message about the wrong thing,
+        // and one that would leave the user staring at a field the host ignored.
+        const declared = parseDeclaredServerVersion(declaredServerVersion);
+        if (declared.kind === 'invalid') {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: declaredVersionRejection(),
+          });
+          return;
+        }
         try {
           const client = new ForgejoClient(url, token, logger);
           const user = await client.getCurrentUser();
@@ -958,6 +995,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             name: instanceNameFor(normalizedUrl, user.login),
             username: user.login,
             syncApiUrlsToInstanceUrl,
+            ...(declared.kind === 'declared' ? { declaredServerVersion: declared.version } : {}),
           };
 
           await this._config.addInstance(instance);
@@ -984,9 +1022,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'editInstance': {
-        const { id, url, token, syncApiUrlsToInstanceUrl } = message;
+        const { id, url, token, syncApiUrlsToInstanceUrl, declaredServerVersion } = message;
         if (typeof id !== 'string' || typeof url !== 'string' || typeof token !== 'string') {
           this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
+          return;
+        }
+        // Same refusal as saveInstance, and for the same reason: an edit must
+        // not store a version the gates would then ignore, and the user must see
+        // why the form was not saved. What the field carries is applied below —
+        // an empty value clears the declaration, an absent one leaves it alone.
+        const declared = parseDeclaredServerVersion(declaredServerVersion);
+        if (declared.kind === 'invalid') {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: declaredVersionRejection(),
+          });
           return;
         }
         // Same scheme gate as saveInstance, and for the same reason: an edit
@@ -1048,6 +1098,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             name: instanceNameFor(normalizedUrl, user.login),
             username: user.login,
             syncApiUrlsToInstanceUrl,
+            // Carried only when the form sent it: an emptied field is `''`,
+            // which clears the declaration (see updateInstance), while a caller
+            // that does not know the field at all leaves the stored one alone.
+            ...(declaredServerVersion === undefined
+              ? {}
+              : { declaredServerVersion: declared.kind === 'declared' ? declared.version : '' }),
           });
           // Drop stale per-URL caches (old and new URL) before re-probing:
           // the cached server version never expires on its own, so an

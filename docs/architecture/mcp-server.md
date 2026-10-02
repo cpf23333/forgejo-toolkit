@@ -210,13 +210,16 @@ the two targets above and forwards them to Agent Host sessions instead.
 To make that possible, the extension host additionally publishes an
 **instance registry** next to the per-window state files:
 `globalStorage/mcp-instances.json`, a fixed name shared by all windows,
-holding `{ updatedAt, instances: [{ id, url, name }] }` — the URL with its
+holding `{ updatedAt, instances: [{ id, url, name, declaredServerVersion? }] }`
+— the URL with its
 userinfo stripped, and never a token. It is written on activation and on
 every instance-list change, through the same atomic write; `deactivate()`
 does not remove it (it describes account configuration, not window state),
 and an emptied instance list is written as an empty array rather than
 deleting the file, so a consumer can tell "no instances" apart from
-"extension never ran".
+"extension never ran". `declaredServerVersion` is the instance's
+user-declared server version when the record has one (absent otherwise); it
+is a version string and carries no credential, like the rest of the file.
 
 When `FORGEJO_MCP_INSTANCE_URL` is absent, startup resolves the instance in
 this order:
@@ -273,6 +276,42 @@ credential in both routes. When the discovery saw a workspace
 state file, its path also feeds `get_workspace_repository`
 as if `FORGEJO_MCP_STATE_FILE` had been set; an explicit variable always
 wins.
+
+### The declared server version on this route
+
+A launch that builds its own client — this whole section, with no broker
+reachable — has no instance record, so the one piece of instance _policy_ the
+declaration feature added cannot come from the editor state: it travels in the
+registry, as `instances[].declaredServerVersion`. Before the client is built,
+`server.ts` calls `registerDeclaredServerVersions` (`mcp/autoConfig.ts`), which
+reads the registry and installs the declarations as this process's
+declared-version reader through the same
+`setDeclaredServerVersionResolver` hook `ConfigManager` installs in the
+extension host. The child therefore shares the host's single resolution
+(`resolveServerVersion` in `src/api/serverVersion.ts`): **declared → probed →
+unknown**, with the same `source` reporting, and its Actions gate
+(`assertActionsSupportedAfterProbe` inside the client) follows the declaration
+exactly as the editor's does — including the refusal that names the
+declaration, in the English passthrough the MCP process uses everywhere.
+
+Three properties make that safe to rely on:
+
+- **No declaration changes nothing.** An absent field, an absent registry, an
+  unreadable or corrupt one, or an unparseable carried value all leave the
+  resolver answering `undefined`, and the probe answers exactly as it did
+  before the field existed. A launch is never failed by a bad declaration; the
+  reader drops it, because the file is written by whichever extension version
+  owns the instance list and read by another.
+- **A declared instance is not probed.** The declaration short-circuits
+  `probeServerVersion` in this process too (a debug line, no request), which is
+  the point when `/api/v1/version` is exactly what the user cannot read.
+- **It adds no secret channel.** The value is a version string carried in the
+  same fixed-name, credential-free registry the child already reads; there is no
+  new environment variable, no new launch argument, and nothing on the wire that
+  a definition persisted by VS Code would gain. The map is read once, at
+  startup: the child serves one instance for its lifetime, and the extension
+  host rewrites the registry on every instance change, so an edit reaches the
+  next child.
 
 ## Broker mode
 
@@ -471,7 +510,13 @@ read-only ones plus the three write tools.
 The Actions endpoints only exist on Forgejo/Gitea ≥ 1.19. The version gate
 lives inside the client methods (`MIN_ACTIONS_VERSION`, fail-open when the
 server version is unknown); the resulting error propagates to the tool layer
-unchanged, so the tools themselves carry no extra gating. Job logs arrive as
+unchanged, so the tools themselves carry no extra gating. What the gate reads is
+the one resolution described in
+[window-coordination.md](./window-coordination.md) — **declared → probed →
+unknown** — so in this process the user's declaration (bestowed through the
+registry, see [the declared server version on this route](#the-declared-server-version-on-this-route))
+gates exactly as a probe would, and a declared instance is not probed at all.
+Job logs arrive as
 one large string and are truncated to ~10 KB by the result budget.
 
 `get_ci_failure_summary` is the context-budget counterpart to that truncation:
@@ -875,6 +920,14 @@ implying a capability the tools do not have. Registration lives in
   The zero-configuration discovery (registry reading, state-file shortcut,
   `.git/config` remote matching, failure messages) is covered by
   `mcp/__tests__/autoConfig.test.ts`; `server.ts` is only the wiring.
+  The no-broker declaration channel is covered there (the registry round trip
+  into `resolveServerVersion`, an unparseable carried value, no registry) and
+  end to end against the mock server in
+  `mcp/__tests__/declaredServerVersion.test.ts`: a declared version below the
+  Actions floor refuses the gated call — through the client and through the
+  `list_action_runs` tool — with zero `/api/v1/version` requests, a declaration
+  above it allows the call with zero requests, and no declaration (or an
+  unparseable one) probes exactly once.
   The broker is covered end to end over real sockets (named pipes on Windows,
   socket files elsewhere): handshake rejection, an initialize → tools/list
   round trip through the forwarder bridge, parallel sessions, and shutdown

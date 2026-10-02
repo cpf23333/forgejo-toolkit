@@ -62,6 +62,13 @@ export interface McpWorkspaceStateFile {
  * is an internal that changes between versions, and touching the OS keychain
  * from a headless child would trip the OS credential prompt — see
  * mcp/autoConfig.ts, which consumes this file).
+ *
+ * Beside the instance's identity it therefore also carries the one piece of
+ * instance *policy* a headless consumer needs to resolve exactly what the
+ * extension host resolves: the user's declared server version. Without it the
+ * child would probe even for an instance whose `/api/v1/version` probe the user
+ * has already told the extension to ignore, and its Actions gate would disagree
+ * with the host's about the same instance.
  */
 export interface McpInstanceRegistryEntry {
   /** Id of the configured instance, so a consumer can tell two accounts on one host apart. */
@@ -76,6 +83,26 @@ export interface McpInstanceRegistryEntry {
   url: string;
   /** Display name of the instance, for messages that name the match. */
   name: string;
+  /**
+   * The Forgejo version the user declared for this instance, when the record
+   * carries one. Absent is "no declaration": the consumer probes, exactly as it
+   * did before the field existed.
+   *
+   * It is the same value the instance record holds (`declaredServerVersion` in
+   * the shared instance type, validated on every write), published here so a
+   * launch outside VS Code's spawn path — which has no instance record and no
+   * `FORGEJO_MCP_INSTANCE_URL` — resolves **declared → probed → unknown** like
+   * the extension host instead of probing an instance the user declared. It is
+   * a version string and nothing else: no credential, and no channel that
+   * carries one (the consumer either forwards into the host's broker or reads
+   * anonymously).
+   *
+   * A reader must ignore a value it cannot parse rather than failing: the file
+   * is written by whichever extension version owns the instance list and read
+   * by another, so a hand-edited or foreign value is "no declaration" and the
+   * probe answers, never a startup failure.
+   */
+  declaredServerVersion?: string;
 }
 
 /**

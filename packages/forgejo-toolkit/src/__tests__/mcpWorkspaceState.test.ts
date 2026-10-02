@@ -406,6 +406,46 @@ describe('buildInstanceRegistryPayload', () => {
     ]);
     expect(JSON.stringify(payload)).not.toContain('secret-token');
   });
+
+  it('carries the declared server version, and no credential field beside it', () => {
+    // The declaration is the only instance *policy* a launch outside VS Code's
+    // spawn path can receive, and it travels in the same payload as the
+    // instance identity — so the payload's field set is pinned here: adding a
+    // credential-shaped field to this file has to fail this test rather than
+    // ride along unnoticed.
+    const payload = buildInstanceRegistryPayload([
+      makeInstance({ declaredServerVersion: '16.0.2' }),
+      makeInstance({ id: 'instance-2', url: 'https://other.example.com', declaredServerVersion: '1.18.3' }),
+    ]);
+
+    expect(payload.instances[0]).toEqual({
+      id: 'instance-1',
+      url: 'https://forgejo.example.com',
+      name: 'Example',
+      declaredServerVersion: '16.0.2',
+    });
+    expect(Object.keys(payload.instances[0]!).sort()).toEqual(['declaredServerVersion', 'id', 'name', 'url']);
+    for (const entry of payload.instances) {
+      for (const key of Object.keys(entry)) {
+        expect(key).not.toMatch(/token|secret|credential|password|auth/i);
+      }
+    }
+    expect(JSON.stringify(payload)).not.toContain('secret-token');
+  });
+
+  it('publishes no declaration for a record that has none, or one that is not a version', () => {
+    // Absent is "use the probe" — the same meaning the reader gives a missing
+    // key. A record carrying a value that cannot be a version (hand-edited state,
+    // a build that stored it differently) publishes nothing rather than a string
+    // no gate may use.
+    const payload = buildInstanceRegistryPayload([
+      makeInstance(),
+      makeInstance({ id: 'instance-2', url: 'https://other.example.com', declaredServerVersion: 'devel' }),
+    ]);
+
+    expect('declaredServerVersion' in payload.instances[0]!).toBe(false);
+    expect('declaredServerVersion' in payload.instances[1]!).toBe(false);
+  });
 });
 
 describe('writeMcpInstanceRegistry', () => {

@@ -1,4 +1,5 @@
 import { passthroughTranslate, type TranslateFn } from './translate';
+import type { ServerVersionSource } from './serverVersion';
 
 export interface InsufficientScopeDetails {
   /** The scope Forgejo named in the error body, when it did. */
@@ -37,13 +38,23 @@ export interface ForgejoClientHost {
    */
   notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails, credentialFingerprint?: string): void;
   /**
-   * The probed server version is below the supported floor (soft warning, never
-   * blocks). `probedVersion` is the value the caller just probed, when it has
+   * The server version is below the supported floor (soft warning, never
+   * blocks). `probedVersion` is the value the caller just learned, when it has
    * one: the host keys its per-window dedupe on it so a server that moves to a
    * different unsupported version can warn again, and falls back to the cached
    * version when the caller does not pass it.
+   *
+   * `source` says where that value came from. A version the user **declared**
+   * for the instance gets wording that names the declaration — the extension
+   * refuses features because of what the user stated, so the notice has to say
+   * so instead of claiming "this instance runs …".
    */
-  notifyUnsupportedInstance(url: string, requiredVersion: string, probedVersion?: string): void;
+  notifyUnsupportedInstance(
+    url: string,
+    requiredVersion: string,
+    probedVersion?: string,
+    source?: ServerVersionSource,
+  ): void;
 }
 
 const headlessHost: ForgejoClientHost = {

@@ -8,10 +8,12 @@ import {
   discoverBrokerRegistration,
   discoverDataDirs,
   matchInstanceForRemotes,
+  registerDeclaredServerVersions,
   remoteMatchesInstanceUrl,
   resolveAutoConfiguration,
   type AutoConfigOptions,
 } from '../autoConfig';
+import { clearServerVersions, resolveServerVersion } from '../../src/api/serverVersion';
 import { removeTempDirSync } from '../../src/__tests__/tempDir';
 
 /**
@@ -41,6 +43,9 @@ function registryFile(
       id: instance.id ?? `instance-${index + 1}`,
       url: instance.url ?? 'https://forgejo.example.com',
       name: instance.name ?? 'Example',
+      ...(instance.declaredServerVersion !== undefined
+        ? { declaredServerVersion: instance.declaredServerVersion }
+        : {}),
     })),
   };
 }
@@ -627,5 +632,109 @@ describe('discoverBrokerRegistration', () => {
     const result = await discoverBrokerRegistration(options);
 
     expect(result).toMatchObject({ endpoint: 'live-endpoint', filePath: liveFile });
+  });
+});
+
+/**
+ * The no-broker route's declaration channel: a launch that builds its own
+ * client has no instance record, so the registry's `declaredServerVersion` is
+ * installed as this process's declared-version reader — the same hook
+ * `ConfigManager` installs in the extension host, which is what makes the
+ * resolution (and therefore the Actions gate) agree with the host's.
+ */
+describe('registerDeclaredServerVersions', () => {
+  let tempDir: string;
+  let dataDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-declared-test-'));
+    dataDir = path.join(tempDir, 'globalStorage');
+  });
+
+  afterEach(() => {
+    // The resolver and the process-local probe map are module state shared with
+    // every other suite in this worker.
+    clearServerVersions();
+    removeTempDirSync(tempDir);
+  });
+
+  function options(): AutoConfigOptions {
+    return makeOptions({ cwd: tempDir, env: { FORGEJO_MCP_DATA_DIR: dataDir } });
+  }
+
+  it('round-trips the registry’s declared version into the resolution', async () => {
+    writeRegistry(
+      dataDir,
+      registryFile([
+        { id: 'instance-1', url: 'https://forgejo.example.com', declaredServerVersion: '16.0.2+gitea-1.22.0' },
+        { id: 'instance-2', url: 'https://other.example.com', name: 'Other' },
+      ]),
+    );
+
+    const declared = await registerDeclaredServerVersions(options());
+
+    // Keyed by the normalised URL, so a trailing slash in the configured
+    // spelling still finds the declaration.
+    expect([...declared]).toEqual([['https://forgejo.example.com', '16.0.2+gitea-1.22.0']]);
+    expect(resolveServerVersion('https://forgejo.example.com/')).toEqual({
+      version: '16.0.2+gitea-1.22.0',
+      source: 'declared',
+      cached: undefined,
+    });
+    // An instance that declares nothing is absent, not empty: the probe answers
+    // for it exactly as it did before the field existed.
+    expect(resolveServerVersion('https://other.example.com')).toMatchObject({ source: 'unknown' });
+  });
+
+  it('ignores a carried value that is not a version and leaves the probe in charge', async () => {
+    // The file is a trust boundary: a hand-edited or foreign value must mean
+    // "no declaration", never a failed startup or a version in a gate. Written
+    // as raw bytes rather than through the typed helper, because the shapes a
+    // foreign writer can produce are exactly what the reader has to survive.
+    writeRegistry(dataDir, {
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      instances: [
+        { id: 'instance-1', url: 'https://forgejo.example.com', declaredServerVersion: 'devel' },
+        { id: 'instance-2', url: 'https://other.example.com', name: 'Other', declaredServerVersion: 42 },
+      ],
+    });
+
+    const declared = await registerDeclaredServerVersions(options());
+
+    expect(declared.size).toBe(0);
+    expect(resolveServerVersion('https://forgejo.example.com')).toEqual({
+      version: undefined,
+      source: 'unknown',
+      cached: undefined,
+    });
+    expect(resolveServerVersion('https://other.example.com').source).toBe('unknown');
+  });
+
+  it('installs a resolver that answers nothing when no registry exists', async () => {
+    // The common case for a test run and for a machine where the extension
+    // never ran: no file, no declarations, and no failure either.
+    await expect(registerDeclaredServerVersions(options())).resolves.toEqual(new Map());
+    expect(resolveServerVersion('https://forgejo.example.com').source).toBe('unknown');
+  });
+
+  it('keeps the declaration of the first registry entry for a duplicated id', async () => {
+    // Two flavors (or profiles) can each hold a registry; the read dedupes by
+    // id with the first occurrence winning, so the declaration follows the same
+    // entry identity the URL does — a second copy of the same instance must not
+    // reintroduce a version the first copy does not carry.
+    const storage = (flavor: string): string =>
+      path.join(tempDir, '.config', flavor, 'User', 'globalStorage', 'cpf23333.forgejo-toolkit');
+    writeRegistry(storage('Code'), registryFile([{ id: 'instance-1', url: 'https://forgejo.example.com' }]));
+    writeRegistry(
+      storage('Code - Insiders'),
+      registryFile([{ id: 'instance-1', url: 'https://forgejo.example.com', declaredServerVersion: '17.0.0' }]),
+    );
+
+    const declared = await registerDeclaredServerVersions(
+      makeOptions({ cwd: tempDir, env: {}, platform: 'linux', homeDir: tempDir }),
+    );
+
+    expect(declared.size).toBe(0);
+    expect(resolveServerVersion('https://forgejo.example.com').source).toBe('unknown');
   });
 });

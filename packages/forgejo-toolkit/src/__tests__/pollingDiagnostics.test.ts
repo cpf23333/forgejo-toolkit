@@ -345,6 +345,10 @@ describe('the polling diagnostics payload (§11.1 stage 2)', () => {
         instanceId: 'fresh',
         url: 'https://fresh.example.com',
         version: '16.0.1',
+        // No source in the input: a row that carries a version but does not say
+        // where it came from is the older shape, and its value is a probe result.
+        source: 'probed',
+        declaredVersion: null,
         probedAt: NOW - 1_000,
         stale: false,
       },
@@ -352,11 +356,80 @@ describe('the polling diagnostics payload (§11.1 stage 2)', () => {
         instanceId: 'expired',
         url: 'https://expired.example.com',
         version: '15.0.0',
+        source: 'probed',
+        declaredVersion: null,
         probedAt: NOW - 90_000,
         stale: true,
       },
-      { instanceId: 'local', url: 'https://local.example.com', version: '17.0.0', probedAt: null, stale: null },
-      { instanceId: 'unknown', url: 'https://unknown.example.com', version: null, probedAt: null, stale: null },
+      {
+        instanceId: 'local',
+        url: 'https://local.example.com',
+        version: '17.0.0',
+        source: 'probed',
+        declaredVersion: null,
+        probedAt: null,
+        stale: null,
+      },
+      {
+        instanceId: 'unknown',
+        url: 'https://unknown.example.com',
+        version: null,
+        source: 'unknown',
+        declaredVersion: null,
+        probedAt: null,
+        stale: null,
+      },
+    ]);
+  });
+
+  it('says whether the value came from the user’s declaration or from a probe', () => {
+    // The question a bug report actually asks: "why is this feature offered (or
+    // refused) for this instance?" — answered by the source and the declared
+    // string, next to the value the gates used.
+    const payload = buildPollingDiagnostics(
+      input({
+        versions: {
+          instances: [
+            {
+              id: 'declared',
+              url: 'https://declared.example.com',
+              version: '1.18.0',
+              source: 'declared',
+              declaredVersion: '1.18.0',
+            },
+            // A hand-edited record: the declaration is reported verbatim so it
+            // is visible, while `source`/`version` show it is not being used.
+            {
+              id: 'ignored',
+              url: 'https://ignored.example.com',
+              source: 'unknown',
+              declaredVersion: 'not-a-version',
+            },
+          ],
+          followsInstanceConfig: true,
+        },
+      }),
+    );
+
+    expect(payload.versions.probeCache).toEqual([
+      {
+        instanceId: 'declared',
+        url: 'https://declared.example.com',
+        version: '1.18.0',
+        source: 'declared',
+        declaredVersion: '1.18.0',
+        probedAt: null,
+        stale: null,
+      },
+      {
+        instanceId: 'ignored',
+        url: 'https://ignored.example.com',
+        version: null,
+        source: 'unknown',
+        declaredVersion: 'not-a-version',
+        probedAt: null,
+        stale: null,
+      },
     ]);
   });
 

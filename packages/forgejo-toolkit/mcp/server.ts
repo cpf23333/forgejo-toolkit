@@ -2,10 +2,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ForgejoClient, type ClientLogger } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
 import { probeServerVersion, redactInstanceUrl } from '../src/api/versionProbe';
+import { versionCacheKey } from '../src/api/serverVersionCache';
 import { setDefaultRequestDispatcher } from '../src/api/client';
 import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
-import { discoverBrokerRegistration, resolveAutoConfiguration } from './autoConfig';
+import { discoverBrokerRegistration, registerDeclaredServerVersions, resolveAutoConfiguration } from './autoConfig';
 import { BrokerSessionError, BrokerUnavailableError, forwardToBroker } from './brokerForwarder';
 import { MCP_ENV_WRITE_TOOLS, sessionWriteToolsFromEnvironment } from './writeTools';
 
@@ -162,6 +163,23 @@ async function main(): Promise<void> {
       logger.info(auto.note);
     }
   }
+  // The no-broker route's declaration channel, installed before the client is
+  // built: this process has no instance record, so the declared server version
+  // the user set for the instance can only reach it through the registry the
+  // extension host publishes (`registerDeclaredServerVersions` reads it). It is
+  // the same hook `ConfigManager` installs in the extension host, so the
+  // resolution here is that one order — **declared → probed → unknown**, with
+  // the same source reporting — rather than a second implementation of it, and
+  // the Actions gate below follows it. A registry with no declaration for this
+  // instance (or none at all) leaves every lookup `undefined`: the probe
+  // answers exactly as it did before the declaration existed.
+  const declaredServerVersions = await registerDeclaredServerVersions();
+  const declaredForThisInstance = declaredServerVersions.get(versionCacheKey(url));
+  if (declaredForThisInstance !== undefined) {
+    logger.info(
+      `Server version for ${redactInstanceUrl(url)}: ${declaredForThisInstance} (declared for this instance; using it and not probing).`,
+    );
+  }
   // The token is optional: without it the tools read anonymously, which is
   // enough for public repositories. This matters for configs the Agent Host
   // reads natively (workspace `.mcp.json`, `~/.copilot/mcp-config.json`),
@@ -208,7 +226,10 @@ async function main(): Promise<void> {
   // (`assertActionsSupported`) would always see "unknown" and pass, making the
   // gate dead code on the MCP side. The probe runs in the background: the server
   // starts serving immediately, and the gate fails open until the version is
-  // known, which is exactly how it behaves in the editor.
+  // known, which is exactly how it behaves in the editor. An instance the
+  // registry declares (above) short-circuits it — the same "a declared instance
+  // is not probed" rule the host follows, which is the whole point when the
+  // endpoint is blocked.
   void probeServerVersion(url, token, logger, syncApiUrls);
   await server.connect(new StdioServerTransport());
   // The configured URL may embed credentials; only the redacted form is logged.

@@ -10,6 +10,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import type { ConfigManager } from './config';
 import type { Logger } from './logger';
+import { parseDeclaredServerVersion } from './api/serverVersion';
 import {
   detectLinkedRepositories,
   isPathInsideFolder,
@@ -31,7 +32,8 @@ import { writeFileAtomically } from './utils/atomicWrite';
  *
  * The same module also maintains the instance registry
  * (`mcp-instances.json`, see mcpInstanceRegistryFilePath): the list of
- * configured instances — id, userinfo-stripped URL, name, never a token —
+ * configured instances — id, userinfo-stripped URL, name, the declared server
+ * version when the record has one, never a token —
  * that lets an MCP server launched without any environment (a static
  * workspace `.mcp.json`) discover the instances on its own — and the
  * stable-path shim (`mcp-server.js`, see mcpServerShimFilePath) that such a
@@ -188,15 +190,30 @@ async function writeMcpServerShimNow(context: vscode.ExtensionContext, logger: L
  * and either forwards into the extension host's broker (the normal case) or,
  * with no broker running, authenticates anonymously or through its own
  * FORGEJO_MCP_TOKEN.
+ *
+ * Each entry also carries the instance's declared server version when the
+ * record has one (see `declaredServerVersion`): the child has no instance
+ * record, so this file is the only channel through which the user's declaration
+ * can reach a launch that builds its own client, and without it the child's
+ * Actions gate would probe an endpoint the user already told the extension to
+ * ignore. Only a value that actually parses as a version is published — a
+ * record carrying something else (hand-edited state, a build that stored it
+ * differently) publishes no declaration, which is the same "use the probe"
+ * meaning an absent key has; the reader applies the same rule again, because
+ * this file is a trust boundary.
  */
 export function buildInstanceRegistryPayload(instances: ForgejoInstance[]): McpInstanceRegistryFile {
   return {
     updatedAt: new Date().toISOString(),
-    instances: instances.map((instance) => ({
-      id: instance.id,
-      url: stripUrlUserinfo(instance.url),
-      name: instance.name,
-    })),
+    instances: instances.map((instance) => {
+      const declared = parseDeclaredServerVersion(instance.declaredServerVersion);
+      return {
+        id: instance.id,
+        url: stripUrlUserinfo(instance.url),
+        name: instance.name,
+        ...(declared.kind === 'declared' ? { declaredServerVersion: declared.version } : {}),
+      };
+    }),
   };
 }
 

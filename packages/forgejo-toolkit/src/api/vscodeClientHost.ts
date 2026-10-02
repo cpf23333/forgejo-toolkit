@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ForgejoClientHost, InsufficientScopeDetails } from './clientHost';
-import { getServerVersion } from './serverVersion';
+import { getServerVersion, type ServerVersionSource } from './serverVersion';
 import { redactUrlUserinfo, stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { isHttpUrl } from '../webview/connectionTest';
 import type { Logger } from '../logger';
@@ -179,11 +179,16 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
           );
       notify(details.body, displayUrl, instanceUrl, message, credentialFingerprint);
     },
-    notifyUnsupportedInstance(url: string, requiredVersion: string, probedVersion?: string): void {
+    notifyUnsupportedInstance(
+      url: string,
+      requiredVersion: string,
+      probedVersion?: string,
+      source: ServerVersionSource = 'probed',
+    ): void {
       // Keyed by the version as well as the URL: a server that is upgraded and
       // then downgraded again has moved, and the notice that describes the new
       // state must not be swallowed by the old one. The caller passes the
-      // version it probed; `getServerVersion` remains the fallback for hosts
+      // version it learned; `getServerVersion` remains the fallback for hosts
       // that call this without one.
       const serverVersion = probedVersion ?? getServerVersion(url);
       const dedupeKey = `${url}\n${serverVersion ?? ''}`;
@@ -191,16 +196,30 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
         return;
       }
       shownUnsupportedVersionUrls.add(dedupeKey);
-      const message = serverVersion
-        ? vscode.l10n.t(
-            'This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.',
-            serverVersion,
-            requiredVersion,
-          )
-        : vscode.l10n.t(
-            'This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.',
-            requiredVersion,
-          );
+      // A declared value is reported as the user's own declaration, in both the
+      // "which version" and the "no version" shape.
+      const message =
+        source === 'declared'
+          ? serverVersion
+            ? vscode.l10n.t(
+                'You declared Forgejo {0} for this instance, which is older than the minimum supported version {1}. Some features may not work.',
+                serverVersion,
+                requiredVersion,
+              )
+            : vscode.l10n.t(
+                'The version you declared for this instance is older than the minimum supported version {0}. Some features may not work.',
+                requiredVersion,
+              )
+          : serverVersion
+            ? vscode.l10n.t(
+                'This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.',
+                serverVersion,
+                requiredVersion,
+              )
+            : vscode.l10n.t(
+                'This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.',
+                requiredVersion,
+              );
       void vscode.window.showWarningMessage(message).then(undefined, (error: unknown) => {
         logger?.error(
           `Failed to show unsupported version notification: ${error instanceof Error ? error.message : String(error)}`,

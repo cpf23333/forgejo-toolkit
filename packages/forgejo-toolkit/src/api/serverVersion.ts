@@ -57,8 +57,11 @@ export const MIN_SUPPORTED_VERSION: ServerVersion = { major: 16, minor: 0, patch
 export const MIN_SUPPORTED_VERSION_TEXT = `${MIN_SUPPORTED_VERSION.major}.${MIN_SUPPORTED_VERSION.minor}.${MIN_SUPPORTED_VERSION.patch}`;
 
 /**
- * Whether a probed server version meets the supported floor. Unknown or
- * unparseable versions pass — a failed probe must never trigger a warning.
+ * Whether a server version meets the supported floor. Unknown or unparseable
+ * versions pass — a failed probe must never trigger a warning.
+ *
+ * The caller passes whatever a gate would use, so a version the user *declared*
+ * goes through this same rule (the low-version notice does).
  */
 export function isVersionSupported(version: string | undefined): boolean {
   if (!version) {
@@ -69,6 +72,88 @@ export function isVersionSupported(version: string | undefined): boolean {
     return true;
   }
   return isVersionAtLeast(parsed, MIN_SUPPORTED_VERSION);
+}
+
+/**
+ * Where a resolved version came from.
+ *
+ * - `declared`: the user stated this version for the instance. It is the escape
+ *   hatch for a probe that cannot see the truth (a reverse proxy or path prefix
+ *   that blocks `/api/v1/version`, an unrecognised fork or version string, a
+ *   timeout, a renumbered upstream).
+ * - `probed`: an automatic probe answered — this window's own result, or the
+ *   shared cache's fresh entry.
+ * - `unknown`: neither, so every gate fails open.
+ */
+export type ServerVersionSource = 'declared' | 'probed' | 'unknown';
+
+/** One instance's version as the resolution reports it. */
+export interface ServerVersionResolution {
+  /** The version the feature gates use; `undefined` when they have none. */
+  version: string | undefined;
+  /** Where `version` came from. */
+  source: ServerVersionSource;
+  /**
+   * The shared probe-cache entry the probe stage could use, TTL verdict
+   * included, even when the resolution then used nothing (an expired entry is
+   * not a value). Diagnostic surfaces report it; no gate ever reads it.
+   *
+   * `undefined` for a declared version as well: a declaration is resolved
+   * before the cache is consulted at all.
+   */
+  cached: SharedServerVersion | undefined;
+}
+
+/**
+ * Where a declared version is read from: the instance record, which
+ * `ConfigManager` owns and persists in `globalState`. Registered by that class
+ * so this module keeps its no-`vscode` guarantee (the MCP bundle imports it),
+ * exactly like the shared probe cache's storage port.
+ *
+ * The resolver is called with the *normalized* instance URL (trailing slashes
+ * removed, `versionCacheKey`) and returns the declared string, or `undefined`
+ * when the instance declares none.
+ */
+let declaredServerVersionResolver: ((url: string) => string | undefined) | undefined;
+
+/**
+ * Installs the reader of the instance record's declared version, or `undefined`
+ * to detach it. The MCP server process never calls it — it has no instance
+ * record — and so keeps the probe-only behaviour. (Sessions it forwards to the
+ * extension host are served by the host's broker, which does have the record.)
+ */
+export function setDeclaredServerVersionResolver(resolver: ((url: string) => string | undefined) | undefined): void {
+  declaredServerVersionResolver = resolver;
+}
+
+function declaredServerVersionFor(url: string): string | undefined {
+  return declaredServerVersionResolver?.(versionKey(url));
+}
+
+/**
+ * What a user-entered declared version means, as the one rule every host-side
+ * validator applies: empty is "no declaration, use the probe", anything
+ * unparseable is refused rather than stored and silently ignored, and a value
+ * that parses is taken exactly as typed (trailing whitespace trimmed).
+ *
+ * `parseServerVersion` is the same parser the probe's answer goes through, so a
+ * declaration accepts what `/api/v1/version` can return — `16.0.2`,
+ * `16.0.2+gitea-1.22.0`, `v1.21.5`.
+ */
+export type DeclaredServerVersionInput = { kind: 'none' } | { kind: 'declared'; version: string } | { kind: 'invalid' };
+
+export function parseDeclaredServerVersion(raw: unknown): DeclaredServerVersionInput {
+  if (raw === undefined || raw === null) {
+    return { kind: 'none' };
+  }
+  if (typeof raw !== 'string') {
+    return { kind: 'invalid' };
+  }
+  const version = raw.trim();
+  if (version === '') {
+    return { kind: 'none' };
+  }
+  return parseServerVersion(version) === undefined ? { kind: 'invalid' } : { kind: 'declared', version };
 }
 
 /**
@@ -138,29 +223,63 @@ export function reusableSharedServerVersion(url: string): SharedServerVersion | 
 }
 
 /**
- * The version known for an instance, or `undefined` when it is unknown.
+ * The authoritative resolution order, stated in exactly one place:
+ * **declared → probed → unknown**.
  *
- * The shared cache wins when it has a fresh entry; an *expired* entry — and one
- * this window invalidated itself — is "unknown", never a value. This feeds the
- * feature gates, and an expired "high version" would otherwise let a window run
- * gated behaviour for the rest of the session without probing. The one exception
- * is a probe this window made after the shared entry was written (its merged
- * write may still be in flight): that is newer knowledge about the same URL, and
- * it is used if it is still fresh itself.
+ * 1. A declaration wins outright. It is read from the instance record, not from
+ *    the probe cache, and this function returns before the cache is consulted
+ *    at all — so the probe, the 60-second TTL and the cross-window merge write
+ *    (`serverVersionCache.ts`) cannot overwrite, expire or displace it. Only a
+ *    value that `parseServerVersion` accepts counts as a declaration; a
+ *    hand-edited record holding something else falls through to the probe
+ *    instead of being used as a version.
+ * 2. Otherwise the probe stage answers: the shared cache's fresh, usable entry,
+ *    or — when that entry is expired — this window's own newer result, as long
+ *    as it is fresh itself.
+ * 3. Otherwise "unknown", which fails every gate open.
+ *
+ * `declared` is a parameter whose default is the registered reader of the
+ * instance record, so a caller that already holds that record (the diagnostics
+ * command) resolves precisely what it read rather than asking again.
+ *
+ * An expired entry is never a value: this feeds the feature gates, and a stale
+ * "high version" would otherwise let a window run gated behaviour for the rest
+ * of the session without probing.
  */
-export function getServerVersion(url: string): string | undefined {
+export function resolveServerVersion(
+  url: string,
+  declared: string | undefined = declaredServerVersionFor(url),
+): ServerVersionResolution {
   const key = versionKey(url);
+  if (declared !== undefined && parseServerVersion(declared) !== undefined) {
+    return { version: declared, source: 'declared', cached: undefined };
+  }
   const now = Date.now();
   const shared = readSharedServerVersion(key, now);
-  if (shared !== undefined && isSharedEntryUsable(url, shared.writtenAt)) {
-    if (!shared.stale) {
-      return shared.version;
-    }
-    const local = serverVersions.get(key);
-    const localIsNewer = local !== undefined && local.writtenAt > shared.writtenAt;
-    return localIsNewer && now - local.writtenAt <= SERVER_VERSION_CACHE_TTL_MS ? local.version : undefined;
+  const usable = shared !== undefined && isSharedEntryUsable(url, shared.writtenAt) ? shared : undefined;
+  if (usable !== undefined && !usable.stale) {
+    return { version: usable.version, source: 'probed', cached: usable };
   }
-  return serverVersions.get(key)?.version;
+  const local = serverVersions.get(key);
+  if (usable !== undefined) {
+    // The shared entry is expired. A probe this window made *after* it was
+    // written is newer knowledge about the same URL (its merged write may still
+    // be in flight), and is used while it is fresh itself.
+    const localIsNewer = local !== undefined && local.writtenAt > usable.writtenAt;
+    const version = localIsNewer && now - local.writtenAt <= SERVER_VERSION_CACHE_TTL_MS ? local.version : undefined;
+    return { version, source: version === undefined ? 'unknown' : 'probed', cached: usable };
+  }
+  return local === undefined
+    ? { version: undefined, source: 'unknown', cached: undefined }
+    : { version: local.version, source: 'probed', cached: undefined };
+}
+
+/**
+ * The version known for an instance, or `undefined` when it is unknown. The
+ * order is {@link resolveServerVersion}'s: a declaration wins, then the probe.
+ */
+export function getServerVersion(url: string): string | undefined {
+  return resolveServerVersion(url).version;
 }
 
 /**
@@ -181,10 +300,14 @@ export function clearServerVersion(url: string): void {
   void deleteSharedServerVersion(key);
 }
 
-/** Drops every cached version, this process's and the shared one (tests). */
+/**
+ * Drops every cached version, this process's and the shared one, and detaches
+ * the instance-record reader (tests).
+ */
 export function clearServerVersions(): void {
   serverVersions.clear();
   versionInvalidatedAt.clear();
+  declaredServerVersionResolver = undefined;
   void clearSharedServerVersions();
 }
 
@@ -201,9 +324,10 @@ export function clearServerVersions(): void {
  *
  * `probe` is the caller's own probe (it holds the token). It goes through the
  * shared single-flight coordination and is only consulted when the known version
- * is missing or stale, so a fresh entry costs a store read and no request. Its
- * own failure is swallowed: the gates below then see "unknown" and allow, which
- * is exactly the fail-open direction the extension has always had.
+ * is missing or stale, so a fresh entry costs a store read and no request. A
+ * declaration is never missing, so a declared instance costs no request at all.
+ * The probe's own failure is swallowed: the gates below then see "unknown" and
+ * allow, which is exactly the fail-open direction the extension has always had.
  */
 export async function assertActionsSupportedAfterProbe(
   url: string,
@@ -221,18 +345,24 @@ export async function assertActionsSupportedAfterProbe(
 }
 
 /**
- * Throws a localized, actionable error when the cached server version is
+ * Throws a localized, actionable error when the known server version is
  * known to predate the Actions API. Unknown or unparseable versions pass —
  * the version probe is best-effort and must never block a working instance.
  * The extension passes vscode.l10n.t as `t`; headless consumers keep the
  * English passthrough default.
+ *
+ * A *declared* version gates exactly like a probed one, but the message says so:
+ * the user stated that version, and when the extension refuses a feature because
+ * of it, the refusal has to name the declaration as the cause rather than
+ * blaming "this server".
  *
  * Gated call sites reach this through {@link assertActionsSupportedAfterProbe}
  * rather than calling it directly, so a version the TTL has expired does not
  * silently disable the gate for the rest of the session.
  */
 export function assertActionsSupported(url: string, t: TranslateFn = passthroughTranslate): void {
-  const raw = getServerVersion(url);
+  const resolution = resolveServerVersion(url);
+  const raw = resolution.version;
   if (!raw) {
     return;
   }
@@ -241,10 +371,16 @@ export function assertActionsSupported(url: string, t: TranslateFn = passthrough
     return;
   }
   throw new Error(
-    t(
-      'This feature requires Forgejo {0} or newer, but this server reports version {1}.',
-      MIN_ACTIONS_VERSION_TEXT,
-      raw,
-    ),
+    resolution.source === 'declared'
+      ? t(
+          'This feature requires Forgejo {0} or newer, but you declared version {1} for this instance. Correct or clear the declared version in Settings if that is wrong.',
+          MIN_ACTIONS_VERSION_TEXT,
+          raw,
+        )
+      : t(
+          'This feature requires Forgejo {0} or newer, but this server reports version {1}.',
+          MIN_ACTIONS_VERSION_TEXT,
+          raw,
+        ),
   );
 }

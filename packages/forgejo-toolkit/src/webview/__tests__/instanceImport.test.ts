@@ -304,6 +304,42 @@ describe('sanitizeImportedInstances', () => {
     expect('syncApiUrlsToInstanceUrl' in valid[0]).toBe(false);
   });
 
+  it('keeps a declared server version that parses and drops one that does not', () => {
+    // A declaration is a user setting, so it round-trips with the instance; a
+    // hand-edited file naming something that is not a version must not import a
+    // value the gates would never use.
+    const { valid } = sanitizeImportedInstances([
+      {
+        id: 'a',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        declaredServerVersion: '16.0.2+gitea-1.22.0',
+      },
+      {
+        id: 'b',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        declaredServerVersion: 'devel',
+      },
+      {
+        id: 'c',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        declaredServerVersion: 16,
+      },
+    ]);
+
+    expect(valid[0].declaredServerVersion).toBe('16.0.2+gitea-1.22.0');
+    expect('declaredServerVersion' in valid[1]).toBe(false);
+    expect('declaredServerVersion' in valid[2]).toBe(false);
+  });
+
   it('drops an entry whose URL is not http(s) instead of storing an unusable scheme', () => {
     // The URL is rendered as a link and can reach vscode.env.openExternal, so a
     // file:/data:/javascript: value must not get past the file boundary.

@@ -20,6 +20,14 @@ export interface ForgejoInstance {
   username: string;
   tokenFingerprint?: string;
   syncApiUrlsToInstanceUrl?: boolean;
+  /**
+   * The Forgejo version the user declared for this instance (`16.0.2`,
+   * `16.0.2+gitea-1.22.0`), or absent when the instance uses the automatic
+   * probe. The Settings editor is where it is typed, so the field has to travel
+   * here; the host validates it on save and the feature gates read the stored
+   * value in preference to the probe.
+   */
+  declaredServerVersion?: string;
 }
 
 export * from './api';

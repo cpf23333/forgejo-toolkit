@@ -1,7 +1,12 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import * as path from 'path';
 import { ConfigManager } from '../config';
-import { clearServerVersions, setServerVersion } from '../api/serverVersion';
+import {
+  clearServerVersions,
+  getServerVersion,
+  MIN_SUPPORTED_VERSION_TEXT,
+  setServerVersion,
+} from '../api/serverVersion';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function createFakeContext() {
@@ -471,6 +476,100 @@ describe('ConfigManager', () => {
     await config.removeInstance(instance.id);
 
     expect(fake.store.get('forgejoToolkit.serverVersions')).toEqual({});
+  });
+
+  /**
+   * The user-declared server version: a field of the instance record, so it
+   * round-trips with the record, an older record simply has none, and the probe
+   * cache — a different key — can never displace it.
+   */
+  describe('the declared server version', () => {
+    /**
+     * The refusal names an accepted shape as its example, and that example is
+     * the supported floor itself — composed here from the constant rather than
+     * written out, so the assertion cannot pass with an old number after the
+     * floor moves.
+     */
+    const DECLARED_VERSION_REFUSAL = `Enter a Forgejo version such as ${MIN_SUPPORTED_VERSION_TEXT}, or leave the field empty to use the automatic version probe.`;
+
+    function storedInstances(): ForgejoInstance[] {
+      return (fake.store.get('forgejoToolkit.instances') ?? []) as ForgejoInstance[];
+    }
+
+    it('round-trips the declared version through the record', async () => {
+      await config.addInstance({ ...instance, declaredServerVersion: '16.0.2' });
+
+      expect(storedInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+      // And the gates read the record: the manager registers the reader.
+      expect(getServerVersion(instance.url)).toBe('16.0.2');
+    });
+
+    it('keeps the value exactly as typed, including a build suffix', async () => {
+      await config.addInstance({ ...instance, declaredServerVersion: '16.0.2+gitea-1.22.0' });
+
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2+gitea-1.22.0');
+      expect(getServerVersion(instance.url)).toBe('16.0.2+gitea-1.22.0');
+    });
+
+    it('leaves the field absent for a record that declares nothing', async () => {
+      // Backwards compatibility: a record written before this field existed (or
+      // one the user cleared) has no key at all, which is what "use the probe"
+      // means — not an empty string a reader would have to interpret.
+      await config.addInstance(instance);
+
+      expect('declaredServerVersion' in storedInstances()[0]!).toBe(false);
+      expect(config.getInstances()[0]?.declaredServerVersion).toBeUndefined();
+      expect(getServerVersion(instance.url)).toBeUndefined();
+    });
+
+    it('refuses a value that is not a version instead of storing it', async () => {
+      await expect(config.addInstance({ ...instance, declaredServerVersion: 'devel' })).rejects.toThrow(
+        DECLARED_VERSION_REFUSAL,
+      );
+      // Nothing was persisted, so the refusal cannot be mistaken for a save.
+      expect(config.getInstances()).toHaveLength(0);
+    });
+
+    it('updates, preserves and clears the field through updateInstance', async () => {
+      await config.addInstance({ ...instance, declaredServerVersion: '16.0.2' });
+
+      // An update that does not carry the field leaves the declaration alone.
+      await config.updateInstance(instance.id, { syncApiUrlsToInstanceUrl: true });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+
+      await config.updateInstance(instance.id, { declaredServerVersion: '17.0.0' });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('17.0.0');
+
+      // An empty value clears it: the key goes, and the probe answers again.
+      await config.updateInstance(instance.id, { declaredServerVersion: '' });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBeUndefined();
+      expect('declaredServerVersion' in storedInstances()[0]!).toBe(false);
+    });
+
+    it('refuses an unparseable update and leaves the stored declaration untouched', async () => {
+      await config.addInstance({ ...instance, declaredServerVersion: '16.0.2' });
+
+      await expect(config.updateInstance(instance.id, { declaredServerVersion: 'not-a-version' })).rejects.toThrow(
+        DECLARED_VERSION_REFUSAL,
+      );
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+    });
+
+    it('is not displaced by a probe writing the shared cache', async () => {
+      await config.addInstance({ ...instance, declaredServerVersion: '16.0.2' });
+
+      // The probe path records its own answer beside the instance list.
+      setServerVersion(instance.url, '1.18.0');
+
+      expect(getServerVersion(instance.url)).toBe('16.0.2');
+      expect('declaredServerVersion' in storedInstances()[0]!).toBe(true);
+      expect(storedInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+      // The cache write touched its own key only, not the record.
+      expect(fake.store.get('forgejoToolkit.serverVersions')).toEqual({
+        [instance.url]: { version: '1.18.0', writtenAt: expect.any(Number) },
+      });
+    });
   });
 
   it('restores the token when the instance-list write fails during removal', async () => {

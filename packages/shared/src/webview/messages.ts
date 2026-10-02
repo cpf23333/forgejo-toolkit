@@ -5,6 +5,20 @@ export interface ForgejoInstance {
   name: string;
   username: string;
   syncApiUrlsToInstanceUrl?: boolean;
+  /**
+   * The Forgejo version the user declared for this instance (`16.0.2`,
+   * `16.0.2+gitea-1.22.0`), or absent when the instance uses the automatic
+   * probe.
+   *
+   * It is the escape hatch for a probe that cannot see the truth: a reverse
+   * proxy or path prefix that blocks `/api/v1/version`, an unrecognised fork or
+   * version string, a timeout on an unreachable instance, a renumbered
+   * upstream. A declaration wins over the probe and the shared cache
+   * (`resolveServerVersion` in `api/serverVersion.ts` states the order), and it
+   * is validated with `parseServerVersion` on every write, so a stored value
+   * always parses.
+   */
+  declaredServerVersion?: string;
 }
 
 /**
@@ -152,6 +166,10 @@ export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstan
     ...(instance.syncApiUrlsToInstanceUrl !== undefined
       ? { syncApiUrlsToInstanceUrl: instance.syncApiUrlsToInstanceUrl }
       : {}),
+    // Not a secret and not credential material: the Settings form is where the
+    // declaration is edited, so the webview has to receive it to prefill the
+    // field (a payload from an older host build simply carries none).
+    ...(instance.declaredServerVersion !== undefined ? { declaredServerVersion: instance.declaredServerVersion } : {}),
   };
 }
 
@@ -351,6 +369,20 @@ export type HostToWebviewMessage =
        * as "on" would offer a button whose only outcome is the run's refusal.
        */
       aiPreReview?: boolean;
+      /**
+       * The oldest Forgejo release this build supports, as the host spells it in
+       * its own low-version notices (`MIN_SUPPORTED_VERSION_TEXT`), so a view
+       * that has to show a version *example* can show the real floor instead of
+       * a literal that drifts from it.
+       *
+       * The Settings instance form is the one consumer: its "Server version"
+       * description names the floor as the accepted shape. It is optional for
+       * the same reason `aiPreReview` is — one message type serves every webview
+       * document, and the panels that send it have no version field to describe
+       * — so a reader must treat a missing value as "show no example" rather
+       * than as a number of its own.
+       */
+      minSupportedServerVersion?: string;
       worktrees: unknown[];
       worktreeOpenMode: 'ask' | 'currentWindow' | 'newWindow';
       worktreeCacheDirectory: string;

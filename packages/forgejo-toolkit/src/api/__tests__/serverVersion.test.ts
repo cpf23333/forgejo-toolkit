@@ -10,8 +10,11 @@ import {
   MIN_ACTIONS_VERSION,
   MIN_SUPPORTED_VERSION,
   MIN_SUPPORTED_VERSION_TEXT,
+  parseDeclaredServerVersion,
   parseServerVersion,
+  resolveServerVersion,
   reusableSharedServerVersion,
+  setDeclaredServerVersionResolver,
   setServerVersion,
 } from '../serverVersion';
 import {
@@ -316,5 +319,157 @@ describe('the shared probe cache of §9 route 2', () => {
     expect(getServerVersion('https://local.example.com')).toBe('16.0.1');
     expect(getServerVersion('https://never-probed.example.com')).toBeUndefined();
     expect(isVersionSupported(getServerVersion('https://never-probed.example.com'))).toBe(true);
+  });
+});
+
+/**
+ * The declared server version: what the user states for an instance, stored on
+ * the instance record (read here through the registered resolver, which is the
+ * only thing `ConfigManager` supplies). The resolution order is
+ * **declared → probed → unknown**, and a declaration has to survive everything
+ * that touches the probe cache — the probe itself, the TTL and the cross-window
+ * merge write.
+ */
+describe('a declared server version', () => {
+  const declaredUrl = 'https://declared.example.com';
+
+  /** Registers a record reader that declares exactly one URL's version. */
+  function declare(version: string, url: string = declaredUrl): void {
+    setDeclaredServerVersionResolver((requested) => (requested === url ? version : undefined));
+  }
+
+  it('wins over this window’s own probe result', () => {
+    declare('16.0.2');
+    // The probe answered something else entirely (the wrong answer the escape
+    // hatch exists for).
+    setServerVersion(declaredUrl, '1.18.0');
+
+    expect(getServerVersion(declaredUrl)).toBe('16.0.2');
+    expect(resolveServerVersion(declaredUrl)).toEqual({
+      version: '16.0.2',
+      source: 'declared',
+      cached: undefined,
+    });
+    // The gate follows the declaration, not the probe.
+    expect(() => assertActionsSupported(declaredUrl)).not.toThrow();
+  });
+
+  it('wins over a cached probe and is unaffected by the cache TTL', () => {
+    const store = makeMemoryVersionCacheStore({
+      [declaredUrl]: { version: '1.18.0', writtenAt: Date.now() },
+    });
+    setServerVersionCacheStorage(store.storage);
+    try {
+      declare('17.0.0');
+      expect(getServerVersion(declaredUrl)).toBe('17.0.0');
+      expect(resolveServerVersion(declaredUrl).source).toBe('declared');
+
+      // Age the entry past the TTL: the cached value becomes unusable, and the
+      // declaration is still the answer (it has no TTL of its own).
+      store.seed({ [declaredUrl]: { version: '1.18.0', writtenAt: Date.now() - SERVER_VERSION_CACHE_TTL_MS - 1 } });
+      expect(getServerVersion(declaredUrl)).toBe('17.0.0');
+      expect(resolveServerVersion(declaredUrl)).toEqual({
+        version: '17.0.0',
+        source: 'declared',
+        cached: undefined,
+      });
+    } finally {
+      setServerVersionCacheStorage(undefined);
+    }
+  });
+
+  it('still declares after a probe wrote the shared cache, and the record is not touched', () => {
+    // The merge write of §9 route 2 rewrites the cache slot beside the instance
+    // list. A declaration lives on the instance record, so the two cannot
+    // collide — and this is the assertion that keeps it that way.
+    const store = makeMemoryVersionCacheStore();
+    setServerVersionCacheStorage(store.storage);
+    try {
+      declare('16.0.2');
+
+      setServerVersion(declaredUrl, '17.0.0');
+
+      expect(store.raw()).toEqual({ [declaredUrl]: { version: '17.0.0', writtenAt: expect.any(Number) } });
+      expect(getServerVersion(declaredUrl)).toBe('16.0.2');
+    } finally {
+      setServerVersionCacheStorage(undefined);
+    }
+  });
+
+  it('falls back to the probe when the instance declares nothing', () => {
+    setDeclaredServerVersionResolver(() => undefined);
+    setServerVersion(declaredUrl, '16.0.1');
+
+    expect(resolveServerVersion(declaredUrl)).toMatchObject({ version: '16.0.1', source: 'probed' });
+    expect(getServerVersion(declaredUrl)).toBe('16.0.1');
+  });
+
+  it('never uses a declaration the parser rejects', () => {
+    // A hand-edited record (or one written by a build that did not validate) is
+    // not a version, so it must not be used as one — the probe still answers.
+    declare('devel');
+    setServerVersion(declaredUrl, '16.0.1');
+
+    expect(resolveServerVersion(declaredUrl)).toMatchObject({ version: '16.0.1', source: 'probed' });
+  });
+
+  it('charges an Actions refusal to the declaration when it is below the floor', () => {
+    declare('1.18.0');
+
+    expect(() => assertActionsSupported(declaredUrl)).toThrow(/you declared version 1\.18\.0/);
+    // The declaration is what makes it refuse, so the message must not claim the
+    // server reported that version.
+    expect(() => assertActionsSupported(declaredUrl)).not.toThrow(/this server reports/);
+    expect(isVersionSupported(getServerVersion(declaredUrl))).toBe(false);
+    // A declared version that clears both floors opens the gate again.
+    declare('17.0.0');
+    expect(() => assertActionsSupported(declaredUrl)).not.toThrow();
+  });
+
+  it('skips the on-demand probe entirely for a declared instance', async () => {
+    declare('17.0.0');
+    const probe = vi.fn(async () => '1.18.0');
+
+    await expect(assertActionsSupportedAfterProbe(declaredUrl, probe)).resolves.toBeUndefined();
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('clears the registration on the test reset, so a later test starts undeclared', () => {
+    declare('16.0.2');
+    clearServerVersions();
+
+    expect(getServerVersion(declaredUrl)).toBeUndefined();
+  });
+});
+
+/**
+ * The one validation rule every host-side writer applies: the Settings handlers
+ * before they save, and `ConfigManager` at the storage boundary. A value the
+ * form rejects must never be stored and silently ignored.
+ */
+describe('parseDeclaredServerVersion', () => {
+  it('accepts what /api/v1/version can return', () => {
+    expect(parseDeclaredServerVersion('16.0.2')).toEqual({ kind: 'declared', version: '16.0.2' });
+    expect(parseDeclaredServerVersion('16.0.2+gitea-1.22.0')).toEqual({
+      kind: 'declared',
+      version: '16.0.2+gitea-1.22.0',
+    });
+    expect(parseDeclaredServerVersion('  v1.21.5  ')).toEqual({ kind: 'declared', version: 'v1.21.5' });
+    expect(parseDeclaredServerVersion('1.19')).toEqual({ kind: 'declared', version: '1.19' });
+  });
+
+  it('reads a missing or empty value as no declaration', () => {
+    expect(parseDeclaredServerVersion(undefined)).toEqual({ kind: 'none' });
+    expect(parseDeclaredServerVersion(null)).toEqual({ kind: 'none' });
+    expect(parseDeclaredServerVersion('')).toEqual({ kind: 'none' });
+    expect(parseDeclaredServerVersion('   ')).toEqual({ kind: 'none' });
+  });
+
+  it('rejects anything that is not a version', () => {
+    expect(parseDeclaredServerVersion('devel')).toEqual({ kind: 'invalid' });
+    expect(parseDeclaredServerVersion('latest')).toEqual({ kind: 'invalid' });
+    expect(parseDeclaredServerVersion('1')).toEqual({ kind: 'invalid' });
+    expect(parseDeclaredServerVersion(16.2)).toEqual({ kind: 'invalid' });
+    expect(parseDeclaredServerVersion({ version: '16.0.2' })).toEqual({ kind: 'invalid' });
   });
 });

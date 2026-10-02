@@ -30,7 +30,7 @@ import {
 } from '../client';
 import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ApiError } from '../errors';
-import { clearServerVersions, setServerVersion } from '../serverVersion';
+import { clearServerVersions, setDeclaredServerVersionResolver, setServerVersion } from '../serverVersion';
 import { SERVER_VERSION_CACHE_TTL_MS, setServerVersionCacheStorage } from '../serverVersionCache';
 import { makeMemoryVersionCacheStore, type MemoryVersionCacheStore } from './serverVersionCacheTestHelpers';
 import { removeTempDir } from '../../__tests__/tempDir';
@@ -1920,6 +1920,39 @@ describe('ForgejoClient with MSW', () => {
         await expect(client.listActionRuns('demo-user', 'demo-repo')).resolves.toBeDefined();
 
         expect(probes()).toBe(0);
+      });
+
+      it('uses a declared version without probing, and refuses when it is below the floor', async () => {
+        // The escape hatch reaches the gate: the instance record says what the
+        // server runs, so no request to `/api/v1/version` is made — which is the
+        // point when a reverse proxy blocks that endpoint.
+        setDeclaredServerVersionResolver(() => '17.0.0');
+        const probes = countVersionProbes();
+        const client = createClient();
+
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).resolves.toBeDefined();
+        expect(probes()).toBe(0);
+
+        // A declaration below the Actions floor refuses the call, and says the
+        // declaration — not the server — is why.
+        setDeclaredServerVersionResolver(() => '1.18.0');
+        const second = createClient();
+        await expect(second.listActionRuns('demo-user', 'demo-repo')).rejects.toThrow(/you declared version 1\.18\.0/);
+        expect(probes()).toBe(0);
+      });
+
+      it('surfaces the server’s own failure when a declaration is too high', async () => {
+        // The other direction of a wrong declaration: it opens the gate, the
+        // request goes out, and an instance that really has no Actions API
+        // answers 404. That must come through as the ordinary request error —
+        // never a hang, and never a crash of the gate itself.
+        setDeclaredServerVersionResolver(() => '17.0.0');
+        mockServer.use(
+          http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', () => new HttpResponse(null, { status: 404 })),
+        );
+        const client = createClient();
+
+        await expect(client.listActionRuns('demo-user', 'demo-repo')).rejects.toThrow();
       });
 
       it('fails open when the on-demand probe fails', async () => {

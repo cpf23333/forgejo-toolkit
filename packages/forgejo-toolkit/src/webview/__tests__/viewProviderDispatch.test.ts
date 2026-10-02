@@ -153,7 +153,12 @@ import {
   worktreeCloneUrl,
 } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
-import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
+import {
+  clearServerVersions,
+  getServerVersion,
+  MIN_SUPPORTED_VERSION_TEXT,
+  setServerVersion,
+} from '../../api/serverVersion';
 import { logger } from '../../logger';
 import {
   clearLinkedRepositoryCache,
@@ -1047,6 +1052,18 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect('token' in instances[0]).toBe(false);
   });
 
+  it('pushes the supported floor so a view can name it instead of a literal', async () => {
+    // The Settings form's "Server version" description names the supported floor
+    // as its example. The webview cannot read the host's constant, so the value
+    // travels with the state it already receives — one home for the fact, so the
+    // example cannot keep showing a number after the floor moves.
+    fake.send({ command: 'getInitialState' });
+    await flushDispatches();
+
+    const initialState = postedMessages(fake.posted).find((m) => m.command === 'initialState');
+    expect(initialState?.minSupportedServerVersion).toBe(MIN_SUPPORTED_VERSION_TEXT);
+  });
+
   it('strips access tokens from instances updates', async () => {
     provider.refresh();
     await flushDispatches();
@@ -1329,6 +1346,95 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(getServerVersion(testInstance.url)).toBeUndefined();
     expect(getServerVersion('https://other.example.com')).toBeUndefined();
     expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
+  });
+
+  /**
+   * The declared server version in the Settings form: the host validates it,
+   * answers with a readable refusal rather than dropping the input, and stores
+   * an accepted value on the instance record — where the feature gates read it.
+   */
+  describe('the declared server version on the instance form', () => {
+    const refusal = `Enter a Forgejo version such as ${MIN_SUPPORTED_VERSION_TEXT}, or leave the field empty to use the automatic version probe.`;
+
+    it('stores a declaration carried by saveInstance, and the gates follow it', async () => {
+      fake.send({
+        command: 'saveInstance',
+        url: 'https://new.example.com/',
+        token: 'tok',
+        declaredServerVersion: '16.0.2+gitea-1.22.0',
+      });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: true });
+      const stored = config.getInstances().find((entry) => entry.url === 'https://new.example.com');
+      expect(stored?.declaredServerVersion).toBe('16.0.2+gitea-1.22.0');
+      expect(getServerVersion('https://new.example.com')).toBe('16.0.2+gitea-1.22.0');
+    });
+
+    it('refuses an unparseable declaration instead of storing it', async () => {
+      fake.send({
+        command: 'saveInstance',
+        url: 'https://new.example.com/',
+        token: 'tok',
+        declaredServerVersion: 'devel',
+      });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: false, error: refusal });
+      // Nothing was persisted, and no connection test was even attempted: the
+      // input is refused, not silently ignored.
+      expect(config.getInstances()).toHaveLength(1);
+      expect(config.getInstances()[0]?.url).toBe(testInstance.url);
+    });
+
+    it('refuses an unparseable declaration on editInstance too, leaving the record alone', async () => {
+      fake.send({
+        command: 'editInstance',
+        id: testInstance.id,
+        url: testInstance.url,
+        token: '',
+        declaredServerVersion: 16.2,
+      });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: false, error: refusal });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBeUndefined();
+    });
+
+    it('clears the declaration when an edit submits an empty field', async () => {
+      await config.updateInstance(testInstance.id, { declaredServerVersion: '16.0.2' });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+
+      fake.send({
+        command: 'editInstance',
+        id: testInstance.id,
+        url: testInstance.url,
+        token: '',
+        declaredServerVersion: '',
+      });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: true });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBeUndefined();
+    });
+
+    it('leaves a stored declaration alone when an edit does not carry the field', async () => {
+      // An older webview build (a retained bundle, a replayed message) does not
+      // know the field; updating the instance through it must not erase a
+      // declaration it never saw.
+      await config.updateInstance(testInstance.id, { declaredServerVersion: '16.0.2' });
+
+      fake.send({ command: 'editInstance', id: testInstance.id, url: testInstance.url, token: '' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: true });
+      expect(config.getInstances()[0]?.declaredServerVersion).toBe('16.0.2');
+    });
   });
 
   it('dedupes a double-submitted mergePullRequest for the same PR', async () => {

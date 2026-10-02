@@ -195,7 +195,9 @@ is the only evidence a bug report can carry. `buildPollingDiagnostics`
   the degraded reason and since when, whether the notice was shown, and the last and
   next scheduled poll;
 - `versions.probeCache` — one row per configured instance with the redacted URL, the
-  cached version, when it was written and whether it is stale;
+  version the gates use and where it came from (`source`: `declared` / `probed` /
+  `unknown`), the declared string verbatim when the record has one, and — when the value
+  was read from the shared cache — when it was written and whether it is stale;
 - `env` — extension and VS Code versions, OS/arch/release, locale, remote name.
 
 Two rules are hard constraints rather than summaries: **no credential ever appears**
@@ -293,10 +295,10 @@ An expired entry is reported as `stale` rather than hidden — the diagnostics s
 value while the gates treat it as unknown — and the reader must probe again. The
 direction is not negotiable: an expired "high version" would otherwise let a window run
 gated behaviour for the rest of the session without ever probing, so _stale is unknown,
-unknown is not a value, and unknown allows_. `getServerVersion` returns the shared entry
-only while it is fresh and usable, with one exception — a probe this window itself made
-_after_ the shared entry was written is newer knowledge about the same URL, and is used
-if it is still fresh. Unparseable and unknown versions pass `isVersionSupported` and
+unknown is not a value, and unknown allows_. `resolveServerVersion` returns the shared
+entry only while it is fresh and usable, with one exception — a probe this window itself
+made _after_ the shared entry was written is newer knowledge about the same URL, and is
+used if it is still fresh. Unparseable and unknown versions pass `isVersionSupported` and
 `assertActionsSupported`, which is the same fail-open direction.
 
 An instance save or edit invalidates the entry: `clearServerVersion` deletes the shared
@@ -306,6 +308,50 @@ invalidated still reads — and may still look fresh. The window therefore recor
 unusable (`isSharedEntryUsable`), which is what keeps the refresh that follows a save
 from silently skipping the network. Removing an instance deletes its entry, marker and
 notice record together.
+
+### The declared version comes first
+
+The probe can be wrong or unavailable: a reverse proxy or path prefix that blocks
+`/api/v1/version`, an unrecognised fork or version string, a timeout on an unreachable
+instance, a renumbered upstream. Features then silently disappear, so the user can state
+the truth instead. `forgejoToolkit.instances` carries an optional
+`declaredServerVersion` per instance, edited where the instances are edited (the Settings
+form) and validated with the same `parseServerVersion` the probe's answer goes through —
+a value that does not parse is refused with a readable message, never stored and
+silently ignored. An absent field is "no declaration, use the probe"; an older record
+simply has none.
+
+`resolveServerVersion` states the order in one place: **declared → probed → unknown**. A
+declaration wins outright — it is read from the instance record (through a reader
+`ConfigManager` registers, so the module stays free of `vscode`), not from the probe
+cache, and the cache is not consulted at all — so the probe, the 60-second TTL and the
+cross-window merge write cannot overwrite, expire or displace it. `probeServerVersion`
+does not even send the request for a declared instance; it raises the low-version notice
+from the declared value, with wording that names the declaration, because the user's own
+statement is what makes the extension refuse. Every gate reads the same resolution, so
+`assertActionsSupported` refuses a too-low declared version and says so.
+
+The polling diagnostics report the resolution: each instance row carries `source`
+(`declared` / `probed` / `unknown`), the declared string verbatim and the value the gates
+used, so a bug report can tell why a feature was offered or refused.
+
+The declaration is a property of the instance, so it has to hold wherever the instance is
+resolved — not only in the window that owns the record:
+
+- **The MCP server the extension provides** forwards into the broker, so the host's client
+  and the host's reader apply; nothing extra is carried.
+- **The MCP server launched from a static `mcp.json`** (the Agents window / Agent Host, or
+  a third-party client) builds its own client when no broker is reachable, and has no
+  instance record. It therefore reads the declaration from the registry the extension host
+  publishes next to the per-window state files — `globalStorage/mcp-instances.json`, whose
+  entries gain `declaredServerVersion` — and installs it as the same reader through
+  `setDeclaredServerVersionResolver`, so it resolves declared → probed → unknown with the
+  same source reporting and the same "a declared instance is not probed" rule
+  (`registerDeclaredServerVersions` in `mcp/autoConfig.ts`, called by `mcp/server.ts`). The
+  value is a version string in an already credential-free file: no new environment
+  variable, no new launch argument, and no secret channel. A registry with no declaration
+  for the instance — or a carried value that cannot be a version — leaves the probe in
+  charge, exactly as before.
 
 ### The in-flight marker
 

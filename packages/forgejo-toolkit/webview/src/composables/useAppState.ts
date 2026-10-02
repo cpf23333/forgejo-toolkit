@@ -712,6 +712,17 @@ function createAppState() {
    * would offer a button whose only outcome is the run's own refusal.
    */
   const aiPreReview = ref<boolean>(false);
+  /**
+   * The oldest Forgejo release this build supports, as the host spells it
+   * (`MIN_SUPPORTED_VERSION_TEXT`), so the Settings form's "Server version"
+   * example names the real floor rather than a literal kept in a translation
+   * file.
+   *
+   * Empty when the host sent none — a panel that has no version field, or a
+   * host build from before the field existed. The view must treat it as "no
+   * example available", never as a number to show.
+   */
+  const minSupportedServerVersion = ref<string>('');
   const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
   const worktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>('ask');
   const worktreeCacheDirectory = ref<string | undefined>(undefined);
@@ -798,8 +809,21 @@ function createAppState() {
   let saveInstanceInFlightToken = 0;
   let saveInstanceAwaitingReply = false;
   type SaveInstanceMessage =
-    | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
-    | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean };
+    | {
+        command: 'saveInstance';
+        url: string;
+        token: string;
+        syncApiUrlsToInstanceUrl?: boolean;
+        declaredServerVersion?: string;
+      }
+    | {
+        command: 'editInstance';
+        id: string;
+        url: string;
+        token: string;
+        syncApiUrlsToInstanceUrl?: boolean;
+        declaredServerVersion?: string;
+      };
   let saveInstanceLatestArgs: SaveInstanceMessage | undefined;
 
   // The form the latest save intent belongs to. The host's reply carries no
@@ -1025,6 +1049,7 @@ function createAppState() {
         void setLocale(message.locale);
         debug.value = message.debug;
         aiPreReview.value = message.aiPreReview === true;
+        minSupportedServerVersion.value = message.minSupportedServerVersion ?? '';
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
         worktreeCacheDirectory.value = message.worktreeCacheDirectory;
@@ -4330,12 +4355,23 @@ function createAppState() {
     armTestConnectionTimeout();
   }
 
-  function saveInstance(url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
-    sendSaveInstance({ command: 'saveInstance', url, token, syncApiUrlsToInstanceUrl });
+  function saveInstance(
+    url: string,
+    token: string,
+    syncApiUrlsToInstanceUrl?: boolean,
+    declaredServerVersion?: string,
+  ) {
+    sendSaveInstance({ command: 'saveInstance', url, token, syncApiUrlsToInstanceUrl, declaredServerVersion });
   }
 
-  function editInstance(id: string, url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
-    sendSaveInstance({ command: 'editInstance', id, url, token, syncApiUrlsToInstanceUrl });
+  function editInstance(
+    id: string,
+    url: string,
+    token: string,
+    syncApiUrlsToInstanceUrl?: boolean,
+    declaredServerVersion?: string,
+  ) {
+    sendSaveInstance({ command: 'editInstance', id, url, token, syncApiUrlsToInstanceUrl, declaredServerVersion });
   }
 
   function sendSaveInstance(message: SaveInstanceMessage) {
@@ -6672,6 +6708,7 @@ function createAppState() {
     errors,
     debug,
     aiPreReview,
+    minSupportedServerVersion,
     worktrees,
     worktreeOpenMode,
     worktreeCacheDirectory,

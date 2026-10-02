@@ -17,6 +17,9 @@ const { stateMock } = vi.hoisted(() => ({
     changeLocale: vi.fn(),
     debug: { value: false },
     changeDebug: vi.fn(),
+    // The supported floor the host pushes with `initialState`; the form's
+    // description interpolates it.
+    minSupportedServerVersion: { value: '16.0.0' },
     worktreeOpenMode: { value: 'ask' },
     changeWorktreeOpenMode: vi.fn(),
     worktreeCacheDirectory: { value: '' },
@@ -158,7 +161,9 @@ describe('Settings saveInstanceResult target', () => {
     // The user edits instance A and submits the update.
     await clickEdit(wrapper, 0);
     await clickButton(wrapper, 'Update Instance');
-    expect(state.editInstance).toHaveBeenCalledWith(INSTANCE_A.id, INSTANCE_A.url, '', true);
+    // The fifth argument is the declared server version field, empty here: the
+    // form always carries it, and empty means "use the probe".
+    expect(state.editInstance).toHaveBeenCalledWith(INSTANCE_A.id, INSTANCE_A.url, '', true, '');
 
     // …then opens instance B before A's reply lands and types into B's form.
     await clickEdit(wrapper, 1);
@@ -209,7 +214,7 @@ describe('Settings saveInstanceResult target', () => {
     await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
     await typeInto(wrapper, '#forgejo-token', 'new-token');
     await clickButton(wrapper, 'Add Instance');
-    expect(state.saveInstance).toHaveBeenCalledWith('https://forgejo.example.com/new', 'new-token', true);
+    expect(state.saveInstance).toHaveBeenCalledWith('https://forgejo.example.com/new', 'new-token', true, '');
 
     state.saveInstanceResult.value = { success: true, target: { kind: 'new' } };
     await nextTick();

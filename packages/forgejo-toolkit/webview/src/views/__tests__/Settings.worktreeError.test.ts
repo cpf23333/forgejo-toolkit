@@ -22,6 +22,9 @@ const { stateMock } = vi.hoisted(() => ({
     changeLocale: vi.fn(),
     debug: { value: false },
     changeDebug: vi.fn(),
+    // The supported floor the host pushes with `initialState`; the form's
+    // description interpolates it.
+    minSupportedServerVersion: { value: '16.0.0' },
     worktreeOpenMode: { value: 'ask' },
     changeWorktreeOpenMode: vi.fn(),
     worktreeCacheDirectory: { value: '' },
