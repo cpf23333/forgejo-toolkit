@@ -47,7 +47,7 @@
 ### 1.1 现状：每个窗口各跑一份
 
 `onStartupFinished` 是**按窗口**生效的激活事件（`packages/forgejo-toolkit/package.json` 的
-`activationEvents`，除它以外还有三条 `onFileSystem:` / `onView:` 事件），而它存在的原因是 MCP
+`activationEvents`，除它以外还有两条 `onFileSystem:` 事件），而它存在的原因是 MCP
 服务器需要可发现性（`TODO.md` 的「已知的平台代价」条目记录了这一平台代价）。于是激活路径上三件
 "应该全机器只做一次"的事，每个窗口都做了一次：
 

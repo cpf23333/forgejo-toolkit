@@ -153,7 +153,7 @@ function titlesOf(path) {
     };
     add(rest.split(/[：:（(]/)[0]);
     add(bold);
-    // `**P2**` MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门 may be cited with the label glued on.
+    // `**P2** PR 描述生成` may be cited with the label glued on.
     if (/^P\d+$/.test((bold ?? '').trim())) {
       add(`${bold.trim()} ${rest.split(/[：:（(]/)[0].trim()}`);
     }

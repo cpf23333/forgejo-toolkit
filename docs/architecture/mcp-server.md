@@ -5,8 +5,10 @@ tools: the first batch is complete and the second batch has started —
 `create_issue_comment` (stage 1) and `submit_pull_review` (stage 2) of
 [the write-tool confirmation model](../design/mcp-write-tools-confirmation.md),
 plus `cancel_action_run`, the first tool of batch 2, each behind its own switch;
-the host-side modal confirmation for broker sessions (stage 3) is not
-implemented and needs its own approval**
+the host-side modal confirmation for broker sessions (stage 3) was
+deliberately **decided against on 2026-10-02**, not forgotten — the reasons and
+the preconditions that were dropped with it are preserved in that record's
+stage-3 section**
 
 This document describes how Forgejo Toolkit exposes its configured instances
 to AI agents through the [Model Context Protocol](https://modelcontextprotocol.io)
@@ -974,21 +976,24 @@ implying a capability the tools do not have. Registration lives in
   audited API surface. It follows the same shape as the three shipped write
   tools: its own switch, no `readOnlyHint`, dry run, idempotency key, audit
   line.
-- **Rest of a second batch (gated, separately approved):** `cancel_action_run`
-  shipped as batch 2's first candidate; anything after it would be a new
-  candidate and its own approval. Neither the remaining first-batch work nor a
-  further batch is scheduled for a specific release; the tracking entry is
-  `TODO.md`'s 「P2 MCP 写工具阶段 3 与 `rerun_action_run` 的版本闸门」.
-- **Host-side modal confirmation for broker sessions (stage 3, needs separate
-  approval):** the extension host _could_ ask in a `vscode.window` modal before
-  writing. It is deliberately not implemented: it needs (1) routing the request
-  to the window the session belongs to — "the window that currently owns the
-  broker" is not a stable answer, since a takeover moves it — and (2) a timeout
-  whose expiry means refusal. Without both, a modal in a window nobody is
-  looking at blocks the agent's session, which is worse than the client-side
-  confirmation that already exists. If the cross-window routing turns out to be
-  too expensive, the correct fallback is to **refuse the write**, not to prompt
-  in the wrong window.
+- **Rest of a second batch (no candidate filed):** `cancel_action_run` shipped
+  as batch 2's first candidate; anything after it would be a new candidate and
+  its own approval, and none is filed today. No further batch is scheduled for a
+  specific release. (The `rerun_action_run` upstream gate is separate and has its
+  own entry in `TODO.md`'s 「等上游版本」.)
+- **Host-side modal confirmation for broker sessions (stage 3, decided not to
+  build on 2026-10-02):** the extension host _could_ ask in a `vscode.window`
+  modal before writing, and that was stage 3. It was deliberately dropped: the
+  two shipped gates already cover the normal configuration, and the stage would
+  only add a gate for the case where the user or their client turns per-call
+  approval off, at real complexity — routing to the session's own window via
+  `findBrokerStateMatch`, the unavailable-window fallback, and a timeout that
+  means refusal. The preconditions and the trade-off are kept in the decision
+  record, [`docs/design/mcp-write-tools-confirmation.md`](../design/mcp-write-tools-confirmation.md)
+  (§9, the stage-3 section, and §13.10), so a future maintainer can pick it up if
+  that case ever matters. If the cross-window routing turns out to be too
+  expensive, the correct fallback is to **refuse the write**, not to prompt in
+  the wrong window.
 - **More write tools** (create issue, create pull request, merge, mark
   notification read) would each follow the same shape: per-tool switch, no
   `readOnlyHint`, dry run, idempotency key, audit line. None of them is planned
