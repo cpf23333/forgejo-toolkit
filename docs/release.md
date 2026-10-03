@@ -321,6 +321,29 @@ Then install it in VS Code:
 - Do not store release artifacts in git; attach them to Codeberg Releases.
 - Keep the git repository small by not committing build outputs or dependencies.
 
+### Extension description
+
+The manifest `description` is the one line the VS Code Marketplace and Open VSX
+listings show, and what the editor's extension view reads. It lives in
+`packages/forgejo-toolkit/package.nls.json` and its Chinese twin
+`package.nls.zh-cn.json`, and it reaches a store only when a new version is
+published there — editing it changes nothing on an existing listing.
+
+Two copies of that prose are **not** generated from the repository: the GitHub
+repository "About" text and the Codeberg repository description are typed by
+hand into those forges' web UIs, so the manifest line does not cover them.
+A description change therefore means updating all of them in the same pass —
+the manifest pair, the GitHub "About" text and the Codeberg description — with
+the store listings following at the next publish.
+
+`keywords` and `categories` are different: they live only in
+`packages/forgejo-toolkit/package.json` and are not localized, so they need no
+such pass.
+
+This rule exists because a capability change once left one copy behind: the
+extension shipped three write tools behind their own settings while the GitHub
+"About" text still called it a read-only MCP server.
+
 ### Package manager pin
 
 pnpm is pinned in two places and they have to agree:
