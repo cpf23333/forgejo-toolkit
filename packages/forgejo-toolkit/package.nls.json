@@ -1,6 +1,6 @@
 {
   "displayName": "Forgejo Toolkit",
-  "description": "A VS Code extension for Forgejo and Codeberg: manage self-hosted instances, pull requests, issues, code review, and Actions workflow dispatch.",
+  "description": "A VS Code extension for Forgejo and Codeberg: self-hosted instances, pull requests, issues, code review, Actions, and an MCP server for AI agents.",
   "view.dashboard.name": "Dashboard",
   "command.openDashboard.title": "Open Dashboard",
   "command.openOnboarding.title": "Open Setup Guide",
@@ -27,7 +27,7 @@
   "config.notificationPollingEnabled.description": "Periodically poll Forgejo instances for unread notifications and show VS Code alerts.",
   "config.notificationPollingInterval.description": "Interval in seconds between notification polls.",
   "config.useMockApi.description": "Use mock Forgejo API responses for offline development. Development use only; stripped from production builds.",
-  "config.mcpEnabled.description": "Expose the configured Forgejo instances to agent mode as read-only MCP servers. Turning this off withdraws the server definitions immediately and stops the workspace-repository mapping and the local broker; a client that is already connected keeps the server process it spawned until the window is reloaded.",
+  "config.mcpEnabled.description": "Expose the configured Forgejo instances to agent mode as MCP servers: 30 read-only tools by default, plus three write tools that are off by default and each behind its own setting. Turning this off withdraws the server definitions immediately and stops the workspace-repository mapping and the local broker; a client that is already connected keeps the server process it spawned until the window is reloaded.",
   "config.mcpWriteTools.createIssueComment.title": "MCP Write Tools: Create Issue Comment",
   "config.mcpWriteTools.createIssueComment.description": "Let AI agents create issue and pull request comments on your instances through the MCP tool `create_issue_comment`. Off by default. While it is on, an agent can leave public comments under your account: VS Code asks you to confirm each call, but you can turn that confirmation off for the tool, and a client other than VS Code may not implement it at all. Turn this on only when you intend to let the agent write, and read every comment it proposes before approving it.",
   "config.mcpWriteTools.submitPullReview.title": "MCP Write Tools: Submit Pull Review",
