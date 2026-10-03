@@ -20,7 +20,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 - **Notifications**: unread badge, background polling with toast alerts, filters, and mark-as-read. With several windows open, only one window polls and raises alerts by default (`forgejoToolkit.multiWindowLease`); every window still loads notifications when opened, and a window that cannot use the coordination falls back to polling on its own.
 - **Global search**: search repositories, Issues, and PRs across instances.
 - **CI / Actions**: run history, job logs, artifact downloads, run cancellation, and workflow dispatch with inputs.
-- **MCP Server**: exposes your Forgejo instance to Copilot agent mode and other MCP clients with zero configuration — read-only tools for issues, PRs, Actions, and code browsing (VS Code ≥ 1.102).
+- **MCP Server**: exposes your Forgejo instance to Copilot agent mode and other MCP clients with zero configuration — read-only tools for issues, PRs, Actions, and code browsing by default, plus three write tools, each behind its own setting and VS Code's per-call approval (VS Code ≥ 1.102).
 - **Settings export / import**: export instances (optionally encrypted) and settings to JSON, and import them back with a conflict preview.
 - **Internationalization**: supports switching between Chinese and English.
 - **Debug logs**: optional API request logging to the `Forgejo Toolkit` Output Channel.

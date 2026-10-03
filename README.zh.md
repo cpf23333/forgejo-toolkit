@@ -20,7 +20,7 @@
 - **通知中心**：未读角标、后台轮询与消息提醒、状态 / 类型筛选、标记已读。同时打开多个窗口时，默认只由一个窗口轮询并弹出提醒（`forgejoToolkit.multiWindowLease`）；每个窗口打开时仍会加载通知，无法使用该协调机制的窗口会自行轮询。
 - **全局搜索**：跨实例搜索仓库、Issue、PR。
 - **CI / Actions**：运行历史、job 日志、制品下载、取消运行、带输入参数的 workflow 触发。
-- **MCP Server**：零配置将 Forgejo 实例暴露给 Copilot agent mode 等 MCP 客户端，提供 Issue、PR、Actions、代码浏览等只读工具（需 VS Code ≥ 1.102）。
+- **MCP Server**：零配置将 Forgejo 实例暴露给 Copilot agent mode 等 MCP 客户端，默认提供 Issue、PR、Actions、代码浏览等只读工具，另有三个写工具，各自需要单独开启，且每次调用都由 VS Code 确认（需 VS Code ≥ 1.102）。
 - **设置导出 / 导入**：将实例（可选加密）与设置导出为 JSON，导入前提供冲突预览。
 - **国际化**：支持中文 / 英文切换。
 - **调试日志**：可选开启 API 请求日志到 `Forgejo Toolkit` Output Channel。
