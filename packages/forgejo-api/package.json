@@ -39,13 +39,13 @@
     "@cpf23333-forgejo-toolkit/shared": "workspace:*"
   },
   "devDependencies": {
-    "@kubb/adapter-oas": "5.4.2",
-    "@kubb/cli": "5.4.2",
-    "@kubb/core": "5.4.2",
+    "@kubb/adapter-oas": "5.4.3",
+    "@kubb/cli": "5.4.3",
+    "@kubb/core": "5.4.3",
     "@kubb/plugin-fetch": "5.5.2",
     "@kubb/plugin-msw": "5.0.5",
     "@kubb/plugin-ts": "5.0.2",
-    "kubb": "5.4.2",
+    "kubb": "5.4.3",
     "msw": "^2.15.0",
     "prettier": "^3.9.9",
     "typescript": "^6.0.3"

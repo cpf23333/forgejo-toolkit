@@ -14,7 +14,7 @@ export default defineConfig({
   adapter: adapterOas({
     validate: true,
     // v5 defaults `integerType` to 'bigint'; v4 used 'number'. Verified in
-    // @kubb/adapter-oas@5.4.2 dist: `integerType: "bigint"`.
+    // @kubb/adapter-oas@5.4.3 dist: `integerType: "bigint"`.
     integerType: 'number',
   }),
   output: {
