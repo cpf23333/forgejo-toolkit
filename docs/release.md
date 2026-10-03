@@ -326,7 +326,7 @@ Then install it in VS Code:
 pnpm is pinned in two places and they have to agree:
 
 - the root `package.json`'s `packageManager` field
-  (`"packageManager": "pnpm@11.8.0"`) — the authoritative pin, which also lets
+  (`"packageManager": "pnpm@11.28.3"`) — the authoritative pin, which also lets
   Corepack reproduce the same pnpm for anyone who enables it;
 - the `npm install -g pnpm@<version>` step of `.forgejo/workflows/ci.yml` and
   `.forgejo/workflows/release.yml`.

@@ -16,7 +16,7 @@ jobs:
     runs-on: docker
     container:
       # Node 22 LTS: the toolchain (TypeScript 6, Vite 8, Vitest 4) requires
-      # Node ≥ 20.19/22.12, and the pinned pnpm (npm install -g pnpm@11.8.0
+      # Node ≥ 20.19/22.12, and the pinned pnpm (npm install -g pnpm@11.28.3
       # below) requires ≥ 22.13 — the same floor the root package.json engine
       # states, and what the local development runtime uses.
       image: node:22
@@ -45,7 +45,7 @@ jobs:
       # version is the root package.json's `packageManager` field — keep the two
       # in step (see docs/release.md's "Package manager pin").
       - name: Install pnpm
-        run: npm install -g pnpm@11.8.0
+        run: npm install -g pnpm@11.28.3
 
       # Bare node images carry no compiler; native dependencies without a
       # matching prebuild (keytar is pulled in by @vscode/vsce) would otherwise

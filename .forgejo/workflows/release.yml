@@ -64,7 +64,7 @@ jobs:
       # dependency set in the lockfile, so the release builds with the same pnpm
       # as the verified checkout (see docs/release.md's "Package manager pin").
       - name: Install pnpm
-        run: npm install -g pnpm@11.8.0
+        run: npm install -g pnpm@11.28.3
 
       - name: Install build tools
         env:
