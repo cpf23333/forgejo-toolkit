@@ -3,11 +3,15 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
 /**
- * The declared server version on the instance form: the escape hatch for the
+ * The declared server version on the instance editor: the escape hatch for the
  * automatic probe (`/api/v1/version` blocked by a reverse proxy, an
- * unrecognised fork, a timeout). The view has one job — carry the field to the
+ * unrecognised fork, a timeout). The editor has one job — carry the field to the
  * host, prefill it from the record, and show the host's refusal when the value
  * cannot be a version — because the host owns the rule and the readable message.
+ *
+ * The field lives in the editor, not in the list: editing a row switches this
+ * surface to the editor, and the new-instance mode of that same editor is what
+ * "Add Instance" opens.
  */
 const INSTANCE_DECLARED = {
   id: 'inst-declared',
@@ -47,6 +51,7 @@ const { stateMock } = vi.hoisted(() => ({
     editInstance: vi.fn(),
     removeInstance: vi.fn(),
     openExternal: vi.fn(),
+    copyToClipboard: vi.fn(),
     previewImportInstances: vi.fn(),
     exportInstances: vi.fn(),
     copyInstancesToClipboard: vi.fn(),
@@ -87,6 +92,12 @@ async function clickButton(wrapper: VueWrapper, label: string) {
   const button = wrapper.findAll('vscode-button').find((entry) => entry.text().trim() === label);
   expect(button, `button "${label}"`).toBeTruthy();
   await button!.trigger('click');
+}
+
+/** Opens the editor from the list's own way in: the "new instance" mode. */
+async function clickAdd(wrapper: VueWrapper) {
+  await clickButton(wrapper, 'Add Instance');
+  await nextTick();
 }
 
 /** The Edit button of the nth saved instance. */
@@ -163,10 +174,11 @@ describe('Settings declared server version field', () => {
     wrapper.unmount();
   });
 
-  it('carries a typed declaration on the add form', async () => {
+  it('carries a typed declaration in the new-instance editor', async () => {
     const wrapper = mountView();
     await nextTick();
 
+    await clickAdd(wrapper);
     await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
     await typeInto(wrapper, '#forgejo-token', 'new-token');
     await typeInto(wrapper, '#forgejo-declared-version', ' 16.0.2 ');
@@ -177,7 +189,7 @@ describe('Settings declared server version field', () => {
   });
 
   it('shows the host’s refusal and keeps the typed value on screen', async () => {
-    // The host owns the rule (and the readable message); the form must not
+    // The host owns the rule (and the readable message); the editor must not
     // silently drop a value it does not understand, so the refusal is rendered
     // where the user is looking and the input stays as typed.
     const refusal =
@@ -185,6 +197,7 @@ describe('Settings declared server version field', () => {
     const wrapper = mountView();
     await nextTick();
 
+    await clickAdd(wrapper);
     await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
     await typeInto(wrapper, '#forgejo-token', 'new-token');
     await typeInto(wrapper, '#forgejo-declared-version', 'devel');
@@ -206,6 +219,8 @@ describe('Settings declared server version field', () => {
     const wrapper = mountView();
     await nextTick();
 
+    await clickEdit(wrapper, 0);
+
     const row = wrapper.find('#forgejo-declared-version').element.closest('.form-row');
     const description = row?.querySelector('.field-description')?.textContent ?? '';
     expect(description).toContain(`${stateMock.minSupportedServerVersion.value} is accepted`);
@@ -223,6 +238,8 @@ describe('Settings declared server version field', () => {
     stateMock.minSupportedServerVersion.value = '';
     const wrapper = mountView();
     await nextTick();
+
+    await clickEdit(wrapper, 0);
 
     const row = wrapper.find('#forgejo-declared-version').element.closest('.form-row');
     const description = row?.querySelector('.field-description')?.textContent ?? '';

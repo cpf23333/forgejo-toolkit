@@ -42,6 +42,10 @@ const { stateMock } = vi.hoisted(() => ({
     // removed instance, so the row stays empty here.
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
+    // The editor closes on a removal without asking (the record is already
+    // gone); this is here so a regression that starts prompting is visible as a
+    // call rather than as a silent close.
+    showConfirm: vi.fn(async () => true),
   },
 }));
 
@@ -91,6 +95,11 @@ function headings(wrapper: VueWrapper): string[] {
   return wrapper.findAll('h2').map((heading) => heading.text());
 }
 
+/**
+ * Opens a row's editor. It is a different state of the surface now, not an
+ * inline form: the fields only exist while the editor is open, and the list is
+ * not rendered beside them.
+ */
 async function clickEdit(wrapper: VueWrapper, index: number) {
   const item: DOMWrapper<Element> | undefined = wrapper.findAll('.saved-item')[index];
   expect(item, `saved instance ${index}`).toBeTruthy();
@@ -98,24 +107,28 @@ async function clickEdit(wrapper: VueWrapper, index: number) {
   await nextTick();
 }
 
+const EDITOR_TITLE = 'Edit Instance';
+
 /**
- * The edit form is bound to an instance record. Removing that instance from the
- * list (the host re-sends `instances` after a removal) left the form open on a
- * record that no longer exists, so Update/Test answered "Instance not found"
- * (see the host's `editInstance` handler). The form closes with its record.
+ * The editor is bound to an instance record. Removing that instance from the
+ * list (the host re-sends `instances` after a removal) left the editor open on a
+ * record that no longer exists, so its Update and Test buttons answered "Instance
+ * not found" (see the host's `editInstance` handler). The editor closes with its
+ * record, and does so without a discard prompt: the record is already gone.
  */
-describe('Settings edit form for a removed instance', () => {
+describe('Settings instance editor for a removed instance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stateMock.instances.value = [{ ...INSTANCE_A }, { ...INSTANCE_B }];
   });
 
-  it('closes the edit form when its instance disappears from the list', async () => {
+  it('closes the editor when its instance disappears from the list', async () => {
     const wrapper = mountView();
     await nextTick();
 
     await clickEdit(wrapper, 0);
-    expect(headings(wrapper)).toContain('Edit Instance');
+    expect(headings(wrapper)).toContain(EDITOR_TITLE);
+    expect(wrapper.find('.editor-subject-name').text()).toBe(INSTANCE_A.name);
     expect(fieldValue(wrapper, '#forgejo-url')).toBe(INSTANCE_A.url);
 
     // The user removes Alpha (confirmed host-side); the refreshed list no
@@ -123,24 +136,31 @@ describe('Settings edit form for a removed instance', () => {
     state().instances.value = [{ ...INSTANCE_B }];
     await nextTick();
 
-    expect(headings(wrapper)).toContain('Add Forgejo Instance');
-    expect(fieldValue(wrapper, '#forgejo-url')).toBe('');
-    expect(fieldValue(wrapper, '#forgejo-token')).toBe('');
+    // Back to the list, with the removed instance's editor gone: no fields for a
+    // record that no longer exists, and the remaining instance still listed.
+    expect(wrapper.find('.instance-editor').exists()).toBe(false);
+    expect(wrapper.find('#forgejo-url').exists()).toBe(false);
+    expect(wrapper.find('.settings-list').exists()).toBe(true);
+    expect(wrapper.findAll('.saved-item')).toHaveLength(1);
+    expect(wrapper.text()).toContain(INSTANCE_B.name);
+    expect(wrapper.text()).not.toContain(INSTANCE_A.name);
+    // A removal is not a user-initiated discard, so nothing was asked.
+    expect(stateMock.showConfirm).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 
-  it('keeps the edit form open when its instance is still listed', async () => {
+  it('keeps the editor open when its instance is still listed', async () => {
     const wrapper = mountView();
     await nextTick();
 
     await clickEdit(wrapper, 0);
 
     // An unrelated refresh (another instance was added/edited) must not close
-    // the form the user is working in.
+    // the editor the user is working in.
     state().instances.value = [{ ...INSTANCE_A }, { ...INSTANCE_B }];
     await nextTick();
 
-    expect(headings(wrapper)).toContain('Edit Instance');
+    expect(headings(wrapper)).toContain(EDITOR_TITLE);
     expect(fieldValue(wrapper, '#forgejo-url')).toBe(INSTANCE_A.url);
     wrapper.unmount();
   });

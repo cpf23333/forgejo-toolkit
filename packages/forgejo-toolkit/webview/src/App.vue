@@ -203,6 +203,26 @@ main {
   overflow: hidden;
 }
 
+/*
+ * `<main>` is where a navigation puts focus: it is the container every view
+ * renders into, and moving focus there is what lets a screen reader start reading
+ * the view that just opened. It is not a control, though, and the browser paints a
+ * `:focus-visible` ring of its own around anything focusable — `auto 1px` in the
+ * focus-ring colour, which is the yellow a theme that keeps that colour for
+ * warnings uses. That ring was drawn around the whole panel on every navigation.
+ *
+ * The absence is stated rather than left to the browser, in both focus states, so
+ * that neither the browser's ring nor a future author rule can draw a border
+ * around the panel. Nothing else is answered here on purpose: the shell's own
+ * control is the back button, and everything the views render is a normal control
+ * whose component draws its own focus ring — those are the affordance a keyboard
+ * user needs, and no rule in this file touches them.
+ */
+main:focus,
+main:focus-visible {
+  outline: none;
+}
+
 /* The view announcement is for assistive technology only. Out of the flow so it
    adds nothing to the shell's layout, and kept in the DOM (unlike a region that
    appears together with its text) so a navigation only changes its content,

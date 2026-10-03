@@ -554,7 +554,11 @@
     "addInstance": "添加实例",
     "editInstance": "编辑实例",
     "updateInstance": "更新实例",
-    "cancelEdit": "取消编辑",
+    "instanceEditor": {
+      "backToList": "返回实例列表",
+      "cancel": "取消编辑",
+      "copyUrl": "复制实例地址"
+    },
     "saving": "保存中...",
     "savedInstances": "已保存实例",
     "noSavedInstances": "还没有保存的实例。",

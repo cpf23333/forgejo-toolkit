@@ -554,7 +554,11 @@
     "addInstance": "Add Instance",
     "editInstance": "Edit Instance",
     "updateInstance": "Update Instance",
-    "cancelEdit": "Cancel Edit",
+    "instanceEditor": {
+      "backToList": "Back to instance list",
+      "cancel": "Cancel Edit",
+      "copyUrl": "Copy instance URL"
+    },
     "saving": "Saving...",
     "savedInstances": "Saved Instances",
     "noSavedInstances": "No saved instances yet.",

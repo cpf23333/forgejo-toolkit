@@ -38,6 +38,7 @@ const { stateMock } = vi.hoisted(() => ({
     // accessible names, so the row stays empty here.
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
+    showConfirm: vi.fn(async () => true),
   },
 }));
 
@@ -52,6 +53,7 @@ vi.mock('../../composables/useAppState', async (importOriginal) => {
 
 import Settings from '../Settings.vue';
 import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import { nextTick } from 'vue';
 
 function mountView() {
   return mount(Settings, {
@@ -62,6 +64,14 @@ function mountView() {
   });
 }
 
+/** Opens the shared instance editor in its "new instance" mode. */
+async function openNewEditor(wrapper: ReturnType<typeof mountView>) {
+  const button = wrapper.findAll('vscode-button').find((entry) => entry.text().trim() === 'Add Instance');
+  expect(button, 'Add Instance button').toBeTruthy();
+  await button!.trigger('click');
+  await nextTick();
+}
+
 /**
  * A `vscode-*` form control takes its accessible name only from its own `label`
  * property: the element puts `aria-label=${this.label}` on the focusable control
@@ -70,11 +80,17 @@ function mountView() {
  * every field below as an unnamed combobox or textbox.
  *
  * The hidden language select is the one field whose text is not in a `<label>`:
- * its section heading ("Language") is the text to reuse.
+ * its section heading ("Language") is the text to reuse. The instance fields are
+ * in the editor, which is a state of its own, so it has to be opened first.
  */
 describe('Settings form control accessible names', () => {
-  it('names every select and textfield with the text shown beside it', () => {
+  it('names every select and textfield with the text shown beside it', async () => {
     const wrapper = mountView();
+
+    // The list state's controls are named too.
+    expect(wrapper.get('.setting-section vscode-single-select').attributes('label')).toBe('Language');
+
+    await openNewEditor(wrapper);
 
     // No control may be left unnamed, including any added later.
     const controls = wrapper.findAll('vscode-single-select, vscode-textfield');
@@ -83,15 +99,22 @@ describe('Settings form control accessible names', () => {
       expect(control.attributes('label'), control.html()).toBeTruthy();
     }
 
-    expect(wrapper.get('.setting-section vscode-single-select').attributes('label')).toBe('Language');
-    expect(wrapper.get('#worktree-open-mode').attributes('label')).toBe('Open mode');
-    expect(wrapper.get('#worktree-cache-directory').attributes('label')).toBe('Cache directory');
     expect(wrapper.get('#forgejo-url').attributes('label')).toBe('Instance URL');
     expect(wrapper.get('#forgejo-token').attributes('label')).toBe('Access Token');
 
     // The neighbouring text is still what the user sees; the label repeats it.
-    expect(wrapper.get('label[for="worktree-open-mode"]').text()).toBe('Open mode');
     expect(wrapper.get('label[for="forgejo-token"]').text()).toBe('Access Token');
+
+    wrapper.unmount();
+  });
+
+  it('names the worktree controls in the list state', () => {
+    const wrapper = mountView();
+
+    expect(wrapper.get('#worktree-open-mode').attributes('label')).toBe('Open mode');
+    expect(wrapper.get('#worktree-cache-directory').attributes('label')).toBe('Cache directory');
+    // The neighbouring text is still what the user sees; the label repeats it.
+    expect(wrapper.get('label[for="worktree-open-mode"]').text()).toBe('Open mode');
 
     wrapper.unmount();
   });

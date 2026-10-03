@@ -39,6 +39,7 @@ const { stateMock } = vi.hoisted(() => ({
     // the token settings link, so the row stays empty here.
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
+    showConfirm: vi.fn(async () => true),
   },
 }));
 
@@ -60,6 +61,17 @@ function mountView() {
   });
 }
 
+/**
+ * Opens the instance editor, which is where the URL field and the token link
+ * live: the surface shows either the list or the editor, never both.
+ */
+async function openEditor(wrapper: VueWrapper) {
+  const button = wrapper.findAll('vscode-button').find((entry) => entry.text().trim() === 'Add Instance');
+  expect(button, 'Add Instance button').toBeTruthy();
+  await button!.trigger('click');
+  await nextTick();
+}
+
 async function typeUrl(wrapper: VueWrapper, value: string) {
   const input = wrapper.get('#forgejo-url');
   (input.element as HTMLInputElement).value = value;
@@ -69,8 +81,8 @@ async function typeUrl(wrapper: VueWrapper, value: string) {
 
 /**
  * The token-settings link is built from what the user typed into the instance
- * form. A saved instance URL can carry credentials (`https://token@host`), and a
- * browser cannot open the masked form of it — the link is a URL the webview
+ * editor. A saved instance URL can carry credentials (`https://token@host`), and
+ * a browser cannot open the masked form of it — the link is a URL the webview
  * *uses*, so the credential has to be stripped out of it.
  */
 describe('Settings token-settings link', () => {
@@ -80,6 +92,7 @@ describe('Settings token-settings link', () => {
 
   it('opens the token page without the credential the user typed', async () => {
     const wrapper = mountView();
+    await openEditor(wrapper);
     await typeUrl(wrapper, 'https://s3cret-token@forgejo.example.com');
 
     await wrapper.get('.token-create-link').trigger('click');
@@ -93,6 +106,7 @@ describe('Settings token-settings link', () => {
 
   it('keeps a credential-free URL untouched', async () => {
     const wrapper = mountView();
+    await openEditor(wrapper);
     await typeUrl(wrapper, 'https://forgejo.example.com:3000');
 
     await wrapper.get('.token-create-link').trigger('click');
@@ -104,6 +118,7 @@ describe('Settings token-settings link', () => {
 
   it('offers no link until an http(s) URL is typed', async () => {
     const wrapper = mountView();
+    await openEditor(wrapper);
     await typeUrl(wrapper, 'forgejo.example.com');
 
     expect(wrapper.find('.token-create-link').exists()).toBe(false);

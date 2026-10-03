@@ -314,3 +314,61 @@ describe('App navigation focus and announcement', () => {
     }
   });
 });
+
+/**
+ * `<main>` takes focus on every navigation so a screen reader starts reading the
+ * view that just opened — it is a programmatic destination, not a control, and it
+ * used to be drawn with the browser's own `:focus-visible` ring (`auto 1px` in the
+ * focus-ring colour, which is the yellow a theme keeps for warnings) around the
+ * whole panel.
+ *
+ * jsdom computes no cascade, so the ring's absence is a stylesheet guard — the
+ * same kind `Settings.instanceEditorLayout.test.ts` uses. The source is read
+ * through Vite's glob because the webview tests run without Node types.
+ */
+const appSources = import.meta.glob('../App.vue', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const appSource = Object.values(appSources)[0] ?? '';
+
+/** Every `selector { body }` of the component's stylesheet, comments removed. */
+function appStyleRules(): Array<{ selectors: string; body: string }> {
+  const css = appSource.slice(appSource.indexOf('<style>')).replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selectors: match[1].trim(),
+    body: match[2],
+  }));
+}
+
+describe('App shell focus styling', () => {
+  it('reads the component stylesheet it is meant to guard', () => {
+    expect(appSource).toContain('main:focus-visible');
+  });
+
+  it('states no outline on the shell’s programmatic focus destination', () => {
+    const rules = appStyleRules();
+    expect(rules.length).toBeGreaterThan(3);
+    const destination = rules.find((rule) => rule.selectors.includes('main:focus'));
+    expect(destination, 'the rule for the shell’s focus destination').toBeTruthy();
+    // Both focus states, so neither the browser's ring nor a later author rule can
+    // draw a border around the panel.
+    expect(destination!.selectors).toContain('main:focus');
+    expect(destination!.selectors).toContain('main:focus-visible');
+    expect(destination!.body).toContain('outline: none');
+    expect(destination!.body).not.toContain('outline-offset');
+    // It is the only outline this file states, so nothing here can paint a ring
+    // around the panel…
+    const outlineRules = rules.filter((rule) => /(^|[;\s])outline\s*:/.test(rule.body));
+    expect(outlineRules).toHaveLength(1);
+    // …and nothing here suppresses one for a control. The shell's own control is
+    // the back button, a plain `<button>` that keeps the browser's ring (measured
+    // in the panel: `auto 1px` while focused); the views' controls keep the rings
+    // their components draw.
+    for (const rule of outlineRules) {
+      expect(rule.selectors).not.toMatch(/button|back-link|link-button/);
+    }
+  });
+});

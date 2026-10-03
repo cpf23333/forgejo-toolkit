@@ -58,6 +58,16 @@ async function openSettings(): Promise<VueWrapper> {
   return mountView((await import('../Settings.vue')).default);
 }
 
+/**
+ * The instance editor, which is where the Test/Save outcome is shown: the
+ * surface renders either the list or the editor, so the editor has to be opened
+ * before its region can be observed.
+ */
+async function openSettingsEditor(wrapper: VueWrapper): Promise<void> {
+  await buttonByLabel(wrapper, 'Add Instance').trigger('click');
+  await nextTick();
+}
+
 async function openServerStep(): Promise<VueWrapper> {
   const wrapper = await mountView((await import('../Onboarding.vue')).default);
   await nextTick();
@@ -81,6 +91,7 @@ async function openServerStep(): Promise<VueWrapper> {
 describe('Settings Test/Save outcome is a polite live region', () => {
   it('keeps the region in the document, empty, before anything has been tested', async () => {
     const wrapper = await openSettings();
+    await openSettingsEditor(wrapper);
 
     const regions = wrapper.findAll('.status');
     expect(regions.length).toBeGreaterThanOrEqual(1);
@@ -93,6 +104,7 @@ describe('Settings Test/Save outcome is a polite live region', () => {
 
   it('fills the same region with the async success', async () => {
     const wrapper = await openSettings();
+    await openSettingsEditor(wrapper);
     const region = wrapper.get('.status').element;
 
     await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com');
@@ -113,6 +125,7 @@ describe('Settings Test/Save outcome is a polite live region', () => {
 
   it('fills the same region with the async failure', async () => {
     const wrapper = await openSettings();
+    await openSettingsEditor(wrapper);
     const region = wrapper.get('.status').element;
 
     await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com');
@@ -126,6 +139,29 @@ describe('Settings Test/Save outcome is a polite live region', () => {
     expect(wrapper.get('.status').element).toBe(region);
     expect(wrapper.get('.status').text()).toBe('Incorrect password or corrupted file');
     expect(wrapper.get('.status').classes()).toContain('error');
+
+    wrapper.unmount();
+  });
+
+  it('reports the save outcome in the list state the editor closed back to', async () => {
+    // The save closes the editor, so the region that shows the outcome is the
+    // list's own — the same shape, still a live region.
+    const wrapper = await openSettings();
+    await openSettingsEditor(wrapper);
+
+    await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com');
+    await typeInto(wrapper, '#forgejo-token', 'tok');
+    await buttonByLabel(wrapper, 'Add Instance').trigger('click');
+    await nextTick();
+
+    dispatchMessage({ command: 'saveInstanceResult', success: true, target: { kind: 'new' } });
+    await nextTick();
+
+    expect(wrapper.find('.instance-editor').exists()).toBe(false);
+    const listRegion = wrapper.findAll('.status').find((entry) => entry.text().includes('saved'));
+    expect(listRegion, 'save outcome in the list state').toBeTruthy();
+    expect(listRegion!.attributes('role')).toBe('status');
+    expect(listRegion!.attributes('aria-live')).toBe('polite');
 
     wrapper.unmount();
   });
