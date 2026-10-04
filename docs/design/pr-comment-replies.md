@@ -61,7 +61,7 @@
 
 ## 1. 决定：回复正文在前，其余照平台的形状
 
-**Forgejo 没有"回复"这个对象。** ~~网页端的"引用回复"就是发一条普通评论。~~ 2026-10-02 修正：它发的
+**Forgejo 没有「回复」这个对象。** ~~网页端的"引用回复"就是发一条普通评论。~~ 2026-10-02 修正：它发的
 是一条**评审评论**，只是带 `origin=timeline` 落在 PR 时间线上（§1.4），正文由客户端拼出来（§1.1）。
 维护者在实例上抓到了网页端自己发出的那条引用回复（评论 125）的 `content`，形状是：
 
@@ -138,7 +138,7 @@
 - **（a）照平台的顺序（引用在前），首页那一行就只能显示归属行。** 平台自己就是这么写的，活动行 582 正是
   这个结果；这不是我们的实现问题，而是"摘要取第一行"这条规则本身。
 - **（b）没有任何受支持的字段、参数、端点或正文版式能改变它。** 摘要只由正文第一行决定（上面的
-  `abbreviatedComment`），而 API 连"回复"都表达不了：`modules/structs/pull_review.go:75-96` 的
+  `abbreviatedComment`），而 API 连「回复」都表达不了：`modules/structs/pull_review.go:75-96` 的
   `CreatePullReviewComment` 只有 path/body/`old_position`/`new_position`/`extra_lines_count`，评审 id
   只能从 URL 拿到（`routers/api/v1/repo/pull_review.go:354`），`POST …/reviews` 干脆写死
   `0, // no reply`（同文件 `:529`）；`models/issues/comment.go:244-334` 的 `Comment` 也没有 reply-to
@@ -200,7 +200,7 @@
 `POST …/reviews/{id}/comments` 的 handler 直接调 `CreateCodeCommentKnownReviewID`
 （`routers/api/v1/repo/pull_review.go:344`），全程**不发通知**（通知只在 `CreateCodeComment` 的
 `existsReview` 分支里发，`services/pull/review.go:169`），所以它发出去的评论不产生活动行、也不会出现在
-实例首页活动流里，而正文顺序要救的正是那一行；它还连"回复"都表达不了（§1.1 的（b））。这里只把它记为
+实例首页活动流里，而正文顺序要救的正是那一行；它还连「回复」都表达不了（§1.1 的（b））。这里只把它记为
 将来可能的改进。
 
 ## 2. 决定：回复发成 PR 时间线评论，待提交评审只留给 AI 草稿

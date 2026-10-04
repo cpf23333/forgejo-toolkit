@@ -176,6 +176,13 @@ exist and a cited line must fit inside it, markdown links and named 「heading�
 paired `foo.md`/`foo.zh.md` must keep the same headings/lists/fences/tables, and headings must not repeat
 among siblings or skip a level.
 
+## Chinese prose punctuation
+
+In Chinese body text, quotation, emphasis and paraphrase use ASCII `"…"`; `「…」` is reserved for a
+**locatable named object** — a cited heading or section, a UI label, a verbatim string, or a named
+decision/option/gate. See `CONTRIBUTING.zh.md` (and its English twin `CONTRIBUTING.md`) for the reason
+and examples.
+
 ## Internationalization (i18n)
 
 ### Webview strings

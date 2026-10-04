@@ -71,7 +71,7 @@ webview 编辑器（`pullReviewCommentPanel`）→ 写进服务端的**待提交
 | 模型的意见落成**待提交评审的草稿评论**，逐条人工确认 | 只有评审者自己可见的 draft（见 §4.2） | 需要新增一条"生成 → 校验 → 落草稿"的链路，以及提交前的逐条确认            |
 
 **本设计选第三种。** 它的关键性质是：**提交这个动作仍然完全由既有的人工流程承担**——
-扩展不新增任何"提交评审"的入口，模型的产物必须先变成一条 draft，才可能进入既有提交路径。
+扩展不新增任何「提交评审」的入口，模型的产物必须先变成一条 draft，才可能进入既有提交路径。
 
 ---
 
@@ -128,7 +128,7 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 写工具的设计（[`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md) §3.6）
 已经把这条约束翻译成了机制：默认关闭 + 逐次确认 + 明确不做自动 approve/merge。本功能是
 **同一个约束在评审场景下的第二次落地**，而且风险更高一层：写工具至少还有 VS Code 的逐次
-审批框挡着，而"AI 预评审"如果设计成自动提交，用户的仓库里就会出现**没有经过任何人类阅读**的
+审批框挡着，而「AI 预评审」如果设计成自动提交，用户的仓库里就会出现**没有经过任何人类阅读**的
 公开评审记录——这正是条款要防的形状。
 
 所以本设计不是"顺手加一层确认"，而是把**"模型的产出必须经过人"**做成本功能的地基：
@@ -138,7 +138,7 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 ### 3.2 否掉的方案
 
 - **~~模型直接调 MCP 写工具提交评审~~**：否决。这等于把模型接进一个已发布、已有逐次审批的
-  写路径，让"AI 预评审"变成"AI 评审"。即使用户在 VS Code 里点了"允许"，那也只是批准了一次
+  写路径，让「AI 预评审」变成"AI 评审"。即使用户在 VS Code 里点了"允许"，那也只是批准了一次
   工具调用，不是逐条读过每条意见。
 - **~~生成一段 Markdown 总结填进评审正文~~**：否决。没有行级锚点，用户仍要自己在 diff 里找
   位置；而且它会把"模型的一段话"变成人评审理由的一部分，混淆了"谁说了什么"。
@@ -161,7 +161,7 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
   "当前文档的 scheme 是不是 `forgejo-pr`"。
 - `packages/forgejo-toolkit/package.json` 的 `contributes.menus` 里，
   `editor/context` 与 `editor/lineNumber/context` 都用这个键把关
-  `forgejoToolkit.addPullReviewComment`。~~**新的"AI 预评审"动作应当挂同一个键**，
+  `forgejoToolkit.addPullReviewComment`。~~**新的「AI 预评审」动作应当挂同一个键**，
   这样它只在这条 diff 视图里出现，不需要新的上下文键。~~
   （**2026-10-02 修正**：这条只对 `editor/title` 成立——见记录开头「入口从某一个文件的右键菜单移到
   Pull Request 详情页」那条。拿行级意见去改一整份 diff 的动作不该挂在**某一个文件**的菜单里，
@@ -246,7 +246,7 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
 1. 运行结束后，把通过 §8 锚点校验的候选意见**一次性展示在确认面板里**——一个编辑器标签页中的
    webview 面板（`src/aiPreReviewPanel.ts` 的 `AiPreReviewPanel`，文档是 `webview/aiPreReview.html`）。
    每张卡片给出**完整正文**（换行保留、可选中复制）与它的锚点（`path:line` 或区间，加
-   `(head|base)`）、一个复选框，以及一个"在 diff 里打开这一行"的链接；头部写明 PR 身份、回答的
+   `(head|base)`）、一个复选框，以及一个「在 diff 里打开这一行」的链接；头部写明 PR 身份、回答的
    **模型及其 vendor**（隐私那句话留在屏幕上）、**本次运行实际使用的提示词范围**、通过锚点校验的
    条数与**按原因分组**的丢弃数。
 2. **默认不勾选任何一条。** 勾选是"我读过并认可这条"的表达；预勾选会把"确认"变成"默认同意"，
@@ -260,7 +260,7 @@ reviewed and committed by human maintainers" 是同一件事的对外表述。
    随 QuickPick 一起退场——本面板不使用它，所以"扩展不预选、也不添加接受全部入口"这句在这里是
    完整口径。
 6. **正文可以在落草稿之前编辑**：每张卡片的多行输入框预填模型原文，与原文逐字节不同时标 `Edited`
-   并提供一个"恢复模型原文"的动作；长度上限就是既有的 `PR_REVIEW_MAX_COMMENT_LENGTH`（到达上限时
+   并提供一个「恢复模型原文」的动作；长度上限就是既有的 `PR_REVIEW_MAX_COMMENT_LENGTH`（到达上限时
    明说、超过则禁用创建，扩展不替用户截断）。锚点、路径、侧与 sha **从不来自 webview**。
 7. **宿主逐条重校验**：面板回传的是 `{ index, body }[]`；宿主只读这两个字段，`index` 必须是它确实
    提供过的卡片（同一张卡被点两次也算失败），`body` 必须是非空白、不超上限的字符串——**任何一条
@@ -715,7 +715,7 @@ MCP definition API instead of failing activation"）。
 
 ### 9.4 设置读取与测试面的既有形态
 
-- 设置读取的先例是 `src/mcpWriteSettings.ts`：读不到 / 类型不对一律按"关闭"处理
+- 设置读取的先例是 `src/mcpWriteSettings.ts`：读不到 / 类型不对一律按「关闭」处理
   （"only an explicit `true` may enable"）。本功能的开关按同一写法。
 - 宿主侧用户可见文案一律 `vscode.l10n.t(...)`，译文在
   `packages/forgejo-toolkit/l10n/bundle.l10n.json` 与 `bundle.l10n.zh-cn.json`；
@@ -951,7 +951,7 @@ question…`。同意框被拒绝或取消时不重复问（失败经 `classifyM
 | 诊断文件命令的测试（文件在时打开、文件不在时点名设置、无日志目录、注册与贡献、不受开关把关）                                                                                | 同上文件的 "the diagnostics-file command" 组                                                                                                                                                                                                                                                                                                                                 |
 | 用户选择模型的测试（每次都问 / 写入设置 / 取消零调用 / 拒绝 / 绝不轮换）                                                                                                    | `src/__tests__/aiPreReview.test.ts` 的 "the model pick (§7.2)" / "choosing the model later (COMMAND_AI_PRE_REVIEW_CHOOSE_MODEL)" / "the chosen model is validated, never substituted (§7.2)" 三组                                                                                                                                                                            |
 | 设置页那一行的测试（宿主处理器 + 组件）                                                                                                                                     | `src/webview/__tests__/viewProviderDispatch.test.ts` 的 "AI pre-review chat model settings" 组；`webview/src/views/__tests__/Settings.aiPreReviewModel.test.ts`                                                                                                                                                                                                              |
-| `@types/vscode` 1.102.0 里**没有** system 角色（枚举只有 `User` / `Assistant`，类只有这两个工厂）                                                                           | 同上类型的 `LanguageModelChatMessageRole` / `LanguageModelChatMessage`；官方指南 "Language Model API" 的 "Build the language model prompt" 一节（"doesn't support the use of system messages"）                                                                                                                                                                              |
+| `@types/vscode` 1.102.0 里**没有** system 角色（枚举只有 `User` / `Assistant`，类只有这两个工厂）                                                                           | 同上类型的 `LanguageModelChatMessageRole` / `LanguageModelChatMessage`；官方指南 「Language Model API」 的 "Build the language model prompt" 一节（"doesn't support the use of system messages"）                                                                                                                                                                            |
 | 非 Copilot provider 如何收到消息（`role` + content parts，自行转换角色）                                                                                                    | 官方指南 "Language Model Chat Provider API" 的 "Message format and conversion" 一节（`LanguageModelChatRequestMessage` 与示例 `convertMessages`）                                                                                                                                                                                                                            |
 | debug 日志的既有开关                                                                                                                                                        | `src/logger.ts` 的 `Logger.debug` / `forgejoToolkit.debug`                                                                                                                                                                                                                                                                                                                   |
 | 提示词范围：五个取值、`ask` 的 fail-closed 模态框与写回设置                                                                                                                 | `src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_PROMPT_SCOPE` / `aiPreReviewPromptScope`；`src/aiPreReview.ts` 的 `askAiPreReviewPromptScope`                                                                                                                                                                                                                                 |

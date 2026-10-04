@@ -45,6 +45,16 @@ Longer explanation if needed.
 - `fix(api): handle empty repository list`
 - `docs: update README screenshots`
 
+## 中文正文的引号
+
+中文正文的引用、强调与转述一律用 ASCII 直双引号 `"…"`；`「…」` 只留给**能指出位置的具体对象**——被引用的标题或小节、界面标签（按钮、链接、面板标题、无障碍名称）、原样引用的字符串（产品文案、日志行、界面消息），以及有名字的决定、选项、闸门。
+
+原因不是排版偏好：`tools/docs-audit/check.mjs` 靠 `「…」` 认出标题引用，`` `X.md` 的「A heading」 `` 与 `「A heading」一节/条目/小节` 会被拿去核对目标文件里确实有这个标题。把这类引用写成 `"…"` 不会让检查报错，只会让它**静默失效**；反过来，把散文里的引号改成 `「…」`，审计就会开始核对一段本来不指向任何标题的文字，多半直接失败。
+
+- 引用标题或小节：`docs/architecture/mcp-server.md` 的「Security model」一节。
+- 引用界面标签或原样字符串：点「提交评审」；界面显示「未知」。
+- 引用、强调或转述一句话：正文写"不确定即放行"，而不是「不确定即放行」。
+
 ## 问题与反馈
 
 如有问题或需要报告 bug，请在 [Codeberg Issues](https://codeberg.org/cpf23333/forgejo-toolkit/issues) 开启 issue。

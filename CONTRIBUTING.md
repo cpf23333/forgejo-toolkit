@@ -45,6 +45,16 @@ Examples:
 - `fix(api): handle empty repository list`
 - `docs: update README screenshots`
 
+## Quotation marks in Chinese prose
+
+In Chinese body text, quotation, emphasis and paraphrase use ASCII `"…"`; `「…」` is reserved for a **locatable named object** — a cited heading or section, a UI label (button, link, panel title, accessible name), a verbatim string (product copy, a log line, a UI message), or a named decision, option or gate.
+
+The reason is not typography: `tools/docs-audit/check.mjs` recognises cited headings by the `「…」` form, so `` `X.md` 的「A heading」 `` and `「A heading」一节/条目/小节` are checked against the target file. Writing those as `"…"` does not fail the check, it makes it **silently disappear**; going the other way makes the audit verify a phrase that never pointed at a heading, which usually fails outright.
+
+- Citing a heading or a section: `docs/architecture/mcp-server.md` 的「Security model」一节.
+- Citing a UI label or a verbatim string: click 「提交评审」; the view shows 「未知」.
+- Quoting, emphasising or paraphrasing a sentence: write "不确定即放行", not 「不确定即放行」.
+
 ## Questions and feedback
 
 Open an issue on [Codeberg](https://codeberg.org/cpf23333/forgejo-toolkit/issues) to ask questions or report problems.
