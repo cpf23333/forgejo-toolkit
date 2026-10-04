@@ -37,8 +37,22 @@ export interface AiPreReviewModelIdentity {
   id: string;
 }
 
-/** Reads the identity fields off a model, tolerating a provider that omits one. */
-export function aiPreReviewModelIdentity(model: vscode.LanguageModelChat): AiPreReviewModelIdentity {
+/**
+ * Reads the identity fields off a model, tolerating a provider that omits one.
+ *
+ * The parameter is the identity **shape** rather than `vscode.LanguageModelChat`
+ * because two kinds of value are read through it now: the editor's own chat model
+ * (the Settings page's chooser, the debug probe) and the seam's `AiModelInfo`
+ * (`src/ai/transport.ts`), which the AI pre-review's run holds. Both carry the
+ * same four fields, and the field-by-field `typeof` checks below are what make
+ * the read total for either.
+ */
+export function aiPreReviewModelIdentity(model: {
+  name?: unknown;
+  vendor?: unknown;
+  family?: unknown;
+  id?: unknown;
+}): AiPreReviewModelIdentity {
   return {
     name: typeof model?.name === 'string' ? model.name : '',
     vendor: typeof model?.vendor === 'string' ? model.vendor : '',
@@ -101,8 +115,13 @@ export function uniqueAiPreReviewModels(models: readonly vscode.LanguageModelCha
  * comparison false — which would silently turn into "does not fit" rather than
  * "unknown". Treating it as 0 keeps that direction, and the failure message then
  * reports the 0 it actually saw.
+ *
+ * The parameter is the budget **shape** for the same reason
+ * `aiPreReviewModelIdentity`'s is: the seam's `AiModelInfo` may report no budget
+ * at all (`maxInputTokens?: number`), and an unknown budget reads as 0 here,
+ * which is the fail-closed direction.
  */
-export function maxInputTokensOf(model: vscode.LanguageModelChat): number {
+export function maxInputTokensOf(model: { maxInputTokens?: unknown }): number {
   const budget = model?.maxInputTokens;
   return typeof budget === 'number' && Number.isFinite(budget) && budget > 0 ? budget : 0;
 }

@@ -59,10 +59,15 @@ import {
   aiPreReviewModelIdentity,
   formatAiPreReviewModelIdentity,
   maxInputTokensOf,
-  queryAiPreReviewChatModels,
-  uniqueAiPreReviewModels,
   type AiPreReviewModelIdentity,
 } from './aiPreReviewModels';
+import {
+  isAsyncIterable,
+  readResponseCandidates,
+  vscodeLmChatModelOf,
+  vscodeLmTransport,
+} from './ai/vscodeLmTransport';
+import type { AiCompletionRequest, AiCompletionResult, AiModelInfo, AiModelTransport } from './ai/transport';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
 
@@ -92,6 +97,20 @@ import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
  * 3. **nothing is written unconfirmed.** The confirmation list starts with
  *    nothing selected, an empty selection writes nothing, and the run reports
  *    how many candidates were dropped and why.
+ *
+ * **Model access goes through one seam.** This module never touches
+ * `vscode.lm`'s `sendRequest` or `countTokens`: the run lists models, measures a
+ * prompt and runs a request through `AiModelTransport`
+ * (`src/ai/transport.ts`), whose one implementation today is the `vscode.lm`
+ * transport (`src/ai/vscodeLmTransport.ts`) — the code that used to live here,
+ * moved (`docs/design/ai-model-transport.md` §5.1). The seam exists so a second
+ * transport (a user-configured OpenAI-compatible endpoint) can be added without
+ * touching this feature, and it deliberately carries no fallback between
+ * transports: a transport that cannot serve the run reports why, and this module
+ * refuses rather than quietly reaching for another one. The one surface that
+ * still speaks to `vscode.lm` directly is the debug-only model probe below,
+ * because one of its four shapes is a deliberately two-message request the
+ * `vscode.lm` transport flattens into one.
  *
  * Every anchor is validated by the pure validator in `aiPreReviewBrief.ts`; this
  * module never moves a line, flips a side or clamps a range. Deleting a draft
@@ -148,7 +167,8 @@ import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
  * message, a toast or a notification; a stream that was cancelled or aborted
  * logs none of them, because a half-read stream has no honest totals.
  *
- * The same gate opens a second, deeper diagnostic (`logResponseStreamParts`):
+ * The same gate opens a second, deeper diagnostic (`logResponseStreamParts`, in
+ * `src/ai/vscodeLmTransport.ts`):
  * the **parts** of the response, read from `LanguageModelChatResponse.stream`
  * rather than from its text projection, each logged with its runtime class name
  * and content and closing with a tally of the kinds that arrived. It exists
@@ -395,9 +415,18 @@ function startAiPreReview(
  * user is what the maintainer rejected.
  */
 export interface AiPreReviewChosenModel {
-  model: vscode.LanguageModelChat;
-  /** Tokens the fixed instruction prompt costs this model. */
-  instructionTokens: number;
+  /** The model as the seam exposes it (`src/ai/transport.ts`). */
+  model: AiModelInfo;
+  /**
+   * Tokens the fixed instruction prompt costs this model, or `undefined` when the
+   * transport answered no measurement at all — the seam's "this model has no
+   * tokenizer" arm (§4.2), which is not the same thing as a tokenizer that
+   * **threw** (that refusal is reported as "could not measure", see
+   * `validateChosenAiPreReviewModel`). An absent measurement is not a budget
+   * failure: no comparison is made, exactly as no comparison could be made before
+   * the seam existed.
+   */
+  instructionTokens: number | undefined;
 }
 
 /** The two numbers a request that does not fit reports (§7.2). */
@@ -446,11 +475,12 @@ export const AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL = 2;
  * How a model is read, named, keyed and listed lives in
  * `src/aiPreReviewModels.ts`: the Settings page's chooser needs exactly the same
  * answer and can reach that module without the cycle this one would create (this
- * module imports the view provider).
+ * module imports the view provider). The **model calls** themselves go through the
+ * seam (`src/ai/transport.ts`), whose one implementation today is `vscode.lm`.
  */
 
 /** One identity as a log line, a picker title or a failure message names it. */
-function modelLabel(model: vscode.LanguageModelChat): string {
+function modelLabel(model: AiModelInfo): string {
   return formatAiPreReviewModelIdentity(aiPreReviewModelIdentity(model));
 }
 
@@ -462,11 +492,19 @@ function modelLabel(model: vscode.LanguageModelChat): string {
  * instruction, and either an offered model satisfies it or the run refuses. No
  * candidate is substituted, no other model is tried, and the caller reports the
  * refusal with the offered list so the user can correct the value.
+ *
+ * The list is generic over the seam's `AiModelInfo`, so the run (which holds seam
+ * models) and the debug probe (which still holds the editor's own chat models)
+ * both get their own type back without a cast. The selector's optional
+ * `@version` part is read off whatever the entry carries: `vscode.lm` models have
+ * a `version` at runtime and are still matched by it, while a seam model that
+ * carries none can never satisfy a version constraint — which is why the setting
+ * prefers `vendor/family` and `vendor/id`.
  */
-export function findOfferedAiPreReviewModel(
+export function findOfferedAiPreReviewModel<T extends AiModelInfo>(
   configured: string,
-  offered: readonly vscode.LanguageModelChat[],
-): vscode.LanguageModelChat | undefined {
+  offered: readonly T[],
+): T | undefined {
   const selector = parseAiPreReviewModelSelector(configured);
   if (selector === undefined) {
     return undefined;
@@ -595,18 +633,25 @@ export async function runAiPreReview(
     // picker. No HTTP request and no model call can happen on a path that
     // returns from this block, which is what makes "a dismissed pick creates
     // nothing" true by construction rather than by remembering to check.
-    const listed = await listAiPreReviewModels();
-    if (!listed) {
+    //
+    // Both reads go through the model seam (`src/ai/transport.ts`), and neither of
+    // them sends anything: `availability()` answers whether this editor has a
+    // usable language model API at all (with the sentence to show when it does
+    // not), and `listModels()` is the editor's own unfiltered list.
+    const transport = vscodeLmTransport;
+    const availability = await transport.availability();
+    if (!availability.usable) {
+      void vscode.window.showErrorMessage(availability.reason);
       return;
     }
-    const offered = uniqueAiPreReviewModels(listed);
+    const offered = await transport.listModels();
     if (offered.length === 0) {
       reportNoChatModel();
       return;
     }
 
     const configured = aiPreReviewModelSettingValue();
-    let chosen: vscode.LanguageModelChat;
+    let chosen: AiModelInfo;
     if (configured === '') {
       // Nothing configured: the run has to ask. The picker lists every model the
       // editor offers — not only the ones some heuristic would have approved —
@@ -663,7 +708,7 @@ export async function runAiPreReview(
     // so whether the chosen model can hold it is answered before the first
     // request goes out — and a model that cannot hold it refuses the run rather
     // than being swapped for a larger one.
-    const chosenModel = await validateChosenAiPreReviewModel(chosen, systemPrompt);
+    const chosenModel = await validateChosenAiPreReviewModel(transport, chosen, systemPrompt);
     if (!chosenModel) {
       return;
     }
@@ -682,7 +727,17 @@ export async function runAiPreReview(
         cancellable: true,
       },
       (progress, token) =>
-        gatherPreReviewRequest(client, params, chosenModel, scope, systemPrompt, progress, token, diagnostics),
+        gatherPreReviewRequest(
+          transport,
+          client,
+          params,
+          chosenModel,
+          scope,
+          systemPrompt,
+          progress,
+          token,
+          diagnostics,
+        ),
     );
 
     if (gathered.kind === 'cancelled') {
@@ -824,7 +879,7 @@ export async function runAiPreReview(
 async function createRunDiagnostics(
   host: { logUri?: vscode.Uri } | undefined,
   params: PullRequestTarget,
-  models: readonly vscode.LanguageModelChat[],
+  models: readonly AiModelInfo[],
   candidate: AiPreReviewChosenModel,
   configured: string,
   scope: AiPreReviewStatedScope,
@@ -1064,11 +1119,18 @@ export async function probeAiPreReviewChatModels(host?: { logUri?: vscode.Uri })
     return;
   }
 
-  const listed = await listAiPreReviewModels();
-  if (!listed) {
+  // The listing goes through the same seam reads the run uses, then narrows back
+  // to the editor's own chat models: this diagnostic sends shapes the seam cannot
+  // express (one of them is deliberately **two** messages, which the `vscode.lm`
+  // transport flattens), so it keeps speaking to `sendRequest` itself.
+  const availability = await vscodeLmTransport.availability();
+  if (!availability.usable) {
+    void vscode.window.showErrorMessage(availability.reason);
     return;
   }
-  const offered = uniqueAiPreReviewModels(listed);
+  const offered = (await vscodeLmTransport.listModels())
+    .map((model) => vscodeLmChatModelOf(model))
+    .filter((model): model is vscode.LanguageModelChat => model !== undefined);
   if (offered.length === 0) {
     // Reuses the run's own "no chat model is available" report: one wording for
     // one condition, whichever entry point found it.
@@ -1446,7 +1508,7 @@ function reportChosenModelNotMeasurable(model: AiPreReviewModelIdentity): void {
  */
 function reportRequestBudgetFailure(
   failure: AiPreReviewBudgetFailure,
-  model: vscode.LanguageModelChat,
+  model: AiModelInfo,
   changedFileCount: number,
 ): void {
   logger.error(
@@ -1694,697 +1756,22 @@ function logAnswerFragments(fragments: readonly string[], answer: string, charac
 }
 
 /**
- * The runtime class name of a part, or `undefined` when the value has no
- * constructor name to report (a plain object literal with a null prototype, a
- * cross-realm object whose constructor is hidden, a primitive).
- *
- * The **runtime** name is the point, and it is read from `constructor.name`
- * rather than with `instanceof`: `@types/vscode` declares the part classes
- * (`LanguageModelTextPart`, `LanguageModelToolCallPart`, …) and a real provider
- * hands over instances of exactly those classes, but a part that came from
- * another realm — or from a newer editor version the extension's typings do not
- * name yet — fails an `instanceof` against the local binding while still naming
- * its class. Naming the class is what the reader needs in order to answer "which
- * channel is this?"; a false `instanceof` would hide it behind `unknown`.
- *
- * Nothing here may throw: reading a property off a **revoked proxy** throws a
- * `TypeError`, and a diagnostic that took the whole sweep down over one
- * unreadable part would be worse than no diagnostic at all. Every read is
- * therefore guarded and the answer degrades to `undefined`.
- */
-function runtimeClassName(value: unknown): string | undefined {
-  if (value === null || value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== 'object' && typeof value !== 'function') {
-    return undefined;
-  }
-  try {
-    const constructor = (value as { constructor?: unknown }).constructor;
-    if (typeof constructor !== 'function') {
-      return undefined;
-    }
-    const name = (constructor as { name?: unknown }).name;
-    return typeof name === 'string' && name.length > 0 ? name : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** How a part class is constructed; used only to type an optional `instanceof`. */
-type AiPreReviewPartConstructor = new (...args: never[]) => unknown;
-
-/** The `value` of a part-like object as a string, or `''` when it carries none. */
-function partValueText(value: unknown): string {
-  if (typeof value !== 'object' || value === null) {
-    return '';
-  }
-  const raw = (value as { value?: unknown }).value;
-  return typeof raw === 'string' ? raw : '';
-}
-
-/**
- * Whether a value is something `for await` can read: an async iterable.
- *
- * Used instead of a truthiness test on a response property, because an editor
- * version without the `stream` projection still hands over a `text` one (that was
- * the only channel this feature used before the parts fix), so "the response
- * carries nothing to read" has to be asked of **both** projections rather than of
- * one of them.
- */
-function isAsyncIterable(value: unknown): boolean {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function'
-  );
-}
-
-/**
- * The reasoning part class a **newer** editor declares and the `@types/vscode`
- * version this extension compiles against does not name yet.
- *
- * It is read as an **optional** constructor, lazily and behind a `typeof` check —
- * `instanceof` against `undefined` is simply `false` — because the class check is
- * the primary rule and a class this build of the typings cannot name must not
- * break it. The cast is the whole point: the runtime class may exist while the
- * compile-time declaration does not, and a `vscode.LanguageModelThinkingPart`
- * written directly would be a type error against `@types/vscode` 1.102.0. The
- * read is a function rather than a module-level constant because a property
- * access on the `vscode` module is not free at module load: this file's own suite
- * mocks the module, and a mock that does not export this name would throw there
- * rather than at the one call site that needs it.
- */
-function languageModelThinkingPart(): AiPreReviewPartConstructor | undefined {
-  try {
-    const ctor = (vscode as unknown as { LanguageModelThinkingPart?: unknown }).LanguageModelThinkingPart;
-    return typeof ctor === 'function' ? (ctor as AiPreReviewPartConstructor) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * A part as this module classifies it for the **answer**: which channel it
- * belongs to and, when it carries text, the text itself.
- *
- * `data` is the deliberate catch-all for everything that is not one of the
- * candidate streams — a data part (`usage`, `stateful_marker`, image bytes), a
- * tool-call part, a bare primitive, an object no rule recognises. Those are
- * named in the debug log and then ignored: no data part and no tool-call part
- * ever contributes text to an answer.
- */
-type AiPreReviewPartClassification =
-  | { kind: 'text'; text: string }
-  | { kind: 'reasoning'; text: string }
-  | { kind: 'data' };
-
-/**
- * The one place that decides which channel a streamed part belongs to. Two
- * rules, tried in this order, and **neither is a `$mid` number on its own**:
- *
- * 1. The **classes the API declares** — `LanguageModelTextPart` is the text
- *    channel and `LanguageModelThinkingPart` (when the editor declares it) the
- *    reasoning channel. This is the primary rule and it is an `instanceof`, so a
- *    real provider's instances are classified correctly whatever the RPC layer
- *    does on the wire.
- * 2. The **RPC-serialised flavour** of a part that is not an instance of either
- *    class. Measured on the maintainer's machine (2026-10-01, "ninth
- *    investigation", recorded in `docs/design/ai-prereview.md`): the response's
- *    parts arrive as plain objects `{"$mid":<n>,"value":…}` — three of them are
- *    the model's reasoning token stream (`$mid=22`), the real text parts
- *    (`$mid=21`), and data parts such as `usage` / `stateful_marker`
- *    (`$mid=24`, no `value`). Those numbers are VS Code RPC envelope type ids —
- *    editor internals — so they are read as a **shape** first: an object whose
- *    own `$mid` is a number and whose `value`, when it has one, is a string.
- *    Only then does the number decide the channel, through the two static sets
- *    below, and the data set is an **exclusion list**: an unrecognised number
- *    with a string `value` falls through to `data` rather than being guessed
- *    into one of the two candidate streams.
- *
- * Why the fall-through matters. A `$mid` mapping this build does not know is
- * exactly the case where a wrong guess would put a reasoning trace into the
- * answer, or an answer fragment into the reasoning candidate — so an unknown
- * flavour stays a data part, the log still names its number, and the answer
- * degrades to the `text` projection rather than to a guess.
- *
- * Nothing here may throw: a part can be a revoked proxy or a primitive, and a
- * diagnostic beside a request may not turn one unreadable part into a failure.
- */
-function classifyResponsePart(value: unknown): AiPreReviewPartClassification {
-  try {
-    if (typeof vscode.LanguageModelTextPart === 'function' && value instanceof vscode.LanguageModelTextPart) {
-      return { kind: 'text', text: partValueText(value) };
-    }
-    const thinkingPart = languageModelThinkingPart();
-    if (thinkingPart !== undefined && value instanceof thinkingPart) {
-      return { kind: 'reasoning', text: partValueText(value) };
-    }
-    if (typeof vscode.LanguageModelToolCallPart === 'function' && value instanceof vscode.LanguageModelToolCallPart) {
-      return { kind: 'data' };
-    }
-    if (typeof value !== 'object' || value === null) {
-      return { kind: 'data' };
-    }
-    const envelope = value as { $mid?: unknown; value?: unknown };
-    if (typeof envelope.$mid !== 'number') {
-      return { kind: 'data' };
-    }
-    if (RPC_DATA_PART_MIDS.has(envelope.$mid)) {
-      return { kind: 'data' };
-    }
-    if (typeof envelope.value !== 'string') {
-      return { kind: 'data' };
-    }
-    if (RPC_TEXT_PART_MIDS.has(envelope.$mid)) {
-      return { kind: 'text', text: envelope.value };
-    }
-    if (RPC_REASONING_PART_MIDS.has(envelope.$mid)) {
-      return { kind: 'reasoning', text: envelope.value };
-    }
-    return { kind: 'data' };
-  } catch {
-    // A property read on a revoked proxy throws: the part is described as a
-    // data part the sweep cannot read rather than allowed to break the answer.
-    return { kind: 'data' };
-  }
-}
-
-/**
- * The RPC flavours measured on the maintainer's machine. `$mid=21` is the real
- * text part stream and `$mid=22` the model's reasoning token stream — see
- * `classifyResponsePart` for the measurement and for why the numbers are used
- * only **after** an `instanceof` check has failed and the envelope shape has
- * been recognised.
- */
-const RPC_TEXT_PART_MIDS: ReadonlySet<number> = new Set([21]);
-const RPC_REASONING_PART_MIDS: ReadonlySet<number> = new Set([22]);
-/**
- * `$mid=24` is the **only** data flavour measured so far, so it is also the seed
- * of the exclusion list: an envelope with a string `value` and a number this
- * build does not know stays a data part, and a future `$mid` can therefore only
- * start carrying the answer after someone has measured what it is.
- */
-const RPC_DATA_PART_MIDS: ReadonlySet<number> = new Set([24]);
-
-/**
- * The **kind** of one streamed part as the debug log names it: which channel it
- * belongs to for the answer (`text`, `reasoning`), `tool-call` for the one
- * structured part the API declares, and `unknown (<class>, typeof)` — with the
- * RPC envelope's own `$mid` spelled out — for everything else.
- *
- * The class names are string literals because they are the runtime contract:
- * the classes are identified by the name the provider's instances carry, so a
- * renamed class shows up as `unknown` beside its real name instead of being
- * silently mislabelled. The kind must never throw: the sweep exists to describe
- * what arrived, not to reject it.
- */
-function responsePartKind(value: unknown): string {
-  const className = runtimeClassName(value);
-  if (className === 'LanguageModelTextPart') {
-    return 'text';
-  }
-  if (className === 'LanguageModelToolCallPart') {
-    return 'tool-call';
-  }
-  const classification = classifyResponsePart(value);
-  if (classification.kind === 'text') {
-    return 'text';
-  }
-  if (classification.kind === 'reasoning') {
-    return 'reasoning';
-  }
-  const type = typeof value;
-  const mid = rpcEnvelopeMid(value);
-  const envelope = mid === undefined ? '' : `$mid=${mid}, `;
-  return className ? `unknown (${envelope}${className}, typeof=${type})` : `unknown (${envelope}typeof=${type})`;
-}
-
-/** The `$mid` of an RPC-serialised envelope, or `undefined` for anything else. */
-function rpcEnvelopeMid(value: unknown): number | undefined {
-  if (typeof value !== 'object' || value === null) {
-    return undefined;
-  }
-  try {
-    const mid = (value as { $mid?: unknown }).$mid;
-    return typeof mid === 'number' ? mid : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** `JSON.stringify` of a part's input, or `undefined` when it cannot be stringified. */
-function stringifyPartValue(value: unknown): string | undefined {
-  try {
-    const serialised = JSON.stringify(value);
-    return typeof serialised === 'string' ? serialised : undefined;
-  } catch {
-    // A circular input or a bigint: the object exists, it just has no JSON form.
-    return undefined;
-  }
-}
-
-/**
- * The bounded shape of a part this diagnostic has no specific rendering for: the
- * JSON form when the part has one, and otherwise its **own keys** — the shape
- * rather than the value.
- *
- * Two bounds, both deliberate. The inspection is **escaped onto one line** with
- * the same `JSON.stringify` the fragment and failure excerpts use, so a newline,
- * a quote or an unterminated surrogate inside a part cannot break the log line
- * apart. And it is capped at `AI_PRE_REVIEW_ANSWER_EXCERPT_LENGTH` characters by
- * `aiPreReviewAnswerExcerpt` — the one cap the answer excerpts already obey —
- * because a data part may carry base64 or a whole document, and a debug line is
- * not a place to dump megabytes.
- *
- * Nothing here may throw. `JSON.stringify` throws on a circular object and on a
- * bigint; `Object.keys` throws on a primitive and on a revoked proxy; a
- * null-prototype object has no readable string form at all. Each of those is a
- * describeable shape, so each falls one step further down (JSON → own keys →
- * `unreadable`), because a part this sweep cannot read is still an answer while a
- * thrown diagnostic is not.
- */
-function inspectPartShape(value: unknown): { text: string; raw: string; truncated: boolean } {
-  const serialised = stringifyPartValue(value);
-  const raw = serialised ?? ownKeysInspection(value);
-  const excerpt = aiPreReviewAnswerExcerpt(raw);
-  return { text: excerpt, raw, truncated: excerpt.length < raw.length };
-}
-
-/** The own keys of a value as a bounded, escaped one-liner; `unreadable` when even that throws. */
-function ownKeysInspection(value: unknown): string {
-  try {
-    return JSON.stringify(Object.keys(value as object));
-  } catch {
-    // `Object.keys` throws on a primitive and on a revoked proxy: both are
-    // described rather than allowed to break the sweep.
-    return `unreadable(${typeof value})`;
-  }
-}
-
-/**
- * One streamed part as one debug line: which part it was, its **runtime kind**,
- * its length, and its content — the text for a text part, the tool name and the
- * JSON-stringified input for a tool-call part, a bounded inspection of the shape
- * for everything else.
- *
- * The index is written `part #3 (3 so far)` rather than `#3 of 4`: a stream only
- * knows its length once it ended, and the parts are logged as they arrive (so a
- * stream that dies mid-way still shows what reached us). The honest running count
- * is therefore "so far", and the closing summary line is where the totals live.
- *
- * Why the parts beside the fragments. `LanguageModelChatResponse.text` is
- * documented as "everything except for text parts filtered out of `stream`"
- * (`@types/vscode` 1.102.0), so the fragment list describes the **projection**
- * the run parses while the parts describe the **transport** that projection came
- * from. A mangled text path beside an intact tool-call part is exactly the
- * difference this line makes visible, and it is the question the maintainer's
- * machine is stuck on: a `LanguageModelToolCallPart` carries its input as a
- * structured object, which no text-level corruption can explain away.
- *
- * `length` is the length of the payload this diagnostic renders — the text for a
- * text part, `name + " " + input` for a tool-call part, the raw inspection for
- * anything else — not the length of the capped line, so a reader can always tell
- * a short part from a capped one; the `cut` clause appears only when the
- * inspection hit the cap.
- */
-function responsePartLogLine(index: number, value: unknown): string {
-  const kind = responsePartKind(value);
-  const where = `part #${index} (${index} so far)`;
-  if (kind === 'text') {
-    // The published class and the measured RPC text flavour both land here, and
-    // both carry their text in `value`, so one branch renders either of them.
-    const text = partValueText(value);
-    const excerpt = aiPreReviewAnswerExcerpt(text);
-    const cut = text.length > excerpt.length ? `, cut from ${text.length} characters` : '';
-    return `AI pre-review: ${where} in the stream: kind=text, length=${text.length}, text=${JSON.stringify(
-      excerpt,
-    )}${cut}`;
-  }
-  if (kind === 'reasoning') {
-    const text = partValueText(value);
-    const excerpt = aiPreReviewAnswerExcerpt(text);
-    const cut = text.length > excerpt.length ? `, cut from ${text.length} characters` : '';
-    return `AI pre-review: ${where} in the stream: kind=reasoning, length=${text.length}, text=${JSON.stringify(
-      excerpt,
-    )}${cut}`;
-  }
-  if (kind === 'tool-call') {
-    const part = value as { name?: unknown; input?: unknown };
-    const name = typeof part.name === 'string' ? part.name : String(part.name);
-    const input = stringifyPartValue(part.input);
-    // The input is logged **whole**, escaped but uncapped, unlike the unknown
-    // kinds: a tool call's input is the structured payload this diagnostic exists
-    // to test for JSON validity, so an excerpt of it could hide exactly the
-    // corruption being looked for. It is a tool argument rather than a document,
-    // and the cap still guards the one kind that may carry one.
-    const inputLog = input === undefined ? '(the input has no JSON form)' : `input=${JSON.stringify(input)}`;
-    return `AI pre-review: ${where} in the stream: kind=tool-call, length=${
-      (name + (input ?? '')).length
-    }, tool=${JSON.stringify(name)}, ${inputLog}`;
-  }
-  const inspection = inspectPartShape(value);
-  const cut = inspection.truncated ? `, inspection cut from ${inspection.raw.length} characters` : '';
-  return `AI pre-review: ${where} in the stream: kind=${kind}, length=${
-    inspection.raw.length
-  }, inspection=${JSON.stringify(inspection.text)}${cut}`;
-}
-
-/**
- * The closing line of a debug part list: how many parts of each kind arrived, how
- * many text parts there were, and how many characters those text parts added up
- * to — so the transport the answer came from is one line rather than an
- * inference from the list above it.
- *
- * The kind counts are listed in the order the kinds first appeared, so the line
- * reads as a summary of the list above it and a reader can match it up by eye.
- */
-function responseStreamSummaryLogLine(
-  kinds: readonly string[],
-  textPartCount: number,
-  textPartCharacters: number,
-): string {
-  const counts = new Map<string, number>();
-  for (const kind of kinds) {
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-  const tally = counts.size === 0 ? 'no parts' : [...counts].map(([kind, count]) => `${count} ${kind}`).join(', ');
-  return `AI pre-review: part stream summary: ${kinds.length} part(s) (${tally}), ${textPartCount} text part(s) carrying ${textPartCharacters} character(s)`;
-}
-
-/**
- * Logs the parts of one response, then the tally and the **only** fact about the
- * `text` projection this pass still needs — the **debug-only** second half of the
- * transport dump.
- *
- * The parts arrive already collected and already classified. That is the change
- * the ninth investigation forced: `stream` is consumed **once**, by the caller
- * (`readResponseStreamParts`), because `stream` and `text` may be two
- * projections of one cursor and a second reader on the same response is the
- * hazard this whole change exists to remove. A request whose two projections
- * share one cursor therefore can no longer be misread as "the stream offered no
- * parts": what the collector saw is what this line reports.
- *
- * What may never appear. Only what came back: the prompt, the brief and the diff
- * are not arguments of this function. Every line goes through `logger.debug`
- * behind `logger.isDebugEnabled()`, the one gate `forgejoToolkit.debug` owns, so
- * nothing here is user-visible — no message, toast or notification — and with
- * debug off `readResponseStreamParts` skips this function entirely.
- */
-function logResponseStreamParts(
-  debug: ResponseStreamDebug,
-  textFragments: readonly string[],
-  textProjectionRead: boolean,
-  textProjectionLength: number,
-): void {
-  if (!logger.isDebugEnabled()) {
-    return;
-  }
-  debug.parts.forEach((part, index) => {
-    logger.debug(responsePartLogLine(index + 1, part));
-  });
-  const textPartCharacters = textFragments.reduce((total, fragment) => total + fragment.length, 0);
-  logger.debug(responseStreamSummaryLogLine(debug.kinds, textFragments.length, textPartCharacters));
-  if (debug.dataPartCount > 0) {
-    // A data part carrying `usage` is the one thing in that channel worth naming:
-    // it is where the call's own accounting lives, and a reader comparing a run's
-    // token budget with what the provider charged looks here.
-    logger.debug(
-      `AI pre-review: part stream summary: ${debug.dataPartCount} data part(s) carried no answer text (${debug.dataPartShapes.join('; ')})`,
-    );
-  }
-  if (debug.stopped) {
-    logger.debug('AI pre-review: part stream summary: the sweep stopped early, so the totals above are partial');
-  }
-  if (!textProjectionRead) {
-    // The single-consumer rule, stated rather than left to be inferred: no
-    // candidate stream carried text, so the `text` projection was never read and
-    // there is nothing to compare the parts against.
-    logger.debug(
-      'AI pre-review: part stream summary: no candidate stream carried text, so the `text` projection was not read',
-    );
-    return;
-  }
-  logger.debug(
-    `AI pre-review: part stream summary: the \`text\` projection carries ${textProjectionLength} character(s)`,
-  );
-}
-
-/**
- * The **debug** record of one response's parts: every part that arrived, the
- * kind of each, the text parts' texts, and whether the sweep stopped early.
- *
- * It exists so the parts are consumed **once**: the collector fills it while it
- * classifies, and the log renders it afterwards. Nothing in it is a candidate —
- * the candidates are `AiPreReviewResponseCandidate`s built from the same pass.
- */
-interface ResponseStreamDebug {
-  /** Every part, in arrival order, for the per-part log line. */
-  parts: unknown[];
-  /** The kind of each part, in arrival order, for the tally. */
-  kinds: string[];
-  /** Data parts that arrived, for the one line about them. */
-  dataPartCount: number;
-  /** A bounded inspection of each data part's shape (`usage` is the interesting one). */
-  dataPartShapes: string[];
-  /** True when the sweep stopped before the stream did (the caller's cancellation). */
-  stopped: boolean;
-}
-
-/** The two candidate streams of one response, plus the debug record of its parts. */
-interface AiPreReviewResponseStreamCollector {
-  /** `LanguageModelTextPart` instances and the measured RPC text flavour, in arrival order. */
-  textParts: string[];
-  /** `LanguageModelThinkingPart` instances and the measured RPC reasoning flavour. */
-  reasoningParts: string[];
-  debug: ResponseStreamDebug;
-}
-
-/**
  * One candidate stream of a response: a channel the provider may have put the
  * **answer** on, with the text it carried.
  *
- * `kind` is named after the channel rather than after a class, because a channel
- * has more than one runtime shape (the published class and the RPC flavour the
- * maintainer's machine shows) and the arbitration and the log must talk about the
- * channel, not about one of its encodings.
+ * It is the seam's own part type (`src/ai/transport.ts`): the transport reads the
+ * response and hands the candidates over, and this feature's contract arbitrates
+ * them. `kind` is named after the channel rather than after a class, because a
+ * channel has more than one runtime shape (the published class and the RPC flavour
+ * the maintainer's machine shows) and the arbitration and the log must talk about
+ * the channel, not about one of its encodings.
  */
-interface AiPreReviewResponseCandidate {
-  /**
-   * - `text`: the response's text parts — `LanguageModelTextPart` instances and
-   *   the measured RPC text flavour.
-   * - `reasoning`: the response's reasoning parts — `LanguageModelThinkingPart`
-   *   instances and the measured RPC reasoning flavour.
-   * - `text-projection`: the documented `response.text` projection, used **only**
-   *   when no part of the stream carried text at all.
-   */
-  kind: 'text' | 'reasoning' | 'text-projection';
-  text: string;
-}
+type AiPreReviewResponseCandidate = AiCompletionResult['parts'][number];
 
 /** What arbitration made of the candidate streams: which one is the answer, and why. */
 type ResponseCandidateSelection =
   | { outcome: 'match'; candidate: AiPreReviewResponseCandidate; reason: string }
   | { outcome: 'mismatch'; candidate?: AiPreReviewResponseCandidate; reason: string };
-
-/**
- * Consumes the **`stream` projection of a response exactly once** and collects
- * its parts into the separate candidate channels, plus the debug record of what
- * arrived.
- *
- * Why one pass and no second reader. `stream` and `text` are two projections of
- * one response, and the editor may hand over two independent iterators (each
- * property read re-reads the proxy) or one cursor the first reader drains. Two
- * readers on one response is therefore a race whose outcome depends on the
- * editor's internals — which is exactly the hazard this change removes: the
- * `text` projection is read **only** when this pass found no candidate stream
- * carrying text (see `readResponseStreamParts`).
- *
- * Why the parts are kept rather than logged on the way past. The candidate they
- * belong to is only known once the **caller's contract** has scored them, and the
- * log has to say which one was used; so this pass records every part (when debug
- * is on) and the caller renders the list afterwards, in
- * `logResponseStreamParts`. The list is still complete for a stream that ended
- * early, because everything that arrived before the break is in it.
- *
- * An error from `next()` is **rethrown**: a stream that broke is a failed model
- * call, not an answer, and the caller's own `classifyModelError` is what turns an
- * `AbortError` into a cancellation. `checkCancelled` is asked before every step
- * for the same reason the fragment list is only written on a completed stream — a
- * half-read stream has no honest totals, and the caller's own cancellation check
- * has already run.
- */
-async function collectResponseStreamParts(
-  response: { stream?: AsyncIterable<unknown> },
-  checkCancelled: () => boolean,
-): Promise<AiPreReviewResponseStreamCollector> {
-  const collector: AiPreReviewResponseStreamCollector = {
-    textParts: [],
-    reasoningParts: [],
-    debug: { parts: [], kinds: [], dataPartCount: 0, dataPartShapes: [], stopped: false },
-  };
-  const debugEnabled = logger.isDebugEnabled();
-  const stream = response.stream;
-  if (!stream || typeof (stream as AsyncIterable<unknown>)[Symbol.asyncIterator] !== 'function') {
-    if (debugEnabled) {
-      logger.debug(
-        'AI pre-review: part stream summary: the response carries no stream iterable, so no part could be inspected',
-      );
-    }
-    return collector;
-  }
-  try {
-    const iterator = stream[Symbol.asyncIterator]();
-    for (;;) {
-      if (checkCancelled()) {
-        collector.debug.stopped = true;
-        break;
-      }
-      const step = await iterator.next();
-      if (step.done) {
-        break;
-      }
-      const classification = classifyResponsePart(step.value);
-      if (classification.kind === 'text') {
-        collector.textParts.push(classification.text);
-      } else if (classification.kind === 'reasoning') {
-        collector.reasoningParts.push(classification.text);
-      }
-      if (debugEnabled) {
-        const kind = responsePartKind(step.value);
-        collector.debug.parts.push(step.value);
-        collector.debug.kinds.push(kind);
-        if (classification.kind === 'data') {
-          collector.debug.dataPartCount += 1;
-          collector.debug.dataPartShapes.push(inspectPartShape(step.value).text);
-        }
-      }
-    }
-  } catch (error) {
-    // The provider's own abort, or a `next()` that threw: what arrived is already
-    // in the debug record, and the error is **rethrown** because a stream that
-    // broke is a failed model call, not an answer — the caller's own
-    // `classifyModelError` is what turns an `AbortError` into a cancellation and
-    // anything else into the failure it reports, exactly as it did when this loop
-    // was the `text` projection's.
-    collector.debug.stopped = true;
-    throw error;
-  }
-  return collector;
-}
-
-/**
- * Reads the documented `text` projection of a response, **once**, into a local —
- * the fallback the arbitration uses only when no candidate stream carried text.
- *
- * `undefined` covers every way there is nothing to read: no `text` property at
- * all (the older editor shape this code used to reject outright), a value that is
- * not an async iterable, and a `text` getter or iteration that throws. The last
- * one is the reason the read is wrapped: with the parts already in hand, a
- * failing projection is not a failed call — it is simply no fallback, and the
- * caller reports that in its own terms.
- */
-async function readTextProjection(response: { text?: AsyncIterable<string> }): Promise<string | undefined> {
-  const projected = response.text;
-  if (!projected || typeof (projected as AsyncIterable<string>)[Symbol.asyncIterator] !== 'function') {
-    return undefined;
-  }
-  try {
-    let text = '';
-    for await (const chunk of projected) {
-      text += chunk;
-    }
-    return text;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * The candidate streams of one response, in preference order, consuming the
- * response **once**.
- *
- * The rule the ninth investigation bought: read `stream` first, and read `text`
- * **only when no candidate stream carried any text at all**. Measured on the
- * maintainer's machine, the two are not the same thing — `text` projected the
- * model's reasoning token stream while the text parts held the exact expected
- * answer, so preferring the parts is the fix, and the single-consumer rule is
- * what makes it safe on an editor whose two projections share one cursor.
- *
- * `fragments` is the debug transport record of the parts that were used (each
- * text part in order, or the `text` projection's own chunk when the fallback was
- * read), or `undefined` when there is no answer text at all; a caller logs it
- * through `logAnswerFragments`, which is how the log keeps showing where the
- * provider's boundaries fell.
- *
- * What this function does **not** do is decide the answer. It returns the
- * candidates; the contract arbitrates them (`pickResponseCandidate`).
- */
-async function readResponseStreamParts(
-  response: { stream?: AsyncIterable<unknown>; text?: AsyncIterable<string> },
-  checkCancelled: () => boolean,
-): Promise<{
-  collector: AiPreReviewResponseStreamCollector;
-  textProjection?: string;
-  fragments?: string[];
-}> {
-  const collector = await collectResponseStreamParts(response, checkCancelled);
-  if (collector.textParts.length > 0 || collector.reasoningParts.length > 0) {
-    // A candidate stream carried text, so the `text` projection is **not** read:
-    // a second consumer on the same response is the hazard this pass exists for.
-    // The text parts double as the fragment list whether or not debug is on,
-    // because the chosen stream has to be logged on the same terms either way —
-    // except on an aborted sweep, which has no honest totals.
-    if (logger.isDebugEnabled()) {
-      logResponseStreamParts(collector.debug, collector.textParts, false, 0);
-    }
-    return collector.debug.stopped ? { collector } : { collector, fragments: collector.textParts };
-  }
-  const textProjection = await readTextProjection(response);
-  if (logger.isDebugEnabled()) {
-    logResponseStreamParts(
-      collector.debug,
-      collector.textParts,
-      textProjection !== undefined,
-      textProjection?.length ?? 0,
-    );
-  }
-  if (textProjection === undefined || collector.debug.stopped) {
-    // An aborted sweep has no honest totals (the same rule the fragment list has
-    // always followed), and a projection that threw is not a candidate: either
-    // way there is no text to report as read.
-    return { collector };
-  }
-  return { collector, textProjection, fragments: [textProjection] };
-}
-
-/**
- * The candidate streams of one response in preference order: the **text** parts
- * first, then the **reasoning** parts, then — only when neither carried text —
- * the `text` projection.
- *
- * The order is the arbitration rule in one place, and every candidate is scored
- * on its **own** bytes. Two candidate streams are never concatenated, and no
- * candidate is repaired, trimmed or re-asked of another model: a candidate either
- * satisfies the contract or it does not.
- */
-async function readResponseCandidates(
-  response: { stream?: AsyncIterable<unknown>; text?: AsyncIterable<string> },
-  checkCancelled: () => boolean,
-): Promise<{ candidates: AiPreReviewResponseCandidate[]; fragments?: string[] }> {
-  const { collector, textProjection, fragments } = await readResponseStreamParts(response, checkCancelled);
-  const candidates: AiPreReviewResponseCandidate[] = [];
-  if (collector.textParts.length > 0) {
-    candidates.push({ kind: 'text', text: collector.textParts.join('') });
-  }
-  if (collector.reasoningParts.length > 0) {
-    candidates.push({ kind: 'reasoning', text: collector.reasoningParts.join('') });
-  }
-  if (candidates.length === 0 && textProjection !== undefined) {
-    candidates.push({ kind: 'text-projection', text: textProjection });
-  }
-  return { candidates, fragments };
-}
 
 /** How the log and the diagnostics name one candidate stream. */
 function responseCandidateKindLabel(kind: AiPreReviewResponseCandidate['kind']): string {
@@ -2489,43 +1876,16 @@ function reportCancelled(changedFileCount?: number): void {
 }
 
 /**
- * Every chat model the editor offers, or `undefined` after reporting a genuine
- * failure — an editor without the API at all, or a listing that threw. An
- * **empty** list is returned as an empty array: "the editor offers nothing" is a
- * different outcome from "the listing failed", and the caller has to tell them
- * apart to report the right thing (§9.2, §9.3).
+ * "The editor offers no chat model at all" (§9.3).
  *
- * Only this caller reports with a dialog; the listing itself is
- * `queryAiPreReviewChatModels`, shared with the Settings page's chooser, which
- * answers with a line of text instead of a toast because the user is already
- * looking at the panel.
- *
- * There is deliberately no fallback layer that substitutes heuristics: without a
- * model this feature does not exist, and pretending otherwise would produce
- * review comments attributed to a machine that never read anything.
+ * The two other ways of having no model — no language model API at all, and a
+ * listing that threw — are reported by the transport's own `availability()`
+ * (`src/ai/vscodeLmTransport.ts`) before any list is read, so this is the one
+ * condition that belongs to the list itself. There is deliberately no fallback
+ * layer that substitutes heuristics: without a model this feature does not exist,
+ * and pretending otherwise would produce review comments attributed to a machine
+ * that never read anything.
  */
-async function listAiPreReviewModels(): Promise<vscode.LanguageModelChat[] | undefined> {
-  const query = await queryAiPreReviewChatModels();
-  if (query.status === 'no-api') {
-    logger.info('This editor provides no language model API; the AI pre-review cannot run.');
-    void vscode.window.showErrorMessage(
-      vscode.l10n.t(
-        'This VS Code build has no language model API, so the AI pre-review cannot run. Everything else keeps working.',
-      ),
-    );
-    return undefined;
-  }
-  if (query.status === 'failed') {
-    logger.error(`AI pre-review could not list chat models: ${userFacingErrorMessage(query.error)}`);
-    void vscode.window.showErrorMessage(
-      vscode.l10n.t('No chat model is available. The AI pre-review was not started; nothing was created.'),
-    );
-    return undefined;
-  }
-  return query.models;
-}
-
-/** "The editor offers no chat model at all" (§9.3). */
 function reportNoChatModel(): void {
   logger.error('AI pre-review: vscode.lm.selectChatModels() returned no chat model.');
   void vscode.window.showErrorMessage(
@@ -2546,7 +1906,7 @@ function reportNoChatModel(): void {
  * correct the setting. Not localized: it is a data list, and the sentence
  * around it carries the translation.
  */
-export function describeOfferedAiPreReviewModels(models: readonly vscode.LanguageModelChat[]): string {
+export function describeOfferedAiPreReviewModels(models: readonly AiModelInfo[]): string {
   return models
     .map((model) => {
       const identity = aiPreReviewModelIdentity(model);
@@ -2631,10 +1991,8 @@ function reportModelChoiceDismissed(): void {
  * turns that into a cancelled run rather than a default, because "the user did
  * not choose" is not "the extension chooses for them".
  */
-async function pickAiPreReviewModel(
-  offered: readonly vscode.LanguageModelChat[],
-): Promise<vscode.LanguageModelChat | undefined> {
-  const items: (vscode.QuickPickItem & { model: vscode.LanguageModelChat })[] = offered.map((model) => {
+async function pickAiPreReviewModel(offered: readonly AiModelInfo[]): Promise<AiModelInfo | undefined> {
+  const items: (vscode.QuickPickItem & { model: AiModelInfo })[] = offered.map((model) => {
     const identity = aiPreReviewModelIdentity(model);
     const name = identity.name.trim() !== '' ? identity.name : identity.id || 'unknown model';
     const vendor = identity.vendor || 'unknown';
@@ -2668,7 +2026,7 @@ async function pickAiPreReviewModel(
  * contain a `/` or an `@`) is reported instead of being stored as something that
  * would not match the same model next time.
  */
-async function rememberChosenAiPreReviewModel(model: vscode.LanguageModelChat): Promise<void> {
+async function rememberChosenAiPreReviewModel(model: AiModelInfo): Promise<void> {
   const value = formatAiPreReviewModelSettingValue(aiPreReviewModelIdentity(model));
   if (value === undefined) {
     logger.error(
@@ -2852,11 +2210,15 @@ function reportPromptScopeNotChosen(): void {
  * there is nothing to cancel and nothing to report beyond saying so.
  */
 export async function chooseAiPreReviewModel(): Promise<void> {
-  const listed = await listAiPreReviewModels();
-  if (!listed) {
+  // The same seam reads the run uses, and the same reporting for the two ways of
+  // having no API ("no language model API", "the listing failed") and for an empty
+  // list; this command only differs in what it does with an answer.
+  const availability = await vscodeLmTransport.availability();
+  if (!availability.usable) {
+    void vscode.window.showErrorMessage(availability.reason);
     return;
   }
-  const offered = uniqueAiPreReviewModels(listed);
+  const offered = await vscodeLmTransport.listModels();
   if (offered.length === 0) {
     reportNoChatModel();
     return;
@@ -2895,14 +2257,15 @@ export async function chooseAiPreReviewModel(): Promise<void> {
  * server untouched.
  */
 async function validateChosenAiPreReviewModel(
-  model: vscode.LanguageModelChat,
+  transport: AiModelTransport,
+  model: AiModelInfo,
   systemPrompt: string,
 ): Promise<AiPreReviewChosenModel | undefined> {
   const identity = aiPreReviewModelIdentity(model);
   const availableTokens = maxInputTokensOf(model);
-  let instructionTokens: number;
+  let instructionTokens: number | undefined;
   try {
-    instructionTokens = await countTokens(model, systemPrompt);
+    instructionTokens = await transport.countTokens(model, systemPrompt);
   } catch (error) {
     logger.debug(
       `AI pre-review: could not count the instructions for ${modelLabel(model)} (${userFacingErrorMessage(error)})`,
@@ -2910,13 +2273,21 @@ async function validateChosenAiPreReviewModel(
     reportChosenModelNotMeasurable(identity);
     return undefined;
   }
-  if (instructionTokens >= availableTokens) {
+  // The seam's two "no number" arms are different things (§4.2): a **throw** was
+  // reported above as "could not measure", while `undefined` means this model has
+  // no tokenizer at all — there is nothing to compare, so no budget failure is
+  // declared and the run proceeds with the number it does not have. That is what
+  // the code did before the seam existed, where such a value simply failed the
+  // `>=` comparison.
+  if (instructionTokens !== undefined && instructionTokens >= availableTokens) {
     reportInstructionBudgetFailure({ model: identity, neededTokens: instructionTokens, availableTokens });
     return undefined;
   }
-  logger.debug(
-    `AI pre-review: the fixed instruction prompt costs ${instructionTokens} token(s) for ${modelLabel(model)}, whose input budget is ${availableTokens}`,
-  );
+  if (instructionTokens !== undefined) {
+    logger.debug(
+      `AI pre-review: the fixed instruction prompt costs ${instructionTokens} token(s) for ${modelLabel(model)}, whose input budget is ${availableTokens}`,
+    );
+  }
   return { model, instructionTokens };
 }
 
@@ -2934,11 +2305,12 @@ async function validateChosenAiPreReviewModel(
  * carry.
  */
 async function countRequestTokens(
-  model: vscode.LanguageModelChat,
+  transport: AiModelTransport,
+  model: AiModelInfo,
   systemPrompt: string,
   userPrompt: string,
-): Promise<number> {
-  return await countTokens(model, aiPreReviewPromptText(systemPrompt, userPrompt));
+): Promise<number | undefined> {
+  return await transport.countTokens(model, aiPreReviewPromptText(systemPrompt, userPrompt));
 }
 
 /** One existing comment's metadata — never its body (§7.1, §13.5). */
@@ -3157,10 +2529,10 @@ async function collectChangedFileContents(
  * see rather than a reason to spend another request. A retry that cannot end
  * would be a cost the user did not agree to.
  *
- * The cancellation token is checked after every await that can be slow, and it
- * is handed to `sendRequest` so the provider stops the stream itself. A run
- * cancelled here can therefore never reach the confirmation list, let alone the
- * write loop.
+ * The cancellation token is checked after every await that can be slow, and it is
+ * adapted to the seam's `AbortSignal` (§4.1, constraint 1) so the transport hands
+ * it to `sendRequest` and the provider stops the stream itself. A run cancelled
+ * here can therefore never reach the confirmation list, let alone the write loop.
  *
  * `diagnostics` receives one block per model call — the messages that went out
  * and the whole answer that came back — and is a no-op unless
@@ -3168,7 +2540,31 @@ async function collectChangedFileContents(
  * *before* each arm returns, so a run that ends at the first attempt still
  * leaves the evidence behind.
  */
+/**
+ * The seam's cancellation signal for one run (§4.1, constraint 1).
+ *
+ * The seam carries an `AbortSignal` (§4.2) while this run is handed a
+ * `vscode.CancellationToken` by `withProgress`, so the token is mirrored onto a
+ * controller: already aborted when the token already is, and aborted when the
+ * token is cancelled later. The transport converts the signal back into the token
+ * shape `sendRequest` takes, so the provider still stops producing itself, and
+ * the read loop asks the same fact (`signal.aborted`) before every step.
+ */
+function abortSignalForToken(token: vscode.CancellationToken | undefined): AbortSignal | undefined {
+  if (!token) {
+    return undefined;
+  }
+  const controller = new AbortController();
+  if (token.isCancellationRequested) {
+    controller.abort();
+    return controller.signal;
+  }
+  token.onCancellationRequested(() => controller.abort());
+  return controller.signal;
+}
+
 async function gatherPreReviewRequest(
+  transport: AiModelTransport,
   client: ForgejoClient,
   params: PullRequestTarget,
   candidate: AiPreReviewChosenModel,
@@ -3231,7 +2627,7 @@ async function gatherPreReviewRequest(
   // "same model, same prompt" to mean what the record says it means. The
   // instruction half is the run's own, built for the user's language; the other
   // half is the brief this run assembled.
-  const prepared = await preparePrompt(brief, candidate, sections, systemPrompt);
+  const prepared = await preparePrompt(transport, brief, candidate, sections, systemPrompt);
   if (token.isCancellationRequested) {
     return { kind: 'cancelled', changedFileCount };
   }
@@ -3245,7 +2641,25 @@ async function gatherPreReviewRequest(
   // The messages are built once and handed to both the provider and the dump, so
   // "what the dump shows" is the request itself and not a reconstruction of it
   // that could drift from the real thing. Every attempt hands over this array.
+  //
+  // The dump records the **effective** `vscode.lm` request — one `User` message
+  // carrying the instructions and then the request (`buildAiPreReviewPromptMessages`,
+  // which is exactly what the transport sends below), while the seam request keeps
+  // the instruction block and the request apart so a transport with a system role
+  // can use it. Both are the same bytes.
   const messages = buildAiPreReviewPromptMessages(systemPrompt, prepared.userPrompt);
+  const completionRequest: AiCompletionRequest = {
+    system: systemPrompt,
+    messages: [{ role: 'user', text: prepared.userPrompt }],
+    // The API's consent-dialog text, which is why the wording stays here rather
+    // than in the transport (§5.3: it does not change) and why it travels as the
+    // request's `purpose`: the seam has no other field for "why this request is
+    // being made" (§4.2).
+    purpose: vscode.l10n.t(
+      'The AI pre-review sends the metadata of this pull request and, depending on the prompt scope you chose in "forgejoToolkit.aiPreReviewPromptScope", the changed lines or the text of the changed files, to the model to draft line-level review comments for you to confirm.',
+    ),
+    signal: abortSignalForToken(token),
+  };
   const failedAttempts: AiPreReviewModelAttempt[] = [];
   /** How many model calls the run has spent; bounded by the loop below. */
   let calls = 0;
@@ -3264,7 +2678,7 @@ async function gatherPreReviewRequest(
       ),
     });
     const startedAt = new Date();
-    const answer = await requestPreReviewComments(candidate.model, messages, token);
+    const answer = await requestPreReviewComments(transport, candidate.model, completionRequest);
     const finishedAt = new Date();
     const recorded = {
       // Both counts are here, because the dump has to be able to tell two asks of
@@ -3396,14 +2810,15 @@ async function gatherPreReviewRequest(
  * way to miss.
  */
 async function preparePrompt(
+  transport: AiModelTransport,
   brief: AiPreReviewBrief,
   candidate: AiPreReviewChosenModel,
   sections: AiPreReviewPromptSections,
   systemPrompt: string,
 ): Promise<PreparedPrompt> {
   const available = maxInputTokensOf(candidate.model);
-  const needed = async (prompt: string): Promise<number> =>
-    await countRequestTokens(candidate.model, systemPrompt, prompt);
+  const needed = async (prompt: string): Promise<number | undefined> =>
+    await countRequestTokens(transport, candidate.model, systemPrompt, prompt);
 
   let files: AiPreReviewBriefFile[] = brief.files;
   let current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: undefined }, sections);
@@ -3412,12 +2827,17 @@ async function preparePrompt(
   // Dropped from the end. The list order is the server's, not a ranking of
   // importance, so dropping from either end is arbitrary; the end is chosen
   // because it is stable and the note says exactly how many were dropped.
-  while (total > available && files.length > 1) {
+  //
+  // An absent measurement (`undefined`, the seam's "no tokenizer" arm) never
+  // triggers a cut and never reports a budget failure: there is no number to
+  // compare, which is the same outcome the old `undefined > available` comparison
+  // produced.
+  while (total !== undefined && total > available && files.length > 1) {
     files = files.slice(0, files.length - 1);
     current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: 'token-budget' }, sections);
     total = await needed(current);
   }
-  if (total > available) {
+  if (total !== undefined && total > available) {
     // Everything left still does not fit: the run reports the budget failure
     // honestly instead of sending an oversized request.
     logger.error(
@@ -3428,19 +2848,13 @@ async function preparePrompt(
   return { kind: 'ready', userPrompt: current };
 }
 
-async function countTokens(model: vscode.LanguageModelChat, text: string): Promise<number> {
-  return await model.countTokens(text);
-}
-
 /**
  * What one model call produced. Every arm is reported to the user exactly once.
  *
  * The successful arm carries the candidate streams beside the chosen answer, and
  * not only the text: the caller has to record **both** candidates in the
  * diagnostics dump, and it has to know which stream the answer came from in order
- * to name it in the debug log. `responseKind` is the kind of the candidate the
- * caller's contract accepted — it is `undefined` only on the failure arms, where
- * there is no answer at all.
+ * to name it in the debug log.
  */
 type ModelAnswer =
   | { kind: 'answer'; candidates: AiPreReviewResponseCandidate[]; fragments?: readonly string[] }
@@ -3448,80 +2862,29 @@ type ModelAnswer =
   | { kind: 'failed'; error: string; reported: boolean; candidates: AiPreReviewResponseCandidate[] };
 
 /**
- * Sends the single request this feature makes (§6.5: one round, no tools, no
- * follow-up) and reads its answer out of the response's **candidate streams**.
+ * The seam's one request for this run, and the arms the feature reads.
  *
- * The messages arrive already built (`buildAiPreReviewPromptMessages`) so the
- * caller can record the very same values in the debug dump: this function maps
- * them to `vscode.LanguageModelChatMessage` and does nothing else with them.
- * Only `User` messages exist in this API version (`LanguageModelChatMessageRole`
- * declares `User` and `Assistant`; `LanguageModelChatMessage` has no `System`
- * factory, and the API guide states that system messages are not supported), so
- * the mapping is total for the shape the builder returns.
+ * The body itself moved: `vscode.lm`'s `sendRequest`, the message mapping, the
+ * response reading and the candidate collection all live in
+ * `src/ai/vscodeLmTransport.ts` now (`docs/design/ai-model-transport.md` §5.1's
+ * move table). What stays here is the **classification** of a rejection — the
+ * seam's `complete()` has no failure arm, so a failed call arrives as a thrown
+ * error, and only the feature knows which of its own messages to show and whether
+ * it has already shown one (`reported`).
  *
- * Which channel the answer comes from is decided **here** and only here: the
- * response's parts are collected in one pass (`readResponseCandidates`), the
- * `text` projection is read only when no part carried text, and the call returns
- * the candidates in preference order. The **contract** then arbitrates them, in
- * the caller (`gatherPreReviewRequest`), because only the caller owns the JSON
- * contract, the schema and the anchor checks.
- *
- * Cancellation stops the reading and reports "cancelled" — the caller then writes
- * nothing, so a cancelled run cannot leave half a draft behind. The token is
- * handed to `sendRequest` as well, so the provider stops producing rather than
- * this loop only discarding what it already produced. A `LanguageModelError` is
- * classified by its `code` rather than by `instanceof`: the extension host can
- * hand over an object from another realm, and the code names are the documented
- * contract.
- *
- * `modelOptions` is deliberately not sent: the API documents it as
- * provider-specific ("need to be looked up in the respective documentation"), so
- * any value here would be a guess about a vendor's option names — which is the
- * same reason the run does not name a vendor to select a model. `justification`
- * is the API's own consent-dialog text and is kept.
- *
- * While `forgejoToolkit.debug` is on, the parts that arrived are logged as they
- * arrive (see `collectResponseStreamParts`) and the candidate the caller picked is
- * logged with its reason (`responseCandidateSelectionLogLine`). A stream the user
- * cancelled logs no fragment list — the collector's own cancellation check stops
- * before the totals could be honest — and a stream the provider aborts ends the
- * sweep with a line saying so rather than throwing away what did arrive. With
- * debug off nothing is logged and the collection is the byte-exact accumulation
- * it always was.
+ * `isCancellation`'s reading is unchanged and deliberately not `instanceof`: a
+ * cancellation is recognised by `name`/`code`/message, which is the same rule the
+ * OpenAI-compatible transport has to satisfy (§6.5). A transport that observed a
+ * cancellation while reading throws an `AbortError` for exactly this path.
  */
 async function requestPreReviewComments(
-  model: vscode.LanguageModelChat,
-  promptMessages: readonly AiPreReviewPromptMessage[],
-  token?: vscode.CancellationToken,
+  transport: AiModelTransport,
+  model: AiModelInfo,
+  request: AiCompletionRequest,
 ): Promise<ModelAnswer> {
-  const messages = promptMessages.map((message) => vscode.LanguageModelChatMessage.User(message.text));
   try {
-    const response = await model.sendRequest(
-      messages,
-      {
-        justification: vscode.l10n.t(
-          'The AI pre-review sends the metadata of this pull request and, depending on the prompt scope you chose in "forgejoToolkit.aiPreReviewPromptScope", the changed lines or the text of the changed files, to the model to draft line-level review comments for you to confirm.',
-        ),
-      },
-      token,
-    );
-    if (!response || (!isAsyncIterable(response.stream) && !isAsyncIterable(response.text))) {
-      return { kind: 'failed', error: 'the model returned no response stream', reported: false, candidates: [] };
-    }
-    // One pass, and the fallback `text` read only if no candidate stream carried
-    // text: a second consumer on the same response is the hazard this exists for.
-    const { candidates, fragments } = await readResponseCandidates(
-      response,
-      () => token?.isCancellationRequested === true,
-    );
-    if (token?.isCancellationRequested) {
-      return { kind: 'cancelled' };
-    }
-    // The candidates go back **unparsed**: the contract is the caller's (JSON,
-    // schema, anchors), so the arbitration happens where the contract lives. The
-    // fragment list travels with them, because the caller logs it for the stream
-    // it actually used — and not at all when the sweep had no honest totals.
-    return { kind: 'answer', candidates, fragments };
+    const result = await transport.complete(model, request);
+    return { kind: 'answer', candidates: result.parts, fragments: result.fragments };
   } catch (error) {
     return classifyModelError(error);
   }
