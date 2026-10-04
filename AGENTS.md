@@ -26,6 +26,7 @@ This rule takes precedence over any compacted summary, TODO list, or earlier use
 ## Code content
 
 - Do **not** include explicit IP addresses in source code, tests, fixtures, or documentation examples. Use placeholder domain names such as `forgejo.example.com`, `codeberg.org`, or `example.com` instead.
+- Exception: an **address pattern that defines a network policy** may appear where that policy is defined and in the fixtures that exercise it — for example loopback and private ranges when deciding whether an endpoint is local. These are the policy's own definition domain rather than an example address, so the placeholder-domain rule does not apply to them.
 
 ## UI/UX skill
 
