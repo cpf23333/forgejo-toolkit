@@ -79,6 +79,16 @@ import {
   isAiPreReviewEnabled,
   writeAiPreReviewModelSetting,
 } from '../aiPreReviewSettings';
+import {
+  readAiProviderSettings,
+  removeAiProvider,
+  saveAiProvider,
+  testAiProvider,
+  writeAiModelBinding,
+  writeAiModelPolicy,
+  writeAiProviderSecret,
+} from './aiProviderSettings';
+import { aiProviderSettingsReading } from '../ai/modelSettings';
 
 /**
  * The refusal a save/edit gets for a declared server version that does not
@@ -1300,6 +1310,118 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           logger.error(`setAiPreReviewChatModel could not write the model choice: ${err}`);
           this._reply('aiPreReviewChatModelSaved', { value, error: err, _requestId: message._requestId });
         }
+        return;
+      }
+      // The settings page's AI endpoint (provider) surface. Reading the snapshot
+      // sends nothing anywhere: it lists the declared models, reads which secrets
+      // are stored, and asks `selectedModelFor` which transport *would* serve the
+      // one AI feature. `testAiProvider` is the only case here that sends a
+      // request, and it is reached from one explicit click (§7.2).
+      case 'getAiProviderSettings': {
+        const snapshot = await readAiProviderSettings({ secrets: this._context.secrets });
+        this._reply('aiProviderSettings', { snapshot, _requestId: message._requestId });
+        return;
+      }
+      case 'saveAiProvider': {
+        const rawId = (message.provider as { id?: unknown }).id;
+        const result = await saveAiProvider({ secrets: this._context.secrets }, message.provider);
+        this._reply('aiProviderSaved', {
+          id: typeof rawId === 'string' ? rawId.trim() : '',
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        // The page renders stored-or-not for every secret and the reader's own
+        // rejections, so the write is followed by the host's reading of the state
+        // it just produced rather than by expecting the page to re-derive it.
+        await this._pushAiProviderSettings();
+        return;
+      }
+      case 'removeAiProvider': {
+        const { id } = message;
+        // Removal is destructive — it deletes a configured endpoint and forgets
+        // its secrets — so the confirmation is the host's own, like every other
+        // destructive webview command (`_confirmDestructive`). A declined prompt
+        // is answered rather than dropped: the request carries a `_requestId`, so
+        // silence would leave the page waiting and then time out.
+        const name = this._aiProviderName(id);
+        if (
+          !(await this._confirmDestructive(vscode.l10n.t('Remove the AI endpoint "{0}" and its stored secrets?', name)))
+        ) {
+          this._reply('aiProviderRemoved', { id, cancelled: true, _requestId: message._requestId });
+          return;
+        }
+        const result = await removeAiProvider({ secrets: this._context.secrets }, id);
+        this._reply('aiProviderRemoved', {
+          id,
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        await this._pushAiProviderSettings();
+        return;
+      }
+      case 'setAiProviderSecret': {
+        const result = await writeAiProviderSecret(
+          { secrets: this._context.secrets },
+          message.id,
+          message.headerName,
+          message.value,
+        );
+        this._reply('aiProviderSecretSaved', {
+          id: message.id,
+          ...(message.headerName === undefined ? {} : { headerName: message.headerName }),
+          set: result.ok ? result.set : false,
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        await this._pushAiProviderSettings();
+        return;
+      }
+      case 'testAiProvider': {
+        const report = await testAiProvider({ secrets: this._context.secrets }, message.id);
+        if (report === undefined) {
+          this._reply('aiProviderTestReport', {
+            report: {
+              providerId: message.id,
+              providerName: message.id,
+              address: '',
+              ok: false,
+              ran: false,
+              reason: vscode.l10n.t('No AI endpoint with the id "{0}" is configured.', message.id),
+              shadowed: [],
+            },
+            _requestId: message._requestId,
+          });
+          return;
+        }
+        this._reply('aiProviderTestReport', { report, _requestId: message._requestId });
+        return;
+      }
+      case 'setAiModelPolicy': {
+        const result = await writeAiModelPolicy({ secrets: this._context.secrets }, message);
+        // One reading serves both the reply and the push: the reply reports what is
+        // stored now, which is the same fact the page renders from the snapshot.
+        const snapshot = await readAiProviderSettings({ secrets: this._context.secrets });
+        this._reply('aiModelPolicySaved', {
+          enabled: snapshot.enabled,
+          transport: snapshot.transport,
+          localOnly: snapshot.localOnly,
+          requestTimeoutMs: snapshot.requestTimeoutMs,
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        this._reply('aiProviderSettings', { snapshot });
+        return;
+      }
+      case 'setAiModelBinding': {
+        const result = await writeAiModelBinding({ secrets: this._context.secrets }, message);
+        this._reply('aiModelBindingSaved', {
+          feature: message.feature,
+          providerId: message.providerId,
+          modelId: message.modelId,
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        await this._pushAiProviderSettings();
         return;
       }
       case 'openExternal': {
@@ -4926,6 +5048,35 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const confirmLabel = vscode.l10n.t('Confirm');
     const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
     return choice === confirmLabel;
+  }
+
+  /**
+   * Pushes the AI endpoint snapshot the settings page renders.
+   *
+   * It carries no `_requestId` because it is not an answer to anything: the page
+   * keeps the last snapshot it was given, exactly as it keeps the instance list,
+   * so a write the host completed is reflected even when the write's own reply was
+   * a failure (a partially applied policy, a removal whose confirmation the user
+   * accepted). A read that throws is logged and dropped — the page keeps showing
+   * the last state it had rather than being handed a fabricated one.
+   */
+  private async _pushAiProviderSettings(): Promise<void> {
+    try {
+      const snapshot = await readAiProviderSettings({ secrets: this._context.secrets });
+      this._reply('aiProviderSettings', { snapshot });
+    } catch (error) {
+      logger.error(`Could not read the AI endpoint settings for the webview: ${userFacingErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * The display name of one configured AI endpoint, for the host's own
+   * confirmation prompt. Falls back to the id — an entry the reader could not read
+   * still has to be nameable in the question about removing it.
+   */
+  private _aiProviderName(id: string): string {
+    const providers = aiProviderSettingsReading().providers;
+    return providers.find((provider) => provider.id === id)?.name ?? id;
   }
 
   /**

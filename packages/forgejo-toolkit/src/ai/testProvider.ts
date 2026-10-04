@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { RequestFetch } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AiProviderTestReport } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 import { getProxyFetch } from '../api/proxy';
 import { aiPreReviewAnswerExcerpt } from '../aiPreReviewBrief';
@@ -76,7 +77,7 @@ export interface AiProviderTestDeps {
  * ("was not run" against "failed").
  */
 export type AiProviderTestOutcome =
-  | { ok: true; status: number; elapsedMs: number; summary: string }
+  | { ok: true; status: number; elapsedMs: number; summary: string; models?: string[] }
   | { ok: false; ran: boolean; reason: string };
 
 /** The model ids of an OpenAI-shaped `/models` answer, or `undefined` when it has none. */
@@ -187,6 +188,10 @@ export async function runAiProviderTest(
       status: modelsStatus ?? 200,
       elapsedMs: Date.now() - started,
       summary: vscode.l10n.t('The endpoint reported {0} model(s) from "/models".', modelIds.length),
+      // Carried so a surface can prefill the endpoint's model declaration from the
+      // list the endpoint itself reported (§8.7 step 2); the declaration is not a
+      // whitelist, so the caller is free to use or ignore it.
+      models: modelIds,
     };
   }
 
@@ -199,6 +204,7 @@ export async function runAiProviderTest(
       status: modelsStatus ?? 200,
       elapsedMs: Date.now() - started,
       summary: vscode.l10n.t('The endpoint reported no models from "/models" (that is not a failure).'),
+      models: [],
     };
   }
   try {
@@ -229,10 +235,83 @@ export async function runAiProviderTest(
         'The endpoint reported no models from "/models" (that is not a failure), and it answered a minimal chat request with "{0}".',
         aiPreReviewAnswerExcerpt(content),
       ),
+      models: modelIds ?? [],
     };
   } catch (error) {
     return { ok: false, ran: true, reason: openAiEndpointFailure(error, context).message };
   }
+}
+
+/**
+ * The base address one probe is aimed at, as a human may see it: no query
+ * string (it can carry the `api-version` secret, §8.5) and no userinfo.
+ *
+ * Exported because the settings page's report and the command's toast have to
+ * name the same address, and a second rendering would be a second chance to
+ * print a query parameter.
+ */
+export function aiProviderTestAddress(provider: AiProviderConfig): string {
+  return openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, ''));
+}
+
+/**
+ * The declared header names the `auth` style shadows, so they are not sent
+ * (§8.5).
+ *
+ * Reported by name only, and computed through the same `openAiRequestAuth` the
+ * transport uses: the settings page explains the conflict with the transport's
+ * own reading rather than re-deriving it.
+ */
+async function shadowedHeaderNames(provider: AiProviderConfig, secrets: AiSecretStore): Promise<string[]> {
+  try {
+    const auth = await openAiRequestAuth(provider, secrets);
+    return auth.shadowed;
+  } catch {
+    // A credential read that throws is "nothing is shadowed that we can name";
+    // the probe below reports the failure itself, with its own sentence.
+    return [];
+  }
+}
+
+/**
+ * One probe, as structured data: the same run `probeAndReport` performs, plus
+ * the address and the suppressed header names, for a surface that renders the
+ * report as fields rather than as one sentence (§8.7).
+ *
+ * Nothing in the returned shape can carry a credential: the reason strings come
+ * from the transport's own error renderers (which never print a key), the
+ * address is rendered without its query string, and `shadowed` holds names.
+ */
+export async function aiProviderTestReport(
+  provider: AiProviderConfig,
+  deps: AiProviderTestDeps,
+): Promise<AiProviderTestReport> {
+  const address = aiProviderTestAddress(provider);
+  const shadowed = await shadowedHeaderNames(provider, deps.secrets);
+  const outcome = await runAiProviderTest(provider, deps);
+  if (!outcome.ok) {
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      address,
+      ok: false,
+      ran: outcome.ran,
+      reason: outcome.reason,
+      shadowed,
+    };
+  }
+  return {
+    providerId: provider.id,
+    providerName: provider.name,
+    address,
+    ok: true,
+    ran: true,
+    status: outcome.status,
+    elapsedMs: outcome.elapsedMs,
+    summary: outcome.summary,
+    ...(outcome.models === undefined ? {} : { models: outcome.models }),
+    shadowed,
+  };
 }
 
 /**
@@ -243,11 +322,12 @@ export async function runAiProviderTest(
  * after dismissing the toast still has it.
  */
 async function probeAndReport(provider: AiProviderConfig, secrets: AiSecretStore): Promise<void> {
-  const outcome = await runAiProviderTest(provider, { secrets });
-  if (!outcome.ok) {
-    const message = outcome.ran
-      ? vscode.l10n.t('The AI endpoint test for "{0}" failed: {1}', provider.name, outcome.reason)
-      : vscode.l10n.t('The AI endpoint test for "{0}" was not run: {1}', provider.name, outcome.reason);
+  const report = await aiProviderTestReport(provider, { secrets });
+  if (!report.ok) {
+    const reason = report.reason ?? '';
+    const message = report.ran
+      ? vscode.l10n.t('The AI endpoint test for "{0}" failed: {1}', provider.name, reason)
+      : vscode.l10n.t('The AI endpoint test for "{0}" was not run: {1}', provider.name, reason);
     logger.error(`[aiTestProvider] ${message}`);
     void vscode.window.showErrorMessage(message);
     return;
@@ -255,10 +335,10 @@ async function probeAndReport(provider: AiProviderConfig, secrets: AiSecretStore
   const message = vscode.l10n.t(
     'The AI endpoint "{0}" at {1} answered HTTP {2} in {3} ms: {4}',
     provider.name,
-    openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, '')),
-    outcome.status,
-    outcome.elapsedMs,
-    outcome.summary,
+    report.address,
+    report.status ?? 0,
+    report.elapsedMs ?? 0,
+    report.summary ?? '',
   );
   logger.info(`[aiTestProvider] ${message}`);
   void vscode.window.showInformationMessage(message);

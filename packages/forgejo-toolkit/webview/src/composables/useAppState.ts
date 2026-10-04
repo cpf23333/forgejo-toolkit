@@ -283,6 +283,8 @@ import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
   AiPreReviewChatModelOption,
+  AiProviderSettingsSnapshot,
+  AiProviderTestReport,
   ExportSettings,
   HostToWebviewMessage,
   LinkedRepository,
@@ -344,6 +346,56 @@ export interface AiPreReviewChatModelChoices {
 export interface AiPreReviewChatModelSaveResult {
   value: string;
   error?: string;
+}
+
+/**
+ * One reply on the settings page's AI endpoint surface, discriminated by `kind`.
+ *
+ * All seven request/response pairs share one registry (see
+ * `pendingAiProviderRequests`), so their answers have to be told apart by
+ * something; the host's own `command` cannot serve, because a reply is routed to
+ * its caller by the request id it echoes and never by its command name here.
+ */
+export type AiProviderReply =
+  | { kind: 'settings'; snapshot: AiProviderSettingsSnapshot }
+  | { kind: 'saved'; id: string; error?: string }
+  /** `cancelled` is the user declining the host's own confirmation: nothing was removed. */
+  | { kind: 'removed'; id: string; cancelled?: boolean; error?: string }
+  | { kind: 'secret'; id: string; headerName?: string; set: boolean; error?: string }
+  | { kind: 'test'; report: AiProviderTestReport }
+  | {
+      kind: 'policy';
+      enabled: boolean;
+      transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+      localOnly: boolean;
+      requestTimeoutMs: number;
+      error?: string;
+    }
+  | { kind: 'binding'; feature: string; providerId: string; modelId: string; error?: string };
+
+/**
+ * One provider as the page submits it to `saveAiProvider`.
+ *
+ * The header **names** are here and no header value is: a value goes through
+ * `setAiProviderSecret` and lands in `SecretStorage`, which is why this payload
+ * has nothing in it that must not reach `settings.json` (§8.2).
+ */
+export interface AiProviderDraftPayload {
+  id: string;
+  name: string;
+  baseUrl: string;
+  models: Array<{ id: string; name: string }>;
+  auth: 'bearer' | 'api-key-header' | 'none';
+  headers: string[];
+  localOnly: boolean;
+}
+
+/** One policy write: the four gates the settings page presents beside the endpoints. */
+export interface AiModelPolicyPayload {
+  enabled: boolean;
+  transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+  localOnly: boolean;
+  requestTimeoutMs: number;
 }
 
 /**
@@ -948,6 +1000,66 @@ function createAppState() {
     string,
     { resolve: (result: AiPreReviewChatModelSaveResult) => void; reject: (error: Error) => void }
   >();
+  // The settings page's AI endpoint surface: seven request/response pairs, all
+  // answered through one snapshot-shaped screen state, so one registry keyed by
+  // request id rather than seven maps. `AiProviderReply` is what tells them apart.
+  let aiProviderRequestId = 0;
+  const pendingAiProviderRequests = new Map<
+    string,
+    { resolve: (reply: AiProviderReply) => void; reject: (error: Error) => void }
+  >();
+
+  /**
+   * The AI endpoint settings the host last reported — the answer to
+   * `getAiProviderSettings` and every unsolicited push the host makes after a
+   * write. The page renders this ref, so a write it did not itself request (a
+   * removal confirmed host-side) still lands.
+   */
+  const aiProviderSettings = ref<AiProviderSettingsSnapshot | undefined>(undefined);
+
+  /**
+   * Hands one host reply to the request that asked for it, if it is still
+   * waiting. A reply that arrives after its request timed out is dropped, which is
+   * the same discipline every other request/response pair here follows: a late
+   * answer must not resolve a promise that is no longer the caller's.
+   */
+  function settleAiProviderRequest(requestId: string, reply: AiProviderReply): void {
+    const pending = pendingAiProviderRequests.get(requestId);
+    if (!pending) {
+      return;
+    }
+    pendingAiProviderRequests.delete(requestId);
+    pending.resolve(reply);
+  }
+
+  /**
+   * One request on the AI endpoint surface.
+   *
+   * The `kind` is both the reply the caller expects and the value carried on the
+   * request id, so a reply that does not match its request is a programming error
+   * rather than something the page could ever see; it is rejected as a failed
+   * request instead of being silently ignored.
+   */
+  function aiProviderRequest<T extends AiProviderReply['kind']>(
+    kind: T,
+    command: string,
+    payload: Record<string, unknown>,
+  ): Promise<Extract<AiProviderReply, { kind: T }>> {
+    const _requestId = `aiProvider-${kind}-${++aiProviderRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingAiProviderRequests, _requestId, command, {
+        resolve: (reply) => {
+          if (reply.kind === kind) {
+            resolve(reply as Extract<AiProviderReply, { kind: T }>);
+            return;
+          }
+          reject(new Error(t('common.requestFailed')));
+        },
+        reject,
+      });
+      postMessage({ command, _requestId, ...payload });
+    });
+  }
 
   interface PendingHandlers<T, E> {
     resolve: (value: T) => void;
@@ -1010,6 +1122,7 @@ function createAppState() {
       pendingIssuePreviewRequests,
       pendingAiPreReviewModelLists,
       pendingAiPreReviewModelSaves,
+      pendingAiProviderRequests,
       pendingRenderMarkdownRequests,
     ];
     for (const map of errorMaps) {
@@ -2092,6 +2205,71 @@ function createAppState() {
         pendingAiPreReviewModelSaves.delete(message._requestId);
         pending.resolve({
           value: message.value,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      // The settings page's AI endpoint surface. Every reply carries the request
+      // id it answers, except the snapshot push the host sends after a write it
+      // completed itself (a removal confirmed host-side): that one has no
+      // `_requestId` and only updates the screen state.
+      case 'aiProviderSettings': {
+        aiProviderSettings.value = message.snapshot;
+        const pending = message._requestId ? pendingAiProviderRequests.get(message._requestId) : undefined;
+        if (pending && message._requestId) {
+          pendingAiProviderRequests.delete(message._requestId);
+          pending.resolve({ kind: 'settings', snapshot: message.snapshot });
+        }
+        break;
+      }
+      case 'aiProviderSaved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'saved',
+          id: message.id,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      case 'aiProviderRemoved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'removed',
+          id: message.id,
+          ...(message.cancelled !== undefined ? { cancelled: message.cancelled } : {}),
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      case 'aiProviderSecretSaved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'secret',
+          id: message.id,
+          ...(message.headerName !== undefined ? { headerName: message.headerName } : {}),
+          set: message.set,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      case 'aiProviderTestReport': {
+        settleAiProviderRequest(message._requestId, { kind: 'test', report: message.report });
+        break;
+      }
+      case 'aiModelPolicySaved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'policy',
+          enabled: message.enabled,
+          transport: message.transport,
+          localOnly: message.localOnly,
+          requestTimeoutMs: message.requestTimeoutMs,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      case 'aiModelBindingSaved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'binding',
+          feature: message.feature,
+          providerId: message.providerId,
+          modelId: message.modelId,
           ...(message.error !== undefined ? { error: message.error } : {}),
         });
         break;
@@ -4515,6 +4693,86 @@ function createAppState() {
     });
   }
 
+  /**
+   * The AI endpoint settings the host last reported, re-read from the host.
+   *
+   * Reading sends nothing to any endpoint: the host lists the declared models,
+   * reads which secrets are stored, and asks which transport would serve the one
+   * AI feature. It is also what answers the §9.3 question, so the "no usable
+   * model" block on the page branches on this reply and nothing else.
+   */
+  async function loadAiProviderSettings(): Promise<AiProviderSettingsSnapshot> {
+    const reply = await aiProviderRequest('settings', 'getAiProviderSettings', {});
+    return reply.snapshot;
+  }
+
+  /** Stores one endpoint's configuration, through the host (§8.1, §8.2). */
+  function saveAiProvider(provider: AiProviderDraftPayload): Promise<{ id: string; error?: string }> {
+    return aiProviderRequest('saved', 'saveAiProvider', { provider });
+  }
+
+  /**
+   * Removes one endpoint and its stored secrets. The host pops its own
+   * confirmation first, so a `cancelled` reply means the user declined it and
+   * nothing was removed.
+   */
+  function removeAiProvider(id: string): Promise<{ cancelled: boolean; error?: string }> {
+    return aiProviderRequest('removed', 'removeAiProvider', { id }).then((reply) => ({
+      cancelled: reply.cancelled === true,
+      ...(reply.error !== undefined ? { error: reply.error } : {}),
+    }));
+  }
+
+  /**
+   * Stores (or clears) one secret: the API key when `headerName` is absent,
+   * otherwise that declared header's value. The value never comes back — the
+   * reply says only whether it is stored now.
+   */
+  function setAiProviderSecret(
+    id: string,
+    headerName: string | undefined,
+    value: string,
+  ): Promise<{ set: boolean; error?: string }> {
+    return aiProviderRequest('secret', 'setAiProviderSecret', {
+      id,
+      ...(headerName === undefined ? {} : { headerName }),
+      value,
+    });
+  }
+
+  /**
+   * The one command on this surface that sends a request to the endpoint (§8.7).
+   * It is only ever posted from an explicit click, and its report never carries a
+   * credential.
+   */
+  async function testAiProvider(id: string): Promise<AiProviderTestReport> {
+    const reply = await aiProviderRequest('test', 'testAiProvider', { id });
+    return reply.report;
+  }
+
+  /** Writes the four policy gates the endpoint section presents (§8.3). */
+  function setAiModelPolicy(policy: AiModelPolicyPayload): Promise<{
+    enabled: boolean;
+    transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+    localOnly: boolean;
+    requestTimeoutMs: number;
+    error?: string;
+  }> {
+    return aiProviderRequest('policy', 'setAiModelPolicy', { ...policy });
+  }
+
+  /**
+   * Stores or clears one feature's binding (§8.4). An empty `providerId` removes
+   * it, which puts the feature back on `forgejoToolkit.aiTransport`.
+   */
+  function setAiModelBinding(binding: {
+    feature: string;
+    providerId: string;
+    modelId: string;
+  }): Promise<{ feature: string; providerId: string; modelId: string; error?: string }> {
+    return aiProviderRequest('binding', 'setAiModelBinding', { ...binding });
+  }
+
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
     router.push({ name: 'repoDetail', params: { instanceId, owner, repo } });
     loadRepoDetail(instanceId, owner, repo);
@@ -6748,6 +7006,14 @@ function createAppState() {
     changeDebug,
     loadAiPreReviewChatModels,
     saveAiPreReviewChatModel,
+    aiProviderSettings,
+    loadAiProviderSettings,
+    saveAiProvider,
+    removeAiProvider,
+    setAiProviderSecret,
+    testAiProvider,
+    setAiModelPolicy,
+    setAiModelBinding,
     openRepoDetail,
     loadRepoDetail,
     loadRepoBranchCommits,

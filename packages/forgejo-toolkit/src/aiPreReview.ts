@@ -68,6 +68,8 @@ import {
   vscodeLmTransport,
 } from './ai/vscodeLmTransport';
 import type { AiCompletionRequest, AiCompletionResult, AiModelInfo, AiModelTransport } from './ai/transport';
+import { aiProviderSettingsReading } from './ai/modelSettings';
+import { openAiEndpointDisplayUrl, openAiEndpointUrl } from './ai/openAiCompatibleTransport';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
 
@@ -684,10 +686,12 @@ export async function runAiPreReview(
     // What the prompt may carry is settled next, and it is settled **before**
     // this run reads or sends anything: with the setting at `ask` the modal is
     // the only thing that happens, and a cancelled modal returns from here —
-    // zero HTTP requests, zero model calls, zero writes of its own. The vendor
+    // zero HTTP requests, zero model calls, zero writes of its own. The model
     // is why this question comes after the model choice: the modal has to name
-    // who would receive the content.
-    const scope = await resolveAiPreReviewPromptScope(aiPreReviewModelIdentity(chosen).vendor);
+    // who would receive the content, and that destination is derived from the
+    // chosen model (§7.1) — a `vscode.lm` vendor, or a configured endpoint's
+    // display name **and** address.
+    const scope = await resolveAiPreReviewPromptScope(aiPreReviewConsentDestination(chosen));
     if (scope === undefined) {
       reportPromptScopeNotChosen();
       return;
@@ -2077,26 +2081,96 @@ export const AI_PRE_REVIEW_SCOPE_BUTTON_METADATA_ONLY = vscode.l10n.t('Send meta
 export const AI_PRE_REVIEW_SCOPE_BUTTON_CANCEL = vscode.l10n.t('Cancel — send nothing');
 
 /**
+ * Who the consent modal is about to send to
+ * (`docs/design/ai-model-transport.md` §7.1).
+ *
+ * `address` is present **only** when the content goes to a configured endpoint: the
+ * editor's own models (`vscode.lm`) have no address this extension may promise,
+ * and inventing one would be worse than saying nothing, because the whole point of
+ * the sentence is that it names the real destination.
+ */
+export interface AiPreReviewConsentDestination {
+  /** What the modal calls the party that would receive the content. */
+  name: string;
+  /** The configured endpoint's base address, rendered for display; absent for the editor's models. */
+  address?: string;
+}
+
+/**
+ * The destination of one run, derived from the model it will use.
+ *
+ * The transport seam gives this its answer for free: a direct endpoint's models are
+ * built with `vendor` = the provider's own `id` (`src/ai/modelSelection.ts`), so a
+ * chosen model whose vendor names a configured endpoint **is** a direct model, and
+ * the address to name is that endpoint's. A model from the editor's own list keeps
+ * its vendor as the name and carries no address, which is the branch whose sentence
+ * is unchanged from before the second transport existed.
+ *
+ * A vendor that happens to equal a provider id while the model is really the
+ * editor's own is possible in principle, and the consequence is the safe direction:
+ * the modal would name the configured endpoint's address in addition to the model's
+ * own vendor name — never less information than the truth.
+ */
+export function aiPreReviewConsentDestination(chosen: AiModelInfo): AiPreReviewConsentDestination {
+  const vendor = aiPreReviewModelIdentity(chosen).vendor.trim();
+  if (vendor === '') {
+    return { name: 'unknown' };
+  }
+  const provider = aiProviderSettingsReading().providers.find((candidate) => candidate.id === vendor);
+  if (provider === undefined) {
+    return { name: vendor };
+  }
+  return { name: provider.name, address: openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, '')) };
+}
+
+/**
+ * The sentence the one-time consent modal shows for one destination (§7.1).
+ *
+ * A pure function of the destination so the wording can be pinned without running
+ * a whole pre-review, and so there is exactly one place the two branches are
+ * written: the `vscode.lm` wording is the body alone (byte for byte what it was
+ * before a second transport existed), and a configured endpoint's address is added
+ * **in front of** that same body rather than replacing it.
+ *
+ * Both halves matter to the judged property: the sentence has to name the display
+ * name **and** the address for a direct destination, and it must not claim an
+ * address for a model the editor itself supplies.
+ */
+export function aiPreReviewPromptScopeMessage(destination: AiPreReviewConsentDestination): string {
+  const body = vscode.l10n.t(
+    'Before this AI pre-review sends anything: the chat model you chose belongs to the "{0}" provider, and the prompt is the only thing that leaves this machine. Choose what it may carry. "Send the changed files" sends the pull request title and branch names, the changed-file paths with their line counts, the metadata of existing review comments (path, line, author, review state — never a comment body), the whole diff, and the full text of every changed file at the pull request head version — the most content: the text of those files leaves this machine, not only the diff, and that is what lets the model read the code around a change. "Send the changed lines only" is the cheapest option that still sends code: the added and removed lines of each file with its file and hunk headers, and none of the surrounding context. "Send metadata only" sends the first three of those and no code at all, so the model cannot read a single changed line and can only comment on file-level matters. In no scope is an access token, a URL or host name, or an existing comment body ever sent. Set the setting "forgejoToolkit.aiPreReviewPromptScope" to "full-diff" instead if you want the whole diff without the file texts. Nothing is requested or sent before you answer, cancelling sends nothing and creates nothing, and your answer is written into that setting so this question is asked only once.',
+    destination.name,
+  );
+  if (destination.address === undefined) {
+    return body;
+  }
+  return `${vscode.l10n.t(
+    'The AI pre-review would send this to the provider you configured, "{0}" at {1}.',
+    destination.name,
+    destination.address,
+  )} ${body}`;
+}
+
+/**
  * Asks the one question this feature asks about egress, as a **modal**.
  *
  * Modal on purpose: this answer decides whether source code leaves the machine,
  * it must not be answerable by clicking somewhere else, and the platform's modal
  * is the only VS Code message that blocks the window until it is answered. The
- * message names the provider (the vendor of the model this run will use, the
- * same fact the model picker shows), each scope's egress in plain words, the
- * setting the answer is stored in, and the fact that nothing is sent before the
- * answer — the four things a person has to know to answer it honestly.
+ * message (`aiPreReviewPromptScopeMessage`) names the destination, each scope's
+ * egress in plain words, the setting the answer is stored in, and the fact that
+ * nothing is sent before the answer — the four things a person has to know to
+ * answer it honestly.
  *
  * `undefined` covers every "not answered" case: the explicit cancel button, the
  * platform's close control, and Escape. There is deliberately no default answer:
  * the caller turns `undefined` into a cancelled run, because an unanswered
  * consent question is not consent.
  */
-async function askAiPreReviewPromptScope(vendor: string): Promise<AiPreReviewStatedScope | undefined> {
-  const message = vscode.l10n.t(
-    'Before this AI pre-review sends anything: the chat model you chose belongs to the "{0}" provider, and the prompt is the only thing that leaves this machine. Choose what it may carry. "Send the changed files" sends the pull request title and branch names, the changed-file paths with their line counts, the metadata of existing review comments (path, line, author, review state — never a comment body), the whole diff, and the full text of every changed file at the pull request head version — the most content: the text of those files leaves this machine, not only the diff, and that is what lets the model read the code around a change. "Send the changed lines only" is the cheapest option that still sends code: the added and removed lines of each file with its file and hunk headers, and none of the surrounding context. "Send metadata only" sends the first three of those and no code at all, so the model cannot read a single changed line and can only comment on file-level matters. In no scope is an access token, a URL or host name, or an existing comment body ever sent. Set the setting "forgejoToolkit.aiPreReviewPromptScope" to "full-diff" instead if you want the whole diff without the file texts. Nothing is requested or sent before you answer, cancelling sends nothing and creates nothing, and your answer is written into that setting so this question is asked only once.',
-    vendor,
-  );
+async function askAiPreReviewPromptScope(
+  destination: AiPreReviewConsentDestination,
+): Promise<AiPreReviewStatedScope | undefined> {
+  const message = aiPreReviewPromptScopeMessage(destination);
   const picked = await vscode.window.showInformationMessage(
     message,
     { modal: true },
@@ -2131,7 +2205,9 @@ async function askAiPreReviewPromptScope(vendor: string): Promise<AiPreReviewSta
  *   same discipline as the model choice: a failed write changes where the answer
  *   is remembered, never what this run sends) and the run then uses it.
  */
-async function resolveAiPreReviewPromptScope(vendor: string): Promise<AiPreReviewStatedScope | undefined> {
+async function resolveAiPreReviewPromptScope(
+  destination: AiPreReviewConsentDestination,
+): Promise<AiPreReviewStatedScope | undefined> {
   const configured: AiPreReviewPromptScope = aiPreReviewPromptScopeSettingValue();
   if (configured !== 'ask') {
     logger.info(
@@ -2139,7 +2215,7 @@ async function resolveAiPreReviewPromptScope(vendor: string): Promise<AiPreRevie
     );
     return configured;
   }
-  const answered = await askAiPreReviewPromptScope(vendor.trim() === '' ? 'unknown' : vendor);
+  const answered = await askAiPreReviewPromptScope(destination);
   if (answered === undefined) {
     return undefined;
   }

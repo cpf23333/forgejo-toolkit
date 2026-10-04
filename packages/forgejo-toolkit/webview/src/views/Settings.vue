@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
+import { ref, computed, reactive, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, saveInstanceTargetKey, type SaveInstanceTarget } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
+import AiTestReport from '../components/AiTestReport.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
-import type { AiPreReviewChatModelOption } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type {
+  AiPreReviewChatModelOption,
+  AiProviderEditorEntry,
+  AiProviderTestReport,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 const { t } = useI18n();
@@ -54,6 +59,10 @@ const statusType = ref<'idle' | 'success' | 'error'>('idle');
 // "the list is showing". `editorOpen` is what tells those apart.
 const editingInstance = ref<ForgejoInstance | null>(null);
 const editorOpen = ref(false);
+// The endpoint editor is the second detail state. It is declared here rather than
+// beside the rest of the endpoint state because the focus watcher below reads it,
+// and hoisting the flag keeps every editor's transition in one place.
+const providerEditorOpen = ref(false);
 
 // The two states' focus anchors. Both roots are plain containers with
 // `tabindex="-1"`, so focusing one lets assistive technology read the heading it
@@ -65,38 +74,62 @@ const editorRoot = useTemplateRef<HTMLElement | null>('editorRoot');
 // what the scroll container has to reserve above a focused field (see
 // `editorStickyHeight`).
 const editorHeading = useTemplateRef<HTMLElement | null>('editorHeading');
-// The list controls focus returns to — the row's own Edit button, or Add
-// Instance when there is no row left to return to. Both are filled through a
-// `:ref` callback (`setListTargetButton`), which is also what Vue calls with
-// `null` when a row leaves the list.
-const addInstanceButton = ref<HTMLElement | null>(null);
-const instanceEditButtons = new Map<string, HTMLElement>();
+// The list controls focus returns to. The page has two master–detail pairs — the
+// instance list/editor and the endpoint list/editor — so a target says which pair
+// it belongs to as well as which row. Both are filled through a `:ref` callback
+// (`setListTargetButton`), which is also what Vue calls with `null` when a row
+// leaves the list.
+type ListReturnTarget =
+  | { kind: 'instance'; id: string }
+  | { kind: 'provider'; id: string }
+  | { kind: 'addInstance' }
+  | { kind: 'addProvider' };
 
-function setListTargetButton(element: unknown, instanceId?: string): void {
+const addInstanceButton = ref<HTMLElement | null>(null);
+const addProviderButton = ref<HTMLElement | null>(null);
+const instanceEditButtons = new Map<string, HTMLElement>();
+const providerEditButtons = new Map<string, HTMLElement>();
+
+function setListTargetButton(element: unknown, target: ListReturnTarget): void {
   const resolved = element instanceof HTMLElement ? element : null;
-  if (instanceId === undefined) {
+  if (target.kind === 'addInstance') {
     addInstanceButton.value = resolved;
     return;
   }
+  if (target.kind === 'addProvider') {
+    addProviderButton.value = resolved;
+    return;
+  }
+  const buttons = target.kind === 'instance' ? instanceEditButtons : providerEditButtons;
   if (resolved) {
-    instanceEditButtons.set(instanceId, resolved);
+    buttons.set(target.id, resolved);
   } else {
-    instanceEditButtons.delete(instanceId);
+    buttons.delete(target.id);
   }
 }
 
 /** The `:ref` binding for a row's Edit button (and its `null` on unmount). */
 function instanceEditButtonRef(instanceId: string) {
-  return (element: unknown) => setListTargetButton(element, instanceId);
+  return (element: unknown) => setListTargetButton(element, { kind: 'instance', id: instanceId });
 }
 
 /** The `:ref` binding for the Add Instance button, which is not a row's. */
 function addInstanceButtonRef(element: unknown) {
-  setListTargetButton(element);
+  setListTargetButton(element, { kind: 'addInstance' });
+}
+
+/** The `:ref` binding for an endpoint row's Edit button. */
+function providerEditButtonRef(providerId: string) {
+  return (element: unknown) => setListTargetButton(element, { kind: 'provider', id: providerId });
+}
+
+/** The `:ref` binding for the Add Endpoint button. */
+function addProviderButtonRef(element: unknown) {
+  setListTargetButton(element, { kind: 'addProvider' });
 }
 
 type FocusHandoff = {
-  instanceId: string | undefined;
+  target: ListReturnTarget | undefined;
   attempts: number;
   frame: number | undefined;
   timeout: number | undefined;
@@ -105,13 +138,22 @@ type FocusHandoff = {
 let focusHandoff: FocusHandoff | null = null;
 
 /**
- * The list control focus returns to: the row the editor was opened from, or Add
- * Instance when the editor was the new-instance mode (or the row is gone, which
- * is what a removal leaves). The list container is only the last resort — no
- * list control to return to at all.
+ * The list control focus returns to: the row the editor was opened from, or the
+ * section's own Add button when the editor was the new-record mode (or the row is
+ * gone, which is what a removal leaves). The list container is only the last
+ * resort — no list control to return to at all.
  */
-function listTarget(instanceId?: string): HTMLElement | null {
-  return (instanceId ? instanceEditButtons.get(instanceId) : undefined) ?? addInstanceButton.value ?? listRoot.value;
+function listTarget(target: ListReturnTarget | undefined): HTMLElement | null {
+  if (target?.kind === 'instance') {
+    return instanceEditButtons.get(target.id) ?? addInstanceButton.value ?? listRoot.value;
+  }
+  if (target?.kind === 'provider') {
+    return providerEditButtons.get(target.id) ?? addProviderButton.value ?? listRoot.value;
+  }
+  if (target?.kind === 'addProvider') {
+    return addProviderButton.value ?? listRoot.value;
+  }
+  return addInstanceButton.value ?? listRoot.value;
 }
 
 /**
@@ -138,7 +180,7 @@ function scheduleFocusAttempt(handoff: FocusHandoff): void {
     }
     handoff.frame = undefined;
     handoff.timeout = undefined;
-    const target = listTarget(handoff.instanceId);
+    const target = listTarget(handoff.target);
     // A detached element cannot take focus, and asking one to is the silent
     // no-op this deferral exists to avoid: it would leave focus on `<body>`.
     if (target?.isConnected) {
@@ -183,9 +225,9 @@ function cancelFocusHandoff(): void {
   focusHandoff = null;
 }
 
-function focusListTarget(instanceId?: string): void {
+function focusListTarget(target: ListReturnTarget | undefined): void {
   cancelFocusHandoff();
-  const handoff = { instanceId, attempts: 0, frame: undefined, timeout: undefined };
+  const handoff = { target, attempts: 0, frame: undefined, timeout: undefined };
   focusHandoff = handoff;
   scheduleFocusAttempt(handoff);
 }
@@ -261,17 +303,17 @@ onUnmounted(() => {
 });
 
 /**
- * One transition, stated once. Opening the editor moves focus to the editor, so
- * the heading naming the instance (or the new-instance mode) is what gets read;
- * closing it hands focus back to the list control the user came from. Both are
- * deliberately not the status region: its own live text would otherwise be the
- * last thing announced, over the view the user just arrived at.
+ * One transition, stated once. Opening an editor moves focus to it, so the heading
+ * naming the record (or the new-record mode) is what gets read; closing it hands
+ * focus back to the list control the user came from. Both are deliberately not the
+ * status region: its own live text would otherwise be the last thing announced,
+ * over the view the user just arrived at.
  *
- * Watched on `editorOpen` rather than on the record: switching from one
- * instance's editor to another's keeps the editor open, so neither the focus
+ * Watched on the two `…EditorOpen` flags rather than on the record: switching from
+ * one instance's editor to another's keeps the editor open, so neither the focus
  * move nor the announcement should happen twice.
  */
-let returnToInstanceId: string | undefined;
+let returnToListTarget: ListReturnTarget | undefined;
 
 // `flush: 'post'`: the root it focuses is created by the same render that flipped
 // the flag, so it does not exist yet when a default (pre-flush) watcher runs.
@@ -286,7 +328,25 @@ watch(
       return;
     }
     if (wasOpen) {
-      focusListTarget(returnToInstanceId);
+      focusListTarget(returnToListTarget);
+    }
+  },
+  { flush: 'post' },
+);
+
+// The endpoint editor is the second master–detail pair, and it follows the same
+// transition: focus enters on the heading, and leaving hands it back to the row (or
+// to Add Endpoint when there is no row to return to).
+watch(
+  providerEditorOpen,
+  (open, wasOpen) => {
+    if (open) {
+      cancelFocusHandoff();
+      editorRoot.value?.focus();
+      return;
+    }
+    if (wasOpen) {
+      focusListTarget(returnToListTarget);
     }
   },
   { flush: 'post' },
@@ -477,7 +537,7 @@ function handleSubmit() {
 function openEditor(instance: ForgejoInstance) {
   const target: SaveInstanceTarget = { kind: 'instance', instanceId: instance.id };
   // Where focus goes when this editor closes (see the editorOpen watcher).
-  returnToInstanceId = instance.id;
+  returnToListTarget = { kind: 'instance', id: instance.id };
   url.value = instance.url;
   // Tokens never reach the webview; leaving the field empty keeps the
   // stored token (see the editInstance host handler).
@@ -509,7 +569,7 @@ function openEditor(instance: ForgejoInstance) {
 function openNewEditor() {
   // Nothing to focus on the way back but the Add Instance button that opened
   // this (see the editorOpen watcher).
-  returnToInstanceId = undefined;
+  returnToListTarget = { kind: 'addInstance' };
   url.value = '';
   token.value = '';
   syncApiUrlsToInstanceUrl.value = true;
@@ -826,7 +886,733 @@ async function storeAiPreReviewModel(value: string) {
 
 onMounted(() => {
   void loadAiPreReviewModels();
+  void loadProviderSettings();
 });
+
+// ---------------------------------------------------------------------------
+// The AI endpoints: the list (master) and the endpoint editor (detail).
+//
+// The section follows the instance list's pattern rather than inventing a second
+// one: the list is the master, adding and editing are the same editor, the editor
+// is a state of the page rather than a form inside a row, and closing it hands
+// focus back to the row it was opened from. The endpoint editor's own fields are
+// grouped the way the record groups them (`docs/design/ai-model-transport.md`
+// §8.1): identity, address, the model declaration, the custom header **names**, and
+// then the secrets — which are the only fields whose values never travel back.
+// ---------------------------------------------------------------------------
+
+/** One AI feature a binding may name, spelled as the host spells it. */
+type AiFeatureId = string;
+
+/**
+ * The endpoint editor's own state. It is a draft rather than the snapshot: the
+ * fields are edited while the stored configuration stays untouched, and the
+ * secrets it carries are values the user has just typed (never a value read back).
+ */
+interface ProviderDraft {
+  id: string;
+  name: string;
+  baseUrl: string;
+  auth: 'bearer' | 'api-key-header' | 'none';
+  localOnly: boolean;
+  models: Array<{ id: string; name: string }>;
+  /** `value` is what the user typed in this session; `set` is what the host reported. */
+  headers: Array<{ name: string; value: string; set: boolean }>;
+  /** The typed API key; empty means "keep whatever is stored". */
+  key: string;
+}
+
+/** The id the endpoint editor was opened on: `null` is the add mode. */
+const editingProviderId = ref<string | null>(null);
+/** The address the editor opened with, for the heading that names its subject. */
+const openedProviderAddress = ref('');
+const providerDraft = ref<ProviderDraft>(emptyProviderDraft());
+const providerSaving = ref(false);
+const providerRemovingId = ref<string | null>(null);
+const providerTestingId = ref<string | null>(null);
+const providerRechecking = ref(false);
+const providerStatus = ref<{ message: string; type: 'idle' | 'success' | 'error' }>({ message: '', type: 'idle' });
+/** The last test report, and the endpoint it belongs to (reports are per endpoint). */
+const providerTestReport = ref<AiProviderTestReport | null>(null);
+const providerTestReportId = ref<string | null>(null);
+let providerCancelInFlight = false;
+
+function emptyProviderDraft(): ProviderDraft {
+  return {
+    id: '',
+    name: '',
+    baseUrl: '',
+    auth: 'bearer',
+    localOnly: false,
+    models: [{ id: '', name: '' }],
+    headers: [],
+    key: '',
+  };
+}
+
+/**
+ * The host's last reading of the AI endpoint surface. Everything this section
+ * renders comes from it — the endpoint list, the reader's rejections, the policy
+ * gates and the §9.3 capability answer — so the page can never show a state the
+ * host never reported.
+ */
+const providerSnapshot = computed(() => state.aiProviderSettings.value);
+const providerEntries = computed(() => providerSnapshot.value?.providers ?? []);
+const providerRejections = computed(() => providerSnapshot.value?.rejected ?? []);
+const bindingFeatures = computed(() => providerSnapshot.value?.features ?? []);
+
+/** The §9.3 answer, or `undefined` while nothing has been read yet. */
+const capability = computed(() => providerSnapshot.value?.capability);
+const capabilityReason = computed(() => {
+  const answer = capability.value;
+  return answer !== undefined && !answer.available ? answer.reason : '';
+});
+/**
+ * Whether the two routes of the §9.3 block have anything to offer, and which one
+ * the reason discriminator puts first.
+ *
+ * The branch is on the host's **code**, never on which editor is on screen: the
+ * block is the same block in the list and in the endpoint editor, and a page that
+ * changed its advice depending on where the user happened to be would be advice
+ * about the page rather than about the state.
+ */
+const capabilityCode = computed(() => {
+  const answer = capability.value;
+  return answer !== undefined && !answer.available ? answer.code : undefined;
+});
+const capabilityEndpointFirst = computed(() => {
+  const code = capabilityCode.value;
+  // "Nothing is configured" and "what is configured cannot serve the feature" are
+  // both answered by configuring an endpoint; "the editor offers no model" and
+  // "the editor's own model API failed" are answered on the editor's side first.
+  return code !== 'no-model' && code !== 'editor-unusable';
+});
+
+/** The policy gates, mirrored locally so a control can be edited before it is saved. */
+const policyEnabled = ref(false);
+const policyTransport = ref<'auto' | 'vscode-lm' | 'openai-compatible'>('auto');
+const policyLocalOnly = ref(false);
+const policyTimeoutMs = ref(30_000);
+const policyTimeoutField = ref('30000');
+const policySaving = ref(false);
+const policyStatus = ref<{ message: string; type: 'idle' | 'success' | 'error' }>({ message: '', type: 'idle' });
+
+/** The per-feature binding drafts, and the signature of what the host last applied. */
+const bindingProvider = reactive<Record<AiFeatureId, string>>({});
+const bindingModel = reactive<Record<AiFeatureId, string>>({});
+const bindingSaving = reactive<Record<AiFeatureId, boolean>>({});
+const appliedBindingSignatures = new Map<AiFeatureId, string>();
+
+/** A feature's label, falling back to the id the host sent rather than to English prose. */
+function featureLabel(feature: AiFeatureId): string {
+  const key = `settings.aiProviders.bindings.feature.${feature}`;
+  const label = t(key);
+  return label === key ? feature : label;
+}
+
+function providerSecretNames(entry: { headers: Array<{ name: string; shadowed: boolean }> }): string[] {
+  return entry.headers.filter((header) => header.shadowed).map((header) => header.name);
+}
+
+function storedHeaderCount(entry: { headers: Array<{ set: boolean }> }): number {
+  return entry.headers.filter((header) => header.set).length;
+}
+
+/** The one-line answer to "can this endpoint be used": its credential state. */
+function providerKeyFact(entry: { auth: string; keySet: boolean }): string {
+  if (entry.auth === 'none') {
+    return t('settings.aiProviders.row.keyNotNeeded');
+  }
+  return entry.keySet ? t('settings.aiProviders.row.keySet') : t('settings.aiProviders.row.keyMissing');
+}
+
+function setProviderStatus(message: string, type: 'idle' | 'success' | 'error' = 'idle'): void {
+  providerStatus.value = { message, type };
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : t('common.requestFailed');
+}
+
+/**
+ * Reads the whole AI endpoint surface from the host.
+ *
+ * A failed read is a line on the page rather than a broken section: the endpoint
+ * list is a convenience over `settings.json`, and a page that rendered nothing
+ * because one message was dropped would be worse than one that says so.
+ */
+async function loadProviderSettings(): Promise<void> {
+  try {
+    await state.loadAiProviderSettings();
+    setProviderStatus('');
+  } catch (error) {
+    setProviderStatus(t('settings.aiProviders.status.loadFailed', { error: errorText(error) }), 'error');
+  }
+}
+
+/** Re-reads what the host reports, after a write it already answered. */
+async function refreshProviderSettings(): Promise<void> {
+  try {
+    await state.loadAiProviderSettings();
+  } catch (error) {
+    setProviderStatus(t('settings.aiProviders.status.loadFailed', { error: errorText(error) }), 'error');
+  }
+}
+
+// The snapshot is the section's single source of truth, so the mirrors follow it
+// rather than being updated by hand at every call site: a push the host makes
+// after a write the page did not request lands here too.
+watch(
+  providerSnapshot,
+  (snapshot) => {
+    if (!snapshot) {
+      return;
+    }
+    policyEnabled.value = snapshot.enabled;
+    policyTransport.value = snapshot.transport;
+    policyLocalOnly.value = snapshot.localOnly;
+    if (snapshot.requestTimeoutMs !== policyTimeoutMs.value) {
+      policyTimeoutMs.value = snapshot.requestTimeoutMs;
+      policyTimeoutField.value = String(snapshot.requestTimeoutMs);
+    }
+    for (const feature of snapshot.features.length > 0 ? snapshot.features : []) {
+      const binding = snapshot.bindings.find((candidate) => candidate.feature === feature);
+      const signature = `${binding?.providerId ?? ''}/${binding?.modelId ?? ''}`;
+      // Only re-apply what changed: a snapshot push must not overwrite a draft the
+      // user is typing into an unrelated feature's binding.
+      if (appliedBindingSignatures.get(feature) === signature) {
+        continue;
+      }
+      appliedBindingSignatures.set(feature, signature);
+      bindingProvider[feature] = binding?.providerId ?? '';
+      bindingModel[feature] = binding?.modelId ?? '';
+    }
+  },
+  { immediate: true },
+);
+
+/**
+ * The endpoint editor closes with its record.
+ *
+ * The host's snapshot is the authority on what is configured, so an endpoint that
+ * is gone from it (removed in another window, or by a hand edit) cannot leave the
+ * editor bound to a record that no longer exists — its Save and Test buttons would
+ * answer "no endpoint with that id". With no record left there is nothing to
+ * preserve, so this path takes no discard prompt.
+ */
+watch(providerSnapshot, (snapshot) => {
+  const id = editingProviderId.value;
+  if (id === null || !snapshot) {
+    return;
+  }
+  if (!snapshot.providers.some((entry) => entry.id === id)) {
+    closeProviderEditor();
+  }
+});
+
+/** Opens the editor for a row, with the row's stored state loaded into the draft. */
+function openProviderEditor(entry: AiProviderEditorEntry): void {
+  returnToListTarget = { kind: 'provider', id: entry.id };
+  providerDraft.value = {
+    id: entry.id,
+    name: entry.name,
+    baseUrl: entry.baseUrl,
+    // An entry the reader could not read never reaches here (it is in `rejected`),
+    // so `auth` is always one of the three values the manifest contributes.
+    auth: entry.auth,
+    localOnly: entry.localOnly,
+    models: entry.models.length > 0 ? entry.models.map((model) => ({ ...model })) : [{ id: '', name: '' }],
+    headers: entry.headers.map((header) => ({ name: header.name, value: '', set: header.set })),
+    key: '',
+  };
+  editingProviderId.value = entry.id;
+  openedProviderAddress.value = entry.address;
+  providerTestReport.value = null;
+  providerTestReportId.value = null;
+  providerSaving.value = false;
+  setProviderStatus('');
+  providerEditorOpen.value = true;
+}
+
+/** Opens the editor in its add mode: the same fields, nothing loaded. */
+function openNewProviderEditor(): void {
+  returnToListTarget = { kind: 'addProvider' };
+  providerDraft.value = emptyProviderDraft();
+  editingProviderId.value = null;
+  openedProviderAddress.value = '';
+  providerTestReport.value = null;
+  providerTestReportId.value = null;
+  providerSaving.value = false;
+  setProviderStatus('');
+  providerEditorOpen.value = true;
+}
+
+/**
+ * Returns to the list, unconditionally. Used where the editor cannot stay open: a
+ * saved configuration, or an endpoint the host no longer reports.
+ */
+function closeProviderEditor(): void {
+  editingProviderId.value = null;
+  providerEditorOpen.value = false;
+  providerDraft.value = emptyProviderDraft();
+  openedProviderAddress.value = '';
+  providerSaving.value = false;
+}
+
+/** Whether the draft holds anything the endpoint list would lose by closing it. */
+const providerDraftDirty = computed(() => {
+  const draft = providerDraft.value;
+  if (draft.key !== '') {
+    return true;
+  }
+  if (draft.headers.some((header) => header.value !== '')) {
+    return true;
+  }
+  const stored = editingProviderId.value
+    ? providerEntries.value.find((entry) => entry.id === editingProviderId.value)
+    : undefined;
+  if (!stored) {
+    // The add mode is dirty as soon as anything a new endpoint would keep is set.
+    return (
+      draft.id !== '' ||
+      draft.name !== '' ||
+      draft.baseUrl !== '' ||
+      draft.models.some((model) => model.id !== '' || model.name !== '') ||
+      draft.headers.some((header) => header.name !== '') ||
+      draft.localOnly
+    );
+  }
+  return (
+    draft.name !== stored.name ||
+    draft.baseUrl !== stored.baseUrl ||
+    draft.auth !== stored.auth ||
+    draft.localOnly !== stored.localOnly ||
+    JSON.stringify(draft.models) !==
+      JSON.stringify(stored.models.map((model) => ({ id: model.id, name: model.name }))) ||
+    JSON.stringify(draft.headers.map((header) => header.name)) !==
+      JSON.stringify(stored.headers.map((header) => header.name))
+  );
+});
+
+/**
+ * The Cancel/Back control's own path: it asks before throwing typed input away,
+ * with the same pure-UI confirmation every other dirty form on this page uses.
+ * Removing an endpoint is a host command and is confirmed host-side, so it must
+ * not be double-prompted here.
+ */
+async function requestCloseProviderEditor(): Promise<void> {
+  if (providerDraftDirty.value) {
+    if (providerCancelInFlight) {
+      return;
+    }
+    providerCancelInFlight = true;
+    try {
+      const discard = await state.showConfirm(t('common.discardChangesConfirm'));
+      if (!discard) {
+        return;
+      }
+    } catch {
+      // The prompt never answered (a dropped reply): keep the editor rather than
+      // discarding what the user typed on a failed question.
+      return;
+    } finally {
+      providerCancelInFlight = false;
+    }
+  }
+  closeProviderEditor();
+}
+
+function addProviderModel(): void {
+  providerDraft.value.models.push({ id: '', name: '' });
+}
+
+function removeProviderModel(index: number): void {
+  providerDraft.value.models.splice(index, 1);
+  if (providerDraft.value.models.length === 0) {
+    providerDraft.value.models.push({ id: '', name: '' });
+  }
+}
+
+function addProviderHeader(): void {
+  providerDraft.value.headers.push({ name: '', value: '', set: false });
+}
+
+function removeProviderHeader(index: number): void {
+  providerDraft.value.headers.splice(index, 1);
+}
+
+/** Whether a model id is declared more than once in the draft (the host refuses it too). */
+function duplicateModelIds(): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const model of providerDraft.value.models) {
+    const id = model.id.trim();
+    if (id === '') {
+      continue;
+    }
+    if (seen.has(id)) {
+      duplicates.add(id);
+    }
+    seen.add(id);
+  }
+  return duplicates;
+}
+
+/** Whether a header name is declared more than once in the draft. */
+function duplicateHeaderNames(): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const header of providerDraft.value.headers) {
+    const name = header.name.trim();
+    if (name === '') {
+      continue;
+    }
+    if (seen.has(name)) {
+      duplicates.add(name);
+    }
+    seen.add(name);
+  }
+  return duplicates;
+}
+
+/** Whether the draft's header name collides with the auth style the transport sends itself. */
+function headerIsAuthOwned(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  return normalized === 'authorization' || normalized === 'api-key';
+}
+
+/**
+ * Whether a header value travels as a query parameter rather than as a header.
+ *
+ * `api-version` is Azure's own spelling and the transport sends it in the URL
+ * (§6.2); the page says so on the row rather than letting the user believe a header
+ * was sent. The check is by name only — the value's location is what it describes.
+ */
+function headerQueryCarried(name: string): boolean {
+  return name.trim().toLowerCase() === 'api-version';
+}
+
+/** Whether the endpoint being edited has an API key stored (never the key itself). */
+const storedKeySet = computed(() => {
+  const id = editingProviderId.value;
+  if (id === null) {
+    return false;
+  }
+  return providerEntries.value.find((entry) => entry.id === id)?.keySet ?? false;
+});
+
+/**
+ * Saves the draft: the configuration first, then every secret value the user
+ * typed, in that order and for one reason.
+ *
+ * A secret can only be stored for an endpoint that exists — the host refuses an
+ * orphan secret, because nothing would ever show it and an endpoint later
+ * configured under that id would send it — so a **new** endpoint has to be written
+ * before its key and header values can be. When the configuration write succeeds
+ * but a secret write fails, the editor stays open with the typed value still in
+ * the field and a line saying so: closing it would discard a value the user
+ * entered and the page never read back.
+ */
+async function saveProvider(): Promise<void> {
+  if (providerSaving.value) {
+    return;
+  }
+  const draft = providerDraft.value;
+  providerSaving.value = true;
+  setProviderStatus(t('settings.aiProviders.editor.saving'));
+  try {
+    const saved = await state.saveAiProvider({
+      id: draft.id.trim(),
+      name: draft.name.trim(),
+      baseUrl: draft.baseUrl.trim(),
+      models: draft.models
+        .filter((model) => model.id.trim() !== '')
+        .map((model) => ({ id: model.id.trim(), name: model.name.trim() })),
+      auth: draft.auth,
+      headers: draft.headers.map((header) => header.name.trim()).filter((name) => name !== ''),
+      localOnly: draft.localOnly,
+    });
+    if (saved.error) {
+      setProviderStatus(saved.error, 'error');
+      return;
+    }
+    const id = saved.id;
+    if (draft.key !== '') {
+      const result = await state.setAiProviderSecret(id, undefined, draft.key);
+      if (result.error) {
+        setProviderStatus(t('settings.aiProviders.editor.secretFailed', { error: result.error }), 'error');
+        return;
+      }
+    }
+    for (const header of draft.headers) {
+      if (header.name.trim() === '' || header.value === '') {
+        continue;
+      }
+      const result = await state.setAiProviderSecret(id, header.name.trim(), header.value);
+      if (result.error) {
+        setProviderStatus(t('settings.aiProviders.editor.secretFailed', { error: result.error }), 'error');
+        return;
+      }
+    }
+    await refreshProviderSettings();
+    closeProviderEditor();
+    setProviderStatus(t('settings.aiProviders.status.saved', { id }), 'success');
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  } finally {
+    providerSaving.value = false;
+  }
+}
+
+/**
+ * Clears one stored secret.
+ *
+ * It needs the endpoint to exist, so it is only offered in the edit mode; the
+ * confirmation is the host's own for the removal of an endpoint, but there is none
+ * for clearing a value, and a confirmation written here would be the webview
+ * re-implementing a host-side discipline. The value can be entered again, which is
+ * what makes an unconfirmed clear acceptable.
+ */
+async function clearProviderSecret(headerName?: string): Promise<void> {
+  const id = editingProviderId.value;
+  if (id === null) {
+    return;
+  }
+  try {
+    const result =
+      headerName === undefined
+        ? await state.setAiProviderSecret(id, undefined, '')
+        : await state.setAiProviderSecret(id, headerName, '');
+    if (result.error) {
+      setProviderStatus(result.error, 'error');
+      return;
+    }
+    const header =
+      headerName === undefined
+        ? undefined
+        : providerDraft.value.headers.find((candidate) => candidate.name.trim() === headerName);
+    if (header) {
+      header.set = false;
+      header.value = '';
+    }
+    await refreshProviderSettings();
+    setProviderStatus(t('settings.aiProviders.status.secretCleared'), 'success');
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  }
+}
+
+/**
+ * Runs the §8.7 probe for one endpoint and renders its report.
+ *
+ * This is the only action on this page that sends a request to the endpoint, and it
+ * happens only because a control was clicked — never from a load, a save or a
+ * render. The report names the address and, when it failed locally, says that
+ * nothing was sent.
+ */
+async function runProviderTest(id: string): Promise<void> {
+  if (providerTestingId.value !== null) {
+    return;
+  }
+  providerTestingId.value = id;
+  providerTestReport.value = null;
+  providerTestReportId.value = null;
+  try {
+    const report = await state.testAiProvider(id);
+    providerTestReport.value = report;
+    providerTestReportId.value = report.providerId;
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  } finally {
+    providerTestingId.value = null;
+  }
+}
+
+/** The report for the endpoint the page is currently showing, if any. */
+function reportForCurrentView(): AiProviderTestReport | null {
+  const report = providerTestReport.value;
+  if (!report) {
+    return null;
+  }
+  const subject = providerEditorOpen.value ? editingProviderId.value : undefined;
+  if (subject !== undefined && subject !== null && report.providerId !== subject) {
+    return null;
+  }
+  return report;
+}
+
+/**
+ * The model ids a successful test reported that the editor does not declare yet.
+ *
+ * The record's §8.7 step 2 prefills the endpoint's model list from the list the
+ * endpoint itself reported, and it is the model **declaration** being filled in — not
+ * a whitelist (§8.1) — so the prefilled rows are ordinary rows the user may edit or
+ * delete. Only the ids the draft is missing are offered, so pressing the control
+ * twice cannot duplicate a declaration.
+ */
+function reportedModelsToAdd(): string[] {
+  const report = providerEditorOpen.value ? reportForCurrentView() : null;
+  if (!report?.ok || report.models === undefined) {
+    return [];
+  }
+  const declared = new Set(providerDraft.value.models.map((model) => model.id.trim()).filter((id) => id !== ''));
+  return report.models.filter((id) => id !== '' && !declared.has(id));
+}
+
+/** Appends the reported models to the draft, replacing the empty placeholder row. */
+function addReportedModels(): void {
+  const ids = reportedModelsToAdd();
+  if (ids.length === 0) {
+    return;
+  }
+  const placeholderOnly =
+    providerDraft.value.models.length === 1 &&
+    providerDraft.value.models[0]!.id.trim() === '' &&
+    providerDraft.value.models[0]!.name.trim() === '';
+  if (placeholderOnly) {
+    providerDraft.value.models = [];
+  }
+  for (const id of ids) {
+    providerDraft.value.models.push({ id, name: '' });
+  }
+}
+
+/**
+ * Removes one endpoint. The host pops its own confirmation before it executes, so
+ * a `cancelled` answer is "the user said no", not a failure.
+ */
+async function removeProvider(id: string): Promise<void> {
+  if (providerRemovingId.value !== null) {
+    return;
+  }
+  providerRemovingId.value = id;
+  try {
+    const result = await state.removeAiProvider(id);
+    if (result.cancelled) {
+      setProviderStatus(t('settings.aiProviders.status.removeCancelled'));
+      return;
+    }
+    if (result.error) {
+      setProviderStatus(result.error, 'error');
+      return;
+    }
+    if (editingProviderId.value === id) {
+      closeProviderEditor();
+    }
+    await refreshProviderSettings();
+    setProviderStatus(t('settings.aiProviders.status.removed', { id }), 'success');
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  } finally {
+    providerRemovingId.value = null;
+  }
+}
+
+/** Writes the policy gates, reverting the controls the host refused. */
+async function savePolicy(overrides: Partial<{ requestTimeoutMs: number }> = {}): Promise<void> {
+  if (policySaving.value) {
+    return;
+  }
+  const policy = {
+    enabled: policyEnabled.value,
+    transport: policyTransport.value,
+    localOnly: policyLocalOnly.value,
+    requestTimeoutMs: overrides.requestTimeoutMs ?? policyTimeoutMs.value,
+  };
+  policySaving.value = true;
+  try {
+    const result = await state.setAiModelPolicy(policy);
+    if (result.error) {
+      policyStatus.value = { message: result.error, type: 'error' };
+      // The controls go back to what the host reports: a switch left showing a
+      // state that was never stored is exactly the lie this page exists to avoid.
+      await refreshProviderSettings();
+      return;
+    }
+    policyEnabled.value = result.enabled;
+    policyTransport.value = result.transport;
+    policyLocalOnly.value = result.localOnly;
+    policyTimeoutMs.value = result.requestTimeoutMs;
+    policyTimeoutField.value = String(result.requestTimeoutMs);
+    policyStatus.value = { message: t('settings.aiProviders.status.policySaved'), type: 'success' };
+  } catch (error) {
+    policyStatus.value = { message: errorText(error), type: 'error' };
+  } finally {
+    policySaving.value = false;
+  }
+}
+
+function handlePolicyEnabledChange(event: Event): void {
+  policyEnabled.value = (event.target as HTMLInputElement).checked;
+  void savePolicy();
+}
+
+function handlePolicyTransportChange(event: Event): void {
+  policyTransport.value = (event.target as HTMLSelectElement).value as 'auto' | 'vscode-lm' | 'openai-compatible';
+  void savePolicy();
+}
+
+function handlePolicyLocalOnlyChange(event: Event): void {
+  policyLocalOnly.value = (event.target as HTMLInputElement).checked;
+  void savePolicy();
+}
+
+/** Saves the idle timeout, which is typed rather than toggled. */
+function savePolicyTimeout(): void {
+  const value = Number(policyTimeoutField.value.trim());
+  void savePolicy({ requestTimeoutMs: value });
+}
+
+/**
+ * Re-reads the models the editor offers, and with them the §9.3 answer.
+ *
+ * This is the clickable half of the "install a model extension" route: the page
+ * cannot install anything, and the honest action it can offer is to look again —
+ * every model-contributing extension is listed by the same API, so a model that
+ * appeared while this page was open shows up here.
+ */
+async function recheckOfferedModels(): Promise<void> {
+  if (providerRechecking.value) {
+    return;
+  }
+  providerRechecking.value = true;
+  try {
+    await Promise.all([loadAiPreReviewModels(), refreshProviderSettings()]);
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  } finally {
+    providerRechecking.value = false;
+  }
+}
+
+/** Stores or clears one feature's binding (§8.4). */
+async function saveBinding(feature: AiFeatureId, clear = false): Promise<void> {
+  if (bindingSaving[feature]) {
+    return;
+  }
+  bindingSaving[feature] = true;
+  try {
+    const providerId = clear ? '' : (bindingProvider[feature] ?? '');
+    const modelId = clear ? '' : (bindingModel[feature] ?? '');
+    const result = await state.setAiModelBinding({ feature, providerId, modelId });
+    if (result.error) {
+      // The draft goes back to the host's own reading instead of keeping a value
+      // that was refused.
+      appliedBindingSignatures.delete(feature);
+      await refreshProviderSettings();
+      setProviderStatus(result.error, 'error');
+      return;
+    }
+    setProviderStatus(
+      t(providerId === '' ? 'settings.aiProviders.status.bindingCleared' : 'settings.aiProviders.status.bindingSaved'),
+      'success',
+    );
+  } catch (error) {
+    setProviderStatus(errorText(error), 'error');
+  } finally {
+    bindingSaving[feature] = false;
+  }
+}
 
 function handleWorktreeOpenModeChange(event: Event) {
   const target = event.target as HTMLSelectElement;
@@ -1213,6 +1999,268 @@ defineExpose({
       </div>
     </div>
 
+    <!--
+      The endpoint editor: the same detail half as the instance editor, for the
+      other master. The heading follows the same rules — the mode, the record's
+      identity, then the way back — so the two editors read as one pattern rather
+      than two.
+    -->
+    <div v-else-if="providerEditorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
+      <div ref="editorHeading" class="editor-heading">
+        <h2 class="editor-title">
+          {{ editingProviderId ? t('settings.aiProviders.editTitle') : t('settings.aiProviders.addTitle') }}
+        </h2>
+        <div v-if="editingProviderId" class="editor-subject">
+          <span class="editor-subject-name">{{ providerDraft.name }}</span>
+          <span class="editor-subject-url-group">
+            <span class="editor-subject-url">{{ openedProviderAddress }}</span>
+            <vscode-button
+              v-if="openedProviderAddress"
+              class="editor-copy-url"
+              icon="copy"
+              icon-only
+              secondary
+              :title="t('settings.aiProviders.testReport.address')"
+              :aria-label="t('settings.aiProviders.testReport.address')"
+              @click="state.copyToClipboard(openedProviderAddress)"
+            />
+          </span>
+        </div>
+        <button type="button" class="link-button editor-back" @click="requestCloseProviderEditor">
+          {{ t('settings.aiProviders.backToList') }}
+        </button>
+      </div>
+
+      <div class="editor-fields">
+        <div class="form-row">
+          <label for="ai-provider-id">{{ t('settings.aiProviders.editor.id') }}</label>
+          <vscode-textfield
+            id="ai-provider-id"
+            :value="providerDraft.id"
+            :label="t('settings.aiProviders.editor.id')"
+            :disabled="editingProviderId !== null"
+            @input="providerDraft.id = ($event.target as HTMLInputElement).value"
+          />
+          <p class="field-description">{{ t('settings.aiProviders.editor.idDescription') }}</p>
+          <p v-if="editingProviderId" class="field-description">{{ t('settings.aiProviders.editor.idLocked') }}</p>
+        </div>
+
+        <div class="form-row">
+          <label for="ai-provider-name">{{ t('settings.aiProviders.editor.name') }}</label>
+          <vscode-textfield
+            id="ai-provider-name"
+            :value="providerDraft.name"
+            :label="t('settings.aiProviders.editor.name')"
+            @input="providerDraft.name = ($event.target as HTMLInputElement).value"
+          />
+          <p class="field-description">{{ t('settings.aiProviders.editor.nameDescription') }}</p>
+        </div>
+
+        <div class="form-row">
+          <label for="ai-provider-base-url">{{ t('settings.aiProviders.editor.baseUrl') }}</label>
+          <vscode-textfield
+            id="ai-provider-base-url"
+            :value="providerDraft.baseUrl"
+            :label="t('settings.aiProviders.editor.baseUrl')"
+            type="url"
+            @input="providerDraft.baseUrl = ($event.target as HTMLInputElement).value"
+          />
+          <p class="field-description">{{ t('settings.aiProviders.editor.baseUrlDescription') }}</p>
+        </div>
+
+        <div class="form-row">
+          <label for="ai-provider-auth">{{ t('settings.aiProviders.editor.auth') }}</label>
+          <vscode-single-select
+            id="ai-provider-auth"
+            :value="providerDraft.auth"
+            :label="t('settings.aiProviders.editor.auth')"
+            @change="providerDraft.auth = ($event.target as HTMLSelectElement).value as typeof providerDraft.auth"
+          >
+            <vscode-option value="bearer">{{ t('settings.aiProviders.editor.authBearer') }}</vscode-option>
+            <vscode-option value="api-key-header">{{
+              t('settings.aiProviders.editor.authApiKeyHeader')
+            }}</vscode-option>
+            <vscode-option value="none">{{ t('settings.aiProviders.editor.authNone') }}</vscode-option>
+          </vscode-single-select>
+        </div>
+
+        <!--
+          The credential itself. The stored value is never read back into the
+          webview, so the field is always empty and the two states it can be in are
+          said in words beside it; clearing is its own control because the only way
+          to unset a secret is to submit an empty one.
+        -->
+        <div class="form-row">
+          <label for="ai-provider-key">{{ t('settings.aiProviders.editor.key') }}</label>
+          <vscode-textfield
+            id="ai-provider-key"
+            :value="providerDraft.key"
+            :label="t('settings.aiProviders.editor.key')"
+            type="password"
+            :disabled="providerDraft.auth === 'none'"
+            @input="providerDraft.key = ($event.target as HTMLInputElement).value"
+          />
+          <p class="field-description">{{ t('settings.aiProviders.editor.keyDescription') }}</p>
+          <p v-if="providerDraft.auth === 'none'" class="field-description">
+            {{ t('settings.aiProviders.editor.keyNotNeeded') }}
+          </p>
+          <template v-else>
+            <p class="field-description">
+              {{ storedKeySet ? t('settings.aiProviders.editor.keySet') : t('settings.aiProviders.editor.keyUnset') }}
+            </p>
+            <div v-if="storedKeySet" class="cache-directory-actions">
+              <vscode-button secondary @click="clearProviderSecret()">
+                {{ t('settings.aiProviders.editor.clearKey') }}
+              </vscode-button>
+            </div>
+          </template>
+        </div>
+
+        <div class="form-row">
+          <label>{{ t('settings.aiProviders.editor.models') }}</label>
+          <div
+            v-for="(model, index) in providerDraft.models"
+            :key="`model-${index}`"
+            class="repeatable-row"
+            :class="{ invalid: duplicateModelIds().has(model.id.trim()) }"
+          >
+            <vscode-textfield
+              class="repeatable-id"
+              :value="model.id"
+              :label="t('settings.aiProviders.editor.modelId')"
+              :placeholder="t('settings.aiProviders.editor.modelId')"
+              @input="model.id = ($event.target as HTMLInputElement).value"
+            />
+            <vscode-textfield
+              class="repeatable-name"
+              :value="model.name"
+              :label="t('settings.aiProviders.editor.modelName')"
+              :placeholder="t('settings.aiProviders.editor.modelName')"
+              @input="model.name = ($event.target as HTMLInputElement).value"
+            />
+            <vscode-button
+              secondary
+              icon="trash"
+              icon-only
+              :title="t('settings.aiProviders.editor.removeModel')"
+              :aria-label="t('settings.aiProviders.editor.removeModel')"
+              @click="removeProviderModel(index)"
+            />
+            <p v-if="duplicateModelIds().has(model.id.trim())" class="field-description">
+              {{ t('settings.aiProviders.editor.modelDuplicate') }}
+            </p>
+          </div>
+          <p class="field-description">{{ t('settings.aiProviders.editor.modelsDescription') }}</p>
+          <div class="cache-directory-actions">
+            <vscode-button secondary icon="add" @click="addProviderModel">
+              {{ t('settings.aiProviders.editor.addModel') }}
+            </vscode-button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>{{ t('settings.aiProviders.editor.headers') }}</label>
+          <div
+            v-for="(header, index) in providerDraft.headers"
+            :key="`header-${index}`"
+            class="repeatable-row"
+            :class="{ invalid: duplicateHeaderNames().has(header.name.trim()) || headerIsAuthOwned(header.name) }"
+          >
+            <vscode-textfield
+              class="repeatable-id"
+              :value="header.name"
+              :label="t('settings.aiProviders.editor.headerName')"
+              :placeholder="t('settings.aiProviders.editor.headerName')"
+              @input="header.name = ($event.target as HTMLInputElement).value"
+            />
+            <vscode-textfield
+              class="repeatable-name"
+              :value="header.value"
+              :label="t('settings.aiProviders.editor.headerValue')"
+              :placeholder="
+                header.set ? t('settings.aiProviders.editor.headerSet') : t('settings.aiProviders.editor.headerUnset')
+              "
+              type="password"
+              @input="header.value = ($event.target as HTMLInputElement).value"
+            />
+            <vscode-button
+              secondary
+              icon="trash"
+              icon-only
+              :title="t('settings.aiProviders.editor.removeHeader')"
+              :aria-label="t('settings.aiProviders.editor.removeHeader')"
+              @click="removeProviderHeader(index)"
+            />
+            <p v-if="duplicateHeaderNames().has(header.name.trim())" class="field-description">
+              {{ t('settings.aiProviders.editor.headerDuplicate') }}
+            </p>
+            <p v-else-if="headerIsAuthOwned(header.name)" class="field-description">
+              {{ t('settings.aiProviders.editor.headerShadowed') }}
+            </p>
+            <p v-else-if="headerQueryCarried(header.name)" class="field-description">
+              {{ t('settings.aiProviders.editor.headerQueryCarried') }}
+            </p>
+            <div v-if="header.set && header.name.trim() !== ''" class="cache-directory-actions">
+              <vscode-button secondary @click="clearProviderSecret(header.name.trim())">
+                {{ t('settings.aiProviders.editor.clearHeader') }}
+              </vscode-button>
+            </div>
+          </div>
+          <p class="field-description">{{ t('settings.aiProviders.editor.headersDescription') }}</p>
+          <div class="cache-directory-actions">
+            <vscode-button secondary icon="add" @click="addProviderHeader">
+              {{ t('settings.aiProviders.editor.addHeader') }}
+            </vscode-button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <vscode-checkbox
+            id="ai-provider-local-only"
+            :checked="providerDraft.localOnly"
+            @change="providerDraft.localOnly = ($event.target as HTMLInputElement).checked"
+          >
+            {{ t('settings.aiProviders.editor.localOnly') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.aiProviders.editor.localOnlyDescription') }}</p>
+        </div>
+
+        <div class="actions">
+          <vscode-button
+            secondary
+            :disabled="editingProviderId === null || providerTestingId !== null"
+            @click="editingProviderId && runProviderTest(editingProviderId)"
+          >
+            {{ providerTestingId ? t('settings.aiProviders.testing') : t('settings.aiProviders.test') }}
+          </vscode-button>
+          <vscode-button :disabled="providerSaving" @click="saveProvider">
+            {{ providerSaving ? t('settings.aiProviders.editor.saving') : t('settings.aiProviders.editor.save') }}
+          </vscode-button>
+          <vscode-button secondary @click="requestCloseProviderEditor">
+            {{ t('settings.aiProviders.editor.cancel') }}
+          </vscode-button>
+        </div>
+
+        <!-- The test report the editor's own Test button produced. -->
+        <AiTestReport v-if="reportForCurrentView()" :report="reportForCurrentView()!" />
+        <!--
+          The report's own next step when the endpoint answered with a model list:
+          prefill the declaration from it. A control rather than an automatic write,
+          because the list is the endpoint's claim about itself and the declaration
+          is the user's.
+        -->
+        <div v-if="reportedModelsToAdd().length > 0" class="cache-directory-actions">
+          <vscode-button secondary @click="addReportedModels">
+            {{ t('settings.aiProviders.editor.addReportedModels', { count: reportedModelsToAdd().length }) }}
+          </vscode-button>
+        </div>
+
+        <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
+          {{ providerStatus.message }}
+        </div>
+      </div>
+    </div>
+
     <div v-else ref="listRoot" class="settings-list" tabindex="-1">
       <section class="setting-section">
         <h2>{{ t('settings.language') }}</h2>
@@ -1285,6 +2333,266 @@ defineExpose({
           aria-live="polite"
         >
           {{ aiPreReviewModelStatus.message }}
+        </div>
+      </section>
+
+      <!--
+        The AI endpoints. This is the master half of the second master–detail pair;
+        the editor is a state of the page, exactly as the instance editor is, and
+        adding opens the same editor editing does.
+      -->
+      <section class="setting-section">
+        <div class="section-header">
+          <h2>{{ t('settings.aiProviders.title') }}</h2>
+          <div class="section-actions">
+            <vscode-button :ref="addProviderButtonRef" icon="add" @click="openNewProviderEditor">
+              {{ t('settings.aiProviders.add') }}
+            </vscode-button>
+          </div>
+        </div>
+        <p class="description">{{ t('settings.aiProviders.description') }}</p>
+
+        <!--
+          The §9.3 block: shown when the host's own capability answer says no model
+          is usable, and it branches on that answer's reason code — never on which
+          editor happens to be on screen. Both routes are always offered and the
+          code only decides which one is put first and which extra sentence applies,
+          so a user who reaches one of them cannot be told the other does not exist.
+        -->
+        <div v-if="capability && !capability.available" class="capability-block" role="status" aria-live="polite">
+          <p class="capability-title">{{ t('settings.aiProviders.notUsable.title') }}</p>
+          <p class="field-description">{{ capabilityReason }}</p>
+          <div class="capability-route" :class="{ first: !capabilityEndpointFirst }">
+            <p class="field-description">{{ t('settings.aiProviders.notUsable.installRoute') }}</p>
+            <div class="cache-directory-actions">
+              <vscode-button
+                :secondary="!capabilityEndpointFirst"
+                :disabled="providerRechecking"
+                icon="refresh"
+                @click="recheckOfferedModels"
+              >
+                {{
+                  providerRechecking
+                    ? t('settings.aiProviders.notUsable.rechecking')
+                    : t('settings.aiProviders.notUsable.installAction')
+                }}
+              </vscode-button>
+            </div>
+          </div>
+          <div class="capability-route" :class="{ first: capabilityEndpointFirst }">
+            <p class="field-description">{{ t('settings.aiProviders.notUsable.endpointRoute') }}</p>
+            <div class="cache-directory-actions">
+              <vscode-button :secondary="capabilityEndpointFirst" @click="openNewProviderEditor">
+                {{ t('settings.aiProviders.notUsable.endpointAction') }}
+              </vscode-button>
+            </div>
+          </div>
+          <p v-if="capabilityCode === 'disabled'" class="field-description">
+            {{ t('settings.aiProviders.notUsable.disabledHint') }}
+          </p>
+          <p v-if="capabilityCode === 'bind'" class="field-description">
+            {{ t('settings.aiProviders.notUsable.bindHint') }}
+          </p>
+        </div>
+
+        <!--
+          The policy gates. They sit beside the endpoints they act on rather than in a
+          section of their own, because every one of them changes what a request to
+          those endpoints would do — and the "allow requests" switch is the second,
+          independent fact a direct request needs, so it must not be reachable only
+          through VS Code's Settings UI.
+        -->
+        <div class="form-row">
+          <vscode-checkbox id="ai-providers-enabled" :checked="policyEnabled" @change="handlePolicyEnabledChange">
+            {{ t('settings.aiProviders.policy.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.aiProviders.policy.enabledDescription') }}</p>
+        </div>
+
+        <div class="form-row">
+          <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
+          <vscode-single-select
+            id="ai-transport"
+            :value="policyTransport"
+            :label="t('settings.aiProviders.policy.transport')"
+            :disabled="policySaving"
+            @change="handlePolicyTransportChange"
+          >
+            <vscode-option value="auto">{{ t('settings.aiProviders.policy.transportAuto') }}</vscode-option>
+            <vscode-option value="vscode-lm">{{ t('settings.aiProviders.policy.transportVscodeLm') }}</vscode-option>
+            <vscode-option value="openai-compatible">{{
+              t('settings.aiProviders.policy.transportOpenAiCompatible')
+            }}</vscode-option>
+          </vscode-single-select>
+          <p class="field-description">{{ t('settings.aiProviders.policy.transportDescription') }}</p>
+        </div>
+
+        <div class="form-row">
+          <vscode-checkbox id="ai-local-only" :checked="policyLocalOnly" @change="handlePolicyLocalOnlyChange">
+            {{ t('settings.aiProviders.policy.localOnly') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.aiProviders.policy.localOnlyDescription') }}</p>
+        </div>
+
+        <div class="form-row">
+          <label for="ai-request-timeout">{{ t('settings.aiProviders.policy.timeout') }}</label>
+          <vscode-textfield
+            id="ai-request-timeout"
+            :value="policyTimeoutField"
+            :label="t('settings.aiProviders.policy.timeout')"
+            type="number"
+            @input="policyTimeoutField = ($event.target as HTMLInputElement).value"
+          />
+          <div class="cache-directory-actions">
+            <vscode-button secondary :disabled="policySaving" @click="savePolicyTimeout">
+              {{
+                policySaving ? t('settings.aiProviders.policy.saving') : t('settings.aiProviders.policy.timeoutSave')
+              }}
+            </vscode-button>
+          </div>
+          <p class="field-description">{{ t('settings.aiProviders.policy.timeoutDescription') }}</p>
+        </div>
+
+        <div v-if="policyStatus.message" :class="['status', policyStatus.type]" role="status" aria-live="polite">
+          {{ policyStatus.message }}
+        </div>
+
+        <ul v-if="providerEntries.length > 0" class="saved-list">
+          <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
+            <div class="saved-info">
+              <div class="saved-name">{{ entry.name }}</div>
+              <div class="saved-url">{{ entry.address }}</div>
+              <div class="provider-facts">
+                <span class="provider-fact">{{ providerKeyFact(entry) }}</span>
+                <span v-if="entry.headers.length > 0" class="provider-fact">
+                  {{
+                    t('settings.aiProviders.row.headersSet', {
+                      set: storedHeaderCount(entry),
+                      total: entry.headers.length,
+                    })
+                  }}
+                </span>
+                <span v-if="providerSecretNames(entry).length > 0" class="provider-fact warn">
+                  {{ t('settings.aiProviders.row.shadowed', { names: providerSecretNames(entry).join(', ') }) }}
+                </span>
+                <span v-if="entry.addressError" class="provider-fact warn">
+                  {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
+                </span>
+                <span v-if="entry.localOnlyBlocked" class="provider-fact warn">
+                  {{ t('settings.aiProviders.row.localOnlyBlocked') }}
+                </span>
+                <span v-if="entry.insecure" class="provider-fact warn">
+                  {{ t('settings.aiProviders.row.insecure') }}
+                </span>
+                <span v-if="entry.models.length === 0" class="provider-fact">
+                  {{ t('settings.aiProviders.row.noModels') }}
+                </span>
+              </div>
+            </div>
+            <div class="saved-actions">
+              <vscode-button secondary :disabled="providerTestingId !== null" @click="runProviderTest(entry.id)">
+                {{
+                  providerTestingId === entry.id ? t('settings.aiProviders.testing') : t('settings.aiProviders.test')
+                }}
+              </vscode-button>
+              <vscode-button :ref="providerEditButtonRef(entry.id)" secondary @click="openProviderEditor(entry)">
+                {{ t('settings.aiProviders.edit') }}
+              </vscode-button>
+              <vscode-button :disabled="providerRemovingId !== null" @click="removeProvider(entry.id)">
+                {{
+                  providerRemovingId === entry.id
+                    ? t('settings.aiProviders.removePending')
+                    : t('settings.aiProviders.remove')
+                }}
+              </vscode-button>
+            </div>
+            <!-- The report for this row, when its own Test button produced one. -->
+            <AiTestReport v-if="providerTestReportId === entry.id && providerTestReport" :report="providerTestReport" />
+          </li>
+        </ul>
+        <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>
+
+        <!--
+          The entries the settings reader refused. They are named rather than hidden:
+          a provider silently vanishing from the list is exactly the undiagnosable
+          state this page exists to prevent, and the reason is the reader's own.
+        -->
+        <div v-if="providerRejections.length > 0" class="rejected-block">
+          <h3>{{ t('settings.aiProviders.rejected.title') }}</h3>
+          <p class="field-description">{{ t('settings.aiProviders.rejected.intro') }}</p>
+          <ul class="rejected-list">
+            <li v-for="entry in providerRejections" :key="`rejected-${entry.index}`">
+              {{
+                entry.id
+                  ? t('settings.aiProviders.rejected.entryNamed', {
+                      index: entry.index + 1,
+                      id: entry.id,
+                      reason: entry.reason,
+                    })
+                  : t('settings.aiProviders.rejected.entryUnnamed', { index: entry.index + 1, reason: entry.reason })
+              }}
+            </li>
+          </ul>
+        </div>
+
+        <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
+          {{ providerStatus.message }}
+        </div>
+      </section>
+
+      <!--
+        The per-feature bindings. They are their own section because they answer a
+        different question from the endpoint list — which feature uses which endpoint
+        and model — and because the record keeps them a separate setting.
+      -->
+      <section class="setting-section">
+        <h2>{{ t('settings.aiProviders.bindings.title') }}</h2>
+        <p class="description">{{ t('settings.aiProviders.bindings.description') }}</p>
+        <div v-if="bindingFeatures.length === 0" class="empty-list">
+          {{ t('settings.aiProviders.bindings.empty') }}
+        </div>
+        <div v-for="feature in bindingFeatures" :key="`binding-${feature}`" class="form-row binding-row">
+          <label :for="`ai-binding-${feature}`">{{ featureLabel(feature) }}</label>
+          <vscode-single-select
+            :id="`ai-binding-${feature}`"
+            :value="bindingProvider[feature] ?? ''"
+            :label="featureLabel(feature)"
+            :disabled="bindingSaving[feature] === true"
+            @change="bindingProvider[feature] = ($event.target as HTMLSelectElement).value"
+          >
+            <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
+            <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
+              {{ entry.name }}
+            </vscode-option>
+          </vscode-single-select>
+          <vscode-textfield
+            :value="bindingModel[feature] ?? ''"
+            :label="t('settings.aiProviders.bindings.model')"
+            :placeholder="t('settings.aiProviders.bindings.modelPlaceholder')"
+            :disabled="bindingSaving[feature] === true"
+            @input="bindingModel[feature] = ($event.target as HTMLInputElement).value"
+          />
+          <p
+            v-if="
+              (bindingProvider[feature] ?? '') !== '' &&
+              !providerEntries.some((entry) => entry.id === bindingProvider[feature])
+            "
+            class="field-description warn"
+          >
+            {{ t('settings.aiProviders.bindings.missingProvider', { id: bindingProvider[feature] }) }}
+          </p>
+          <div class="cache-directory-actions">
+            <vscode-button :disabled="bindingSaving[feature] === true" @click="saveBinding(feature)">
+              {{
+                bindingSaving[feature] === true
+                  ? t('settings.aiProviders.bindings.saving')
+                  : t('settings.aiProviders.bindings.save')
+              }}
+            </vscode-button>
+            <vscode-button secondary :disabled="bindingSaving[feature] === true" @click="saveBinding(feature, true)">
+              {{ t('settings.aiProviders.bindings.clear') }}
+            </vscode-button>
+          </div>
         </div>
       </section>
 
@@ -1695,9 +3003,11 @@ h2 {
  * column is a horizontal scrollbar on `.settings`: the AI pre-review note alone
  * made it report 196 px of scroll width against 161 px of content at a 200 px
  * panel. The same run appears in a status message (an export path is a single
- * 610 px token, wider than the default panel) and in the empty state (a host
- * reason that names a setting), so the rule is stated once for every prose block
- * on the page rather than per string.
+ * 610 px token, wider than the default panel), in the empty state (a host reason
+ * that names a setting) and in the AI endpoints section (a reader's own rejection
+ * reason, a provider's address, and the sentence the local-only policy answers
+ * with), so the rule is stated once for every prose block on the page rather than
+ * per string.
  *
  * `overflow-wrap: anywhere` breaks a run only when it cannot fit a line of its
  * own. Ordinary prose still wraps at its spaces and is never broken mid-word; the
@@ -1708,7 +3018,9 @@ h2 {
 .description,
 .field-description,
 .empty-list,
-.status {
+.status,
+.provider-fact,
+.rejected-list li {
   overflow-wrap: anywhere;
 }
 
@@ -2003,5 +3315,141 @@ label {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+}
+
+/*
+ * The §9.3 "no usable model" block.
+ *
+ * It is a block rather than another description line because it is the state a user
+ * with no model provider lands in, and it has to be visible before the endpoint
+ * list rather than after it. The left border is what makes it a block without
+ * turning it into a card: a card would read as a control and as a second section,
+ * and the section it belongs to is the endpoint list itself.
+ */
+.capability-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0 8px 12px;
+  border-left: 3px solid var(--vscode-editorWarning-foreground, var(--vscode-panel-border));
+}
+
+.capability-title {
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+/*
+ * One route of the block. The first one is the one the reason code puts first, and
+ * it says so with a slightly heavier frame rather than with a colour: both routes
+ * are legitimate answers, and a route drawn as "the wrong one" would be advice the
+ * code does not support.
+ */
+.capability-route {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.capability-route.first {
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-focusBorder);
+}
+
+/*
+ * The endpoint row's facts: one line per fact, each of which wraps rather than
+ * widening the row. They are a column inside `.saved-info` (which already carries
+ * the floor and the wrapping), so they only have to stack and to mark a warning.
+ */
+.provider-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.provider-fact {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+/*
+ * A fact that says something was refused or is insecure is stated in the theme's
+ * own warning colour — the same token VS Code uses for the same kind of message —
+ * and never in a colour of this view's own invention.
+ */
+.provider-fact.warn {
+  color: var(--vscode-editorWarning-foreground);
+}
+
+/*
+ * One repeatable group inside the endpoint editor: a model entry, or a header
+ * name/value pair. The fields share a line while they fit and wrap when they do
+ * not — the header pair is two text fields plus a remove control, which cannot fit
+ * the sidebar's narrowest column — and an entry the host would refuse (a duplicate
+ * name, a name the auth style owns) is marked on its own border instead of by
+ * disabling it, so the user can still fix it in place.
+ */
+.repeatable-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid transparent;
+}
+
+.repeatable-row.invalid {
+  border-left-color: var(--vscode-editorWarning-foreground, var(--vscode-panel-border));
+}
+
+.repeatable-row .repeatable-id,
+.repeatable-row .repeatable-name {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+/* The reason a repeatable row is marked is its own paragraph, so it takes a line. */
+.repeatable-row .field-description {
+  flex: 1 0 100%;
+}
+
+/*
+ * The refused-entry block. It is prose about configuration, not a control, so it
+ * is three stacked lines rather than a bordered box, and its list keeps the
+ * markers so several entries are separable.
+ */
+.rejected-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rejected-block h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.rejected-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* The binding row's own fields stack; the label is the feature's name. */
+.binding-row {
+  min-width: 0;
+}
+
+.binding-row .field-description.warn {
+  color: var(--vscode-editorWarning-foreground);
 }
 </style>

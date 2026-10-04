@@ -41,6 +41,16 @@ function ruleBodyFor(selectors: string[]): string {
   return match![2];
 }
 
+/** The prose blocks that share the one wrapping rule, in the order the rule lists them. */
+const PROSE_SELECTORS = [
+  '.description',
+  '.field-description',
+  '.empty-list',
+  '.status',
+  '.provider-fact',
+  '.rejected-list li',
+];
+
 describe('Settings prose blocks wrap long identifiers', () => {
   it('reads the component stylesheet it is meant to guard', () => {
     expect(settingsSource).toContain('.field-description');
@@ -50,21 +60,22 @@ describe('Settings prose blocks wrap long identifiers', () => {
     // `anywhere` breaks a run only when it cannot fit a line of its own, so
     // ordinary prose still wraps at its spaces. `word-break: break-all` would
     // break it mid-word to fill every line.
-    const prose = ruleBodyFor(['.description', '.field-description', '.empty-list', '.status']);
+    const prose = ruleBodyFor(PROSE_SELECTORS);
     expect(prose).toContain('overflow-wrap: anywhere');
     expect(prose).not.toContain('word-break');
   });
 
   it('states the rule once for every prose block in the view', () => {
     // `ruleBodyFor` only matches when the selectors share one rule, so this is
-    // "one rule, four blocks": a fifth block that renders prose belongs in this
-    // list rather than in a fifth patch. The exceptions are deliberate — the
-    // saved instance URL and the worktree cache path are single lines truncated
-    // by their own `overflow: hidden`, while the instance name above them wraps
-    // through the info column's own `overflow-wrap` (see `Settings.savedListLayout`).
-    expect(ruleBodyFor(['.description', '.field-description', '.empty-list', '.status'])).toContain(
-      'overflow-wrap: anywhere',
-    );
+    // "one rule, every block": a new block that renders prose belongs in this list
+    // rather than in a patch of its own. The AI endpoints section added two — the
+    // facts under a provider row (a reader's rejection reason, an address, the
+    // local-only sentence) and the refused entries themselves. The exceptions are
+    // deliberate — the saved instance URL and the worktree cache path are single
+    // lines truncated by their own `overflow: hidden`, while the instance name
+    // above them wraps through the info column's own `overflow-wrap` (see
+    // `Settings.savedListLayout`).
+    expect(ruleBodyFor(PROSE_SELECTORS)).toContain('overflow-wrap: anywhere');
     expect(ruleBody('.saved-url')).toContain('text-overflow: ellipsis');
     expect(ruleBody('.saved-path')).toContain('text-overflow: ellipsis');
     expect(ruleBody('.saved-name')).not.toContain('text-overflow');

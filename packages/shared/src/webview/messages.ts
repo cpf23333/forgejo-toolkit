@@ -216,6 +216,137 @@ export interface AiPreReviewChatModelOption {
   value?: string;
 }
 
+/**
+ * How one configured AI endpoint authenticates a request
+ * (`docs/design/ai-model-transport.md` §8.5), spelled exactly like the
+ * `forgejoToolkit.aiProviders[].auth` values the reader accepts.
+ */
+export type AiProviderAuthValue = 'bearer' | 'api-key-header' | 'none';
+
+/**
+ * One model a configured endpoint declares, as the settings page edits it.
+ *
+ * The declaration is not a whitelist (§8.1): the model id is free text, and the
+ * endpoint's own `/models` only prefills this list.
+ */
+export interface AiProviderModelDraft {
+  id: string;
+  name: string;
+}
+
+/**
+ * One custom header of a configured endpoint, as the settings page may see it.
+ *
+ * The **name** is what settings hold; `set` is whether a value is stored in the
+ * editor's secret storage, and the value itself never travels to the webview
+ * (§8.2). `shadowed` is the conflict §8.5 requires the page to name: the `auth`
+ * style owns this name, so the declared header is not sent.
+ */
+export interface AiProviderHeaderReading {
+  name: string;
+  set: boolean;
+  shadowed: boolean;
+  /** `api-version` travels as a query parameter rather than as a header (§6.2). */
+  queryCarried: boolean;
+}
+
+/** One configured endpoint as the settings page sees it: configuration plus what is stored. */
+export interface AiProviderEditorEntry {
+  id: string;
+  name: string;
+  baseUrl: string;
+  models: AiProviderModelDraft[];
+  auth: AiProviderAuthValue;
+  headers: AiProviderHeaderReading[];
+  localOnly: boolean;
+  /** Whether an API key is stored. `auth: 'none'` needs none, so this stays `false` there. */
+  keySet: boolean;
+  /** The base address as a human may see it: no query string, no userinfo. */
+  address: string;
+  /** Set when the configured address cannot be a model endpoint at all (§6.2). */
+  addressError?: string;
+  /** Set when the address is plain `http://`, which is allowed but reported (§6.2). */
+  insecure: boolean;
+  /** Set when the local-only policy refuses this address, so nothing may be sent to it (§8.8). */
+  localOnlyBlocked: boolean;
+}
+
+/** One per-feature binding, as the settings page edits it. */
+export interface AiModelBindingDraft {
+  feature: string;
+  providerId: string;
+  modelId: string;
+}
+
+/** One configured entry the settings reader could not read, so the page can name what was ignored. */
+export interface AiProviderRejection {
+  index: number;
+  reason: string;
+  /** The raw entry's `id` when it had a string one; absent when the entry could not name itself. */
+  id?: string;
+}
+
+/**
+ * Everything the provider section of the settings page renders, in one reply.
+ *
+ * One message rather than a handful, because the surface they describe is one
+ * screen and the parts constrain each other: whether the egress switch is on,
+ * what the transport says, which endpoints exist and which of their secrets are
+ * stored are read together so the page can never show a state that was never
+ * true. `capability` is the §9.3 answer for the one AI feature this build has,
+ * and it is the **discriminator** the "no usable model" block branches on.
+ */
+export interface AiProviderSettingsSnapshot {
+  providers: AiProviderEditorEntry[];
+  rejected: AiProviderRejection[];
+  /** `forgejoToolkit.aiProvidersEnabled`: the second, independent egress gate (§8.3). */
+  enabled: boolean;
+  transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+  /** `forgejoToolkit.aiLocalOnly`: refuse endpoints that are not on this machine or a private network. */
+  localOnly: boolean;
+  requestTimeoutMs: number;
+  bindings: AiModelBindingDraft[];
+  /** The features a binding may name; one today, and the page renders only what it is given. */
+  features: string[];
+  /**
+   * Whether any model is usable right now, and — when it is not — the reason
+   * code plus the sentence explaining it. This is `selectedModelFor`'s own
+   * answer, so the block and the run cannot disagree about why nothing is
+   * available.
+   */
+  capability: { available: true } | { available: false; code: string; reason: string };
+}
+
+/**
+ * What one "test connection" probe found (`docs/design/ai-model-transport.md` §8.7).
+ *
+ * `address` is where the request went, rendered without its query string and
+ * without credentials; `shadowed` names the declared headers the `auth` style
+ * suppressed. A credential is never part of this shape.
+ */
+export interface AiProviderTestReport {
+  providerId: string;
+  providerName: string;
+  address: string;
+  ok: boolean;
+  /** `false` when validation refused locally: nothing was sent at all. */
+  ran: boolean;
+  status?: number;
+  elapsedMs?: number;
+  summary?: string;
+  reason?: string;
+  /**
+   * The model ids `GET <base>/models` reported, when it answered with a list.
+   *
+   * The record's §8.7 step 2 uses this list to **prefill** the editor's model
+   * declaration: the declaration is not a whitelist (§8.1), so the prefilled ids are
+   * ordinary rows the user can edit or drop. Absent when no model list was read
+   * (the endpoint has none, or the request failed before answering one).
+   */
+  models?: string[];
+  shadowed: string[];
+}
+
 /** Events accepted by the Forgejo API when submitting a pending pull review. */
 export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
@@ -1056,6 +1187,52 @@ export type HostToWebviewMessage =
   // `value` is the value the write was attempted with, so the page can say what
   // it did without re-reading the configuration.
   | { command: 'aiPreReviewChatModelSaved'; value: string; error?: string; _requestId: string }
+  // The settings page's AI endpoint (provider) surface. The snapshot is the
+  // whole screen's state in one message, so it is also pushed — without a
+  // `_requestId` — after a write that changes what the page would render (a
+  // removal, whose host-side confirmation means the webview cannot track it as a
+  // request/response pair).
+  | { command: 'aiProviderSettings'; snapshot: AiProviderSettingsSnapshot; _requestId?: string }
+  | { command: 'aiProviderSaved'; id: string; error?: string; _requestId: string }
+  | {
+      /** `headerName` absent answers the API key; present, that header's value. */
+      command: 'aiProviderSecretSaved';
+      id: string;
+      headerName?: string;
+      set: boolean;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      /**
+       * `cancelled` is the user declining the host's own confirmation: nothing
+       * was removed, and that is not an error.
+       */
+      command: 'aiProviderRemoved';
+      id: string;
+      cancelled?: boolean;
+      error?: string;
+      _requestId: string;
+    }
+  | { command: 'aiProviderTestReport'; report: AiProviderTestReport; _requestId: string }
+  | {
+      command: 'aiModelPolicySaved';
+      enabled: boolean;
+      transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+      localOnly: boolean;
+      requestTimeoutMs: number;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      /** `providerId` empty means "no binding": the feature falls back to the transport choice. */
+      command: 'aiModelBindingSaved';
+      feature: string;
+      providerId: string;
+      modelId: string;
+      error?: string;
+      _requestId: string;
+    }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string }
   | { command: 'linkedRepository'; linked?: LinkedRepository; all?: LinkedRepository[] }
@@ -1416,6 +1593,53 @@ export type WebviewToHostMessage =
   // not use.
   | { command: 'getAiPreReviewChatModels'; _requestId: string }
   | { command: 'setAiPreReviewChatModel'; value: string; _requestId: string }
+  // The settings page's AI endpoint surface. Reading the snapshot sends nothing
+  // anywhere (`selectedModelFor` only lists models and reads secrets), the two
+  // secret writes go straight to `SecretStorage` — never into a setting — and
+  // `testAiProvider` is the one command here that sends a request to the
+  // configured endpoint, which is why it is only ever posted from an explicit
+  // click (§7.2).
+  | { command: 'getAiProviderSettings'; _requestId: string }
+  | {
+      command: 'saveAiProvider';
+      provider: {
+        id: string;
+        name: string;
+        baseUrl: string;
+        models: AiProviderModelDraft[];
+        auth: AiProviderAuthValue;
+        /** Header **names** only: a value is written through `setAiProviderSecret`. */
+        headers: string[];
+        localOnly: boolean;
+      };
+      _requestId: string;
+    }
+  | { command: 'removeAiProvider'; id: string; _requestId: string }
+  | {
+      /** `headerName` absent writes the API key; present, that header's value. `''` clears it. */
+      command: 'setAiProviderSecret';
+      id: string;
+      headerName?: string;
+      value: string;
+      _requestId: string;
+    }
+  | { command: 'testAiProvider'; id: string; _requestId: string }
+  | {
+      command: 'setAiModelPolicy';
+      enabled: boolean;
+      transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+      localOnly: boolean;
+      requestTimeoutMs: number;
+      _requestId: string;
+    }
+  | {
+      command: 'setAiModelBinding';
+      feature: string;
+      /** Empty removes the binding: the feature goes back to the transport choice. */
+      providerId: string;
+      modelId: string;
+      _requestId: string;
+    }
   // The three dashboard lists are the only loaders whose reply cannot be told
   // apart by its own fields: an instance edit keeps the id, so the replaced
   // server's reply and the reload's reply carry the same `instanceId` (and the

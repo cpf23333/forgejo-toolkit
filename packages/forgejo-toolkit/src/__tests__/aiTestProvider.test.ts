@@ -253,6 +253,39 @@ describe('the endpoint probe: what it sends', () => {
     expect(endpointRequests).toEqual([]);
   });
 
+  it('carries the model ids the endpoint reported, for a surface that prefills from them', async () => {
+    // §8.7 step 2: the model list `/models` answers with is used to prefill the
+    // endpoint's own declaration, so the ids have to survive the probe's report.
+    mockServer.use(
+      http.get(
+        MODELS_URL,
+        () =>
+          new HttpResponse(JSON.stringify({ data: [{ id: 'qwen3:8b' }, { id: 'llama3:8b' }] }), {
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    const outcome = await runAiProviderTest(PROVIDER, { secrets: secretStore() });
+
+    expect(outcome.ok && outcome.models).toEqual(['qwen3:8b', 'llama3:8b']);
+  });
+
+  it('reports an empty model list rather than nothing when the endpoint has none', async () => {
+    mockServer.use(
+      http.get(
+        MODELS_URL,
+        () => new HttpResponse('{}', { status: 404, headers: { 'content-type': 'application/json' } }),
+      ),
+    );
+
+    const outcome = await runAiProviderTest({ ...PROVIDER, models: [] }, { secrets: secretStore() });
+
+    // "The endpoint reported no models" is an answer, and it is not a failure: a
+    // surface must be able to tell it from "no list was read at all".
+    expect(outcome.ok && outcome.models).toEqual([]);
+  });
+
   it('carries the api-version query parameter and keeps the header value out of every report', async () => {
     mockServer.use(
       http.get(
