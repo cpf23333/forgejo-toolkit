@@ -19,8 +19,8 @@ un-prefixed tag stays as it is. Codeberg still has no runner of its own, though:
 both releases were created by dispatching the release workflow on the
 self-hosted Forgejo, not on Codeberg, and a Codeberg-side dispatch needs a
 `docker`-label runner registered there first (section "Where to dispatch it").
-Open VSX is not pending work but a decision: the extension is deliberately not
-published there (section 5 explains when that changes). The sections after it
+Open VSX is live too, but no workflow publishes to it: an upload is a manual
+step (section 5 explains why, and what it needs). The sections after this one
 explain each step.
 
 1. **Write the changelog section and name it for the version.** The root
@@ -67,16 +67,15 @@ explain each step.
    off; it validates, packages, creates the release for `v<version>` (the
    workflow's default tag — see step 4 for why 0.0.1's own tag is spelled
    without the `v`) at the dispatched commit and attaches the `.vsix`.
-6. **Publish to the stores.** The VS Code Marketplace is live and is updated
-   manually (it needs publisher credentials) — see section 4. Open VSX is
-   deliberately not published; section 5 keeps the steps for the day that
-   decision changes. Each further Marketplace publish updates the existing
-   listing.
+6. **Publish to the stores.** The VS Code Marketplace and Open VSX listings are
+   both live and are updated manually (they need publisher credentials) — see
+   sections 4 and 5. Neither is published by a workflow. Each further publish
+   updates the existing listing.
 7. **Check the release left nothing stale.** Re-check the version-related entries
-   in `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`. The "not published yet" wording in `README.md` /
-   `README.zh.md` is about Open VSX, which is deliberately not published (section
-   5), so it stays as it is unless that decision changes or a store's status
-   actually changed in this release.
+   in `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`, and the listing text that only
+   moves at the next publish (see **Extension description** below). `README.md` /
+   `README.zh.md` now describe Open VSX as a live listing (section 5), so that
+   wording changes again only when a store's status actually changes.
 
 ## Prerequisites
 
@@ -85,11 +84,14 @@ explain each step.
   [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher account —
   the extension is published under the `cpf23333` publisher id set in
   `packages/forgejo-toolkit/package.json` and uses a Personal Access Token for
-  updates — and an [Open VSX](https://open-vsx.org/) account if you want to
-  publish for VSCodium users. **The extension is deliberately not published on
-  Open VSX at the moment**, so the listing URL in the READMEs does not resolve;
-  if that changes, update `README.md`, `README.zh.md`, `FAQ.md`, `FAQ.zh.md` and
-  this file in the same change.
+  updates — and an **Eclipse Foundation account with a signed Publisher
+  Agreement** for [Open VSX](https://open-vsx.org/). Both listings exist today:
+  Marketplace under the `cpf23333` publisher id, Open VSX under the `cpf23333`
+  namespace. Open VSX refuses an upload without the signed agreement ("You must
+  log in with an Eclipse Foundation account and sign a Publisher Agreement
+  before publishing any extension."), so create the account and sign it before
+  the first upload. If a store's status or account changes, update `README.md`,
+  `README.zh.md`, `FAQ.md`, `FAQ.zh.md` and this file in the same change.
 
 ## Release workflow
 
@@ -149,23 +151,47 @@ pnpm --filter forgejo-toolkit exec vsce publish
 
 ### 5. Publish to Open VSX
 
-**Not planned at the moment.** The extension is deliberately not published on
-Open VSX for now, and the READMEs and FAQ say exactly that; the steps below are
-kept for the day that decision changes (and then the wording above has to change
-with them).
+**Live, and updated by hand.** The listing exists at
+<https://open-vsx.org/extension/cpf23333/forgejo-toolkit>, and it is not updated
+by a workflow: an upload needs publisher credentials, and this repository's CI is
+human-triggered, so no job carries them. Upload the `.vsix` step 3 produced.
 
-Install `ovsx`:
+The upload has a prerequisite that is an account and an agreement rather than a
+credential: an **Eclipse Foundation account with a signed Publisher Agreement**
+for Open VSX. Without it the site refuses an upload with "You must log in with an
+Eclipse Foundation account and sign a Publisher Agreement before publishing any
+extension." Sign the agreement before the first upload, whichever route you use.
+
+**From the web page.** Sign in at <https://open-vsx.org/user/publish> with the
+Eclipse Foundation account and upload the `.vsix` there. This is the route the
+live listing was uploaded with, and it needs no token and nothing installed —
+but it stores no record of what was uploaded beyond the registry's own version
+entry, so the CLI below is the reproducible alternative.
+
+**From the CLI.** [ovsx](https://www.npmjs.com/package/ovsx) publishes the
+already-packaged file. It is not a workspace dependency, so install it where you
+run it — a global install leaves the repository untouched:
 
 ```bash
-pnpm add -D ovsx
+pnpm add -g ovsx
+ovsx publish packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix --pat <token>
 ```
 
-Login and publish:
+The token is an Open VSX [personal access
+token](https://open-vsx.org/user-settings/tokens) created in the account's
+settings, and it is a secret: it belongs in a CI secret, never in the repository.
+`--pat` can be left off when `OVSX_PAT` is set in the environment, which is the
+form a workflow would use. `ovsx` also reads the `publisher` field of the
+manifest as the namespace, so the `cpf23333` namespace must exist — it does,
+because the live listing published into it; `ovsx create-namespace cpf23333`
+covers the case of a new namespace and is not needed for this one.
 
-```bash
-pnpm exec ovsx create-namespace cpf23333
-pnpm exec ovsx publish packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix
-```
+**What is not known here.** Whether a token for this repository is already
+configured anywhere — a local `OVSX_PAT`, `ovsx login`, or a repository secret —
+is not recorded in the repository. Treat the CLI route as available but unproven
+until someone confirms a token exists; the web page needs no token at all, and
+nothing in `.forgejo/workflows/` publishes to Open VSX or would have to change
+for either route to keep working.
 
 ### 6. Publish to Codeberg Releases
 

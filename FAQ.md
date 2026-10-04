@@ -12,7 +12,7 @@ No. The extension targets Forgejo only, with Forgejo 16.0 as its minimum version
 
 ### Can I use it on VSCodium or another VS Code fork?
 
-Yes — install the `.vsix` from the [release page](https://codeberg.org/cpf23333/forgejo-toolkit/releases) (the extension is not published on [Open VSX](https://open-vsx.org/) at the moment), and everything except the AI integration works the same: dashboard, issues, PRs, worktrees, Actions, notifications.
+Yes — the extension is published on [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit), which is the registry VSCodium and other VS Code forks read: search for "Forgejo Toolkit" in the Extensions view and install it directly. If your editor does not reach that registry, install the `.vsix` from the [release page](https://codeberg.org/cpf23333/forgejo-toolkit/releases) instead. Either way, everything except the AI integration works the same: dashboard, issues, PRs, worktrees, Actions, notifications.
 
 The MCP server needs a consumer, and that is where the forks differ. VS Code's built-in consumer is Copilot agent mode, which is only available in Microsoft's official build. On a fork you therefore drive the MCP server from a **third-party agent** (Cline, Continue, …) or any MCP client: point it at the stable-path shim (`mcp-server.js` in the extension's globalStorage, see "Can I use the MCP server in the Agents window?" below for the exact path). The zero-configuration instance matching and the authenticated broker both work there, because they are implemented by the extension itself, not by VS Code's chat. Nothing needs to be disabled: on an editor whose MCP definition API is missing entirely, the extension skips that one registration and runs everything else normally.
 

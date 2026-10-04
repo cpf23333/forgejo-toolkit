@@ -59,9 +59,11 @@ The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`
 
 ### Open VSX
 
-An [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) listing is
-not published at the moment; VSCodium users can install the `.vsix` from the
-release page instead.
+The extension is also published on
+[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) — search for
+"Forgejo Toolkit" in the Extensions view and install it directly. VS Code uses
+the Marketplace by default; VSCodium and other Open VSX-based editors read this
+listing.
 
 ## Usage
 

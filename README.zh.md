@@ -58,7 +58,7 @@ pnpm --filter forgejo-toolkit package
 
 ### Open VSX
 
-[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) 条目目前尚未发布；VSCodium 等编辑器请从 Release 页面安装 `.vsix`。
+扩展也已发布到 [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit)——在扩展视图中搜索「Forgejo Toolkit」直接安装即可。VS Code 默认读取 Marketplace；VSCodium 等基于 Open VSX 的编辑器读取的则是这个条目。
 
 ## 使用
 

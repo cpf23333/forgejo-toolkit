@@ -12,7 +12,7 @@ Forgejo Toolkit 是一个用于 [Forgejo](https://forgejo.org/) 和 Codeberg 的
 
 ### 能在 VSCodium 或其他 VS Code 分支上使用吗？
 
-可以——从 [Release 页面](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 安装 `.vsix` 即可（目前尚未发布到 [Open VSX](https://open-vsx.org/)）；除 AI 集成外的一切功能都相同：Dashboard、Issue、PR、worktree、Actions、通知。
+可以——扩展已发布到 [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit)，而 VSCodium 等 VS Code 分支读取的正是这个注册表：在扩展视图中搜索「Forgejo Toolkit」直接安装即可。如果所用编辑器连不上该注册表，改从 [Release 页面](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 安装 `.vsix`。两种方式下，除 AI 集成外的一切功能都相同：Dashboard、Issue、PR、worktree、Actions、通知。
 
 差异在 MCP server 的消费端。VS Code 内置的消费端是 Copilot agent mode，只在微软官方构建中提供。在分支编辑器上，你需要用**第三方 agent**（Cline、Continue 等）或任意 MCP 客户端来驱动这个 MCP server：把它指向稳定路径 shim（扩展 globalStorage 里的 `mcp-server.js`，确切路径见下文「Agents 窗口里能用这个 MCP server 吗？」）。零配置实例匹配和带认证的 broker 在那里都能用，因为它们由扩展自身实现，不依赖 VS Code 的聊天功能。也不需要禁用任何东西：如果编辑器完全没有 MCP 定义 API，扩展只会跳过那一个注册，其余功能照常运行。
 
