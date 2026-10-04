@@ -236,13 +236,13 @@ describe('manifest nls pairs', () => {
     expect({ unresolvedInEn, unresolvedInZh }).toEqual({ unresolvedInEn: [], unresolvedInZh: [] });
   });
 
-  it('gives the AI pre-review and the MCP write settings a name from the pair', () => {
+  it('gives the AI pre-review, the endpoint and the MCP write settings a name from the pair', () => {
     // A setting with no `title` is labelled from its own key, so
     // `forgejoToolkit.aiPreReview` renders as "Forgejo Toolkit: Ai Pre Review"
     // — an English, mis-capitalized name — in every UI language, while its
     // description is translated. The names therefore have to come from the nls
     // pair like every other manifest string (AGENTS.md, i18n / host-side
-    // strings), starting with the settings added by these two changes.
+    // strings), starting with the settings added by these changes.
     const titled = Object.keys(manifest.contributes.configuration.properties).filter(
       (key) => typeof manifest.contributes.configuration.properties[key]?.title === 'string',
     );
@@ -254,6 +254,12 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.aiPreReview',
       'forgejoToolkit.aiPreReviewPromptScope',
       'forgejoToolkit.aiPreReviewModel',
+      'forgejoToolkit.aiProviders',
+      'forgejoToolkit.aiProvidersEnabled',
+      'forgejoToolkit.aiTransport',
+      'forgejoToolkit.aiModelBindings',
+      'forgejoToolkit.aiLocalOnly',
+      'forgejoToolkit.aiModelRequestTimeoutMs',
     ]);
     const names = [
       'config.mcpWriteTools.createIssueComment.title',
@@ -263,8 +269,15 @@ describe('manifest nls pairs', () => {
       'config.aiPreReview.title',
       'config.aiPreReviewPromptScope.title',
       'config.aiPreReviewModel.title',
+      'config.aiProviders.title',
+      'config.aiProvidersEnabled.title',
+      'config.aiTransport.title',
+      'config.aiModelBindings.title',
+      'config.aiLocalOnly.title',
+      'config.aiModelRequestTimeoutMs.title',
       'command.aiPreReviewPullRequest.title',
       'command.aiPreReviewChooseModel.title',
+      'command.aiTestProvider.title',
     ];
     for (const key of names) {
       expect(en.get(key), `en: ${key}`).toBeTruthy();

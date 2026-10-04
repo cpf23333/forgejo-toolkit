@@ -163,9 +163,9 @@ const LISTING_FAILURE = new Error('model listing failed');
 /**
  * A provider configuration in the shape the record's §8.1 describes, seeded into
  * the mock settings as the **unprefixed** keys `getConfiguration('forgejoToolkit')`
- * reads. None of these settings exists in `package.json` yet (that is stage 2);
- * what this file proves is that the `vscode.lm` transport behaves the same
- * whether or not they are there.
+ * reads. Every one of these settings now exists in `package.json` (added by stage 2,
+ * which also landed the readers in `src/ai/modelSettings.ts`); what this file proves
+ * is that the `vscode.lm` transport behaves the same whether or not they are there.
  */
 const PROVIDER_SETTINGS: Record<string, unknown> = {
   aiProviders: [

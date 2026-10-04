@@ -595,6 +595,22 @@ export function setDefaultRequestDispatcher(dispatcher?: unknown, fetchImpl?: Re
 }
 
 /**
+ * The installed proxy dispatcher pair, read per request.
+ *
+ * The direct model transport (`src/ai/openAiCompatibleTransport.ts`) sends to an
+ * address the user configured rather than to a Forgejo instance, so it cannot go
+ * through `ForgejoClient` — but it must still honour the same proxy, and it must
+ * be the *same* pair the rest of the extension uses rather than a second HTTP
+ * client with its own proxy handling. Returning the pair as a value (instead of
+ * exporting the two module-level variables) keeps the "read it when the request
+ * runs, not when the caller is built" rule visible: activation installs the pair,
+ * and a caller constructed before that still sees it.
+ */
+export function defaultRequestDispatcherPair(): { dispatcher?: unknown; fetchImpl?: RequestFetch } {
+  return { dispatcher: defaultRequestDispatcher, fetchImpl: defaultRequestFetch };
+}
+
+/**
  * Merges the signals that can abort one request: the caller's, the per-client
  * one (MCP tool cancellation) and the request timeout. Each of them must still
  * be able to abort, so they are combined rather than one overriding the others.

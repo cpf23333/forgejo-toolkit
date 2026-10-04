@@ -21,8 +21,7 @@
  *   violation).
  *
  * `docs/design/ai-model-transport.md` §4.2 is the decision record for every
- * member below. One deliberate divergence from it is marked on
- * `AiCompletionResult.parts`.
+ * member below.
  */
 
 /** One model as the seam exposes it, matching today's `aiPreReviewModelIdentity` reading. */
@@ -73,17 +72,14 @@ export type AiTokenCounter = (text: string, signal?: AbortSignal) => Promise<num
  * Tool calls, images and `usage` parts do not appear here at all: today's call
  * site classifies them as "ignore", and using them is a separate design.
  *
- * **Divergence from the record's §4.2.** The record types this member as
- * `Array<{ kind: 'text' | 'reasoning'; text: string }>` and then says, two
- * paragraphs later in §5.4, that the diagnostics must still be able to name
- * **which** stream an answer came from — one-to-one with today's
- * `readResponseCandidates`. A two-value union cannot express the third source
- * (`text-projection`), and collapsing it into `'text'` would make the debug line,
- * the diagnostics dump and the probe's verdict all report the wrong channel for a
- * response that had no candidate stream at all (pinned by
- * `src/__tests__/aiPreReview.test.ts`, which must pass unchanged). The third kind
- * is therefore carried here, and a transport that has no such projection (a
- * direct HTTP endpoint) simply never produces it.
+ * The third channel is visible on the seam as its own `'text-projection'` kind,
+ * one-to-one with today's `readResponseCandidates`: the debug line, the
+ * diagnostics dump and the probe's verdict all have to be able to name **which**
+ * stream an answer came from (§5.4), and collapsing the projection into `'text'`
+ * would make all three report the wrong channel for a response that had no
+ * candidate stream at all (pinned by `src/__tests__/aiPreReview.test.ts`, which
+ * must pass unchanged). A transport that has no such projection (a direct HTTP
+ * endpoint) simply never produces it.
  */
 export interface AiCompletionResult {
   /** The model that produced this answer (diagnostics, panel header and logs all name it). */
@@ -92,6 +88,20 @@ export interface AiCompletionResult {
   parts: Array<{ kind: 'text' | 'reasoning' | 'text-projection'; text: string }>;
   /** The fragment list of the stream the answer was actually read from, when there was one. */
   fragments?: readonly string[];
+  /**
+   * Set when the endpoint **said** it stopped at its own output limit
+   * (`finish_reason: 'length'`), so the answer is known to be incomplete.
+   *
+   * `truncated` is not an exception to the record's rule that a transport
+   * records the endpoint's `finish_reason` (§6.4 item 5) and reports "the answer
+   * was cut off" as a definite failure signal for a feature whose contract is
+   * JSON (§9.2): it is that reading carried on the result, because throwing
+   * instead would discard the partial answer that `vscode.lm` returns in the same
+   * situation (a difference between the two transports that §11.3 forbids).
+   * `undefined`/`false` means "the endpoint reported nothing, or reported
+   * something else", never a guess about whether the answer looks complete.
+   */
+  truncated?: boolean;
 }
 
 /** One request. */
