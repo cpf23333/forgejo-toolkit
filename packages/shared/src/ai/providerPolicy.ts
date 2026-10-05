@@ -1,7 +1,6 @@
 /**
- * The three pure rules that decide what an AI endpoint's address, id and
- * custom-header name may be, and whether a request may go to a host at all
- * (`docs/design/ai-model-transport.md` §6.2, §8.2, §8.8).
+ * The two pure rules that decide what an AI endpoint's address, id and
+ * custom-header name may be (`docs/design/ai-model-transport.md` §6.2, §8.2).
  *
  * They live in the shared package rather than in the extension host because two
  * runtimes need the **same** answer and neither may have its own copy:
@@ -11,8 +10,7 @@
  * 2. The webview's settings page needs them for two things it decides on its own
  *    — the provider id it generates from a typed address
  *    (`docs/design/settings-page.md` §5.1) and the moment the automatic model
- *    probe may be armed, plus the local-only refusal it reports on the address
- *    row (§3.3, §4.3).
+ *    probe may be armed (§4.3).
  *
  * A second implementation in the webview would be exactly the "second validation
  * source" the settings-page record forbids (§7.3): the page must reflect the
@@ -98,68 +96,4 @@ export function inspectAiProviderBaseUrl(baseUrl: string): AiProviderBaseUrlVerd
 /** A URL's origin, without its userinfo (there is none left after the check above). */
 function redactHostOf(url: URL): string {
   return `${url.protocol}//${url.host}`;
-}
-
-/**
- * Whether a hostname is "local" for `forgejoToolkit.aiLocalOnly` (§8.8).
- *
- * The rule reads the **configured** address and nothing else: no lookup, no
- * connectivity probe. DNS rebinding is explicitly not this policy's threat model
- * (the record's §13 question 5), and a policy that resolved the name would add a
- * network round trip and a new failure mode to the one check that has to be able
- * to say no.
- *
- * An empty or unrecognised host is **not** local: "read it and, if you cannot,
- * do not allow it" is the direction `resolveProxyUrl` already uses for the
- * opposite decision.
- *
- * The address patterns below (loopback, the private IPv4 ranges, `fc00::/7`) are
- * this policy's own definition domain, which is why `AGENTS.md`'s
- * placeholder-address rule has its explicit exception for them.
- */
-export function isLocalAiEndpointHost(hostname: string): boolean {
-  const host = hostname
-    .trim()
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '');
-  if (host === '' || host.includes(' ')) {
-    return false;
-  }
-  if (host === 'localhost' || host === '::1' || host === '0:0:0:0:0:0:0:1') {
-    return true;
-  }
-  // A LAN name (`.local`, the mDNS suffix) names a machine on this network, which
-  // is what the policy is about; a public name ending in something else is not.
-  if (host.endsWith('.local')) {
-    return true;
-  }
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const octets = ipv4.slice(1, 5).map((part) => Number(part));
-    if (octets.some((octet) => octet > 255)) {
-      return false;
-    }
-    const [first, second] = octets as [number, number, number, number];
-    if (first === 127) {
-      return true;
-    }
-    if (first === 10) {
-      return true;
-    }
-    if (first === 172 && second >= 16 && second <= 31) {
-      return true;
-    }
-    if (first === 192 && second === 168) {
-      return true;
-    }
-    return false;
-  }
-  // `fc00::/7` (unique local addresses) and the IPv6 loopback above are the two
-  // IPv6 forms the policy names; anything else is not local.
-  const firstHextet = /^([0-9a-f]{1,4}):/.exec(host);
-  if (firstHextet) {
-    const value = Number.parseInt(firstHextet[1] as string, 16);
-    return (value & 0xfe00) === 0xfc00;
-  }
-  return false;
 }

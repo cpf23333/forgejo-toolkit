@@ -15,16 +15,13 @@ import {
   AI_PROVIDERS_SETTING,
   AI_TRANSPORT_CHOICES,
   aiDefaultModelSettingValue,
-  aiLocalOnlySettingValue,
   aiModelRequestTimeoutMsSettingValue,
   aiProviderSettingsReading,
-  aiProvidersEnabledSettingValue,
   aiTransportSettingValue,
   inspectAiProviderBaseUrl,
   isAiFeature,
   isAiProviderAuth,
   isAiProviderSegment,
-  isLocalAiEndpointHost,
   parseAiModelBinding,
   type AiProviderConfig,
 } from '../ai/modelSettings';
@@ -72,12 +69,15 @@ import type { AiModelTransport } from '../ai/transport';
  *
  * The settings this module writes are the ones a plain Settings entry is not
  * enough for: the provider list, the default destination, the per-feature
- * overrides, and the three policy gates the page has to present beside the
+ * overrides, and the two policy values the page has to present beside the
  * endpoints they act on (`aiProviders`, `aiDefaultProvider`, `aiDefaultModel`,
- * `aiModelBindings`, `aiProvidersEnabled`, `aiTransport`, `aiLocalOnly`,
- * `aiModelRequestTimeoutMs`). Every write goes to **global** scope, matching the
- * manifest's own `machine` scope (§8.3): a workspace-level value could point a
- * repository's content at an address the user never configured.
+ * `aiModelBindings`, `aiTransport`, `aiModelRequestTimeoutMs`). The global AI
+ * switch (`forgejoToolkit.aiEnabled`) and the per-feature switches are read and
+ * written by the page's own settings surface (`src/webview/settingsSurface.ts`),
+ * which is where the page's *settings* — as opposed to its endpoint editors —
+ * live. Every write goes to **global** scope, matching the manifest's own
+ * `machine` scope (§8.3): a workspace-level value could point a repository's
+ * content at an address the user never configured.
  */
 
 /** The settings section every key of this extension lives under. */
@@ -95,9 +95,7 @@ const AI_PROVIDERS_KEY = 'aiProviders';
 const AI_MODEL_BINDINGS_KEY = 'aiModelBindings';
 const AI_DEFAULT_PROVIDER_KEY = 'aiDefaultProvider';
 const AI_DEFAULT_MODEL_KEY = 'aiDefaultModel';
-const AI_PROVIDERS_ENABLED_KEY = 'aiProvidersEnabled';
 const AI_TRANSPORT_KEY = 'aiTransport';
-const AI_LOCAL_ONLY_KEY = 'aiLocalOnly';
 const AI_MODEL_REQUEST_TIMEOUT_KEY = 'aiModelRequestTimeoutMs';
 
 /** What one host-side operation needs. */
@@ -117,7 +115,6 @@ export interface AiProviderConfigDraft {
   models: Array<{ id: string; name: string }>;
   auth: string;
   headers: string[];
-  localOnly: boolean;
 }
 
 /** The result of a write that has nothing else to say. */
@@ -185,7 +182,6 @@ async function describeProvider(
   const address = verdict.ok
     ? openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, ''))
     : provider.baseUrl.trim();
-  const localOnlyPolicy = aiLocalOnlySettingValue();
   return {
     id: provider.id,
     name: provider.name,
@@ -193,7 +189,6 @@ async function describeProvider(
     models: provider.models.map((model) => ({ id: model.id, name: model.name })),
     auth: provider.auth,
     headers: await headerReadings(provider, deps),
-    localOnly: provider.localOnly,
     // An endpoint with `auth: 'none'` needs no key, so "no key stored" is not a
     // state the page should warn about there; anything else is the §8.7 "the key
     // is the thing to add next" case.
@@ -201,8 +196,6 @@ async function describeProvider(
     address,
     ...(verdict.ok ? {} : { addressError: verdict.reason }),
     insecure: verdict.ok && verdict.insecure,
-    localOnlyBlocked:
-      verdict.ok && (localOnlyPolicy || provider.localOnly) && !isLocalAiEndpointHost(verdict.url.hostname),
   };
 }
 
@@ -231,9 +224,7 @@ export async function readAiProviderSettings(deps: AiProviderSettingsDeps): Prom
   return {
     providers,
     rejected,
-    enabled: aiProvidersEnabledSettingValue(),
     transport: aiTransportSettingValue(),
-    localOnly: aiLocalOnlySettingValue(),
     requestTimeoutMs: aiModelRequestTimeoutMsSettingValue(),
     defaultModel: aiDefaultModelSettingValue() ?? { providerId: '', modelId: '' },
     bindings: readBindings(),
@@ -300,7 +291,6 @@ export function sanitizeAiProviderDraft(value: unknown): AiProviderConfigDraft {
     headers: (Array.isArray(entry['headers']) ? entry['headers'] : []).filter(
       (name): name is string => typeof name === 'string',
     ),
-    localOnly: entry['localOnly'] === true,
   };
 }
 
@@ -395,7 +385,6 @@ export async function saveAiProvider(_deps: AiProviderSettingsDeps, value: unkno
     // was not given the value: a `value` field cannot be written into settings by
     // this path, and the reader drops one found there.
     headers: draft.headers.map((name) => ({ name: name.trim(), valueSecret: true })),
-    localOnly: draft.localOnly === true,
   };
   const raw = rawProviderArray();
   const index = raw.findIndex((candidate) => rawProviderId(candidate) === id);
@@ -502,11 +491,11 @@ export async function writeAiProviderSecret(
 }
 
 /**
- * Writes the policy gates the settings page presents, at global scope (§8.3).
+ * Writes the model policy the settings page presents, at global scope (§8.3).
  *
  * Only the fields that differ from what is configured are written. The page always
- * submits its whole state, and a blind write of all four would revert a change the
- * user made in VS Code's own Settings UI between opening the page and pressing the
+ * submits its whole state, and a blind write of both would revert a change the user
+ * made in VS Code's own Settings UI between opening the page and pressing the
  * control.
  */
 export async function writeAiModelPolicy(
@@ -534,17 +523,9 @@ export async function writeAiModelPolicy(
       ),
     };
   }
-  const enabled = policy['enabled'] === true;
-  const localOnly = policy['localOnly'] === true;
   const writes: Array<Promise<void>> = [];
-  if (enabled !== aiProvidersEnabledSettingValue()) {
-    writes.push(writeSettingValue(AI_PROVIDERS_ENABLED_KEY, enabled));
-  }
   if (transport !== aiTransportSettingValue()) {
     writes.push(writeSettingValue(AI_TRANSPORT_KEY, transport));
-  }
-  if (localOnly !== aiLocalOnlySettingValue()) {
-    writes.push(writeSettingValue(AI_LOCAL_ONLY_KEY, localOnly));
   }
   if (timeout !== aiModelRequestTimeoutMsSettingValue()) {
     writes.push(writeSettingValue(AI_MODEL_REQUEST_TIMEOUT_KEY, timeout));
@@ -554,10 +535,7 @@ export async function writeAiModelPolicy(
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-  logger.info(
-    `AI endpoints: the settings page wrote the model policy (enabled=${enabled}, transport=${transport}, ` +
-      `localOnly=${localOnly}, timeoutMs=${timeout})`,
-  );
+  logger.info(`AI endpoints: the settings page wrote the model policy (transport=${transport}, timeoutMs=${timeout})`);
   return { ok: true };
 }
 

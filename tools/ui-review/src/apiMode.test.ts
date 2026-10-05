@@ -283,15 +283,15 @@ test('the gate and the handlers on disk agree on the API path', () => {
 });
 
 test('an http(s) instance at the origin root is mockable; a path prefix is not', () => {
-  assert.equal(mockableInstancePath('http://127.0.0.1:3004', HANDLED_PATH), '/');
-  assert.equal(mockableInstancePath('http://127.0.0.1:3004/', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('http://forgejo.example.com:3004', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('http://forgejo.example.com:3004/', HANDLED_PATH), '/');
   assert.equal(mockableInstancePath('https://forgejo.example.com', HANDLED_PATH), '/');
   assert.equal(mockableInstancePath('https://forgejo.example.com/', HANDLED_PATH), '/');
   assert.equal(mockableInstancePath('https://forgejo.example.com/api/v1', HANDLED_PATH), HANDLED_PATH);
   // A reverse-proxy spelling: every request lands under /forgejo/api/v1/…, which
   // no handler matches, so MSW would pass it straight to that real host.
   assert.equal(mockableInstancePath('https://forgejo.example.com/forgejo', HANDLED_PATH), undefined);
-  assert.equal(mockableInstancePath('http://127.0.0.1:3004/forgejo/', HANDLED_PATH), undefined);
+  assert.equal(mockableInstancePath('http://forgejo.example.com:3004/forgejo/', HANDLED_PATH), undefined);
   // Not a URL, or not HTTP at all.
   assert.equal(mockableInstancePath('forgejo.example.com', HANDLED_PATH), undefined);
   assert.equal(mockableInstancePath('ftp://forgejo.example.com', HANDLED_PATH), undefined);
@@ -299,7 +299,7 @@ test('an http(s) instance at the origin root is mockable; a path prefix is not',
 
 test('the gate names only the instances the handlers cannot serve', () => {
   const instances = [
-    { id: 'plain', url: 'http://127.0.0.1:3004' },
+    { id: 'plain', url: 'http://forgejo.example.com:3004' },
     { id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' },
     { id: 'secure', url: 'https://forgejo.example.com' },
   ];
@@ -313,7 +313,7 @@ test('the gate names only the instances the handlers cannot serve', () => {
 
 test('an unreadable handler path blocks every instance rather than guessing', () => {
   const instances = [
-    { id: 'plain', url: 'http://127.0.0.1:3004' },
+    { id: 'plain', url: 'http://forgejo.example.com:3004' },
     { id: 'secure', url: 'https://forgejo.example.com' },
   ];
   const blocked = unmockableInstances(instances, undefined);
@@ -350,7 +350,7 @@ test('the refusal names the instance, the reason and both ways forward', () => {
     {
       ...CONTEXT,
       instances: [
-        { id: 'plain', url: 'http://127.0.0.1:3004' },
+        { id: 'plain', url: 'http://forgejo.example.com:3004' },
         { id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' },
       ],
       unmockableInstances: [{ id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' }],

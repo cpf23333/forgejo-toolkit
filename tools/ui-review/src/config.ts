@@ -200,9 +200,6 @@ function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpo
     // credential out of this file and out of the run.
     auth: 'none',
     headers: [],
-    // True, and it holds: the endpoint binds the loopback address only. Writing it
-    // also exercises the provider-level half of the local-only policy.
-    localOnly: true,
   };
 
   const providers = Array.isArray(settings['forgejoToolkit.aiProviders'])
@@ -213,9 +210,6 @@ function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpo
     provider,
   ];
 
-  // The egress switch is off by default and a configured endpoint is not enabled by
-  // configuration alone, so the run would refuse without this.
-  settings['forgejoToolkit.aiProvidersEnabled'] = true;
   // The binding decides on its own (it is the most specific statement there is);
   // the transport choice is written beside it so the profile also says which route
   // is wanted if the binding is ever removed.
@@ -262,6 +256,9 @@ function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpo
       .map((feature) => ({ feature, providerId, modelId })),
   ];
 
+  // `forgejoToolkit.aiEnabled` is deliberately **not** written: its manifest
+  // default is on, so a value here would restate that default rather than decide
+  // anything.
   // `forgejoToolkit.aiPreReviewPromptScope` and
   // `forgejoToolkit.prDescriptionPromptScope` are deliberately **not** written: the
   // default `ask` is the consent question the walkthroughs are about, and seeding

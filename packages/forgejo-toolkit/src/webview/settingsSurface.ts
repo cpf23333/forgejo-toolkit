@@ -8,6 +8,7 @@ import {
   type SettingsSurfaceSnapshot,
   type SettingsSurfaceWritableKey,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { aiEnabledSettingValue } from '../ai/modelSettings';
 import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionPromptScopeSettingValue } from '../prDescriptionSettings';
 import { enabledMcpWriteTools, isMcpWriteAuditToFileEnabled, MCP_WRITE_TOOLS_KEY } from '../mcpWriteSettings';
@@ -18,8 +19,8 @@ import { logger } from '../logger';
 
 /**
  * The settings page's own surface: which settings it renders, which it leaves to
- * VS Code's own settings editor, and how the nine it renders are read and written
- * (`docs/design/settings-page.md` §1.3, §3.2, §6).
+ * VS Code's own settings editor, and how the settings it renders are read and
+ * written (`docs/design/settings-page.md` §1.3, §3.2, §6).
  *
  * The module exists for the reason the record gives for the policy half of it:
  * **the page's ownership policy has one home**. `NATIVE_ONLY_SETTINGS` is that
@@ -31,7 +32,7 @@ import { logger } from '../logger';
  *
  * The reads reuse the **feature readers** the behaviours themselves use
  * (`isMcpServerEnabled`, `enabledMcpWriteTools`, `isMcpWriteAuditToFileEnabled`,
- * `isMultiWindowLeaseEnabled`, `isAiPreReviewEnabled`,
+ * `isMultiWindowLeaseEnabled`, `aiEnabledSettingValue`, `isAiPreReviewEnabled`,
  * `aiPreReviewPromptScopeSettingValue`), so the page cannot claim a switch is on
  * while the feature reads it off. The one exception is the notification poller,
  * whose reader lives on `ConfigManager` (it owns that switch); it is passed in as
@@ -104,7 +105,7 @@ export interface SettingsSurfaceReadDeps {
   isNotificationPollingEnabled: () => boolean;
 }
 
-/** Whether a value is one of the nine keys the page may write. */
+/** Whether a value is one of the keys the page may write. */
 export function isSettingsSurfaceWritableKey(value: unknown): value is SettingsSurfaceWritableKey {
   return typeof value === 'string' && (SETTINGS_SURFACE_WRITABLE_KEYS as readonly string[]).includes(value);
 }
@@ -122,6 +123,7 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
     },
     mcpWriteAuditToFile: isMcpWriteAuditToFileEnabled(),
     multiWindowLease: isMultiWindowLeaseEnabled(),
+    aiEnabled: aiEnabledSettingValue(),
     aiPreReview: isAiPreReviewEnabled(),
     aiPreReviewPromptScope: aiPreReviewPromptScopeSettingValue(),
     prDescription: isPrDescriptionEnabled(),
@@ -175,7 +177,7 @@ async function writeMcpWriteTool(key: string, value: boolean): Promise<void> {
  * Writes one setting the page renders, after validating it as untrusted input.
  *
  * The webview is not trusted with more than the page can send: the key has to be
- * one of the nine, and the value has to be the type that key takes. A value that
+ * one the page owns, and the value has to be the type that key takes. A value that
  * does not fit is refused with a sentence that names the setting and the shape it
  * takes — and **never** the value itself, because a forged message could put a
  * credential in the field and the refusal would then print it into the UI and the

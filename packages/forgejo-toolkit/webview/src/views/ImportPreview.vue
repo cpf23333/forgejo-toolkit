@@ -286,7 +286,6 @@ watch(
               <span v-if="provider.headers.length > 0">{{
                 t('settings.importPreview.ai.headerNames', { names: provider.headers.join(', ') })
               }}</span>
-              <span v-if="provider.localOnly">{{ t('settings.importPreview.ai.localOnly') }}</span>
             </div>
             <div v-if="provider.unusable" class="ai-unusable">
               {{ t('settings.importPreview.ai.unusable', { reason: provider.unusable }) }}

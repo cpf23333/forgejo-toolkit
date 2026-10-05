@@ -214,7 +214,6 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
     models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
     auth: 'bearer',
     headers: [],
-    localOnly: false,
     ...overrides,
   };
 }
@@ -491,7 +490,6 @@ describe('the same pre-review on both transports (§11.3)', () => {
       // reachable and still receives nothing.
       aiTransport: 'vscode-lm',
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiPreReviewModel: 'editor-vendor/editor-model',
     });
     const editor = editorModel();
@@ -515,7 +513,6 @@ describe('the same pre-review on both transports (§11.3)', () => {
   it('completes through the configured endpoint, and says where it went', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
       // A model setting for the editor path is deliberately present and ignored: the
       // direct choice is the binding's, and the run must not ask the editor anything.
@@ -559,7 +556,6 @@ describe('the same pre-review on both transports (§11.3)', () => {
   it('writes the same served-by facts into the debug diagnostics dump', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     serveEndpoint(VALID_ANSWER);
@@ -596,7 +592,6 @@ describe('an answer the endpoint truncated is reported as truncated (§9.2)', ()
   it('says the endpoint cut its answer off, and how to stop that happening', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     // A JSON answer stopped mid-object, which is what a real `finish_reason=length`
@@ -631,7 +626,6 @@ describe('an answer the endpoint truncated is reported as truncated (§9.2)', ()
   it('adds nothing about an output limit to an answer that was complete', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     // The same endpoint, answering the same request with a complete JSON object and
@@ -666,7 +660,6 @@ describe('an answer the endpoint truncated is reported as truncated (§9.2)', ()
   it('records the truncation in the debug dump beside the contract violation', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     serveTruncatedEndpoint('{"comments":[{"path":"src/index.ts","line":2,"side":"head","body":"a very long');
@@ -698,7 +691,6 @@ describe('the consent question still comes first (§7.2)', () => {
         ? {}
         : {
             aiProviders: [provider()],
-            aiProvidersEnabled: true,
             aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
           }),
     };
@@ -852,7 +844,6 @@ ${body}
     baseSettings({
       aiPreReviewPromptScope: 'full-diff',
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     // Two files whose diff is over the assumed budget together and under it once the
@@ -878,7 +869,6 @@ ${body}
     baseSettings({
       aiPreReviewPromptScope: 'full-diff',
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
     });
     // One file, far past the assumed budget: there is no file left to drop, so the
@@ -931,7 +921,6 @@ describe('no fallback between the transports (§7.5)', () => {
   it('fails on a bound endpoint that rejects the request, without asking the editor', async () => {
     baseSettings({
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
       aiPreReviewModel: 'editor-vendor/editor-model',
     });
@@ -961,7 +950,6 @@ describe('no fallback between the transports (§7.5)', () => {
       // not become the answer even though it is configured, enabled and reachable.
       aiTransport: 'vscode-lm',
       aiProviders: [provider()],
-      aiProvidersEnabled: true,
     });
     vi.mocked(vscode.lm.selectChatModels).mockRejectedValue(new Error('the editor cannot list models'));
     serveEndpoint(VALID_ANSWER);

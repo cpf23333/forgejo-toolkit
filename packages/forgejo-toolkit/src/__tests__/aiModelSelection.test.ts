@@ -16,12 +16,14 @@ import { http, HttpResponse } from 'msw';
  *    becomes a request to a configured endpoint. Both directions are asserted by
  *    watching the other side, not by reading the returned kind.
  * 3. **Configuration is not consent.** A configured endpoint with a stored key is
- *    not reached while `forgejoToolkit.aiProvidersEnabled` is off, and choosing a
- *    transport at all sends **zero** requests — that is the structural premise the
- *    record's "nothing leaves the machine before the consent question is answered"
- *    rests on (§7.2). The feature-level consent modal itself is wired in stage 3,
- *    so what is provable here is exactly that premise: the direct endpoint receives
- *    no request while the prompt scope is still `ask`.
+ *    not reached while the feature's own switch is off, choosing a transport at all
+ *    sends **zero** requests, and the global `forgejoToolkit.aiEnabled` switch
+ *    closes every route — including the editor's own models — before any of the
+ *    table is consulted. That is the structural premise the record's "nothing
+ *    leaves the machine before the consent question is answered" rests on (§7.2).
+ *    The feature-level consent modal itself is wired in stage 3, so what is
+ *    provable here is exactly that premise: the direct endpoint receives no request
+ *    while the prompt scope is still `ask`.
  */
 
 const state = vi.hoisted(() => ({
@@ -78,7 +80,6 @@ const PROVIDER = {
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer' as const,
   headers: [] as Array<{ name: string; valueSecret: true }>,
-  localOnly: false,
 };
 
 /** Every request the configured endpoint received, so "zero requests" can be asserted. */
@@ -175,7 +176,6 @@ describe('the selection rules (§8.4)', () => {
   it('binds a feature to a named endpoint and model', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
       aiTransport: 'vscode-lm',
     };
@@ -196,7 +196,6 @@ describe('the selection rules (§8.4)', () => {
   it('prefers an editor model in auto, and considers a configured endpoint only without one', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiTransport: 'auto',
     };
 
@@ -211,7 +210,6 @@ describe('the selection rules (§8.4)', () => {
   it('refuses to guess between two configured endpoints', async () => {
     state.settings = {
       aiProviders: [PROVIDER, { ...PROVIDER, id: 'second-gateway', name: 'Second' }],
-      aiProvidersEnabled: true,
       aiTransport: 'auto',
     };
 
@@ -225,7 +223,6 @@ describe('the selection rules (§8.4)', () => {
   it('fails by name when the bound endpoint is not configured, and does not resolve to a neighbour', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'deleted-gateway', modelId: 'qwen3:8b' }],
     };
 
@@ -243,7 +240,6 @@ describe('the selection rules (§8.4)', () => {
     // pre-review. Two features, one selector, and no path of their own.
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'prDescription', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
     };
 
@@ -269,7 +265,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
   it('uses the default when the feature has no override of its own', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiDefaultProvider: 'local-gateway',
       aiDefaultModel: 'qwen3:8b',
       // `openai-compatible` says "a configured endpoint", and the default is what
@@ -292,7 +287,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
         PROVIDER,
         { ...PROVIDER, id: 'second-gateway', name: 'Second', models: [{ id: 'big', name: 'Big' }] },
       ],
-      aiProvidersEnabled: true,
       aiDefaultProvider: 'local-gateway',
       aiDefaultModel: 'qwen3:8b',
       aiModelBindings: [{ feature: 'prDescription', providerId: 'second-gateway', modelId: 'big' }],
@@ -324,7 +318,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
         PROVIDER,
         { ...PROVIDER, id: 'second-gateway', name: 'Second', models: [{ id: 'big', name: 'Big' }] },
       ],
-      aiProvidersEnabled: true,
       aiDefaultProvider: 'local-gateway',
       aiDefaultModel: 'qwen3:8b',
       aiModelBindings: [{ feature: 'prDescription', providerId: 'second-gateway', modelId: 'big' }],
@@ -346,7 +339,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
   it('lets an override outrank the default even when auto would prefer the editor', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiDefaultProvider: 'local-gateway',
       aiDefaultModel: 'qwen3:8b',
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
@@ -365,7 +357,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
   it('fails by name when the default names an endpoint that is not configured', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiDefaultProvider: 'deleted-gateway',
       aiDefaultModel: 'qwen3:8b',
       aiTransport: 'openai-compatible',
@@ -379,20 +370,20 @@ describe('the default destination and the per-feature override (§8.4)', () => {
     expect(endpointRequests).toEqual([]);
   });
 
-  it('keeps the egress switch between the default and the endpoint it names', async () => {
+  it('keeps the global AI switch above the default and the endpoint it names', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: false,
       aiDefaultProvider: 'local-gateway',
       aiDefaultModel: 'qwen3:8b',
       aiTransport: 'openai-compatible',
+      aiEnabled: false,
     };
 
     const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
 
     expect(outcome.kind).toBe('unavailable');
-    expect(outcome.kind === 'unavailable' && outcome.code).toBe('disabled');
-    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('forgejoToolkit.aiProvidersEnabled');
+    expect(outcome.kind === 'unavailable' && outcome.code).toBe('ai-off');
+    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('forgejoToolkit.aiEnabled');
     expect(endpointRequests).toEqual([]);
   });
 
@@ -402,7 +393,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
     // model it declares first.
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiTransport: 'openai-compatible',
     };
 
@@ -415,7 +405,6 @@ describe('the default destination and the per-feature override (§8.4)', () => {
   it('still refuses to guess between two endpoints when no default is configured', async () => {
     state.settings = {
       aiProviders: [PROVIDER, { ...PROVIDER, id: 'second-gateway', name: 'Second' }],
-      aiProvidersEnabled: true,
       aiTransport: 'openai-compatible',
     };
 
@@ -430,7 +419,6 @@ describe('no fallback between the two transports (§7.5)', () => {
   it('does not ask the editor models when the bound endpoint fails', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
     };
     const editor = editorTransport({ models: [EDITOR_MODEL] });
@@ -454,7 +442,6 @@ describe('no fallback between the two transports (§7.5)', () => {
   it('does not send anything to a configured endpoint when vscode-lm is chosen', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiTransport: 'vscode-lm',
       aiModelBindings: [],
     };
@@ -469,7 +456,6 @@ describe('no fallback between the two transports (§7.5)', () => {
   it('reports an unusable editor rather than reaching for a configured endpoint', async () => {
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiTransport: 'vscode-lm',
     };
 
@@ -486,23 +472,41 @@ describe('no fallback between the two transports (§7.5)', () => {
 });
 
 describe('configuration is not consent (§7.3, §7.2)', () => {
-  it('does not use a configured endpoint while the egress switch is off', async () => {
+  it('closes every route while the global AI switch is off, including the editor models', async () => {
+    // The switch is "do not use AI at all" rather than a gate on one route, and the
+    // proof is that the editor's own models are not asked either: a source that had
+    // a working editor model before the switch existed keeps nothing running.
     state.settings = {
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: false,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
+      aiEnabled: false,
     };
     const editor = editorTransport({ models: [EDITOR_MODEL] });
 
     const outcome = await selectedModelFor('aiPreReview', deps(editor));
 
     expect(outcome.kind).toBe('unavailable');
-    expect(outcome.kind === 'unavailable' && outcome.code).toBe('disabled');
-    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('forgejoToolkit.aiProvidersEnabled');
-    // A configured endpoint and a stored key still send nothing, and they do not
-    // become an editor call either.
+    expect(outcome.kind === 'unavailable' && outcome.code).toBe('ai-off');
+    // Nothing was looked at on either route, and the endpoint received nothing.
     expect(endpointRequests).toEqual([]);
     expect(editor.availability).not.toHaveBeenCalled();
+    expect(editor.listModels).not.toHaveBeenCalled();
+  });
+
+  it('leaves nothing else to configure once the switch is back on', async () => {
+    // The other half of the default-on decision: the switch does not clear or change
+    // anything, so the very same configuration serves the run as soon as it is on.
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiTransport: 'openai-compatible',
+      aiEnabled: true,
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('openai-compatible');
   });
 
   it('sends nothing while the prompt scope is still ask, whatever else is configured', async () => {
@@ -512,7 +516,6 @@ describe('configuration is not consent (§7.3, §7.2)', () => {
       // it is answered. Everything a direct request would need is configured.
       aiPreReviewPromptScope: 'ask',
       aiProviders: [PROVIDER],
-      aiProvidersEnabled: true,
       aiTransport: 'openai-compatible',
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
     };
@@ -530,25 +533,9 @@ describe('configuration is not consent (§7.3, §7.2)', () => {
     expect(unhandledRequests()).toEqual([]);
   });
 
-  it('refuses a non-local endpoint while the local-only policy is on', async () => {
-    state.settings = {
-      aiProviders: [{ ...PROVIDER, baseUrl: 'https://models.example.com/v1' }],
-      aiProvidersEnabled: true,
-      aiLocalOnly: true,
-      aiTransport: 'openai-compatible',
-    };
-
-    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
-
-    expect(outcome.kind).toBe('unavailable');
-    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('forgejoToolkit.aiLocalOnly');
-    expect(endpointRequests).toEqual([]);
-  });
-
   it('refuses a bound endpoint the settings reader could not read, naming the reason', async () => {
     state.settings = {
       aiProviders: [{ id: 'local-gateway', name: 'Local Gateway', baseUrl: BASE_URL, auth: 'token' }],
-      aiProvidersEnabled: true,
       aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
     };
 

@@ -661,26 +661,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('setPrDescription', { prDescription: isPrDescriptionEnabled() });
         }
         // The AI endpoint keys are listened to here for the same reason as the
-        // switch above, and they are the six the settings page renders rather than
-        // reads into a field of its own: `aiProviders` (the endpoint list),
+        // switch above, and they are the five the settings page renders rather
+        // than reads into a field of its own: `aiProviders` (the endpoint list),
         // `aiModelBindings` (which feature uses which endpoint and model),
-        // `aiProvidersEnabled` (the egress switch the page mirrors),
-        // `aiTransport`, `aiLocalOnly` and `aiModelRequestTimeoutMs`. A hand edit
-        // of any of them in VS Code's own settings editor leaves an open page on
-        // the snapshot it read when it mounted (`Settings.vue` re-reads only then
-        // and on a visibility change) — the same staleness the import path had
-        // until it pushed. They belong **together** because that snapshot is one
-        // message: it answers "which endpoints exist, which are allowed, where
-        // does each feature go and under which policy", so pushing it for one of
-        // the six without the others would trade one stale control for another.
-        // `_pushAiProviderSettings` re-reads all of them from the host, so this is
-        // the page being handed the truth rather than a value from this event.
+        // `aiDefaultProvider` / `aiDefaultModel` (the default destination),
+        // `aiTransport` and `aiModelRequestTimeoutMs`. A hand edit of any of them
+        // in VS Code's own settings editor leaves an open page on the snapshot it
+        // read when it mounted (`Settings.vue` re-reads only then and on a
+        // visibility change) — the same staleness the import path had until it
+        // pushed. They belong **together** because that snapshot is one message: it
+        // answers "which endpoints exist, where does each feature go and under
+        // which policy", so pushing it for one of them without the others would
+        // trade one stale control for another. `_pushAiProviderSettings` re-reads
+        // all of them from the host, so this is the page being handed the truth
+        // rather than a value from this event. The global AI switch and the
+        // per-feature switches are the page's own settings surface
+        // (`forgejoToolkit.aiEnabled`, `aiPreReview`, `prDescription`), which is
+        // pushed above.
         if (
           event.affectsConfiguration('forgejoToolkit.aiProviders') ||
           event.affectsConfiguration('forgejoToolkit.aiModelBindings') ||
-          event.affectsConfiguration('forgejoToolkit.aiProvidersEnabled') ||
+          event.affectsConfiguration('forgejoToolkit.aiDefaultProvider') ||
+          event.affectsConfiguration('forgejoToolkit.aiDefaultModel') ||
           event.affectsConfiguration('forgejoToolkit.aiTransport') ||
-          event.affectsConfiguration('forgejoToolkit.aiLocalOnly') ||
           event.affectsConfiguration('forgejoToolkit.aiModelRequestTimeoutMs')
         ) {
           void this._pushAiProviderSettings();
@@ -1604,9 +1607,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // stored now, which is the same fact the page renders from the snapshot.
         const snapshot = await readAiProviderSettings({ secrets: this._context.secrets });
         this._reply('aiModelPolicySaved', {
-          enabled: snapshot.enabled,
           transport: snapshot.transport,
-          localOnly: snapshot.localOnly,
           requestTimeoutMs: snapshot.requestTimeoutMs,
           ...(result.ok ? {} : { error: result.error }),
           _requestId: message._requestId,
@@ -5546,7 +5547,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       logger.error(`exportInstances could not read the AI configuration: ${userFacingErrorMessage(error)}`);
       return {
-        ai: { providers: [], bindings: [], transport: 'auto', localOnly: false },
+        ai: { providers: [], bindings: [], transport: 'auto' },
         secrets: { keys: {}, headerValues: {} },
       };
     }
@@ -5842,11 +5843,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    *
    * The answer says whether the file carried an AI section this call **reached** —
    * not whether every write in it succeeded. A file with an AI section can change
-   * the provider list, the bindings and the local-only policy, each of which the
-   * settings page renders from its own snapshot, so the caller has to re-push that
-   * snapshot for any of them. A failure is reported to the user by itself (below)
-   * and leaves the page on the host's own re-reading of what actually landed, which
-   * is the honest state either way.
+   * the provider list and the bindings, each of which the settings page renders from
+   * its own snapshot, so the caller has to re-push that snapshot for either of them.
+   * A failure is reported to the user by itself (below) and leaves the page on the
+   * host's own re-reading of what actually landed, which is the honest state either
+   * way.
    */
   private async _applyImportedAiConfig(choices: AiImportConflictChoices | undefined): Promise<boolean> {
     const parsed: ParsedAiSection | undefined = this._pendingImportAi;

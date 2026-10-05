@@ -150,14 +150,16 @@ describe('the settings page surface: reading', () => {
     // The default `vscode` mock answers every configuration read with
     // `undefined`, which is exactly the "nothing is configured" case. The
     // expected snapshot is therefore each reader's own closed/default answer —
-    // including the two switches whose default is on, which is what proves the
-    // page reads the features' rules rather than assuming `false`.
+    // including the switches whose default is on, which is what proves the page
+    // reads the features' rules rather than assuming `false`. The global AI switch
+    // is one of those: its manifest default is on, so an absent value reads as on.
     expect(readSettingsSurface({ isNotificationPollingEnabled: () => true })).toEqual({
       notificationPollingEnabled: true,
       mcpEnabled: true,
       mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
       mcpWriteAuditToFile: false,
       multiWindowLease: true,
+      aiEnabled: true,
       aiPreReview: false,
       aiPreReviewPromptScope: 'ask',
       prDescription: false,
@@ -167,6 +169,16 @@ describe('the settings page surface: reading', () => {
 
   it('reports the notification switch exactly as the poller reads it', () => {
     expect(readSettingsSurface({ isNotificationPollingEnabled: () => false }).notificationPollingEnabled).toBe(false);
+  });
+
+  it('reports the global AI switch exactly as the selection reads it', () => {
+    // One reading for the whole area: the page's control and the switch that gates
+    // every feature come from the same reader, so they cannot disagree.
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: (key: string) => (key === 'aiEnabled' ? false : undefined),
+    } as never);
+
+    expect(readSettingsSurface({ isNotificationPollingEnabled: () => true }).aiEnabled).toBe(false);
   });
 });
 
@@ -191,6 +203,13 @@ describe('the settings page surface: writing', () => {
 
     expect(await writeSettingsSurfaceValue('forgejoToolkit.notificationPollingEnabled', true)).toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith('notificationPollingEnabled', true, vscode.ConfigurationTarget.Global);
+  });
+
+  it('writes the global AI switch the same way, because the page owns its only writable source', async () => {
+    useConfiguration();
+
+    expect(await writeSettingsSurfaceValue('forgejoToolkit.aiEnabled', false)).toEqual({ ok: true });
+    expect(update).toHaveBeenCalledWith('aiEnabled', false, vscode.ConfigurationTarget.Global);
   });
 
   it('writes one write tool as its own dotted key, and never as the container', async () => {

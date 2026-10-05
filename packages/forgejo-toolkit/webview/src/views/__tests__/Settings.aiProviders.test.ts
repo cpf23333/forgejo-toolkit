@@ -27,9 +27,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 interface SnapshotShape {
   providers: unknown[];
   rejected: unknown[];
-  enabled: boolean;
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-  localOnly: boolean;
   requestTimeoutMs: number;
   /** The default destination every feature without an override follows (§8.4). */
   defaultModel: { providerId: string; modelId: string };
@@ -59,7 +57,7 @@ const { stateMock, snapshot } = vi.hoisted(() => {
     testAiProvider: vi.fn(async (): Promise<AiProviderTestReport> => ({
       providerId: 'ollama-local',
       providerName: 'Ollama (this machine)',
-      address: 'http://127.0.0.1:11434/v1',
+      address: 'http://localhost:11434/v1',
       ok: true,
       ran: true,
       status: 200,
@@ -68,20 +66,16 @@ const { stateMock, snapshot } = vi.hoisted(() => {
       shadowed: [],
     })),
     /**
-     * The four policy gates. The declared return type names the full transport
-     * union rather than one call's literal, so a test can answer with another
-     * transport without a cast.
+     * The model policy. The declared return type names the full transport union
+     * rather than one call's literal, so a test can answer with another transport
+     * without a cast.
      */
     setAiModelPolicy: vi.fn(
       async (): Promise<{
-        enabled: boolean;
         transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-        localOnly: boolean;
         requestTimeoutMs: number;
       }> => ({
-        enabled: false,
         transport: 'auto',
-        localOnly: false,
         requestTimeoutMs: 30_000,
       }),
     ),
@@ -124,6 +118,7 @@ const { stateMock, snapshot } = vi.hoisted(() => {
         mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
         mcpWriteAuditToFile: false,
         multiWindowLease: true,
+        aiEnabled: true,
         aiPreReview: false,
         aiPreReviewPromptScope: 'ask',
       },
@@ -164,24 +159,20 @@ import type {
 const ENTRY = {
   id: 'ollama-local',
   name: 'Ollama (this machine)',
-  baseUrl: 'http://127.0.0.1:11434/v1',
+  baseUrl: 'http://localhost:11434/v1',
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer' as const,
   headers: [{ name: 'api-version', set: true, shadowed: false, queryCarried: true }],
-  localOnly: false,
   keySet: true,
-  address: 'http://127.0.0.1:11434/v1',
+  address: 'http://localhost:11434/v1',
   insecure: true,
-  localOnlyBlocked: false,
 };
 
 function snapshotOf(overrides: Partial<SnapshotShape> = {}): AiProviderSettingsSnapshot {
   return {
     providers: [],
     rejected: [],
-    enabled: false,
     transport: 'auto',
-    localOnly: false,
     requestTimeoutMs: 30_000,
     defaultModel: { providerId: '', modelId: '' },
     bindings: [],
@@ -268,7 +259,7 @@ beforeEach(() => {
   stateMock.testAiProvider.mockImplementation(async () => ({
     providerId: 'ollama-local',
     providerName: 'Ollama (this machine)',
-    address: 'http://127.0.0.1:11434/v1',
+    address: 'http://localhost:11434/v1',
     ok: true,
     ran: true,
     status: 200,
@@ -299,14 +290,6 @@ describe('Settings AI endpoint list', () => {
           },
           {
             ...ENTRY,
-            id: 'public',
-            name: 'Public gateway',
-            address: 'https://gateway.example.com/v1',
-            insecure: false,
-            localOnlyBlocked: true,
-          },
-          {
-            ...ENTRY,
             id: 'broken-url',
             name: 'Broken URL',
             address: 'file:///tmp/v1',
@@ -320,9 +303,9 @@ describe('Settings AI endpoint list', () => {
     await flushPromises();
 
     const rows = wrapper.findAll('.saved-item');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
     expect(rows[0]!.text()).toContain('Ollama (this machine)');
-    expect(rows[0]!.text()).toContain('http://127.0.0.1:11434/v1');
+    expect(rows[0]!.text()).toContain('http://localhost:11434/v1');
     expect(rows[0]!.text()).toContain('API key stored');
     expect(rows[0]!.text()).toContain('1 of 1 header value(s) stored');
     expect(rows[0]!.text()).toContain('Plain http://');
@@ -330,8 +313,7 @@ describe('Settings AI endpoint list', () => {
     expect(rows[1]!.text()).toContain('No API key stored');
     expect(rows[1]!.text()).toContain('Not sent: the authentication style already owns authorization.');
     expect(rows[1]!.text()).toContain('No model is declared for this endpoint.');
-    expect(rows[2]!.text()).toContain('Refused by the local-only policy');
-    expect(rows[3]!.text()).toContain('This address cannot be used: its scheme is "file:"');
+    expect(rows[2]!.text()).toContain('This address cannot be used: its scheme is "file:"');
     wrapper.unmount();
   });
 
@@ -361,7 +343,7 @@ describe('Settings AI endpoint list', () => {
     stateMock.testAiProvider.mockImplementation(async () => ({
       providerId: 'ollama-local',
       providerName: 'Ollama (this machine)',
-      address: 'http://127.0.0.1:11434/v1',
+      address: 'http://localhost:11434/v1',
       ok: true,
       ran: true,
       status: 200,
@@ -380,7 +362,7 @@ describe('Settings AI endpoint list', () => {
     const report = wrapper.find('.test-report');
     expect(report.exists()).toBe(true);
     expect(report.text()).toContain('The endpoint "Ollama (this machine)" answered.');
-    expect(report.text()).toContain('http://127.0.0.1:11434/v1');
+    expect(report.text()).toContain('http://localhost:11434/v1');
     expect(report.text()).toContain('200');
     expect(report.text()).toContain('12 ms');
     expect(report.text()).toContain('reported 2 model(s)');
@@ -447,7 +429,7 @@ describe('Settings AI endpoint editor', () => {
 
     await typeInto(wrapper, '#ai-provider-id', 'ollama-local');
     await typeInto(wrapper, '#ai-provider-name', 'Ollama (this machine)');
-    await typeInto(wrapper, '#ai-provider-base-url', 'http://127.0.0.1:11434/v1');
+    await typeInto(wrapper, '#ai-provider-base-url', 'http://localhost:11434/v1');
     await typeInto(wrapper, '#ai-provider-key', 'sk-typed-once');
 
     await button(wrapper, 'Save endpoint').trigger('click');
@@ -456,11 +438,10 @@ describe('Settings AI endpoint editor', () => {
     expect(stateMock.saveAiProvider).toHaveBeenCalledWith({
       id: 'ollama-local',
       name: 'Ollama (this machine)',
-      baseUrl: 'http://127.0.0.1:11434/v1',
+      baseUrl: 'http://localhost:11434/v1',
       models: [],
       auth: 'bearer',
       headers: [],
-      localOnly: false,
     });
     // The key goes to secret storage after the endpoint exists, not into settings.
     expect(stateMock.setAiProviderSecret).toHaveBeenCalledWith('ollama-local', undefined, 'sk-typed-once');
@@ -573,7 +554,7 @@ describe('Settings AI endpoint editor', () => {
     stateMock.testAiProvider.mockImplementation(async () => ({
       providerId: 'ollama-local',
       providerName: 'Ollama (this machine)',
-      address: 'http://127.0.0.1:11434/v1',
+      address: 'http://localhost:11434/v1',
       ok: true,
       ran: true,
       status: 200,
@@ -630,7 +611,7 @@ describe('Settings AI endpoint editor', () => {
     await flushPromises();
     await typeInto(wrapper, '#ai-provider-id', 'ollama-local');
     await typeInto(wrapper, '#ai-provider-name', 'Ollama');
-    await typeInto(wrapper, '#ai-provider-base-url', 'http://127.0.0.1:11434/v1');
+    await typeInto(wrapper, '#ai-provider-base-url', 'http://localhost:11434/v1');
     await typeInto(wrapper, '#ai-provider-key', 'sk-kept');
     await button(wrapper, 'Save endpoint').trigger('click');
     await flushPromises();
@@ -679,8 +660,8 @@ describe('Settings AI endpoint capability block', () => {
     expect(block.text()).toContain('Install an extension that contributes a chat model');
     expect(block.text()).toContain('Configure an OpenAI-compatible endpoint');
 
-    // "Nothing is enabled by configuring": the two routes open the editor and look
-    // again. Neither writes a setting, so neither can open egress.
+    // "Nothing is turned on by configuring": the two routes open the editor and
+    // look again. Neither writes a setting, so neither can enable anything.
     expect(block.findAll('.capability-route.first')).toHaveLength(1);
     await button(wrapper, 'Re-check the offered models').trigger('click');
     await flushPromises();
@@ -699,8 +680,8 @@ describe('Settings AI endpoint capability block', () => {
       snapshotOf({
         capability: {
           available: false,
-          code: 'disabled',
-          reason: '"forgejoToolkit.aiProvidersEnabled" is off, so the configured AI endpoint is not used.',
+          code: 'ai-off',
+          reason: '"forgejoToolkit.aiEnabled" is off, so no AI feature runs and nothing was sent.',
         },
       }),
     );
@@ -708,12 +689,12 @@ describe('Settings AI endpoint capability block', () => {
     const wrapper = mountView();
     await flushPromises();
 
-    // The endpoint route is emphasised, and the switch is named.
+    // The endpoint route is emphasised, and the global switch is named.
     const routes = wrapper.findAll('.capability-route');
     expect(routes).toHaveLength(2);
     expect(routes[1]!.classes()).toContain('first');
     expect(routes[0]!.classes()).not.toContain('first');
-    expect(wrapper.text()).toContain('Requests to configured endpoints are switched off in this window');
+    expect(wrapper.text()).toContain('AI is off, so no AI feature runs');
     expect(wrapper.text()).not.toContain('Nothing says which endpoint serves this feature');
     wrapper.unmount();
   });
@@ -733,7 +714,7 @@ describe('Settings AI endpoint capability block', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Nothing says which endpoint serves this feature');
-    expect(wrapper.text()).not.toContain('Requests to configured endpoints are switched off');
+    expect(wrapper.text()).not.toContain('AI is off, so no AI feature runs');
     wrapper.unmount();
   });
 });
@@ -921,9 +902,7 @@ describe('the AI area follows the transport choice', () => {
     expect(wrapper.find('.saved-item').exists()).toBe(false);
     expect(wrapper.find('#ai-default-provider').exists()).toBe(false);
     expect(wrapper.text()).toContain('is hidden while the transport is vscode-lm');
-    // The gates that also decide what an override would do stay reachable.
-    expect(wrapper.find('#ai-providers-enabled').exists()).toBe(true);
-    expect(wrapper.find('#ai-local-only').exists()).toBe(true);
+    // The timeout, which the transport choice does not make unreachable, stays.
     expect(wrapper.find('#ai-request-timeout').exists()).toBe(true);
     // The choice that hid them is still on the page, so nothing is a dead end.
     expect(wrapper.find('#ai-transport').exists()).toBe(true);
@@ -952,12 +931,10 @@ describe('the AI area follows the transport choice', () => {
     wrapper.unmount();
   });
 
-  it('writes the transport through the same policy message the gates use', async () => {
+  it('writes the transport through the same policy message the timeout uses', async () => {
     setSnapshot(snapshotOf({ providers: [ENTRY], transport: 'auto' }));
     stateMock.setAiModelPolicy.mockImplementation(async () => ({
-      enabled: false,
       transport: 'openai-compatible' as const,
-      localOnly: false,
       requestTimeoutMs: 30_000,
     }));
 
@@ -970,9 +947,7 @@ describe('the AI area follows the transport choice', () => {
     await flushPromises();
 
     expect(stateMock.setAiModelPolicy).toHaveBeenCalledWith({
-      enabled: false,
       transport: 'openai-compatible',
-      localOnly: false,
       requestTimeoutMs: 30_000,
     });
     wrapper.unmount();

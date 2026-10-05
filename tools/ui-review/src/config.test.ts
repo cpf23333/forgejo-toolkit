@@ -5,11 +5,13 @@
 // pinned here rather than only in the README:
 //
 //  1. the settings the extension actually reads are the ones written — a provider
-//     whose base URL carries the port the endpoint bound, the egress switch, the
-//     transport choice and **a binding for every AI feature the extension
-//     declares** (the measured gap: only `aiPreReview` was bound, so the
-//     `prDescription` feature added later could not draft until a walkthrough
-//     typed its binding into the profile by hand);
+//     whose base URL carries the port the endpoint bound, the transport choice and
+//     **a binding for every AI feature the extension declares** (the measured gap:
+//     only `aiPreReview` was bound, so the `prDescription` feature added later
+//     could not draft until a walkthrough typed its binding into the profile by
+//     hand) — and **no** key the extension's manifest does not contribute, which is
+//     the check the seed's own `forgejoToolkit.aiProvidersEnabled` needed for the
+//     months it kept writing a setting that had been deleted;
 //  2. **no credential is written, ever**: the seeded provider authenticates
 //     nothing, so there is nothing to write, and the file is asserted to carry no
 //     key-shaped text at all;
@@ -72,7 +74,6 @@ test('an AI endpoint seed writes exactly the settings the extension reads', () =
   const settings = settingsOf(profileDir);
 
   assert.equal(settings['forgejoToolkit.useMockApi'], true, 'the mock API default is unchanged');
-  assert.equal(settings['forgejoToolkit.aiProvidersEnabled'], true);
   assert.equal(settings['forgejoToolkit.aiTransport'], 'openai-compatible');
   assert.equal(settings['forgejoToolkit.aiPreReview'], true);
   assert.deepEqual(settings['forgejoToolkit.aiProviders'], [
@@ -83,7 +84,6 @@ test('an AI endpoint seed writes exactly the settings the extension reads', () =
       models: [{ id: AI_MOCK_MODEL_ID, name: 'Mock pre-review model' }],
       auth: 'none',
       headers: [],
-      localOnly: true,
     },
   ]);
   assert.deepEqual(
@@ -102,6 +102,44 @@ test('an AI endpoint seed writes exactly the settings the extension reads', () =
   // The consent questions stay unanswered on purpose (see the file comment).
   assert.equal('forgejoToolkit.aiPreReviewPromptScope' in settings, false);
   assert.equal('forgejoToolkit.prDescriptionPromptScope' in settings, false);
+});
+
+test('every key the seed writes is one the extension still contributes', () => {
+  // `forgejoToolkit.aiProvidersEnabled` was written here for months after the
+  // extension deleted the setting, because nothing compared the seed against the
+  // one file that says which keys exist. The manifest is that file, and this is the
+  // comparison: a key the seed writes and the manifest does not contribute is a
+  // profile entry nothing reads.
+  const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'packages', 'forgejo-toolkit', 'package.json'), 'utf8'),
+  ) as { contributes?: { configuration?: unknown } };
+  const configuration = manifest.contributes?.configuration;
+  const blocks = Array.isArray(configuration) ? configuration : [configuration];
+  const contributed = new Set(
+    blocks.flatMap((block) =>
+      Object.keys((block as { properties?: Record<string, unknown> } | null)?.properties ?? {}),
+    ),
+  );
+
+  const profileDir = tempProfile();
+  seedProfileSettings(profileDir, { aiEndpoint: seedFor(43216) });
+  const written = Object.keys(settingsOf(profileDir)).filter((key) => key.startsWith('forgejoToolkit.'));
+
+  assert.deepEqual(
+    written.filter((key) => !contributed.has(key)),
+    [],
+    'the seed writes no key the extension does not contribute',
+  );
+  // The whole list, so a new key is a deliberate line here rather than a silent
+  // addition to the profile.
+  assert.deepEqual(written.sort(), [
+    'forgejoToolkit.aiModelBindings',
+    'forgejoToolkit.aiPreReview',
+    'forgejoToolkit.aiProviders',
+    'forgejoToolkit.aiTransport',
+    'forgejoToolkit.useMockApi',
+  ]);
 });
 
 test('the feature list is read from the extension source, not restated here', () => {
@@ -139,7 +177,6 @@ test('seeding preserves other settings and other providers', () => {
     models: [{ id: 'kept-model', name: 'Kept' }],
     auth: 'bearer',
     headers: [],
-    localOnly: false,
   };
   writeSettings(profileDir, {
     'forgejoToolkit.debug': true,
@@ -219,7 +256,6 @@ test('seeding twice is idempotent and refreshes the entries the harness itself w
       models: [{ id: AI_MOCK_MODEL_ID, name: 'Mock pre-review model' }],
       auth: 'none',
       headers: [],
-      localOnly: true,
     },
   ]);
   assert.notEqual(

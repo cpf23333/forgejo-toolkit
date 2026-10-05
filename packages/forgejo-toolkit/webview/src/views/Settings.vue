@@ -22,7 +22,7 @@ import {
   PR_DESCRIPTION_PROMPT_SCOPES,
   stripUserinfo,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { inspectAiProviderBaseUrl, isLocalAiEndpointHost } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
+import { inspectAiProviderBaseUrl } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
 import { generateAiProviderId, generateAiProviderName, uniqueAiProviderId } from '../utils/providerIdentity';
 
 /**
@@ -944,6 +944,13 @@ const writeToolSubmitPullReview = ref(false);
 const writeToolCancelActionRun = ref(false);
 const mcpAuditToFile = ref(false);
 const leaseEnabled = ref(false);
+/**
+ * The whole AI area's own switch, above every per-feature switch
+ * (`docs/design/ai-model-transport.md` §8.3). It is one of the page's own
+ * settings rather than part of the endpoint snapshot: the page has to be able to
+ * write it, and the section it lives in says what being off means.
+ */
+const aiEnabled = ref(false);
 const preReviewEnabled = ref(false);
 /**
  * The stored prompt scope. The fallback is the host's own reading rule for a
@@ -984,6 +991,8 @@ const MCP_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.mcpWriteAuditToFile',
 ];
 
+const AI_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = ['forgejoToolkit.aiEnabled'];
+
 const PRE_REVIEW_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.aiPreReview',
   'forgejoToolkit.aiPreReviewPromptScope',
@@ -1019,6 +1028,7 @@ watch(
     writeToolCancelActionRun.value = snapshot.mcpWriteTools.cancelActionRun;
     mcpAuditToFile.value = snapshot.mcpWriteAuditToFile;
     leaseEnabled.value = snapshot.multiWindowLease;
+    aiEnabled.value = snapshot.aiEnabled;
     preReviewEnabled.value = snapshot.aiPreReview;
     promptScope.value = snapshot.aiPreReviewPromptScope;
     prDescriptionEnabled.value = snapshot.prDescription;
@@ -1027,14 +1037,15 @@ watch(
   { immediate: true },
 );
 
-/** Reads the nine settings from the host once, when the page mounts. */
+/** Reads the settings the page's own sections present from the host once, when the page mounts. */
 async function loadSettingsSurface(): Promise<void> {
   try {
     await state.loadSettingsSurface();
   } catch (error) {
-    // A failed read leaves every one of the nine controls disabled and says so
-    // once, in the header: the page cannot show what it was never told, and nine
-    // separate "could not be read" lines would be nine copies of one fact.
+    // A failed read leaves every one of those controls disabled and says so
+    // once, in the header: the page cannot show what it was never told, and one
+    // separate "could not be read" line per control would be several copies of
+    // one fact.
     settingsSurfaceLoadError.value = t('settings.header.loadFailed', { error: errorText(error) });
   }
 }
@@ -1090,6 +1101,9 @@ const mcpSurfaceStatus = computed(() =>
   ]),
 );
 
+/** The AI switch's own section: its write's sentence is rendered there and nowhere else. */
+const aiSurfaceStatus = computed(() => surfaceStatusIn(AI_SURFACE_KEYS));
+
 const preReviewSurfaceStatus = computed(() =>
   surfaceStatusIn(['forgejoToolkit.aiPreReview', 'forgejoToolkit.aiPreReviewPromptScope']),
 );
@@ -1137,6 +1151,11 @@ function handleMcpAuditChange(event: Event): void {
 function handleLeaseChange(event: Event): void {
   leaseEnabled.value = (event.target as HTMLInputElement).checked;
   void saveSettingsSurfaceValue('forgejoToolkit.multiWindowLease', leaseEnabled.value);
+}
+
+function handleAiEnabledChange(event: Event): void {
+  aiEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.aiEnabled', aiEnabled.value);
 }
 
 function handlePreReviewEnabledChange(event: Event): void {
@@ -1240,7 +1259,6 @@ interface ProviderDraft {
   name: string;
   baseUrl: string;
   auth: 'bearer' | 'api-key-header' | 'none';
-  localOnly: boolean;
   models: Array<{ id: string; name: string }>;
   /** `value` is what the user typed in this session; `set` is what the host reported. */
   headers: Array<{ name: string; value: string; set: boolean }>;
@@ -1269,7 +1287,6 @@ function emptyProviderDraft(): ProviderDraft {
     name: '',
     baseUrl: '',
     auth: 'bearer',
-    localOnly: false,
     models: [{ id: '', name: '' }],
     headers: [],
     key: '',
@@ -1278,9 +1295,11 @@ function emptyProviderDraft(): ProviderDraft {
 
 /**
  * The host's last reading of the AI endpoint surface. Everything this section
- * renders comes from it — the endpoint list, the reader's rejections, the policy
- * gates and the §9.3 capability answer — so the page can never show a state the
- * host never reported.
+ * renders comes from it — the endpoint list, the reader's rejections, the transport
+ * value, the timeout and the §9.3 capability answer — so the page can never show a
+ * state the host never reported. The global AI switch is the one AI setting that is
+ * not here: it is one of the page's own settings, read from `settingsSurface` like
+ * every other switch the page renders with a control.
  */
 const providerSnapshot = computed(() => state.aiProviderSettings.value);
 const providerEntries = computed(() => providerSnapshot.value?.providers ?? []);
@@ -1314,10 +1333,8 @@ const capabilityEndpointFirst = computed(() => {
   return code !== 'no-model' && code !== 'editor-unusable';
 });
 
-/** The policy gates, mirrored locally so a control can be edited before it is saved. */
-const policyEnabled = ref(false);
+/** The policy values, mirrored locally so a control can be edited before it is saved. */
 const policyTransport = ref<'auto' | 'vscode-lm' | 'openai-compatible'>('auto');
-const policyLocalOnly = ref(false);
 const policyTimeoutMs = ref(30_000);
 const policyTimeoutField = ref('30000');
 const policySaving = ref(false);
@@ -1356,7 +1373,7 @@ const transportChoices = AI_TRANSPORT_CHOICES;
  * here is a write: switching the transport is the user's own control above.
  */
 const usesEditorModels = computed(() => policyTransport.value !== 'openai-compatible');
-/** The endpoint list and its editor, the default row and the gates: the direct route's own surface. */
+/** The endpoint list, its editor, the default row and the timeout: the direct route's own surface. */
 const usesConfiguredEndpoint = computed(() => policyTransport.value !== 'vscode-lm');
 
 /** A feature's label, falling back to the id the host sent rather than to English prose. */
@@ -1449,9 +1466,7 @@ watch(
     if (!snapshot) {
       return;
     }
-    policyEnabled.value = snapshot.enabled;
     policyTransport.value = snapshot.transport;
-    policyLocalOnly.value = snapshot.localOnly;
     if (snapshot.requestTimeoutMs !== policyTimeoutMs.value) {
       policyTimeoutMs.value = snapshot.requestTimeoutMs;
       policyTimeoutField.value = String(snapshot.requestTimeoutMs);
@@ -1504,7 +1519,6 @@ function openProviderEditor(entry: AiProviderEditorEntry): void {
     // An entry the reader could not read never reaches here (it is in `rejected`),
     // so `auth` is always one of the three values the manifest contributes.
     auth: entry.auth,
-    localOnly: entry.localOnly,
     models: entry.models.length > 0 ? entry.models.map((model) => ({ ...model })) : [{ id: '', name: '' }],
     headers: entry.headers.map((header) => ({ name: header.name, value: '', set: header.set })),
     key: '',
@@ -1565,15 +1579,13 @@ const providerDraftDirty = computed(() => {
       draft.name !== '' ||
       draft.baseUrl !== '' ||
       draft.models.some((model) => model.id !== '' || model.name !== '') ||
-      draft.headers.some((header) => header.name !== '') ||
-      draft.localOnly
+      draft.headers.some((header) => header.name !== '')
     );
   }
   return (
     draft.name !== stored.name ||
     draft.baseUrl !== stored.baseUrl ||
     draft.auth !== stored.auth ||
-    draft.localOnly !== stored.localOnly ||
     JSON.stringify(draft.models) !==
       JSON.stringify(stored.models.map((model) => ({ id: model.id, name: model.name }))) ||
     JSON.stringify(draft.headers.map((header) => header.name)) !==
@@ -1717,7 +1729,6 @@ async function saveProvider(): Promise<void> {
         .map((model) => ({ id: model.id.trim(), name: model.name.trim() })),
       auth: draft.auth,
       headers: draft.headers.map((header) => header.name.trim()).filter((name) => name !== ''),
-      localOnly: draft.localOnly,
     });
     if (saved.error) {
       setProviderStatus(saved.error, 'error');
@@ -1890,8 +1901,8 @@ function addDraftModels(candidateIds: string[]): number {
 // wrong address and then a credential will send one `GET /models` to that
 // address. Everything below is the mitigation the same record requires — one
 // shot per input combination, 800 ms of idle, cancelled by any further typing,
-// refused locally before a byte when the local-only rule says no, `GET /models`
-// only, and a failure that is reported without blocking the form.
+// never armed for an address the shared URL rule refuses, `GET /models` only, and
+// a failure that is reported without blocking the form.
 // ---------------------------------------------------------------------------
 
 /** How long the editor has to be idle before the draft probe fires (§4.3). */
@@ -1937,24 +1948,6 @@ let generatedProviderName: string | null = null;
 /** The address's verdict, computed once for the row warning, the probe and the identity. */
 const providerDraftVerdict = computed(() => inspectAiProviderBaseUrl(providerDraft.value.baseUrl.trim()));
 
-/**
- * Whether the local-only rule refuses this draft's address.
- *
- * The page computes this from the same shared rule the host uses (§7.3) for one
- * reason: the probe must not even be *armed* for an address nothing may be sent
- * to, so that "nothing is sent" is true of the page as well as of the host. The
- * host re-checks it and refuses without a byte, which is what makes the guarantee
- * hold even if this page is wrong.
- */
-const providerDraftLocalOnlyBlocked = computed(() => {
-  const verdict = providerDraftVerdict.value;
-  if (!verdict.ok) {
-    return false;
-  }
-  const policyBlocks = (providerSnapshot.value?.localOnly ?? false) || providerDraft.value.localOnly;
-  return policyBlocks && !isLocalAiEndpointHost(verdict.url.hostname);
-});
-
 /** Why the typed address cannot be used, once the user has left the field (§3.3 rule 1). */
 const providerDraftAddressReason = computed(() => {
   if (!providerAddressCommitted.value || providerDraft.value.baseUrl.trim() === '') {
@@ -1967,8 +1960,8 @@ const providerDraftAddressReason = computed(() => {
 /**
  * The input combination the automatic probe would run for, or `null` when it must
  * not run at all: no editor, a save in flight, **nothing edited yet**, no freshly
- * typed credential, an address that is not a URL yet, an address the local-only
- * rule refuses, or a policy the host has not reported yet.
+ * typed credential, an address that is not a usable URL yet, or an endpoint list
+ * the host has not reported yet.
  *
  * The signature holds the typed key so that typing a different one counts as a
  * new combination. It is a value in this component's memory only: it is never
@@ -1987,11 +1980,11 @@ const draftProbeSignature = computed<string | null>(() => {
     return null;
   }
   if (!providerSnapshot.value) {
-    // The local-only policy is part of the decision, so an unread policy is "do
-    // not send" rather than "probably fine".
+    // The endpoint list is what the draft's own credential store reads through, so
+    // an unread host is "do not send" rather than "probably fine".
     return null;
   }
-  if (!providerDraftVerdict.value.ok || providerDraftLocalOnlyBlocked.value) {
+  if (!providerDraftVerdict.value.ok) {
     return null;
   }
   const draft = providerDraft.value;
@@ -2005,7 +1998,6 @@ const draftProbeSignature = computed<string | null>(() => {
     draft.baseUrl.trim(),
     draft.auth,
     draft.key,
-    draft.localOnly,
     draft.headers.map((header) => [header.name.trim(), header.value]),
   ]);
 });
@@ -2041,7 +2033,6 @@ function draftProbePayload(): AiProviderDraftProbe {
     name: draft.name.trim(),
     baseUrl: draft.baseUrl.trim(),
     auth: draft.auth,
-    localOnly: draft.localOnly,
     key: draft.key,
     headers: draft.headers
       .filter((header) => header.name.trim() !== '' && header.value !== '')
@@ -2234,15 +2225,13 @@ async function removeProvider(id: string): Promise<void> {
   }
 }
 
-/** Writes the policy gates, reverting the controls the host refused. */
+/** Writes the model policy, reverting the controls the host refused. */
 async function savePolicy(overrides: Partial<{ requestTimeoutMs: number }> = {}): Promise<void> {
   if (policySaving.value) {
     return;
   }
   const policy = {
-    enabled: policyEnabled.value,
     transport: policyTransport.value,
-    localOnly: policyLocalOnly.value,
     requestTimeoutMs: overrides.requestTimeoutMs ?? policyTimeoutMs.value,
   };
   policySaving.value = true;
@@ -2255,9 +2244,7 @@ async function savePolicy(overrides: Partial<{ requestTimeoutMs: number }> = {})
       await refreshProviderSettings();
       return;
     }
-    policyEnabled.value = result.enabled;
     policyTransport.value = result.transport;
-    policyLocalOnly.value = result.localOnly;
     policyTimeoutMs.value = result.requestTimeoutMs;
     policyTimeoutField.value = String(result.requestTimeoutMs);
     policyStatus.value = { message: t('settings.aiProviders.status.policySaved'), type: 'success' };
@@ -2268,17 +2255,12 @@ async function savePolicy(overrides: Partial<{ requestTimeoutMs: number }> = {})
   }
 }
 
-function handlePolicyEnabledChange(event: Event): void {
-  policyEnabled.value = (event.target as HTMLInputElement).checked;
-  void savePolicy();
-}
-
 /**
- * Saves the transport. It is a control of this page now (§1.3): the choice decides
+ * Saves the transport. It is a control of this page (§1.3): the choice decides
  * which half of the AI area the page presents, so it cannot live only in the
  * editor's own settings UI. The write goes through the same policy message the
- * other gates use, and the host writes only the values that differ — so choosing a
- * transport here cannot revert a gate the user changed in the settings editor
+ * timeout uses, and the host writes only the values that differ — so choosing a
+ * transport here cannot revert a value the user changed in the settings editor
  * between opening this page and pressing this control.
  */
 function handlePolicyTransportChange(event: Event): void {
@@ -2286,17 +2268,7 @@ function handlePolicyTransportChange(event: Event): void {
   void savePolicy();
 }
 
-/**
- * The local-only rule, the egress switch and the timeout: the policy gates, kept
- * as local mirrors so a control can be edited before the write lands. They stay on
- * the page whatever the transport says, because each of them also decides what a
- * per-feature override would do — hiding them with the transport would leave a
- * real gate with no writable source the user can find.
- */
-function handlePolicyLocalOnlyChange(event: Event): void {
-  policyLocalOnly.value = (event.target as HTMLInputElement).checked;
-  void savePolicy();
-} /** Saves the idle timeout, which is typed rather than toggled. */
+/** Saves the idle timeout, which is typed rather than toggled. */
 function savePolicyTimeout(): void {
   const value = Number(policyTimeoutField.value.trim());
   void savePolicy({ requestTimeoutMs: value });
@@ -2890,14 +2862,6 @@ defineExpose({
           <p v-if="providerDraftAddressReason" class="field-description warn">
             {{ t('settings.aiProviders.editor.addressInvalid', { reason: providerDraftAddressReason }) }}
           </p>
-          <!--
-            The local-only refusal, on the row and with the control still usable
-            (§3.3 rule 2): the address is what has to change, and the page says
-            what will not happen rather than disabling the field.
-          -->
-          <p v-if="providerDraftLocalOnlyBlocked" class="field-description warn">
-            {{ t('settings.aiProviders.editor.localOnlyBlocked') }}
-          </p>
         </div>
 
         <div class="form-row">
@@ -3079,17 +3043,6 @@ defineExpose({
               {{ t('settings.aiProviders.editor.addHeader') }}
             </vscode-button>
           </div>
-        </div>
-
-        <div class="form-row">
-          <vscode-checkbox
-            id="ai-provider-local-only"
-            :checked="providerDraft.localOnly"
-            @change="providerDraft.localOnly = ($event.target as HTMLInputElement).checked"
-          >
-            {{ t('settings.aiProviders.editor.localOnly') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.aiProviders.editor.localOnlyDescription') }}</p>
         </div>
 
         <div class="actions">
@@ -3300,6 +3253,40 @@ defineExpose({
       </section>
 
       <!--
+        The whole AI area's own switch, and the only control this section has.
+        It sits above the per-feature sections on purpose: this one says "do not
+        use AI at all", the feature switches below say "this feature is on", and
+        each feature's own consent question is what decides whether content leaves
+        the machine (`docs/design/ai-model-transport.md` §8.3). It is never hidden
+        and never disabled by anything it gates — it is the one control whose whole
+        job is to be found when everything else is off — and when it is off the
+        sentence below says what that means and how to undo it, while every other
+        control on this page stays visible and editable, because this page is their
+        only writable source.
+      -->
+      <section class="setting-section">
+        <h2>{{ t('settings.ai.title') }}</h2>
+        <p class="description">{{ t('settings.ai.description') }}</p>
+
+        <div class="form-row">
+          <vscode-checkbox
+            id="ai-enabled"
+            :checked="aiEnabled"
+            :disabled="!settingsSurfaceReady || surfaceBusy(AI_SURFACE_KEYS)"
+            @change="handleAiEnabledChange"
+          >
+            {{ t('settings.ai.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.ai.enabledDefault') }}</p>
+          <p v-if="!aiEnabled" class="field-description warn">{{ t('settings.ai.disabledHint') }}</p>
+        </div>
+
+        <div v-if="aiSurfaceStatus" :class="['status', aiSurfaceStatus.type]" role="status" aria-live="polite">
+          {{ aiSurfaceStatus.message }}
+        </div>
+      </section>
+
+      <!--
         The AI pre-review: the feature switch, the prompt scope and the chat
         model, in that order — first what turns the feature on, then what it may
         send, then which model sends it (`docs/design/settings-page.md` §3.2).
@@ -3494,8 +3481,8 @@ defineExpose({
           VS Code's own settings editor, because it is what decides which half of
           this area the page presents: the editor's own chat-model row, the endpoint
           surface, or both with `auto`'s precedence stated in one sentence. The
-          select goes through the same policy write the gates below use, and the host
-          writes only the value that differs.
+          select goes through the same policy write the timeout below uses, and the
+          host writes only the value that differs.
         -->
         <div class="form-row">
           <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
@@ -3563,33 +3550,20 @@ defineExpose({
               </vscode-button>
             </div>
           </div>
-          <p v-if="capabilityCode === 'disabled'" class="field-description">
-            {{ t('settings.aiProviders.notUsable.disabledHint') }}
-          </p>
           <p v-if="capabilityCode === 'bind'" class="field-description">
             {{ t('settings.aiProviders.notUsable.bindHint') }}
           </p>
-        </div>
-
-        <!--
-          The "allow requests" switch and the local-only rule stay on the page
-          whatever the transport says: each of them also decides what a per-feature
-          override would do, and a gate with no writable source on a page that is
-          about that very surface would be exactly the undiagnosable state this page
-          exists to prevent.
-        -->
-        <div class="form-row">
-          <vscode-checkbox id="ai-providers-enabled" :checked="policyEnabled" @change="handlePolicyEnabledChange">
-            {{ t('settings.aiProviders.policy.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.aiProviders.policy.enabledDescription') }}</p>
-        </div>
-
-        <div class="form-row">
-          <vscode-checkbox id="ai-local-only" :checked="policyLocalOnly" @change="handlePolicyLocalOnlyChange">
-            {{ t('settings.aiProviders.policy.localOnly') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.aiProviders.policy.localOnlyDescription') }}</p>
+          <!--
+            Belt and braces for the global switch: the page renders this block from
+            the endpoint snapshot and the switch from the settings surface, and the
+            two are read at different moments. With AI off the two routes above do
+            not fix anything, so the same sentence the switch's own section shows is
+            repeated here rather than leaving the reader with advice about the wrong
+            problem.
+          -->
+          <p v-if="capabilityCode === 'ai-off'" class="field-description">
+            {{ t('settings.ai.disabledHint') }}
+          </p>
         </div>
 
         <div class="form-row">
@@ -3722,9 +3696,6 @@ defineExpose({
                   </span>
                   <span v-if="entry.addressError" class="provider-fact warn">
                     {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
-                  </span>
-                  <span v-if="entry.localOnlyBlocked" class="provider-fact warn">
-                    {{ t('settings.aiProviders.row.localOnlyBlocked') }}
                   </span>
                   <span v-if="entry.insecure" class="provider-fact warn">
                     {{ t('settings.aiProviders.row.insecure') }}
@@ -4339,8 +4310,8 @@ h2 {
  * panel. The same run appears in a status message (an export path is a single
  * 610 px token, wider than the default panel), in the empty state (a host reason
  * that names a setting) and in the AI endpoints section (a reader's own rejection
- * reason, a provider's address, and the sentence the local-only policy answers
- * with), so the rule is stated once for every prose block on the page rather than
+ * reason, a provider's address, and the sentence the endpoint probe answers with),
+ * so the rule is stated once for every prose block on the page rather than
  * per string.
  *
  * `overflow-wrap: anywhere` breaks a run only when it cannot fit a line of its
@@ -4789,7 +4760,7 @@ label {
  * colour — the same token VS Code uses for the same kind of message — and never
  * in a colour of this view's own invention. One rule for every such line on the
  * page: the binding that names a missing endpoint, the endpoint editor's refused
- * address, and the address the local-only policy will not send to.
+ * address, and the global AI switch while it is off.
  */
 .field-description.warn {
   color: var(--vscode-editorWarning-foreground);

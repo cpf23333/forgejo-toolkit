@@ -535,18 +535,17 @@
     "forgejoToolkit.mcpWriteTools.cancelActionRun": "settings.mcp.writeTools.cancelActionRun",
     "forgejoToolkit.mcpWriteAuditToFile": "settings.mcp.audit.enabled",
     "forgejoToolkit.multiWindowLease": "settings.multiWindow.lease",
+    "forgejoToolkit.aiEnabled": "settings.ai.enabled",
     "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
     "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
     "forgejoToolkit.prDescription": "settings.prDescription.enabled",
     "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
-    "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
     "forgejoToolkit.aiTransport": "settings.aiProviders.policy.transport",
     "forgejoToolkit.aiDefaultProvider": "settings.aiProviders.defaultModel.provider",
     "forgejoToolkit.aiDefaultModel": "settings.aiProviders.defaultModel.model",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
-    "forgejoToolkit.aiLocalOnly": "settings.aiProviders.policy.localOnly",
     "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
     "language": "语言",
     "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
@@ -642,6 +641,13 @@
         "file": "开启后，每条记录会在输出通道之外同时追加到扩展日志目录下的 `mcp-write-audit.jsonl`（VS Code：「开发人员: 打开日志文件夹」）。文件上限 1 MB，另有两个滚动文件。"
       }
     },
+    "ai": {
+      "title": "AI",
+      "description": "整个 AI 面自己的开关，在每一个 AI 功能自己的开关之上。",
+      "enabled": "使用 AI 功能",
+      "enabledDefault": "默认打开：它是各功能开关之上的一层，所以保持打开并不会自己启用任何功能。",
+      "disabledHint": "AI 处于关闭状态：没有任何 AI 功能会运行，也不会向任何模型取答案——既不用本编辑器的聊天模型，也不用已配置的端点——更不会向它们发出任何内容。关闭期间下面的一切仍然可见、可改：把这个开关重新打开不需要再配一遍。"
+    },
     "aiPreReview": {
       "title": "AI 预评审",
       "description": "由聊天模型读一遍 Pull Request 并给出行级评审意见；你逐条勾选认可的那些，只有勾中的才写成待提交评审的草稿。扩展从不提交评审。",
@@ -706,7 +712,6 @@
         "keyMissing": "尚未存有 API 密钥",
         "keyNotNeeded": "不带凭据（auth: none）",
         "insecure": "明文 http://——请求与回答在传输中都不加密。",
-        "localOnlyBlocked": "被「仅允许本地端点」策略拒绝：该地址不在本机或内网。",
         "addressError": "该地址不可用：{reason}",
         "shadowed": "未发送：{names} 已由认证方式接管。",
         "headersSet": "已存有 {total} 个请求头 value 中的 {set} 个",
@@ -731,8 +736,6 @@
         "shadowed": "未发送：{names} 已由认证方式接管。"
       },
       "policy": {
-        "enabled": "允许向已配置的端点发请求",
-        "enabledDescription": "配好端点、存好密钥本身都不会发出任何内容。打开它是直连请求所必需的三个独立事实中的第二个：端点已配置、密钥已存、你已同意发送内容——最后这件事由各功能自己单独询问。",
         "transport": "模型传输方式",
         "transportAuto": "auto——先本编辑器的模型，再下方配置的默认端点",
         "transportVscodeLm": "vscode-lm——只用本编辑器的模型",
@@ -742,8 +745,6 @@
         "precedenceEditor": "vscode-lm 只用本编辑器的聊天模型。它的列表在上面的 AI 预评审区块里；选中本项时，下面的端点面会隐藏。",
         "hiddenForEditor": "传输方式为 vscode-lm 时，端点面（已配置的端点、默认端点与模型、以及下方的策略开关）会被隐藏，因为这里没有任何一项会被用到。选择 auto 或 openai-compatible 即可重新看到它。",
         "precedenceEndpoint": "openai-compatible 只用已配置的端点。这里不会去问本编辑器的模型，所以上面那一行模型被隐藏了；选择 auto 或 vscode-lm 即可重新看到它。",
-        "localOnly": "仅允许本地端点",
-        "localOnlyDescription": "拒绝主机不在本机或内网的已配置端点。判定只看配置里的地址：不做域名解析，读不出来的地址一律按不本地处理。",
         "timeout": "端点空闲超时（毫秒）",
         "timeoutDescription": "端点在多久没有发出任何数据之后，这次请求会被中止（1000–600000）。这是空闲窗口而不是总时长上限，所以只要数据持续到达，再长的回答也能活到结束；整个请求另有本值十倍的更宽上限。",
         "timeoutSave": "保存超时",
@@ -786,7 +787,6 @@
         "rechecking": "重新检查中...",
         "endpointRoute": "配置一个 OpenAI 兼容端点：地址、它有哪些模型、一个密钥，再做一次连接测试。在完全没有模型提供者的编辑器上，这是唯一的一条路。",
         "endpointAction": "配置一个端点",
-        "disabledHint": "本窗口已关闭「允许向已配置的端点发请求」，所以现在还不会向它们发送任何内容。开关在下面的策略里——打开它是你自己做的事，配置端点本身永远不会替你打开。",
         "bindHint": "还没有指明这个功能用哪个端点：在「逐功能绑定」里绑定它，或者让传输保持 \"auto\" 且只配置恰好一个端点。"
       },
       "status": {
@@ -811,7 +811,6 @@
         "baseUrl": "Base URL",
         "baseUrlDescription": "按原样使用，只去掉尾部斜杠：\"不会\"替你补 /v1，因为 Azure 的地址与自建网关的 /openai/v1 都会被补错。只会在后面接 /chat/completions 与 /models。",
         "addressInvalid": "这个地址不能用：{reason}",
-        "localOnlyBlocked": "被仅本地策略拒绝：不会向这个地址发出任何内容。决定它的开关是下方的「仅允许本地端点」。",
         "auth": "认证方式",
         "authBearer": "bearer——把密钥作为 Authorization: Bearer 请求头发送",
         "authApiKeyHeader": "api-key-header——把密钥作为 api-key 请求头发送（Azure）",
@@ -841,8 +840,6 @@
         "keyUnset": "尚未存有密钥。",
         "keyNotNeeded": "该端点不带凭据，因此没有密钥要存。",
         "clearKey": "清除已存的密钥",
-        "localOnly": "该端点在本机或内网",
-        "localOnlyDescription": "在全局「仅允许本地端点」策略打开期间，或本项打开时，只要地址不本地，向该端点发出的请求就会被拒绝，且什么都不发。",
         "save": "保存端点",
         "saving": "保存中...",
         "cancel": "取消",
@@ -857,7 +854,7 @@
         "unchanged": "端点的 /models 没有报出这份列表里还没有的模型。",
         "failed": "探测没有得到应答：端点自己给的原因是下方那张报告卡。",
         "refused": "探测一个字都没发出去：原因在下方那张报告卡里。",
-        "notConsent": "这不代表已允许向该端点发请求。探测只读取了模型列表；是否真的会发出内容，由「允许向已配置的端点发请求」这个开关和各功能自己的同意询问决定。"
+        "notConsent": "这不代表已允许发请求。探测只读取了模型列表；是否真的会发出内容，由 AI 总开关和各功能自己的同意询问决定。"
       }
     },
     "status": {
@@ -900,13 +897,12 @@
       "dropped": "该文件中有 {count} 项无法使用，已被跳过。",
       "ai": {
         "title": "该文件里的 AI 端点",
-        "policyNote": "导入只把这些端点存成配置：它不会放开「允许向已配置的端点发请求」，也不会打开任何 AI 功能。那两道开关只有你能动；而每个功能在真正发送之前仍会先问一次\"什么内容可以离开你的机器\"。",
+        "policyNote": "导入只把这些端点存成配置：它不会打开 AI，也不会打开任何 AI 功能。这些开关只有你能动；而每个功能在真正发送之前仍会先问一次\"什么内容可以离开你的机器\"。",
         "secretsIncluded": "这个加密文件带着它 {count} 个端点的凭据，它们会被存进编辑器的密钥存储，而不是设置里。",
         "noSecrets": "这个文件没有加密，所以它不包含 {count} 个端点的 API 密钥，也不包含任何请求头的值。把它们当配置导入即可；之后在 AI 端点设置里逐个补上凭据，否则对它们的请求无法通过鉴权。",
         "insecure": "其中 {count} 个地址是明文 http://，请求与回答在传输中不会被加密。",
         "modelCount": "声明了 {count} 个模型",
         "headerNames": "请求头：{names}",
-        "localOnly": "仅限本地端点",
         "unusable": "这一条无法导入：{reason}",
         "conflict": "该 id 已经配置过：",
         "keep": "保留已配置的端点",

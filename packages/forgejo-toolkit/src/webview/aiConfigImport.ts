@@ -9,7 +9,6 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 import {
-  aiLocalOnlySettingValue,
   aiModelBindingsSettingValue,
   aiProviderSettingsReading,
   aiTransportSettingValue,
@@ -39,24 +38,23 @@ import { saveAiProvider, validateAiProviderDraft, writeSettingValue } from './ai
  *
  * 1. **Non-secret configuration round-trips; secrets do not, unless the export is
  *    encrypted** (§10.2). {@link readAiConfigForExport} reads the provider list,
- *    the per-feature bindings, the transport value and the local-only policy from
- *    settings — and the API key and every custom header **value** from
- *    `SecretStorage`. The two halves are returned separately so the export can put
- *    the secrets only into the encrypted wrapper, exactly where the instance
- *    tokens already go.
+ *    the per-feature bindings and the transport value from settings — and the API
+ *    key and every custom header **value** from `SecretStorage`. The two halves are
+ *    returned separately so the export can put the secrets only into the encrypted
+ *    wrapper, exactly where the instance tokens already go.
  * 2. **The file's AI section is untrusted input** (§10.1). It is rebuilt field by
  *    field into fresh objects, so an unknown key is *dropped* rather than carried
  *    into `settings.json`; an entry that is not a provider at all is refused rather
  *    than guessed at. Ids and URLs go through the very validators the settings
  *    editor uses (`parseAiProviderConfig`, `validateAiProviderDraft`), so an
  *    imported endpoint cannot be accepted by a rule the page would have refused.
- * 3. **Importing never turns egress on** (§10.3, §7.4). {@link applyAiImport}
- *    writes the provider list, the bindings and a *restricting* local-only policy —
- *    and never `forgejoToolkit.aiProvidersEnabled`, `forgejoToolkit.aiPreReview` or
- *    `forgejoToolkit.aiPreReviewPromptScope`, which are the keys that change what
- *    leaves the machine. The transport value is shown in the preview but not
- *    applied, for the reason §7.4 gives: the opposite value on the receiving
- *    machine may be a working setup, and a file is the wrong thing to walk back.
+ * 3. **Importing never turns AI on** (§10.3, §7.4). {@link applyAiImport} writes
+ *    the provider list and the bindings — and never `forgejoToolkit.aiEnabled`,
+ *    `forgejoToolkit.aiPreReview`, `forgejoToolkit.aiPreReviewPromptScope` or the
+ *    PR-description pair, which are the keys that decide what leaves the machine.
+ *    The transport value is shown in the preview but not applied, for the reason
+ *    §7.4 gives: the opposite value on the receiving machine may be a working
+ *    setup, and a file is the wrong thing to walk back.
  * 4. **A secret lands in `SecretStorage`, never in settings** (§8.2). The values
  *    travel inside the encrypted payload only and are written through
  *    `src/ai/providerSecrets.ts` — the same accessors the settings page uses, which
@@ -103,7 +101,6 @@ function toExportProvider(provider: AiProviderConfig): ExportAiProvider {
     models: provider.models.map((model) => ({ id: model.id, name: model.name })),
     auth: provider.auth,
     headers: provider.headers.map((declaration) => ({ name: declaration.name, valueSecret: true })),
-    localOnly: provider.localOnly,
   };
 }
 
@@ -145,7 +142,6 @@ export async function readAiConfigForExport(secrets: AiSecretStore): Promise<AiE
       providers,
       bindings: aiModelBindingsSettingValue().map((binding) => ({ ...binding })),
       transport: aiTransportSettingValue(),
-      localOnly: aiLocalOnlySettingValue(),
     },
     secrets: { keys, headerValues },
   };
@@ -157,11 +153,11 @@ export async function readAiConfigForExport(secrets: AiSecretStore): Promise<AiE
  * §10.1 shows the section as part of the `version: 3` payload and does not make it
  * conditional, so the section itself is always written. This predicate only
  * decides whether the *reading* has something to say: a machine with no endpoints
- * and default policy exports an empty section, which imports as "nothing to do"
+ * and no bindings exports an empty section, which imports as "nothing to do"
  * rather than as a settings rewrite.
  */
 export function aiConfigHasContent(ai: ExportAiConfig): boolean {
-  return ai.providers.length > 0 || ai.bindings.length > 0 || ai.localOnly;
+  return ai.providers.length > 0 || ai.bindings.length > 0;
 }
 
 /** One model declaration of an imported provider, or `undefined` when it is not one. */
@@ -279,7 +275,6 @@ export function parseAiImportedAiConfig(value: unknown): ParsedAiSection | undef
       providers,
       bindings,
       transport: transport === undefined ? 'auto' : transport,
-      localOnly: raw.localOnly === true,
     },
     secretsIncluded: secrets !== undefined,
     secrets: secrets ?? { keys: {}, headerValues: {} },
@@ -334,9 +329,6 @@ function parseImportedProvider(candidate: unknown): ExportAiProvider | undefined
     models,
     auth: entry.auth,
     headers,
-    // Anything but an explicit `true` is "no per-endpoint promise", the reading
-    // the settings parser itself takes.
-    localOnly: entry.localOnly === true,
   };
 }
 
@@ -437,7 +429,6 @@ function toDraft(provider: AiProviderConfig) {
     models: provider.models.map((model) => ({ id: model.id, name: model.name })),
     auth: provider.auth,
     headers: provider.headers.map((declaration) => declaration.name),
-    localOnly: provider.localOnly,
   };
 }
 
@@ -454,7 +445,6 @@ function describeImportedProvider(provider: AiProviderConfig, existing: boolean)
       auth: provider.auth,
       models: provider.models.map((model) => model.id),
       headers: provider.headers.map((declaration) => declaration.name),
-      localOnly: provider.localOnly,
       existing,
       // Only meaningful for an entry that will be offered: an address the editor
       // refuses is already unusable, and warning about its encryption is noise.
@@ -490,7 +480,6 @@ export function buildAiImportPreview(parsed: ParsedAiSection, taken: readonly st
       providers: previews.map((entry) => entry.preview),
       bindings: parsed.config.bindings.map((binding) => ({ ...binding })),
       transport: parsed.config.transport,
-      localOnly: parsed.config.localOnly,
       secretsIncluded: parsed.secretsIncluded,
     },
   };
@@ -594,13 +583,11 @@ export interface AiImportPlan {
  * binding this import cannot honour is dropped and its declared id reported, rather
  * than written as a dangling reference.
  *
- * **Nothing here writes `forgejoToolkit.aiProvidersEnabled`,
- * `forgejoToolkit.aiPreReview` or `forgejoToolkit.aiPreReviewPromptScope`.** That
- * is how "the import must not silently enable egress" is guaranteed: the only keys
- * this function touches are the provider list (through `saveAiProvider`, the same
- * writer the settings page uses), the bindings, and the local-only policy — and the
- * local-only policy is only ever written as `true`, the restricting value, so no
- * file can relax the receiving machine's posture.
+ * **Nothing here writes `forgejoToolkit.aiEnabled`, `forgejoToolkit.aiPreReview`,
+ * `forgejoToolkit.aiPreReviewPromptScope` or the PR-description pair.** That is how
+ * "the import must not silently enable egress" is guaranteed: the only keys this
+ * function touches are the provider list (through `saveAiProvider`, the same writer
+ * the settings page uses) and the bindings.
  */
 export async function applyAiImport(
   plan: AiImportPlan,
@@ -683,9 +670,6 @@ export async function applyAiImport(
   // which is a change no confirmation asked for.
   if (writtenBindings.length > 0) {
     await writeSettingValue('aiModelBindings', [...next, ...writtenBindings]);
-  }
-  if (plan.config.localOnly && !aiLocalOnlySettingValue()) {
-    await writeSettingValue('aiLocalOnly', true);
   }
   return { applied: appliedIds.size, skippedBindings };
 }

@@ -13,6 +13,12 @@
   （`forgejoToolkit.aiDefaultProvider` + `forgejoToolkit.aiDefaultModel`，两个平铺字符串）是主路径，逐功能
   `aiModelBindings` 降级为叠加在它之上的**覆盖项**；§8.2 的归属表、§8.3 的设置清单与 §8.4 的次序表都按现状更新，
   页面的呈现规格在 [`settings-page.md`](./settings-page.md) 的 §3.2。
+  **2026-10-06 的第二次设置面裁决（维护者，同一改动）**：`forgejoToolkit.aiProvidersEnabled` 与
+  `forgejoToolkit.aiLocalOnly` 连同整套地址策略（含逐端点的 `localOnly` 承诺、`isLocalAiEndpointHost` 与它的
+  测试）被**整体移除**，位置由一个全局开关 `forgejoToolkit.aiEnabled`（默认**开**）接替；它说的是"完全不要用
+  AI"，在逐功能开关之上，关闭时连编辑器自己提供的模型也不问。维护者的两条理由、新的三层分工与"导入永不打开任何开关"
+  的规则写在 §8.3、§8.8 与 §10.3；三层分工在设置页上的呈现见
+  [`settings-page.md`](./settings-page.md) 的 §3.2。
 
 - 适用范围：**宿主侧 AI 功能取用一个模型的那一步**。当前已交付的只有 AI 预评审（draft-only，见
   [`ai-prereview.md`](./ai-prereview.md)），本文用它的调用点来定接缝的形状。不含 MCP 工具面、不含自动提交 /
@@ -67,7 +73,9 @@ AI 预评审的**唯一**模型来源是 `vscode.lm`：
 | 两件事必须**不**发生        | 自动回退到另一条路、以及"导入配置 = 启用出网"（§7.4、§7.5）                            |
 
 **本文的选择**：先抽接缝（阶段 1，纯重构、零行为变化），再实现第二个传输（阶段 2），再把已交付的 AI 预评审接上
-（阶段 3）。**默认仍是 `vscode.lm`，直连默认关闭**——直连需要"端点 + 密钥 + 出网同意"三件齐备。
+（阶段 3）。**默认仍是 `vscode.lm`**：`aiTransport` 默认 `auto`，而 `auto` 只在编辑器一个模型都提供不了时才去看
+已配置的端点。一条直连请求要真正发出，需要端点已配置、密钥已存、某个功能（默认目的地或逐功能覆盖）**点名**了它，
+以及那次运行自己的外发同意——§7.3 把这几件事分开列，是因为任何两件都不能互相推断。
 
 ### 1.1 三条与本文的边界直接相关的事实
 
@@ -140,7 +148,9 @@ provider / 模型"就必须是一个显式的、可见的设置，而不是各�
 
 `forgejoToolkit.aiPreReview` 默认 `false`，关闭时"命令拒绝，且不向模型供应商发出任何内容"；提示词范围默认
 `ask`，`ask` 是**问题**而不是答案，读不到就按 `ask` 处理（fail-closed）。本文沿用同一纪律：新增的开关默认值
-必须落在"什么都不发"的一侧，见 §8.3 的 `aiTransport` 与 §9.3 的 `aiProvidersEnabled`。
+必须落在"什么都不发"的一侧——§8.3 的 `aiTransport` 默认 `auto` 即此意。**唯一的例外是全局 AI 开关**
+`forgejoToolkit.aiEnabled`：它默认**开**，而且它是本文唯一一个"读不出来就读作允许"的设置；方向为什么反过来，
+理由写在 §8.3。
 
 ---
 
@@ -356,7 +366,7 @@ provider 设置，不重试、不换模型、不换路。**传输之间没有回
 
 - 用户填的 base URL **按原样使用**，只去尾部 `/`；**不自动补 `/v1`**，因为 Azure 的 URL 与"自建网关的
   `/openai/v1`"都会被补错。
-- 预设（Ollama `http://127.0.0.1:11434/v1`、LM Studio `http://127.0.0.1:1234/v1` 等）**只是预填**，写进
+- 预设（Ollama `http://localhost:11434/v1`、LM Studio `http://localhost:1234/v1` 等）**只是预填**，写进
   设置里就是普通字符串——预设不是新传输，也不是白名单。
 - 完整路径 = `base + '/chat/completions'`。Azure 的 `api-version` 作为查询参数附加，且只在用户配置了它时附加。
 - **拒绝**非 `http:` / `https:` 的 scheme（照实例配置的 `isHttpUrl` 纪律，`file:` / `data:` / `javascript:`
@@ -535,21 +545,27 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 
 ### 7.3 「配置好了」不等于「同意出网」
 
-三个独立的事实，任何两个都不能互相推断：
+四个独立的事实，任何两个都不能互相推断：
 
 | 事实             | 存在哪                                                 | 谁写的                         |
 | ---------------- | ------------------------------------------------------ | ------------------------------ |
+| AI 面是开的      | `forgejoToolkit.aiEnabled`（默认开）                   | 用户（设置页或手工编辑）       |
 | 端点已配置       | `forgejoToolkit.aiProviders`                           | 用户（设置页或手工编辑）       |
 | 密钥已存         | `SecretStorage`                                        | 用户（设置页输入）             |
 | **同意发送内容** | `forgejoToolkit.aiPreReviewPromptScope` 的 stated 取值 | 用户在模态框里回答后由宿主写回 |
 
-第三个为空（`ask`）时，**前两个齐备也不发**。这条今天是 `ask` 的 fail-closed 读法（
+第四个为空（`ask`）时，前三个齐备也不发。这条今天是 `ask` 的 fail-closed 读法（
 `aiPreReviewPromptScopeSettingValue`），本文不改它，只把它**推广到两条传输**。
+
+功能自己的开关（`forgejoToolkit.aiPreReview`、`forgejoToolkit.prDescription`）不在这张表里，因为它是**另一个
+问题**：它说"这个功能是开的"，不问"内容去哪儿"。一次运行因此按 **全局开关 → 功能开关 → 取模型 → 那次外发同意**
+的次序被判：全局开关说"完全不要用 AI"，功能开关说"这个功能要跑"，模型选择点说"这次用哪条路、哪个模型"，而同意
+模态框才决定内容是否离开本机、离开多少。
 
 ### 7.4 配置导入不得静默启用出网
 
-见 §10.3。要点：导入**只写非密字段**，**不写** `aiPreReview` / `aiPreReviewPromptScope` /
-`aiProvidersEnabled` / `aiTransport` 这几个"会改变出网语义"的键。
+见 §10.3。要点：导入**只写非密字段**，**不写** `aiEnabled` / `aiPreReview` / `aiPreReviewPromptScope` /
+`prDescription` / `prDescriptionPromptScope` / `aiTransport` 这几个"会改变出网语义"的键。
 
 ### 7.5 两条传输之间没有自动回退
 
@@ -580,17 +596,18 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 {
   "id": "ollama-local", // 校验过的字符集（照 pathSegmentSchema 的纪律）
   "name": "Ollama (this machine)", // 显示名，必填，模态框与设置页都用它
-  "baseUrl": "http://127.0.0.1:11434/v1",
+  "baseUrl": "http://localhost:11434/v1",
   "models": [{ "id": "qwen3:8b", "name": "Qwen3 8B" }],
   "auth": "bearer", // 'bearer' | 'api-key-header' | 'none'
   "headers": [{ "name": "api-version", "valueSecret": true }], // value **不在**这里，§8.2
-  "localOnly": false,
 }
 ```
 
 - `headers[].value` **永远不在这里**。数组里只留下名字和一个"值在密钥存储里"的标记。
 - `auth: 'api-key-header'` 时的头名固定为 `api-key`（Azure 的写法）；其他自定义头走 `headers`。
 - `models` 是"这个端点上有哪些模型"的**声明**，不是白名单：模型 id 是自由文本，`/models` 只用来预填（§9.1）。
+- **没有 `localOnly`**：逐端点的"仅本机"承诺曾在这里，2026-10-06 连同全局策略一起移除，理由见 §8.8。写入它的
+  `settings.json` 里那一条会被读取器**丢弃**（`parseAiProviderConfig` 只重建它认识的字段）。
 
 ### 8.2 哪里放什么（settings vs secret）
 
@@ -600,8 +617,7 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 | 模型列表（id + 显示名）                                      | settings                                                                            | 非密                                         |
 | **默认目的地**（端点 id + 模型名）                           | settings（`forgejoToolkit.aiDefaultProvider` 与 `forgejoToolkit.aiDefaultModel`）   | 非密；必须是用户可见可改的，且是主路径       |
 | 逐功能覆盖（`{ feature, providerId, modelId }`）             | settings（`forgejoToolkit.aiModelBindings`）                                        | 非密；必须是用户可见可改的                   |
-| 「仅本地」策略                                               | settings（`forgejoToolkit.aiLocalOnly`）                                            | 非密；策略不是密钥                           |
-| 总线开关                                                     | settings（`forgejoToolkit.aiProvidersEnabled`）                                     | 非密；它管的是"允不允许出网"                 |
+| **全局 AI 开关**                                             | settings（`forgejoToolkit.aiEnabled`）                                              | 非密；它管的是"允不允许用 AI"                |
 | 传输选择                                                     | settings（`forgejoToolkit.aiTransport`）                                            | 非密                                         |
 | 超时                                                         | settings（`forgejoToolkit.aiModelRequestTimeoutMs`）                                | 非密                                         |
 | **API 密钥**                                                 | **`SecretStorage`**，键 `forgejoToolkit.aiProviderKey.<providerId>`                 | 照实例 token 的纪律（`TOKEN_SECRET_PREFIX`） |
@@ -616,16 +632,31 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 
 ### 8.3 具体的设置 id 与默认值
 
-| 设置 id                                  | 类型    | 默认值  | `scope`   | 语义（决定默认值落在"什么都不发"一侧）                 |
-| ---------------------------------------- | ------- | ------- | --------- | ------------------------------------------------------ |
-| `forgejoToolkit.aiProviders`             | array   | `[]`    | `machine` | 已配置的 provider 列表；**空数组 = 没有直连目的地**    |
-| `forgejoToolkit.aiProvidersEnabled`      | boolean | `false` | `machine` | 是否允许任何 AI 功能通过直连发内容（"第二条独立闸门"） |
-| `forgejoToolkit.aiTransport`             | string  | `auto`  | `machine` | `auto` / `vscode-lm` / `openai-compatible`，见 §8.4    |
-| `forgejoToolkit.aiDefaultProvider`       | string  | `""`    | `machine` | 默认目的地的端点 id；空 = 没有默认目的地（§8.4）       |
-| `forgejoToolkit.aiDefaultModel`          | string  | `""`    | `machine` | 向默认端点请求的模型名；空 = 没有默认目的地（§8.4）    |
-| `forgejoToolkit.aiModelBindings`         | array   | `[]`    | `machine` | 逐功能覆盖（`{ feature, providerId, modelId }`）       |
-| `forgejoToolkit.aiLocalOnly`             | boolean | `false` | `machine` | 拒绝非 localhost / 内网的 `baseUrl`（§8.8）            |
-| `forgejoToolkit.aiModelRequestTimeoutMs` | number  | `30000` | `machine` | 空闲看门狗窗口与单次请求上限（§6.5、§8.6）             |
+| 设置 id                                  | 类型    | 默认值  | `scope`   | 语义                                                                                                         |
+| ---------------------------------------- | ------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| `forgejoToolkit.aiEnabled`               | boolean | `true`  | `machine` | **整个 AI 面的总开关**：关掉它，没有任何 AI 功能会运行，也不向任何模型取答案（编辑器提供的与已配置的都不问） |
+| `forgejoToolkit.aiProviders`             | array   | `[]`    | `machine` | 已配置的 provider 列表；**空数组 = 没有直连目的地**                                                          |
+| `forgejoToolkit.aiTransport`             | string  | `auto`  | `machine` | `auto` / `vscode-lm` / `openai-compatible`，见 §8.4                                                          |
+| `forgejoToolkit.aiDefaultProvider`       | string  | `""`    | `machine` | 默认目的地的端点 id；空 = 没有默认目的地（§8.4）                                                             |
+| `forgejoToolkit.aiDefaultModel`          | string  | `""`    | `machine` | 向默认端点请求的模型名；空 = 没有默认目的地（§8.4）                                                          |
+| `forgejoToolkit.aiModelBindings`         | array   | `[]`    | `machine` | 逐功能覆盖（`{ feature, providerId, modelId }`）                                                             |
+| `forgejoToolkit.aiModelRequestTimeoutMs` | number  | `30000` | `machine` | 空闲看门狗窗口与单次请求上限（§6.5、§8.6）                                                                   |
+
+**三层分工（2026-10-06 维护者裁决，本节是它的住处）**：
+
+1. **全局开关** `forgejoToolkit.aiEnabled` 说"**完全不要用 AI**"。它是唯一一个把编辑器自己提供的模型也一起关掉的
+   开关：关掉之后 `selectedModelFor(feature)` 在任何分支之前就答 `ai-off`（§8.4 的次序表第 0 行），所以没有哪条
+   路能"绕过它照跑"。
+2. **逐功能开关**（`forgejoToolkit.aiPreReview`、`forgejoToolkit.prDescription`）说"**这个功能是开的**"，各自的
+   默认值不变（都默认关），并且仍然是各自功能的第一道判断。
+3. **那次运行自己的同意询问**（`aiPreReviewPromptScope` 等）才是**外发同意**：它决定内容是否离开本机、离开多少。
+   前两层都不替它回答。
+
+**为什么默认是"开"（本节唯一一个与其余开关方向相反的读者）**：`aiEnabled` 的默认值必须是 `true`，因为移除那两条
+旧开关时，一个本来能在编辑器模型上正常工作的配置不能因为"多了一个默认关的开关"而静默失效；它管的也不是某一条出网
+路径，而是"要不要用 AI"这件事本身。读取纪律因此反过来：**只有显式的 `false` 才算关**，读设置抛异常时读作**开**
+（`aiEnabledSettingValue`）。这条反向读法是安全的，因为"读成开"本身**不发任何内容**——在它和一次真实请求之间还
+有功能开关、取模型与那次同意询问三层。
 
 **`scope: "machine"` 就是"只允许用户级"的实现方式**：`machine` 作用域的设置**不能**在工作区 / 远程 / 文件夹级
 被覆盖（`application` 也只允许用户级，但会阻止 Settings UI 的同步，对一个可能含密钥的配置不合适；密钥本来就不
@@ -633,7 +664,10 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 的：`package.json` 里不写 `scope` 的默认是 `window`，**可以被 `.vscode/settings.json` 覆盖**。
 
 **读者纪律**：照 `aiPreReviewSettings.ts` 与 `mcpWriteSettings.ts` 的既有写法——读设置抛异常时读作"未配置"，
-只有显式 `true` 才算开（fail-closed 方向必须是不发）。
+只有显式 `true` 才算开（fail-closed 方向必须是不发）。`aiEnabled` 是上面写明的唯一例外。
+
+**被移除的两条设置**：`forgejoToolkit.aiProvidersEnabled`（"允许向已配置的端点发请求"，默认关）与
+`forgejoToolkit.aiLocalOnly`（"仅允许本地端点"，默认关）连同整套地址策略已删除。理由与替代见 §8.8。
 
 ### 8.4 `aiTransport` 与 `selectedModelFor(feature)`
 
@@ -657,20 +691,20 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
   声明了模型"那条规则（规则 5 的旧读法，见下），所以升级后既有配置的运行方式不变；既有的逐功能绑定也照旧生效，
   只是现在它们在语义上叫覆盖。
 
-| 次序 | 条件                                                         | 结果                                                         |
-| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 1    | `bindings` 里有这个 feature 的覆盖                           | 直连（用覆盖里的 provider + model）                          |
-| 2    | 无覆盖且 `aiTransport === 'vscode-lm'`                       | `vscode.lm`                                                  |
-| 3    | 无覆盖且 `aiTransport === 'openai-compatible'`               | 直连；没有可用 provider / 密钥时**失败**（不回退）           |
-| 4    | 无覆盖且 `aiTransport === 'auto'`，且 `vscode.lm` 有可用模型 | `vscode.lm`                                                  |
-| 5    | 无覆盖且 `aiTransport === 'auto'`，`vscode.lm` 没有可用模型  | 直连，**仅当** `aiProvidersEnabled` 为真、且能定出一个目的地 |
-| 6    | 以上都不成立                                                 | 明确失败：报告"没有可用模型"并给出两条路（§9.3）             |
+| 次序 | 条件                                                         | 结果                                                       |
+| ---- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| 0    | `forgejoToolkit.aiEnabled` 是 `false`                        | 明确失败（`ai-off`）：两条路都不问，也不看功能开关（§8.3） |
+| 1    | `bindings` 里有这个 feature 的覆盖                           | 直连（用覆盖里的 provider + model）                        |
+| 2    | 无覆盖且 `aiTransport === 'vscode-lm'`                       | `vscode.lm`                                                |
+| 3    | 无覆盖且 `aiTransport === 'openai-compatible'`               | 直连；没有可用 provider / 密钥时**失败**（不回退）         |
+| 4    | 无覆盖且 `aiTransport === 'auto'`，且 `vscode.lm` 有可用模型 | `vscode.lm`                                                |
+| 5    | 无覆盖且 `aiTransport === 'auto'`，`vscode.lm` 没有可用模型  | 直连，**仅当**能定出一个目的地                             |
+| 6    | 以上都不成立                                                 | 明确失败：报告"没有可用模型"并给出两条路（§9.3）           |
 
 **规则 3 与规则 5 里的"能定出一个目的地"按固定次序读**（`selectDirectWithoutBinding`）：
 
-1. 配了**完整**的默认值（两半都在）→ 用**它**，并像覆盖一样校验：`aiProvidersEnabled` 必须是开的，端点必须
-   在 `aiProviders` 里能读到，端点必须可用（URL、仅本地策略、密钥）；任何一条不过就**点名失败**，绝不"就近
-   找一个端点"，也绝不改走编辑器那条路。
+1. 配了**完整**的默认值（两半都在）→ 用**它**，并像覆盖一样校验：端点必须在 `aiProviders` 里能读到，端点必须
+   可用（URL、密钥）；任何一条不过就**点名失败**，绝不"就近找一个端点"，也绝不改走编辑器那条路。
 2. **没配默认值**→ 沿用这组设置出现之前的老规则：**恰好一个**端点能读出来、且它**声明了至少一个模型**，用
    **它声明的第一个**模型。多于一个端点、有条目读不出来、端点没声明模型——都是"说不清把内容送给谁"的歧义，
    照旧失败而不猜（`bind`）。
@@ -707,7 +741,7 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 一个新命令 + 设置页里每个 provider 一个按钮（照 `testConnection` 的既有先例，见
 `src/webview/connectionTest.ts`）：
 
-1. **先校验**：id 字符集、URL 合法性与 scheme、`apiLocalOnly` 策略、必需字段齐不齐。任何一条不过就在**本地**
+1. **先校验**：全局 AI 开关、id 字符集、URL 合法性与 scheme、必需字段齐不齐。任何一条不过就在**本地**
    失败，一个字节都不发。
 2. 发 `GET <base>/models`（best-effort）：能拿到就列出模型数并**预填**模型列表；404 / 空数组不算失败，改发
    一条**最小**的 `POST /chat/completions`（`max_tokens` 之类不发，§6.3），问一个固定的一字回答。
@@ -716,36 +750,65 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
    渲染的 base URL）。**绝不**回显密钥或任何 header 的 value。
 4. 失败按 §6.5 的错误面分类给出可行动的话（"地址里通常要带 `/v1`"这一条尤其重要）。
 
-### 8.8 「仅本地」约束
+**全局 AI 开关也管这个探针**（2026-10-06 的裁决）：关掉 `aiEnabled` 时，点击的「测试连接」与设置页的自动探测都在
+本地被拒、一个字节都不发，句子点名 `forgejoToolkit.aiEnabled`。理由不是"探针也算一次 AI 功能调用"（它不是），而是
+**探针会把已存的凭据呈现给端点**：一个说"完全不要用 AI"的开关，不该在它关着的时候还替用户把一个 API 密钥发到一个
+模型端点上。代价是"关掉 AI 之后不能再用这个按钮验证端点"，而那正是"把 AI 关掉"这个动作的含义——要验证，把开关打
+开；配置本身没有被清掉（§8.3）。
 
-- `aiLocalOnly: true` 时，端点主机名必须落在：`localhost`、`127.0.0.0/8`、`::1`、`.local` 后缀、以及私有网段
-  （`10/8`、`172.16/12`、`192.168/16`、`fc00::/7`）——照 `resolveProxyUrl` 那种"能读就读、读不动就不放行"的写法，
-  **解析失败视为不本地**。
-- 违反时：设置页标红、运行前拒绝并点名该 provider 与策略设置；**不静默降级**成"还是发出去吧"。
-- 这条**不**用"能不能连通"来判断，只看配置的地址——DNS 重绑定不是本文的威胁模型（§13 问题 5）。
+### 8.8 已移除：「仅本地」约束与"允许向已配置的端点发请求"
 
-上面列的网段、`isLocalAiEndpointHost` 里的 `127.` / `10.` / `172.16–31.` / `192.168.` / `fc00::` 前缀，以及它
-的测试为每一段各取的一个代表地址（回环、`10/8`、`192.168/16`），都是**这条策略的定义域本身**，而不是某个具体地
-址——策略说的就是"落在这几段里算本地"，离开这些字面量无从表述。测试用它们只为逐段跑通这个判定，没有别的用途，
-`AGENTS.md` 的「Code content」一节也为此写明了例外。
+**2026-10-06 维护者裁决：两条设置连同它们的整套实现被删除，位置由 §8.3 的全局 AI 开关接替。** 这一节保留它们为什么
+不值得留，因为这是决定的一部分，而不是一次清理。
+
+**被删掉的两条设置**：
+
+- `forgejoToolkit.aiProvidersEnabled`（"允许向已配置的端点发请求"，默认关）——直连那条路的第二道闸门。
+- `forgejoToolkit.aiLocalOnly`（"仅允许本地端点"，默认关）——只允许 `localhost` / 回环 / `.local` / 私有网段的
+  `baseUrl`；逐端点的 `localOnly` 承诺、`isLocalAiEndpointHost` 的私有网段判定、设置页上被它拒绝的行与地址提示、
+  导出/导入里的 `localOnly` 字段与导入预览里那一行、以及它们各自的测试，都随它一起删除。
+
+**为什么删 `aiProvidersEnabled`**：维护者的理由是"**配置端点这个动作本身就已经表达了你要用它**"——配一条端点、存
+一个密钥是显式动作，不想用就把它删掉；再加一道默认关的闸门，只会让一个刚配好端点的用户面对一个"我什么都没做错，
+功能却说没模型"的状态，而那道闸门自己的文案还得解释"配置不等于允许"。移除它之后，"什么都不发"这个保证并没有变弱：
+它由 §8.3 的三层分工承担——功能开关仍然默认关，取模型仍然要有人点名目的地，而**那次外发同意**仍然是唯一的"内容可
+以出去"的记录处（§7.2、§7.3）。
+
+**为什么删「仅本地」**：维护者的理由是"**这条规则不值它的重量**"。一个真的需要代码留在某个网络里的用户，手边有的是
+更强的办法——一个网关，或者一张根本不连出去的网；而客户端这一侧只能检查**用户自己填的地址字符串**，既不能解析
+DNS（§13 问题 5），也不得不自己去猜"什么叫本地"（回环？私有网段？`.local`？），猜错的方向恰好是"以为拦住了而其实
+没有"。于是这条"看起来像安全措施、实际上只是一次地址猜测"的规则被整体删除，而不是保留成一道默认关的闸门。
+
+**替代它的是什么**：一句更简单也更诚实的话——**你要发到哪里，就配哪个地址**。地址写在
+`forgejoToolkit.aiProviders[].baseUrl` 里、由用户自己填、在设置页与同意模态框里都被原样显示（§7.1），
+`http://`（非 TLS）仍然会被显著警告（§6.2、§10.2）。想要"只发本机"的用户把本机地址填进去即可；想要更强保证的用户
+用网关或断网，那是扩展做不到、也不该假装做到的事。
+
+**升级路径**：两个键从 manifest 里消失之后，`settings.json` 里遗留下来的值**不会被读、也不会报错**——读取器不存在
+了，手写的值就是一条谁都不看的普通数据（VS Code 只会在设置界面把它标成未知设置）。同理，provider 条目上遗留的
+`localOnly` 字段会被 `parseAiProviderConfig` 丢弃，与它丢弃一个手写的 header `value` 是同一条纪律：读设置时只重建
+自己认识的字段。
+
+**随之移除的还有 `AGENTS.md` 的那条例外**：「Code content」一节曾为"定义网络策略的地址模式"（回环与私有网段）写明
+例外，好让上面那套判定能在源码与 fixture 里写出自己的定义域。策略没有了，例外也随之撤回——仓库里不再有任何依赖它的
+地方（这次改动核对了这一点：`isLocalAiEndpointHost` 与它的两个测试是唯一的用户）。
 
 ### 8.9 NLS 条目（**本阶段不动 NLS 文件**）
 
 选择：**本阶段只写名字、不编辑 `package.nls.json` / `package.nls.zh-cn.json`**（两者必须同步改，等到阶段 1 落地
 设置与文案时一起做）。阶段 1 必须新增的键（英文 / 中文成对）：
 
-| 键                                                                             | 说明                        |
-| ------------------------------------------------------------------------------ | --------------------------- |
-| `config.aiProviders.title` / `.description`                                    | provider 列表               |
-| `config.aiProvidersEnabled.title` / `.description`                             | 直连总开关（默认关）        |
-| `config.aiTransport.title` / `.description`                                    | 传输选择                    |
-| `config.aiTransport.enumDescriptions.auto` / `.vscodeLm` / `.openAiCompatible` | 三个取值各自说清走哪条路    |
-| `config.aiModelBindings.title` / `.description`                                | 逐功能绑定                  |
-| `config.aiLocalOnly.title` / `.description`                                    | 仅本地策略                  |
-| `config.aiModelRequestTimeoutMs.title` / `.description`                        | 超时                        |
-| `config.aiDefaultProvider.title` / `.description`                              | 默认端点（2026-10-06 新增） |
-| `config.aiDefaultModel.title` / `.description`                                 | 默认模型（2026-10-06 新增） |
-| `command.aiTestProvider.title`                                                 | 「测试连接」                |
+| 键                                                                             | 说明                               |
+| ------------------------------------------------------------------------------ | ---------------------------------- |
+| `config.aiProviders.title` / `.description`                                    | provider 列表                      |
+| `config.aiEnabled.title` / `.description`                                      | 全局 AI 开关（默认开，2026-10-06） |
+| `config.aiTransport.title` / `.description`                                    | 传输选择                           |
+| `config.aiTransport.enumDescriptions.auto` / `.vscodeLm` / `.openAiCompatible` | 三个取值各自说清走哪条路           |
+| `config.aiModelBindings.title` / `.description`                                | 逐功能绑定                         |
+| `config.aiModelRequestTimeoutMs.title` / `.description`                        | 超时                               |
+| `config.aiDefaultProvider.title` / `.description`                              | 默认端点（2026-10-06 新增）        |
+| `config.aiDefaultModel.title` / `.description`                                 | 默认模型（2026-10-06 新增）        |
+| `command.aiTestProvider.title`                                                 | 「测试连接」                       |
 
 **两条会被测试拦住的既有约定**（不改就是红的）：
 
@@ -796,8 +859,12 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
 2. **给出两条路，各自可点**：
    - 装一个贡献语言模型的扩展并登录（不点名 Copilot——`vscode.lm` 接的是**所有**这样的扩展）；
    - 配一个 OpenAI 兼容端点（地址 / 模型 / 密钥 / 测试连接），并说明这条在 VSCodium 这类编辑器上是唯一的路。
-3. **在用户做出选择之前，功能保持关闭**：不因为是 fork 就把 `aiProvidersEnabled` 打开，也不预填任何默认端点。
+3. **在用户做出选择之前，功能保持关闭**：不因为是 fork 就替用户打开任何开关（全局 AI 开关默认是开的，那是为了让
+   这次移除不改变既有配置，不是"因为编辑器像某个 fork 就替用户放行"），也不预填任何默认端点。
 4. 让这条路**显眼**（提示与入口顶到前面），而不是悄悄启用它。
+5. **全局开关关着时，这一区块要说的是那件事**：`capability` 的 `ai-off` 代码带着的句子说明"AI 被关掉了、什么都没
+   发"，页面在它后面重复一遍开关那一段的说明（该说的话与"怎么打开"在 §8.3 的那一层里），而不是继续推荐两条在这里
+   都修不好问题的路。
 
 ---
 
@@ -813,10 +880,9 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
   "instances": [...],
   "settings": {...},           // 今天的 ExportSettings，key 集合不动
   "ai": {
-    "providers": [{ "id", "name", "baseUrl", "models": [...], "auth", "headers": [{"name"}], "localOnly" }],
+    "providers": [{ "id", "name", "baseUrl", "models": [...], "auth", "headers": [{"name"}] }],
     "bindings": [{ "feature", "providerId", "modelId" }],
-    "transport": "auto",
-    "localOnly": false
+    "transport": "auto"
   }
 }
 ```
@@ -824,8 +890,8 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
 - `settings` 里的既有字段集合**不动**：`ExportSettings` 是 webview 与宿主共享的类型，`sanitizeImportedSettings`
   也逐字段白名单校验（`sanitizeImportedSettings` 的纪律：未知字段**丢弃**而不是猜）。`ai` 段同样要有一个
   `sanitizeImportedAiConfig`，逐字段校验（id 字符集、URL 合法性与 scheme、auth 取值、模型条目形状）。
-- **不导出** `aiProvidersEnabled` / `aiPreReview` / `aiPreReviewPromptScope`：它们是"出网语义"的开关，导入它们
-  等于让一个文件改变另一台机器的隐私姿态（§7.4）。
+- **不导出** `aiEnabled` / `aiPreReview` / `aiPreReviewPromptScope` / `prDescription` /
+  `prDescriptionPromptScope`：它们是"出网语义"的开关，导入它们等于让一个文件改变另一台机器的隐私姿态（§7.4）。
 - 导入预览**必须**展示 AI 段：哪些 provider、地址是什么、有没有冲突（id 相同则改名 / 保留 / 替换，照既有实例
   预览的三选一）。
 
@@ -843,7 +909,10 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
 
 硬规则，四条**都**要做到：
 
-1. 导入**不写** `aiProvidersEnabled` / `aiPreReview` / `aiPreReviewPromptScope` / `aiTransport`。
+1. 导入**不写** `aiEnabled` / `aiPreReview` / `aiPreReviewPromptScope` / `prDescription` /
+   `prDescriptionPromptScope` / `aiTransport`。规则的说法是"**导入永不打开全局开关或任何功能开关**"：一个文件可以
+   带来端点、模型声明与逐功能覆盖，但"要不要用 AI""这个功能开不开"永远只有本机用户能回答。它**也不关**它们——文件
+   里写着 `aiEnabled: false` 同样被忽略，因为一台机器的工作配置不该被一个文件走回头路。
 2. 导入后第一次真正要发内容时，用户仍要自己走一遍那个一次性模态框（§7.1–§7.2）。
 3. `http://` 非 TLS 端点在**导入预览**里显著警告（不只是运行时），因为导入动作本身就是"把内容指向某个地址"。
 4. 导入后各功能仍要**优雅失败**：不可达 / 鉴权失败就报错，**不回退到别的 provider，也不偷偷改用 `vscode.lm`**
@@ -911,19 +980,21 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
   以及写入）与 `src/webview/instanceImport.ts` 的 `readExportDataFromUri`；导出侧在
   `viewProvider._buildExportData` / `_encryptExportData`，预览与确认在 `_previewImportInstances` /
   `_importInstances`。
-- 载荷：`version: 3`，顶层新增 `ai: { providers, bindings, transport, localOnly }`；**加密时**才在 `ai` 里多一个
-  `secrets: { keys, headerValues }`，与实例 token 走同一个加密包裹（AES-256-GCM / PBKDF2 100k）。`settings` 的
-  既有字段集合一个字没动，`version: 1` / `2` 的文件照旧可导入（读取按字段白名单，不看版本号）。
-- **不导出**的三条键与 §7.4 一致：`aiProvidersEnabled` / `aiPreReview` / `aiPreReviewPromptScope`。四条硬规则
-  各有测试：不写这三个键、不写 `aiTransport`（预览里显示，不应用）、`http://` 在预览里就警告、导入后各功能仍按
-  端点自己的错误失败而不回退。
-- `localOnly` 只按**限制方向**应用：文件说要 `true` 就写 `true`，文件的 `false` 不写——不能让一个文件放松接收
-  机器的姿态。
+- 载荷：`version: 3`，顶层新增 `ai: { providers, bindings, transport }`（`localOnly` 曾在里面，2026-10-06 随
+  §8.8 的移除一起删掉）；**加密时**才在 `ai` 里多一个 `secrets: { keys, headerValues }`，与实例 token 走同一个
+  加密包裹（AES-256-GCM / PBKDF2 100k）。`settings` 的既有字段集合一个字没动，`version: 1` / `2` 的文件照旧可导入
+  （读取按字段白名单，不看版本号）。
+- **不导出**的键与 §7.4 一致：`aiEnabled` / `aiPreReview` / `aiPreReviewPromptScope` /
+  `prDescription` / `prDescriptionPromptScope`。四条硬规则各有测试：不写这些键、不写 `aiTransport`（预览里显示，
+  不应用）、`http://` 在预览里就警告、导入后各功能仍按端点自己的错误失败而不回退；`applyAiImport` 的两条测试分别
+  断言"文件说 `aiEnabled: false` 也不写它"与"文件说 `aiEnabled: true` 也不写它"（同一个键的两个方向都不动，因为
+  它管的是**要不要用 AI**，不是配置）。
 - 一处对本文的收窄：**导入走既有的导入预览**（`previewImportInstances` → `importInstances`）。文件选择器的
   直连导入（`importInstances` 不带 `ids`）不应用 `ai` 段——它没有预览面可以把"要写哪些端点、密钥有没有随文件
   来"讲清楚，而 webview 的导入按钮走的始终是预览那条路，所以这不是用户可见的缺口。
-- §11.4 的第二句（新功能按 `selectedModelFor(feature)` 接）还没有对象：那三个功能仍在 `FEATURES.md` 的「未完成」
-  里，落地时直接接这道接缝即可，本次不新增第二条取模型的路径。
+- §11.4 的第二句（新功能按 `selectedModelFor(feature)` 接）此后已经有了一个对象：PR 描述生成按同一个选择点接线
+  （2026-10-06，`docs/design/ai-pr-description.md`），本次不新增第二条取模型的路径；Issue 分诊与通知摘要仍在
+  `FEATURES.md` 的「未完成」里，落地时同样直接接这道接缝即可。
 
 ### 11.5 什么证据会推翻整份设计
 
@@ -1002,10 +1073,12 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
 4. **共享层要不要补一个受限重试？** §6.6 的处置是"传输层不重试"，`TODO.md` 的措辞则假定重试已经存在。要么在
    `shared/request` 补一个只对幂等 GET 生效的重试，要么把 TODO 的措辞改成"代理 / 超时 / dispatcher"。这是需要
    单独裁决的事，本文只记录偏差。
-5. **「仅本地」的判定要不要看解析后的 IP？** §8.8 只看配置的地址。若要把 DNS 也算进去，就要在每次请求前解析
-   主机名，代价是一个额外的网络往返与一个新的失败面。建议不做（威胁模型不同）。
-6. **`aiModelBindings` 的 feature id 从哪来？** 现在只有一个功能（AI 预评审）。建议先只有 `'aiPreReview'` 一个
-   合法值，新功能落地时再扩——但"未知 feature 值"的读法（忽略 / 拒绝）要在实现时定死，并测出来。
+5. **「仅本地」的判定要不要看解析后的 IP？——问题已不存在（2026-10-06）。** 这条规则连同它的判定整体移除（§8.8），
+   所以"要不要把 DNS 也算进去"不再有对象。它留下的那条经验仍然成立，并且是移除它的理由之一：一个只看配置字符串的
+   客户端侧检查既不能解析主机名，也不得不自己去猜"什么叫本地"，猜错的方向恰好是"以为拦住了而其实没有"。
+6. **`aiModelBindings` 的 feature id 从哪来？** 现在有两个功能（AI 预评审与 PR 描述生成）。合法值就是
+   `src/ai/modelSettings.ts` 的 `AI_FEATURES`，新功能落地时再扩——"未知 feature 值"的读法已经定死（**忽略**该条目，
+   保留其余功能的绑定，见 `aiModelBindingsSettingValue`），并有测试。
 7. **设置页要不要显示 provider 的"最近一次使用"**？它与 `KNOWN_ISSUES` 无关，但会让隐私审查更容易（"过去 24
    小时这个端点被用过"）。**建议不做**：又多一份落盘的状态，且 `TODO.md` 没要它。
 
@@ -1039,7 +1112,7 @@ Ollama"这件事了）。所以 harness 要长的是：
 4. **上面三条已落地（2026-10-05）**：`tools/ui-review/src/aiMockServer.ts` 就是那台本机 SSE server，
    `aiMockRun.ts` 管状态文件、detached 子进程与"只杀自己认得的 pid"的停止逻辑，`aiMock.ts` 是它的命令行
    （`serve` / `url` / `requests` / `stop`）。`launch --ai-mock`（`dual launch --ai-mock` 同）先起端点、再把它实际绑到的
-   端口写进隔离 profile 的 `forgejoToolkit.aiProviders`，连同 `aiProvidersEnabled`、`aiTransport` 与
+   端口写进隔离 profile 的 `forgejoToolkit.aiProviders`，连同 `aiTransport` 与
    `aiPreReview` 的逐功能绑定（`aiModelBindings` 的一条覆盖：按 §8.4 的次序它压过默认值，所以 harness 的种子不必
    跟着 `aiDefaultProvider` / `aiDefaultModel` 改写）；**不写任何密钥**（端点 `auth: "none"`，需要鉴权的端点才需要，而密钥只进
    `SecretStorage`），也**不写** `forgejoToolkit.aiPreReviewPromptScope`——它的默认 `ask` 正是走查里唯一必须由人回答的
@@ -1061,7 +1134,7 @@ Ollama"这件事了）。所以 harness 要长的是：
 | 取模型清单、去重、身份、输入预算                                                                                                                                       | `packages/forgejo-toolkit/src/aiPreReviewModels.ts` 的 `queryAiPreReviewChatModels` / `uniqueAiPreReviewModels` / `aiPreReviewModelIdentity` / `aiPreReviewModelKey` / `maxInputTokensOf`                                                                                                                         |
 | 设置页的模型选择（列表、`reason`、可存值）                                                                                                                             | 同上文件的 `listAiPreReviewChatModelChoices` / `isStorableAiPreReviewModelSettingValue`；`packages/shared/src/webview/messages.ts` 的 `AiPreReviewChatModelOption`                                                                                                                                                |
 | 模型设置的取值形态与解析                                                                                                                                               | `src/aiPreReviewSettings.ts` 的 `AI_PRE_REVIEW_MODEL_SETTING` / `parseAiPreReviewModelSelector` / `matchesAiPreReviewModelSelector` / `AI_PRE_REVIEW_MODEL_SELECTOR_FORMS`                                                                                                                                        |
-| 设置读取的 fail-closed 先例                                                                                                                                            | 同上文件的 `readBooleanSwitch` / `aiPreReviewPromptScopeSettingValue` / `aiPreReviewModelSettingValue`；`src/mcpWriteSettings.ts` 的 `enabledMcpWriteTools`                                                                                                                                                       |
+| 设置读取的 fail-closed 先例，以及唯一一个反向的读者                                                                                                                    | `src/aiPreReviewSettings.ts` 的 `readBooleanSwitch` / `aiPreReviewPromptScopeSettingValue` / `aiPreReviewModelSettingValue`；`src/mcpWriteSettings.ts` 的 `enabledMcpWriteTools`；**反向的那一个**是 `src/ai/modelSettings.ts` 的 `aiEnabledSettingValue`（只有显式 `false` 才算关，§8.3）                        |
 | 一次运行的顺序（开关 → 模型 → 范围 → 语言 → 预算 → 请求）                                                                                                              | `src/aiPreReview.ts` 的 `runAiPreReview`                                                                                                                                                                                                                                                                          |
 | `sendRequest` 的调用点之一（另一处是探测，见 §3.1）与 `justification`                                                                                                  | 同上文件的 `requestPreReviewComments`                                                                                                                                                                                                                                                                             |
 | 取消的 token 来源                                                                                                                                                      | 同上文件的 `runAiPreReview`（`vscode.window.withProgress({ location: Notification, cancellable: true })`）                                                                                                                                                                                                        |

@@ -64,7 +64,6 @@ function aiSection(providers: Array<Record<string, unknown>>, extra: Record<stri
     providers,
     bindings: [],
     transport: 'auto',
-    localOnly: false,
     secretsIncluded: false,
     ...extra,
   };
@@ -73,11 +72,10 @@ function aiSection(providers: Array<Record<string, unknown>>, extra: Record<stri
 const PROVIDER = {
   id: 'ollama-local',
   name: 'Ollama (this machine)',
-  baseUrl: 'http://127.0.0.1:11434/v1',
+  baseUrl: 'http://localhost:11434/v1',
   auth: 'bearer',
   models: ['qwen3:8b'],
   headers: ['api-version'],
-  localOnly: false,
   existing: false,
 };
 
@@ -143,7 +141,7 @@ describe('ImportPreview AI endpoints', () => {
     const item = wrapper.find('.ai-item');
     expect(item.text()).toContain('Ollama (this machine)');
     expect(item.text()).toContain('ollama-local');
-    expect(item.text()).toContain('http://127.0.0.1:11434/v1');
+    expect(item.text()).toContain('http://localhost:11434/v1');
     expect(item.text()).toContain('api-version');
     expect(item.text()).toContain('1 declared model(s)');
     // The declaration is a name list; nothing here can hold a value.
@@ -213,13 +211,13 @@ describe('ImportPreview AI endpoints', () => {
     wrapper.unmount();
   });
 
-  it('states that importing does not allow requests to the endpoints', async () => {
+  it('states that importing turns no AI switch on', async () => {
     setPreview({ ai: aiSection([PROVIDER]) });
     const wrapper = mountView();
     await nextTick();
 
     const note = wrapper.find('.ai-summary .ai-note').text();
-    expect(note).toContain('does not allow requests to configured endpoints');
+    expect(note).toContain('does not turn AI on');
     expect(note).toContain('does not turn any AI feature on');
     wrapper.unmount();
   });

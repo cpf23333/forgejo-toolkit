@@ -84,11 +84,10 @@ const SYNTHETIC_VALUES = [EXPORT_KEY, HEADER_VALUE, IMPORT_KEY, IMPORT_HEADER_VA
 const PROVIDER = {
   id: 'ollama-local',
   name: 'Ollama (this machine)',
-  baseUrl: 'http://127.0.0.1:11434/v1',
+  baseUrl: 'http://localhost:11434/v1',
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer' as const,
   headers: [{ name: 'api-version', valueSecret: true as const }],
-  localOnly: false,
 };
 
 /** A secret store whose values are visible only to the test. */
@@ -121,7 +120,6 @@ describe('readAiConfigForExport', () => {
     state.settings['aiProviders'] = [PROVIDER];
     state.settings['aiModelBindings'] = [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }];
     state.settings['aiTransport'] = 'openai-compatible';
-    state.settings['aiLocalOnly'] = true;
     const { store } = secretStore({
       [aiProviderKeySecretKey('ollama-local')]: EXPORT_KEY,
       [aiProviderHeaderSecretKey('ollama-local', 'api-version') ?? '']: HEADER_VALUE,
@@ -134,18 +132,16 @@ describe('readAiConfigForExport', () => {
         {
           id: 'ollama-local',
           name: 'Ollama (this machine)',
-          baseUrl: 'http://127.0.0.1:11434/v1',
+          baseUrl: 'http://localhost:11434/v1',
           models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
           auth: 'bearer',
           // The value is not here, and the marker says one exists — this is the
           // shape §10.2 requires of a plaintext export.
           headers: [{ name: 'api-version', valueSecret: true }],
-          localOnly: false,
         },
       ],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'openai-compatible',
-      localOnly: true,
     });
     expect(reading.secrets).toEqual({
       keys: { 'ollama-local': EXPORT_KEY },
@@ -160,11 +156,11 @@ describe('readAiConfigForExport', () => {
   });
 
   it('never exports the settings that decide whether content may leave the machine', async () => {
-    // The three keys of §7.4 are not part of the export shape at all. This asserts
-    // the mechanism, not just the shape: whatever is configured under them must not
-    // turn up in the reading.
+    // The keys of §7.4 are not part of the export shape at all. This asserts the
+    // mechanism, not just the shape: whatever is configured under them must not turn
+    // up in the reading.
     state.settings['aiProviders'] = [PROVIDER];
-    state.settings['aiProvidersEnabled'] = true;
+    state.settings['aiEnabled'] = false;
     state.settings['aiPreReview'] = true;
     state.settings['aiPreReviewPromptScope'] = 'full-diff';
     state.settings['aiModelRequestTimeoutMs'] = 45_000;
@@ -173,17 +169,17 @@ describe('readAiConfigForExport', () => {
     const reading = await readAiConfigForExport(store);
 
     const serialized = JSON.stringify(reading.ai);
-    expect(serialized).not.toContain('aiProvidersEnabled');
+    expect(serialized).not.toContain('aiEnabled');
     expect(serialized).not.toContain('aiPreReview');
     expect(serialized).not.toContain('full-diff');
     expect(serialized).not.toContain('45000');
-    expect(Object.keys(reading.ai).sort()).toEqual(['bindings', 'localOnly', 'providers', 'transport']);
+    expect(Object.keys(reading.ai).sort()).toEqual(['bindings', 'providers', 'transport']);
   });
 
   it('reads an empty configuration as an empty section rather than failing', async () => {
     const { store } = secretStore();
     const reading = await readAiConfigForExport(store);
-    expect(reading.ai).toEqual({ providers: [], bindings: [], transport: 'auto', localOnly: false });
+    expect(reading.ai).toEqual({ providers: [], bindings: [], transport: 'auto' });
     expect(aiConfigHasContent(reading.ai)).toBe(false);
   });
 });
@@ -193,7 +189,6 @@ describe('parseAiImportedAiConfig', () => {
     providers: [PROVIDER],
     bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
     transport: 'openai-compatible',
-    localOnly: true,
   };
 
   it('reads the version 3 AI section', () => {
@@ -307,7 +302,6 @@ describe('buildAiImportPreview', () => {
       providers: [PROVIDER],
       bindings: [],
       transport: 'auto',
-      localOnly: false,
     });
 
     const preview = buildAiImportPreview(parsed as never, ['ollama-local']);
@@ -316,11 +310,10 @@ describe('buildAiImportPreview', () => {
       {
         id: 'ollama-local',
         name: 'Ollama (this machine)',
-        baseUrl: 'http://127.0.0.1:11434/v1',
+        baseUrl: 'http://localhost:11434/v1',
         auth: 'bearer',
         models: ['qwen3:8b'],
         headers: ['api-version'],
-        localOnly: false,
         existing: true,
         insecure: true,
       },
@@ -340,7 +333,6 @@ describe('buildAiImportPreview', () => {
       ],
       bindings: [],
       transport: 'auto',
-      localOnly: false,
     });
 
     const preview = buildAiImportPreview(parsed as never, []);
@@ -362,7 +354,6 @@ describe('buildAiImportPreview', () => {
       providers: [{ ...PROVIDER, baseUrl: 'https://models.example.com/v1' }],
       bindings: [],
       transport: 'auto',
-      localOnly: false,
     });
 
     expect(buildAiImportPreview(parsed as never, []).ai.providers[0].insecure).toBeUndefined();
@@ -371,7 +362,7 @@ describe('buildAiImportPreview', () => {
 
 describe('resolveAiImportProviders', () => {
   function previewsFor(providers: unknown[], taken: string[]) {
-    const parsed = parseAiImportedAiConfig({ providers, bindings: [], transport: 'auto', localOnly: false });
+    const parsed = parseAiImportedAiConfig({ providers, bindings: [], transport: 'auto' });
     return buildAiImportPreview(parsed as never, taken).previews;
   }
 
@@ -457,7 +448,6 @@ describe('applyAiImport', () => {
       providers: [PROVIDER],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'vscode-lm',
-      localOnly: false,
       secrets: {
         keys: { 'ollama-local': IMPORT_KEY },
         headerValues: { 'ollama-local': { 'api-version': IMPORT_HEADER_VALUE } },
@@ -480,15 +470,14 @@ describe('applyAiImport', () => {
     expect(values[aiProviderHeaderSecretKey('ollama-local', 'api-version') ?? '']).toBe(IMPORT_HEADER_VALUE);
   });
 
-  it('never turns egress on, whatever the file asked for', async () => {
+  it('never turns AI on, whatever the file asked for', async () => {
     const { store } = secretStore();
     const plan = planFrom({
       providers: [PROVIDER],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'openai-compatible',
-      localOnly: false,
       // A file may name these keys; the import has nowhere to put them.
-      aiProvidersEnabled: true,
+      aiEnabled: false,
       aiPreReview: true,
       aiPreReviewPromptScope: 'full-diff',
     });
@@ -498,27 +487,18 @@ describe('applyAiImport', () => {
     const written = state.writes.map((entry) => entry.key);
     expect(written).toContain('aiProviders');
     expect(written).toContain('aiModelBindings');
-    expect(written).not.toContain('aiProvidersEnabled');
+    expect(written).not.toContain('aiEnabled');
     expect(written).not.toContain('aiPreReview');
     expect(written).not.toContain('aiPreReviewPromptScope');
     // The transport value is not applied either: the opposite value on this
     // machine may be a working setup, and a file is the wrong thing to walk back.
     expect(written).not.toContain('aiTransport');
-    // Nothing that was already off has been turned on.
-    expect(state.settings['aiProvidersEnabled']).toBeUndefined();
+    // Nothing that was already off has been turned on, and a file that says AI is
+    // off does not turn it off on the receiving machine either.
+    expect(state.settings['aiEnabled']).toBeUndefined();
     expect(state.settings['aiPreReview']).toBeUndefined();
     expect(state.settings['aiPreReviewPromptScope']).toBeUndefined();
     expect(state.settings['aiTransport']).toBeUndefined();
-  });
-
-  it('applies only the restricting local-only value, never a relaxation', async () => {
-    state.settings['aiLocalOnly'] = true;
-    const { store } = secretStore();
-    await applyAiImport(planFrom({ providers: [], bindings: [], transport: 'auto', localOnly: false }), {}, store);
-
-    // A file may not switch the receiving machine's policy off.
-    expect(state.writes.map((entry) => entry.key)).not.toContain('aiLocalOnly');
-    expect(state.settings['aiLocalOnly']).toBe(true);
   });
 
   it('drops a binding whose endpoint the import did not write, and names it', async () => {
@@ -528,7 +508,6 @@ describe('applyAiImport', () => {
       providers: [{ ...PROVIDER, name: 'from the file' }],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'auto',
-      localOnly: false,
     });
 
     // `keep`: the stored entry wins, so the binding has nothing to point at.
@@ -547,7 +526,6 @@ describe('applyAiImport', () => {
       providers: [{ ...PROVIDER, name: 'from the file' }],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'auto',
-      localOnly: false,
     });
 
     const result = await applyAiImport(plan, { 'ollama-local': 'rename' }, store);
@@ -574,7 +552,6 @@ describe('applyAiImport', () => {
       providers: [PROVIDER],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'auto',
-      localOnly: false,
     });
 
     await applyAiImport(plan, {}, store);
@@ -594,7 +571,6 @@ describe('applyAiImport', () => {
       ],
       bindings: [],
       transport: 'auto',
-      localOnly: false,
     });
 
     const result = await applyAiImport(plan, {}, store);
@@ -613,7 +589,6 @@ describe('applyAiImport', () => {
       providers: [PROVIDER],
       bindings: [],
       transport: 'auto',
-      localOnly: false,
       secrets: { keys: { 'ollama-local': IMPORT_KEY } },
     });
 
@@ -630,7 +605,6 @@ describe('applyAiImport', () => {
       providers: [PROVIDER],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'auto',
-      localOnly: false,
       secrets: {
         keys: { 'ollama-local': IMPORT_KEY },
         headerValues: { 'ollama-local': { 'api-version': IMPORT_HEADER_VALUE } },
@@ -675,7 +649,6 @@ describe('the export payload version', () => {
       providers: [PROVIDER],
       bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
       transport: 'auto',
-      localOnly: false,
     };
     const payload = {
       version: EXPORT_PAYLOAD_VERSION,

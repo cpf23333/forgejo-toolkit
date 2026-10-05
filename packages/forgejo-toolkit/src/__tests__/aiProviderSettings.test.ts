@@ -83,11 +83,10 @@ import type { AiModelInfo, AiModelTransport } from '../ai/transport';
 const FIRST_ENTRY = {
   id: 'ollama-local',
   name: 'Ollama (this machine)',
-  baseUrl: 'http://127.0.0.1:11434/v1',
+  baseUrl: 'http://localhost:11434/v1',
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer',
   headers: [{ name: 'api-version', valueSecret: true }],
-  localOnly: false,
 };
 
 /** A transport double, so the capability question needs no editor of its own. */
@@ -152,7 +151,7 @@ describe('the endpoint snapshot', () => {
     expect(entry.headers).toEqual([{ name: 'api-version', set: true, shadowed: false, queryCarried: true }]);
     // The address is rendered without its query string: `api-version`'s value is a
     // secret, and it is the one parameter this transport can add.
-    expect(entry.address).toBe('http://127.0.0.1:11434/v1');
+    expect(entry.address).toBe('http://localhost:11434/v1');
     expect(JSON.stringify(snapshot)).not.toContain('sk-a-real-key');
     expect(JSON.stringify(snapshot)).not.toContain('2024-10-21');
   });
@@ -184,13 +183,11 @@ describe('the endpoint snapshot', () => {
     expect(snapshot.rejected[2]?.id).toBeUndefined();
   });
 
-  it('marks the states a row has to warn about: insecure, refused and local-only', async () => {
+  it('marks the states a row has to warn about: insecure and refused', async () => {
     state.settings['aiProviders'] = [
       { ...FIRST_ENTRY, id: 'plain-http', baseUrl: 'http://models.example.com/v1' },
       { ...FIRST_ENTRY, id: 'not-a-url', baseUrl: 'file:///tmp/v1' },
-      { ...FIRST_ENTRY, id: 'public', baseUrl: 'https://models.example.com/v1', localOnly: true },
     ];
-    state.settings['aiLocalOnly'] = false;
 
     const snapshot = await readAiProviderSettings(deps());
 
@@ -198,7 +195,6 @@ describe('the endpoint snapshot', () => {
     expect(snapshot.providers[0]?.addressError).toBeUndefined();
     expect(snapshot.providers[1]?.addressError).toContain('file:');
     expect(snapshot.providers[1]?.insecure).toBe(false);
-    expect(snapshot.providers[2]?.localOnlyBlocked).toBe(true);
   });
 
   it('answers the capability question with the discriminator the page branches on', async () => {
@@ -215,15 +211,17 @@ describe('the endpoint snapshot', () => {
     // An unavailable answer names no path, because none was selected.
     expect(emptyEditor.selection).toBe('none');
 
-    // A configured endpoint, but the egress switch is off.
+    // The global AI switch is off: nothing is asked for anything, and the answer
+    // says so before any route of the table is consulted.
     state.settings['aiProviders'] = [FIRST_ENTRY];
-    const disabled = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
-    expect(disabled.capability).toMatchObject({ available: false, code: 'disabled' });
+    state.settings['aiEnabled'] = false;
+    const switchedOff = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
+    expect(switchedOff.capability).toMatchObject({ available: false, code: 'ai-off' });
 
     // Two endpoints and no binding: which one would receive the content is exactly
     // the ambiguity a binding exists to remove.
+    state.settings['aiEnabled'] = true;
     state.settings['aiProviders'] = [FIRST_ENTRY, { ...FIRST_ENTRY, id: 'second' }];
-    state.settings['aiProvidersEnabled'] = true;
     const ambiguous = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
     expect(ambiguous.capability).toMatchObject({ available: false, code: 'bind' });
   });
@@ -237,7 +235,6 @@ describe('the endpoint snapshot', () => {
     expect(withoutDefault.selection).toBe('none');
 
     state.settings['aiProviders'] = [FIRST_ENTRY];
-    state.settings['aiProvidersEnabled'] = true;
     state.settings['aiDefaultProvider'] = 'ollama-local';
     state.settings['aiDefaultModel'] = 'qwen3:8b';
 
@@ -272,11 +269,10 @@ describe('saving one endpoint', () => {
     const result = await saveAiProvider(deps({ secrets }), {
       id: 'ollama-local',
       name: '  Ollama (this machine)  ',
-      baseUrl: ' http://127.0.0.1:11434/v1 ',
+      baseUrl: ' http://localhost:11434/v1 ',
       models: [{ id: 'qwen3:8b', name: '' }],
       auth: 'bearer',
       headers: ['api-version'],
-      localOnly: false,
     });
 
     expect(result).toEqual({ ok: true });
@@ -284,14 +280,13 @@ describe('saving one endpoint', () => {
       {
         id: 'ollama-local',
         name: 'Ollama (this machine)',
-        baseUrl: 'http://127.0.0.1:11434/v1',
+        baseUrl: 'http://localhost:11434/v1',
         // A model with no display name keeps the id rather than losing the model.
         models: [{ id: 'qwen3:8b', name: 'qwen3:8b' }],
         auth: 'bearer',
         // Only the name is configuration; the marker is what a receiver of an
         // unencrypted export is told (§10.2).
         headers: [{ name: 'api-version', valueSecret: true }],
-        localOnly: false,
       },
     ]);
     expect(state.secrets.size).toBe(0);
@@ -310,7 +305,6 @@ describe('saving one endpoint', () => {
       models: [],
       auth: 'none',
       headers: [],
-      localOnly: true,
     });
 
     expect(result).toEqual({ ok: true });
@@ -319,7 +313,7 @@ describe('saving one endpoint', () => {
     // The entry this build cannot read is untouched: an edit elsewhere in the list
     // must not delete a hand-written entry.
     expect(stored[0]).toMatchObject({ id: 'broken entry' });
-    expect(stored[1]).toMatchObject({ id: 'ollama-local', name: 'Renamed', auth: 'none', localOnly: true });
+    expect(stored[1]).toMatchObject({ id: 'ollama-local', name: 'Renamed', auth: 'none' });
   });
 
   it('drops a header value a payload tries to smuggle into settings', async () => {
@@ -331,7 +325,6 @@ describe('saving one endpoint', () => {
       auth: 'bearer',
       // The typed payload carries names; a compromised webview could send objects.
       headers: [{ name: 'api-version', value: 'sk-smuggled' }] as unknown as string[],
-      localOnly: false,
     });
 
     expect(JSON.stringify(state.settings['aiProviders'])).not.toContain('sk-smuggled');
@@ -345,7 +338,6 @@ describe('saving one endpoint', () => {
       models: [{ id: 'm', name: '' }],
       auth: 'bearer',
       headers: ['api-version'],
-      localOnly: false,
     };
     expect(validateAiProviderDraft(base)).toBeUndefined();
     expect(validateAiProviderDraft({ ...base, id: '' })).toContain('id is required');
@@ -448,40 +440,40 @@ describe('removing one endpoint', () => {
   });
 });
 
-describe('the policy gates', () => {
-  it('writes only the gates that differ, at global scope', async () => {
+describe('the model policy', () => {
+  it('writes only the values that differ, at global scope', async () => {
     state.settings['aiTransport'] = 'auto';
-    state.settings['aiProvidersEnabled'] = false;
-    state.settings['aiLocalOnly'] = false;
     state.settings['aiModelRequestTimeoutMs'] = 30_000;
 
     const result = await writeAiModelPolicy(deps(), {
-      enabled: true,
-      transport: 'auto',
-      localOnly: true,
-      requestTimeoutMs: 30_000,
+      transport: 'openai-compatible',
+      requestTimeoutMs: 45_000,
     });
 
     expect(result).toEqual({ ok: true });
     expect(state.updates).toEqual([
-      { key: 'aiProvidersEnabled', value: true },
-      { key: 'aiLocalOnly', value: true },
+      { key: 'aiTransport', value: 'openai-compatible' },
+      { key: 'aiModelRequestTimeoutMs', value: 45_000 },
     ]);
+  });
+
+  it('writes nothing when the values already match', async () => {
+    state.settings['aiTransport'] = 'auto';
+    state.settings['aiModelRequestTimeoutMs'] = 30_000;
+
+    expect(await writeAiModelPolicy(deps(), { transport: 'auto', requestTimeoutMs: 30_000 })).toEqual({ ok: true });
+    expect(state.updates).toEqual([]);
   });
 
   it('refuses a transport the manifest does not contribute and a timeout out of range', async () => {
     const badTransport = await writeAiModelPolicy(deps(), {
-      enabled: false,
       transport: 'anthropic',
-      localOnly: false,
       requestTimeoutMs: 30_000,
     });
     expect(badTransport).toMatchObject({ ok: false });
 
     const badTimeout = await writeAiModelPolicy(deps(), {
-      enabled: false,
       transport: 'auto',
-      localOnly: false,
       requestTimeoutMs: 0,
     });
     expect(badTimeout).toMatchObject({ ok: false });

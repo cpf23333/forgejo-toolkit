@@ -535,18 +535,17 @@
     "forgejoToolkit.mcpWriteTools.cancelActionRun": "settings.mcp.writeTools.cancelActionRun",
     "forgejoToolkit.mcpWriteAuditToFile": "settings.mcp.audit.enabled",
     "forgejoToolkit.multiWindowLease": "settings.multiWindow.lease",
+    "forgejoToolkit.aiEnabled": "settings.ai.enabled",
     "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
     "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
     "forgejoToolkit.prDescription": "settings.prDescription.enabled",
     "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
-    "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
     "forgejoToolkit.aiTransport": "settings.aiProviders.policy.transport",
     "forgejoToolkit.aiDefaultProvider": "settings.aiProviders.defaultModel.provider",
     "forgejoToolkit.aiDefaultModel": "settings.aiProviders.defaultModel.model",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
-    "forgejoToolkit.aiLocalOnly": "settings.aiProviders.policy.localOnly",
     "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
     "language": "Language",
     "languageDescription": "Select display language for the Forgejo Toolkit panel.",
@@ -642,6 +641,13 @@
         "file": "When this is on, each record is also appended to `mcp-write-audit.jsonl` in the extension's log folder (VS Code: \"Developer: Open Logs Folder\"), on top of the output channel. The file is capped at 1 MB with two rolled files."
       }
     },
+    "ai": {
+      "title": "AI",
+      "description": "The whole AI area's own switch, above every AI feature's own switch.",
+      "enabled": "Use AI features",
+      "enabledDefault": "Default on: this switch is the layer above the feature switches, so leaving it on enables nothing by itself.",
+      "disabledHint": "AI is off, so no AI feature runs and no model is asked for anything — neither this editor's chat models nor a configured endpoint — and nothing is sent to one. Everything below stays visible and editable while it is off: turning this switch back on needs no reconfiguration."
+    },
     "aiPreReview": {
       "title": "AI Pre-Review",
       "description": "A chat model reads a pull request and proposes line-level review comments; you pick the ones you agree with, and only those are written as drafts of a pending review. The extension never submits a review.",
@@ -706,7 +712,6 @@
         "keyMissing": "No API key stored",
         "keyNotNeeded": "No credential is sent (auth: none)",
         "insecure": "Plain http:// — the request and the answer are not encrypted in transit.",
-        "localOnlyBlocked": "Refused by the local-only policy: this address is not this machine or a private network.",
         "addressError": "This address cannot be used: {reason}",
         "shadowed": "Not sent: the authentication style already owns {names}.",
         "headersSet": "{set} of {total} header value(s) stored",
@@ -731,8 +736,6 @@
         "shadowed": "Not sent: the authentication style already owns {names}."
       },
       "policy": {
-        "enabled": "Allow requests to configured endpoints",
-        "enabledDescription": "A configured endpoint and a stored key send nothing by themselves. Turning this on is the second of the three separate facts a request needs: the endpoint is configured, the key is stored, and you agreed to send content — which each feature asks separately.",
         "transport": "Model transport",
         "transportAuto": "auto — this editor's models first, then the configured default below",
         "transportVscodeLm": "vscode-lm — this editor's models only",
@@ -742,8 +745,6 @@
         "precedenceEditor": "vscode-lm uses this editor's chat model only. Its list is in the AI pre-review section above; the endpoint surface below is hidden while this is selected.",
         "hiddenForEditor": "The endpoint surface — the configured endpoints, the default endpoint and model, and the policy gates below — is hidden while the transport is vscode-lm, because nothing here would be used. Choose auto or openai-compatible to see it again.",
         "precedenceEndpoint": "openai-compatible uses the configured endpoint only. Nothing here asks this editor's models, so their row is hidden above; choose auto or vscode-lm to see it again.",
-        "localOnly": "Local endpoints only",
-        "localOnlyDescription": "Refuse any configured endpoint whose host is not this machine or a private network. The configured address is what is checked: no name lookup is made, and an address that cannot be read is treated as not local.",
         "timeout": "Endpoint idle timeout (ms)",
         "timeoutDescription": "How long an endpoint may send nothing before the request is aborted (1000–600000). This is an idle window rather than a total limit, so a long answer that keeps arriving survives; a second, wider limit of ten times this value bounds the whole request.",
         "timeoutSave": "Save timeout",
@@ -786,7 +787,6 @@
         "rechecking": "Re-checking...",
         "endpointRoute": "Configure an OpenAI-compatible endpoint: its address, the models it has, a key, and one connection test. On an editor with no model provider at all, this is the only route.",
         "endpointAction": "Configure an endpoint",
-        "disabledHint": "Requests to configured endpoints are switched off in this window, so nothing is sent to them yet. The switch is in the policy below — turning it on is yours to do, and configuring an endpoint never does it for you.",
         "bindHint": "Nothing says which endpoint serves this feature: bind it under Feature Bindings, or leave the transport on \"auto\" with exactly one endpoint configured."
       },
       "status": {
@@ -811,7 +811,6 @@
         "baseUrl": "Base URL",
         "baseUrlDescription": "Used exactly as written apart from a trailing slash: /v1 is deliberately not appended, because Azure's address and a gateway's /openai/v1 would both be made wrong by it. Only /chat/completions and /models are appended.",
         "addressInvalid": "This address cannot be used: {reason}",
-        "localOnlyBlocked": "Refused by the local-only policy: nothing will be sent to this address. The switch that decides this is \"Local endpoints only\", below.",
         "auth": "Authentication",
         "authBearer": "bearer — send the key as an Authorization: Bearer header",
         "authApiKeyHeader": "api-key-header — send the key as an api-key header (Azure)",
@@ -841,8 +840,6 @@
         "keyUnset": "No key is stored yet.",
         "keyNotNeeded": "This endpoint sends no credential, so there is no key to store.",
         "clearKey": "Clear stored key",
-        "localOnly": "This endpoint is on this machine or a private network",
-        "localOnlyDescription": "A request to this endpoint is refused while the global local-only policy is on, or while this is on, unless its address is local. Nothing is sent in that case.",
         "save": "Save endpoint",
         "saving": "Saving...",
         "cancel": "Cancel",
@@ -857,7 +854,7 @@
         "unchanged": "The endpoint's /models reported no model this list does not already declare.",
         "failed": "The probe did not get an answer: the endpoint's own reason is in the report below.",
         "refused": "The probe sent nothing: the reason is in the report below.",
-        "notConsent": "This does not mean requests to this endpoint are allowed. The probe only read the model list; the switch that allows requests to configured endpoints, and each feature's own consent question, are what decide whether content is ever sent."
+        "notConsent": "This does not mean requests are allowed. The probe only read the model list; the global AI switch and each feature's own consent question are what decide whether content is ever sent."
       }
     },
     "status": {
@@ -900,13 +897,12 @@
       "dropped": "{count} entry(ies) in this file could not be used and were skipped.",
       "ai": {
         "title": "AI endpoints in this file",
-        "policyNote": "Importing stores these endpoints as configuration only. It does not allow requests to configured endpoints and it does not turn any AI feature on: those are switches only you can set, and a feature still asks what may leave your machine before it sends anything.",
+        "policyNote": "Importing stores these endpoints as configuration only. It does not turn AI on and it does not turn any AI feature on: those are switches only you can set, and a feature still asks what may leave your machine before it sends anything.",
         "secretsIncluded": "This encrypted file carries the credentials for its {count} endpoint(s), and they will be stored in the editor's secret storage, not in settings.",
         "noSecrets": "This file was not encrypted, so it carries no API key and no header value for its {count} endpoint(s). Import them as configuration; add each credential afterwards in the AI endpoints settings, or no request to them can be authenticated.",
         "insecure": "{count} of these addresses is plain http://, so the request and the answer would not be encrypted in transit.",
         "modelCount": "{count} declared model(s)",
         "headerNames": "Headers: {names}",
-        "localOnly": "Local endpoints only",
         "unusable": "This entry cannot be imported: {reason}",
         "conflict": "This id is already configured:",
         "keep": "Keep the configured endpoint",

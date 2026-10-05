@@ -7,11 +7,9 @@ import { getProxyFetch } from '../api/proxy';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { AiCompletionRequest, AiCompletionResult, AiModelInfo, AiModelTransport } from './transport';
 import {
-  aiLocalOnlySettingValue,
   aiModelRequestTimeoutMsSettingValue,
   aiModelRequestTotalTimeoutMs,
   inspectAiProviderBaseUrl,
-  isLocalAiEndpointHost,
   type AiProviderConfig,
 } from './modelSettings';
 import {
@@ -266,15 +264,6 @@ export function openAiMissingKeyMessage(provider: AiProviderConfig): string {
   return vscode.l10n.t(
     'No API key is stored for the AI endpoint "{0}". Add it in your user settings; nothing was sent.',
     provider.name,
-  );
-}
-
-/** The l10n sentence for an endpoint the local-only policy refuses. */
-export function openAiLocalOnlyMessage(provider: AiProviderConfig, host: string): string {
-  return vscode.l10n.t(
-    'The AI endpoint "{0}" is at {1}, which is not this machine or a private network, and "forgejoToolkit.aiLocalOnly" is on. Nothing was sent.',
-    provider.name,
-    host,
   );
 }
 
@@ -775,12 +764,10 @@ function openAiCompletionResult(
   };
 }
 
-/** How the transport is configured: the provider, the secret store, and the two policy values. */
+/** How the transport is configured: the provider, the secret store, and the timeout. */
 export interface OpenAiCompatibleTransportOptions {
   provider: AiProviderConfig;
   secrets: AiSecretStore;
-  /** Overrides `forgejoToolkit.aiLocalOnly`; the policy is read fresh in production. */
-  localOnly?: boolean;
   /** Overrides `forgejoToolkit.aiModelRequestTimeoutMs`; the window is read fresh in production. */
   requestTimeoutMs?: number;
   /** Overridable so a test can run without the activation-time proxy install. */
@@ -807,29 +794,18 @@ export class OpenAiCompatibleTransport implements AiModelTransport {
     return this.options.provider;
   }
 
-  /** Whether the window's local-only policy applies to this provider. */
-  private localOnlyPolicy(): boolean {
-    return this.options.localOnly ?? aiLocalOnlySettingValue();
-  }
-
   /**
    * Whether this endpoint can serve a request at all, in the order that answers
    * "what would I have to fix".
    *
-   * A refused URL and a refused local-only policy are both checked before the
-   * credential, because they are what the user has to change first; and nothing
-   * here sends anything — reading a secret is not a request (§7.2).
+   * A refused URL is checked before the credential, because the address is what
+   * the user has to change first; and nothing here sends anything — reading a
+   * secret is not a request (§7.2).
    */
   async availability(): Promise<{ usable: true } | { usable: false; reason: string }> {
     const verdict = inspectAiProviderBaseUrl(this.provider.baseUrl);
     if (!verdict.ok) {
       return { usable: false, reason: openAiEndpointUnusableMessage(this.provider, verdict.reason) };
-    }
-    if ((this.localOnlyPolicy() || this.provider.localOnly) && !isLocalAiEndpointHost(verdict.url.hostname)) {
-      return {
-        usable: false,
-        reason: openAiLocalOnlyMessage(this.provider, `${verdict.url.protocol}//${verdict.url.host}`),
-      };
     }
     if (this.provider.auth !== 'none') {
       const key = await readAiProviderKey(this.options.secrets, this.provider.id);
@@ -873,11 +849,11 @@ export class OpenAiCompatibleTransport implements AiModelTransport {
   /**
    * One streamed completion.
    *
-   * The order is deliberate and matches the record: validate the endpoint and the
-   * policy **before** anything is sent, resolve the credential, send exactly one
-   * request with `stream: true`, and read the answer under an idle watchdog. A
-   * failure at any step throws; nothing here retries, substitutes a model or
-   * reaches for another transport (§6.6, §7.5).
+   * The order is deliberate and matches the record: validate the endpoint
+   * **before** anything is sent, resolve the credential, send exactly one request
+   * with `stream: true`, and read the answer under an idle watchdog. A failure at
+   * any step throws; nothing here retries, substitutes a model or reaches for
+   * another transport (§6.6, §7.5).
    */
   async complete(model: AiModelInfo, request: AiCompletionRequest): Promise<AiCompletionResult> {
     const provider = this.provider;
@@ -893,9 +869,6 @@ export class OpenAiCompatibleTransport implements AiModelTransport {
     const verdict = inspectAiProviderBaseUrl(provider.baseUrl);
     if (!verdict.ok) {
       throw new Error(openAiEndpointUnusableMessage(provider, verdict.reason));
-    }
-    if ((this.localOnlyPolicy() || provider.localOnly) && !isLocalAiEndpointHost(verdict.url.hostname)) {
-      throw new Error(openAiLocalOnlyMessage(provider, `${verdict.url.protocol}//${verdict.url.host}`));
     }
 
     const auth = await openAiRequestAuth(provider, this.options.secrets);
@@ -1043,11 +1016,11 @@ function cancellationError(): Error {
   return error;
 }
 
-/** Builds the transport for one provider, reading the policies fresh unless they were overridden. */
+/** Builds the transport for one provider, reading the timeout fresh unless it was overridden. */
 export function openAiCompatibleTransportFor(
   provider: AiProviderConfig,
   secrets: AiSecretStore,
-  overrides: Partial<Pick<OpenAiCompatibleTransportOptions, 'localOnly' | 'requestTimeoutMs' | 'dispatcherPair'>> = {},
+  overrides: Partial<Pick<OpenAiCompatibleTransportOptions, 'requestTimeoutMs' | 'dispatcherPair'>> = {},
 ): OpenAiCompatibleTransport {
   return new OpenAiCompatibleTransport({ provider, secrets, ...overrides });
 }

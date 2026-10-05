@@ -71,8 +71,8 @@ describe('Settings prose blocks wrap long identifiers', () => {
     // "one rule, every block": a new block that renders prose belongs in this list
     // rather than in a patch of its own. The AI endpoints section added two — the
     // facts under a provider row (a reader's rejection reason, an address, the
-    // local-only sentence) and the refused entries themselves. The exceptions are
-    // deliberate — the saved instance URL and the worktree cache path are single
+    // plain-`http://` sentence) and the refused entries themselves. The exceptions
+    // are deliberate — the saved instance URL and the worktree cache path are single
     // lines truncated by their own `overflow: hidden`, while the instance name
     // above them wraps through the info column's own `overflow-wrap` (see
     // `Settings.savedListLayout`).

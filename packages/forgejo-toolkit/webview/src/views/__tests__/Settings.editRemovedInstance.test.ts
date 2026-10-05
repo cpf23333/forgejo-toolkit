@@ -17,9 +17,7 @@ const { stateMock } = vi.hoisted(() => ({
     loadAiProviderSettings: vi.fn(async () => ({
       providers: [],
       rejected: [],
-      enabled: false,
       transport: 'auto' as const,
-      localOnly: false,
       requestTimeoutMs: 30000,
       bindings: [],
       features: ['aiPreReview'],
@@ -39,9 +37,7 @@ const { stateMock } = vi.hoisted(() => ({
       shadowed: [],
     })),
     setAiModelPolicy: vi.fn(async () => ({
-      enabled: false,
       transport: 'auto',
-      localOnly: false,
       requestTimeoutMs: 30000,
     })),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
@@ -85,6 +81,7 @@ const { stateMock } = vi.hoisted(() => ({
         mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
         mcpWriteAuditToFile: false,
         multiWindowLease: true,
+        aiEnabled: true,
         aiPreReview: false,
         aiPreReviewPromptScope: 'ask',
       },

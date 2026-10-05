@@ -90,20 +90,16 @@ const { stateMock, surface } = vi.hoisted(() => {
       shadowed: [],
     })),
     /**
-     * The four policy gates. The declared return type is the full transport union
+     * The model policy. The declared return type is the full transport union
      * rather than one call's literal, so a test can answer with another transport
      * without a cast.
      */
     setAiModelPolicy: vi.fn(
       async (): Promise<{
-        enabled: boolean;
         transport: AiProviderSettingsSnapshot['transport'];
-        localOnly: boolean;
         requestTimeoutMs: number;
       }> => ({
-        enabled: false,
         transport: 'auto',
-        localOnly: false,
         requestTimeoutMs: 30_000,
       }),
     ),
@@ -169,6 +165,7 @@ function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSu
     mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
     mcpWriteAuditToFile: false,
     multiWindowLease: true,
+    aiEnabled: true,
     aiPreReview: false,
     aiPreReviewPromptScope: 'ask',
     prDescription: false,
@@ -181,9 +178,7 @@ function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {})
   return {
     providers: [],
     rejected: [],
-    enabled: false,
     transport: 'auto',
-    localOnly: false,
     requestTimeoutMs: 30_000,
     defaultModel: { providerId: '', modelId: '' },
     bindings: [],
@@ -265,6 +260,7 @@ describe('the settings the page presents', () => {
       mcpWriteTools: { createIssueComment: true, submitPullReview: false, cancelActionRun: true },
       mcpWriteAuditToFile: true,
       multiWindowLease: false,
+      aiEnabled: true,
       aiPreReview: true,
       aiPreReviewPromptScope: 'changed-files',
     });
@@ -280,8 +276,38 @@ describe('the settings the page presents', () => {
     expect(checked(wrapper, '#mcp-write-cancel-action-run')).toBe(true);
     expect(checked(wrapper, '#mcp-write-audit-to-file')).toBe(true);
     expect(checked(wrapper, '#multi-window-lease')).toBe(false);
+    expect(checked(wrapper, '#ai-enabled')).toBe(true);
     expect(checked(wrapper, '#ai-pre-review-enabled')).toBe(true);
     expect(wrapper.find('#ai-pre-review-scope').attributes('value')).toBe('changed-files');
+    wrapper.unmount();
+  });
+
+  it('says what being off means and how to turn it back on, without hiding the rest of the page', async () => {
+    // The global AI switch is the layer above the per-feature switches
+    // (`docs/design/ai-model-transport.md` §8.3), and the page has to stay coherent
+    // while it is off: the sentence says what is closed, and every control whose
+    // only writable source is this page stays on it — otherwise turning AI back on
+    // would need a value the user can no longer write.
+    surface.current = surfaceOf({ aiEnabled: false });
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(checked(wrapper, '#ai-enabled')).toBe(false);
+    expect(wrapper.text()).toContain('AI is off, so no AI feature runs');
+    expect(wrapper.text()).toContain('turning this switch back on needs no reconfiguration');
+    for (const selector of [
+      '#ai-enabled',
+      '#ai-pre-review-enabled',
+      '#ai-pre-review-scope',
+      '#pr-description-enabled',
+      '#pr-description-scope',
+      '#ai-transport',
+      '#ai-request-timeout',
+    ]) {
+      expect(wrapper.find(selector).exists(), selector).toBe(true);
+    }
     wrapper.unmount();
   });
 
@@ -534,28 +560,18 @@ describe('writing one setting from the page', () => {
     }
   });
 
-  it('keeps sending the transport with every other policy write', async () => {
-    stateMock.aiProviderSettings.value = providerSnapshotOf({ transport: 'openai-compatible' });
-    stateMock.setAiModelPolicy.mockImplementation(async () => ({
-      enabled: false,
-      transport: 'openai-compatible' as const,
-      localOnly: true,
-      requestTimeoutMs: 30_000,
-    }));
+  it('turns the whole AI area off through its own setting id', async () => {
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
     const wrapper = mountView();
     await flushPromises();
 
-    const checkbox = wrapper.find('#ai-local-only');
-    (checkbox.element as unknown as { checked: boolean }).checked = true;
+    const checkbox = wrapper.find('#ai-enabled');
+    expect(checked(wrapper, '#ai-enabled')).toBe(true);
+    (checkbox.element as unknown as { checked: boolean }).checked = false;
     await checkbox.trigger('change');
     await flushPromises();
 
-    expect(stateMock.setAiModelPolicy).toHaveBeenCalledWith({
-      enabled: false,
-      transport: 'openai-compatible',
-      localOnly: true,
-      requestTimeoutMs: 30_000,
-    });
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith('forgejoToolkit.aiEnabled', false);
     wrapper.unmount();
   });
 
@@ -564,23 +580,21 @@ describe('writing one setting from the page', () => {
     // The host answers with the transport it actually stored, which is what the
     // control then shows: the page never keeps a value it only hoped for.
     stateMock.setAiModelPolicy.mockImplementation(async () => ({
-      enabled: false,
       transport: 'vscode-lm' as const,
-      localOnly: false,
       requestTimeoutMs: 30_000,
     }));
     const wrapper = mountView();
     await flushPromises();
 
     const select = wrapper.find('#ai-transport');
+    const before = stateMock.setAiModelPolicy.mock.calls.length;
     (select.element as unknown as { value: string }).value = 'vscode-lm';
     await select.trigger('change');
     await flushPromises();
 
-    expect(stateMock.setAiModelPolicy).toHaveBeenCalledWith({
-      enabled: false,
+    expect(stateMock.setAiModelPolicy).toHaveBeenCalledTimes(before + 1);
+    expect(stateMock.setAiModelPolicy).toHaveBeenLastCalledWith({
       transport: 'vscode-lm',
-      localOnly: false,
       requestTimeoutMs: 30_000,
     });
     // `vscode-single-select` is not a registered custom element under jsdom, so the
@@ -603,6 +617,7 @@ describe('writing one setting from the page', () => {
 
     expect(disabled(wrapper, '#notification-polling-enabled')).toBe(true);
     expect(disabled(wrapper, '#mcp-enabled')).toBe(true);
+    expect(disabled(wrapper, '#ai-enabled')).toBe(true);
     expect(disabled(wrapper, '#ai-pre-review-scope')).toBe(true);
     wrapper.unmount();
   });

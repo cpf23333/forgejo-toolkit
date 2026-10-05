@@ -370,9 +370,7 @@ export type AiProviderReply =
   | { kind: 'test'; report: AiProviderTestReport }
   | {
       kind: 'policy';
-      enabled: boolean;
       transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-      localOnly: boolean;
       requestTimeoutMs: number;
       error?: string;
     }
@@ -394,14 +392,11 @@ export interface AiProviderDraftPayload {
   models: Array<{ id: string; name: string }>;
   auth: 'bearer' | 'api-key-header' | 'none';
   headers: string[];
-  localOnly: boolean;
 }
 
-/** One policy write: the four gates the settings page presents beside the endpoints. */
+/** One policy write: the transport and the timeout the settings page presents beside the endpoints. */
 export interface AiModelPolicyPayload {
-  enabled: boolean;
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-  localOnly: boolean;
   requestTimeoutMs: number;
 }
 
@@ -874,7 +869,6 @@ function createAppState() {
           providers: AiImportPreviewProvider[];
           bindings: Array<{ feature: string; providerId: string; modelId: string }>;
           transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-          localOnly: boolean;
           secretsIncluded: boolean;
         };
         error?: string;
@@ -2373,9 +2367,7 @@ function createAppState() {
       case 'aiModelPolicySaved': {
         settleAiProviderRequest(message._requestId, {
           kind: 'policy',
-          enabled: message.enabled,
           transport: message.transport,
-          localOnly: message.localOnly,
           requestTimeoutMs: message.requestTimeoutMs,
           ...(message.error !== undefined ? { error: message.error } : {}),
         });
@@ -2441,7 +2433,6 @@ function createAppState() {
             providers: AiImportPreviewProvider[];
             bindings: Array<{ feature: string; providerId: string; modelId: string }>;
             transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-            localOnly: boolean;
             secretsIncluded: boolean;
           };
           error?: string;
@@ -4918,11 +4909,9 @@ function createAppState() {
     return reply.report;
   }
 
-  /** Writes the four policy gates the endpoint section presents (§8.3). */
+  /** Writes the model policy the endpoint section presents (§8.3). */
   function setAiModelPolicy(policy: AiModelPolicyPayload): Promise<{
-    enabled: boolean;
     transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-    localOnly: boolean;
     requestTimeoutMs: number;
     error?: string;
   }> {
@@ -4986,10 +4975,10 @@ function createAppState() {
    *
    * This is the only command in this composable that can send without a click:
    * the component arms it after 800 ms of idle on a completed address and
-   * credential, one shot per input combination, and never when the local-only
-   * policy refuses the address. The typed credential travels in the payload and is
-   * never stored — not in a setting, not in `SecretStorage` — which is why this is
-   * not `saveAiProvider` followed by `testAiProvider`.
+   * credential, one shot per input combination, and never for an address the shared
+   * URL rule refuses. The typed credential travels in the payload and is never
+   * stored — not in a setting, not in `SecretStorage` — which is why this is not
+   * `saveAiProvider` followed by `testAiProvider`.
    */
   async function testAiProviderDraft(draft: AiProviderDraftProbe): Promise<AiProviderTestReport> {
     const reply = await aiProviderRequest('test', 'testAiProviderDraft', { draft });

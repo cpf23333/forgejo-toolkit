@@ -75,7 +75,8 @@ import { AI_PRE_REVIEW_MAX_CONTENT_FILES, type AiPreReviewFileContents } from '.
  *    `vscode.lm` directly. The seam carries no fallback between transports (§7.5):
  *    a transport that cannot serve the run reports why, and the run refuses rather
  *    than quietly reaching for the other one. A configured endpoint is **not**
- *    consent (§7.3): the egress switch and the `ask` scope are asked separately.
+ *    consent (§7.3): this feature's own switch, the global AI switch and the `ask`
+ *    scope are three separate answers.
  *
  * The failure discipline is the pre-review's: every arm reports what happened,
  * nothing is written on the way to a failure, and a failure never falls back to

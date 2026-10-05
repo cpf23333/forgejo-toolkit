@@ -83,7 +83,6 @@ const PROVIDER: AiProviderConfig = {
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer',
   headers: [{ name: 'api-version', valueSecret: true }],
-  localOnly: false,
 };
 
 let endpointRequests: string[] = [];
@@ -331,14 +330,15 @@ describe('the endpoint probe: what it refuses to send', () => {
     expect(endpointRequests).toEqual([]);
   });
 
-  it('fails a non-local endpoint under the local-only policy, naming the setting', async () => {
-    const outcome = await runAiProviderTest(
-      { ...PROVIDER, baseUrl: 'https://models.example.com/v1' },
-      { secrets: secretStore(), localOnly: true },
-    );
+  it('refuses locally, without a byte, while the global AI switch is off', async () => {
+    // "Do not use AI at all" covers the probe: the request would present the stored
+    // credential to the endpoint, so it is not a read the switch can leave running.
+    state.settings['aiEnabled'] = false;
+
+    const outcome = await runAiProviderTest(PROVIDER, { secrets: secretStore() });
 
     expect(outcome.ok).toBe(false);
-    expect(outcome.ok === false && outcome.reason).toContain('forgejoToolkit.aiLocalOnly');
+    expect(outcome.ok === false && outcome.reason).toContain('forgejoToolkit.aiEnabled');
     expect(outcome.ok === false && outcome.ran).toBe(false);
     expect(endpointRequests).toEqual([]);
   });

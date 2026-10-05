@@ -15,8 +15,7 @@ import type { AiProviderDraftProbe } from '@cpf23333-forgejo-toolkit/shared/webv
  * 1. **`GET /models` only.** The minimal completion stays behind the explicit
  *    test-connection button, so the automatic path carries no content.
  * 2. **Local refusals come first, before any byte** — the same three the clicked
- *    probe makes (the address, the local-only policy, the credential), plus the
- *    draft's own promise.
+ *    probe makes (the global AI switch, the address, the credential).
  * 3. **Nothing is saved.** The typed key and header values are read for that one
  *    request through a read-through overlay: no setting is written, and the secret
  *    store is never touched. The store's `store`/`delete` reject if anything tries.
@@ -97,7 +96,6 @@ function draft(overrides: Partial<AiProviderDraftProbe> = {}): AiProviderDraftPr
     name: 'Draft endpoint',
     baseUrl: BASE_URL,
     auth: 'bearer',
-    localOnly: false,
     key: TYPED_KEY,
     headers: [],
     ...overrides,
@@ -259,27 +257,20 @@ describe('the draft probe: what it refuses to send', () => {
     expect(unhandledRequests()).toEqual([]);
   });
 
-  it('refuses a non-local address under the local-only policy, before any byte', async () => {
+  it('refuses locally, without a byte, while the global AI switch is off', async () => {
+    // The automatic path must not be the one that keeps presenting a typed
+    // credential to an endpoint after the user said not to use AI at all.
+    state.settings['aiEnabled'] = false;
+
     const report = await aiProviderDraftTestReport(draft({ baseUrl: 'https://models.example.com/v1' }), {
       secrets: secretStore(),
-      localOnly: true,
     });
 
     expect(report.ok).toBe(false);
     expect(report.ran).toBe(false);
-    expect(report.reason).toContain('forgejoToolkit.aiLocalOnly');
+    expect(report.reason).toContain('forgejoToolkit.aiEnabled');
     expect(endpointRequests).toEqual([]);
-  });
-
-  it("honours the editor's own local-only promise, which is not saved yet either", async () => {
-    const report = await aiProviderDraftTestReport(
-      draft({ baseUrl: 'https://models.example.com/v1', localOnly: true }),
-      { secrets: secretStore() },
-    );
-
-    expect(report.ok).toBe(false);
-    expect(report.ran).toBe(false);
-    expect(endpointRequests).toEqual([]);
+    expect(unhandledRequests()).toEqual([]);
   });
 
   it('refuses a credential-less draft locally when the auth style needs one', async () => {

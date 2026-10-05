@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 
 /**
  * The host-side settings of the direct (OpenAI-compatible) model transport: the
- * provider list, the two switches that gate egress, the transport choice, the
- * default destination, the per-feature overrides and the timeout — all read in
- * one module so the readers cannot drift apart.
+ * provider list, the global AI switch, the transport choice, the default
+ * destination, the per-feature overrides and the timeout — all read in one module
+ * so the readers cannot drift apart.
  *
  * `docs/design/ai-model-transport.md` §8 is the decision record for every id,
  * default and validation rule below. Three of its decisions are the reason this
@@ -17,9 +17,12 @@ import * as vscode from 'vscode';
  *    `src/__tests__/aiModelSettings.test.ts` asserts it from there).
  * 2. **The reading discipline is `src/aiPreReviewSettings.ts`'s and
  *    `src/mcpWriteSettings.ts`'s** (§8.3): a hand-edited `settings.json` can hold
- *    any JSON type under a key, a read that throws must read as "not configured"
- *    rather than failing activation, and only an explicit `true` may open a
- *    switch. Every default below therefore falls on the side that sends nothing.
+ *    any JSON type under a key, and a read that throws must read as "not
+ *    configured" rather than failing activation. Every switch whose "on" side
+ *    sends content therefore requires an explicit `true`; the global AI switch is
+ *    the one exception, because its own manifest default is **on** and reading a
+ *    broken value as "off" would silently disable every AI feature (see
+ *    {@link aiEnabledSettingValue}).
  * 3. **What belongs in settings and what belongs in `SecretStorage`** (§8.2) is a
  *    hard boundary, and this module is the settings half of it: a provider's `id`,
  *    display name, base URL, declared models, auth *style* and header *names* live
@@ -51,11 +54,17 @@ const SETTINGS_SECTION = 'forgejoToolkit';
 export const AI_PROVIDERS_SETTING = `${SETTINGS_SECTION}.aiProviders`;
 
 /**
- * Whether any AI feature may send content through a direct endpoint. The second,
- * independent gate: a configured endpoint is **not** enabled by configuration
- * alone (§8.4, §9.3), and this setting is where that is decided.
+ * The whole AI area's own switch (`docs/design/ai-model-transport.md` §8.3): off
+ * means "do not use AI at all", and no AI feature reaches a model — the editor's
+ * own or a configured endpoint — while it is off.
+ *
+ * It is the layer above the per-feature switches rather than one of them: the
+ * per-feature switch says "this feature is on", and the consent question a feature
+ * asks separately is what decides whether content is sent and how much. Its
+ * default is **on**, so a build that carries it cannot silently disable AI for a
+ * configuration that was working before it existed.
  */
-export const AI_PROVIDERS_ENABLED_SETTING = `${SETTINGS_SECTION}.aiProvidersEnabled`;
+export const AI_ENABLED_SETTING = `${SETTINGS_SECTION}.aiEnabled`;
 
 /** Which transport serves a feature that has no binding of its own (§8.4). */
 export const AI_TRANSPORT_SETTING = `${SETTINGS_SECTION}.aiTransport`;
@@ -84,20 +93,16 @@ export const AI_DEFAULT_PROVIDER_SETTING = `${SETTINGS_SECTION}.aiDefaultProvide
 /** The model the {@link AI_DEFAULT_PROVIDER_SETTING} endpoint is asked for. */
 export const AI_DEFAULT_MODEL_SETTING = `${SETTINGS_SECTION}.aiDefaultModel`;
 
-/** Whether a direct endpoint must resolve to the local machine or a private network. */
-export const AI_LOCAL_ONLY_SETTING = `${SETTINGS_SECTION}.aiLocalOnly`;
-
 /** The idle-watchdog window (and, times {@link AI_MODEL_REQUEST_TOTAL_TIMEOUT_FACTOR}, the total cap). */
 export const AI_MODEL_REQUEST_TIMEOUT_SETTING = `${SETTINGS_SECTION}.aiModelRequestTimeoutMs`;
 
 /** The keys above without their section, for the `getConfiguration` reads. */
 const AI_PROVIDERS_KEY = 'aiProviders';
-const AI_PROVIDERS_ENABLED_KEY = 'aiProvidersEnabled';
+const AI_ENABLED_KEY = 'aiEnabled';
 const AI_TRANSPORT_KEY = 'aiTransport';
 const AI_MODEL_BINDINGS_KEY = 'aiModelBindings';
 const AI_DEFAULT_PROVIDER_KEY = 'aiDefaultProvider';
 const AI_DEFAULT_MODEL_KEY = 'aiDefaultModel';
-const AI_LOCAL_ONLY_KEY = 'aiLocalOnly';
 const AI_MODEL_REQUEST_TIMEOUT_KEY = 'aiModelRequestTimeoutMs';
 
 /**
@@ -125,28 +130,21 @@ export const AI_MODEL_REQUEST_TIMEOUT_MAX_MS = 600_000;
 export const AI_MODEL_REQUEST_TOTAL_TIMEOUT_FACTOR = 10;
 
 /**
- * The provider-id / header-name character class, the base-URL verdict and the
- * local-only host rule are defined once, in the shared package, because the
- * settings page needs the same three answers this host does and must not have a
- * second copy of them (`docs/design/settings-page.md` §5.1, §7.3). Imported and
- * re-exported here so every host-side caller has one import site.
+ * The provider-id / header-name character class and the base-URL verdict are
+ * defined once, in the shared package, because the settings page needs the same
+ * two answers this host does and must not have a second copy of them
+ * (`docs/design/settings-page.md` §5.1, §7.3). Imported and re-exported here so
+ * every host-side caller has one import site.
  */
 import {
   AI_PROVIDER_SEGMENT_PATTERN,
   isAiProviderSegment,
   inspectAiProviderBaseUrl,
-  isLocalAiEndpointHost,
   type AiProviderBaseUrlVerdict,
 } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
 import { AI_TRANSPORT_CHOICES } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
-export {
-  AI_PROVIDER_SEGMENT_PATTERN,
-  isAiProviderSegment,
-  inspectAiProviderBaseUrl,
-  isLocalAiEndpointHost,
-  type AiProviderBaseUrlVerdict,
-};
+export { AI_PROVIDER_SEGMENT_PATTERN, isAiProviderSegment, inspectAiProviderBaseUrl, type AiProviderBaseUrlVerdict };
 
 /** How a provider authenticates one request (§8.5). */
 export type AiProviderAuth = 'bearer' | 'api-key-header' | 'none';
@@ -191,8 +189,6 @@ export interface AiProviderConfig {
   models: AiProviderModelDeclaration[];
   auth: AiProviderAuth;
   headers: AiProviderHeaderDeclaration[];
-  /** This provider's own "local machine only" promise, independent of the global policy. */
-  localOnly: boolean;
 }
 
 /**
@@ -260,14 +256,25 @@ function readSettingValue(key: string): unknown {
   }
 }
 
-/** Reads one boolean switch, treating anything but an explicit `true` as off. */
-function readBooleanSwitch(key: string): boolean {
-  return readSettingValue(key) === true;
+/** Reads one boolean switch, treating anything but an explicit `false` as on. */
+function readEnabledSwitch(key: string): boolean {
+  return readSettingValue(key) !== false;
 }
 
-/** Whether the window allows any direct request at all (§8.3). */
-export function aiProvidersEnabledSettingValue(): boolean {
-  return readBooleanSwitch(AI_PROVIDERS_ENABLED_KEY);
+/**
+ * Whether the AI area is allowed to run at all (`docs/design/ai-model-transport.md`
+ * §8.3): the "do not use AI at all" layer above the per-feature switches.
+ *
+ * Only an explicit `false` turns it off, and a read that throws therefore reads as
+ * **on**. That is the opposite direction from every other switch in this file, and
+ * deliberately so: this switch's manifest default is on, the reader cannot see a
+ * user action in a broken read, and answering "off" there would silently disable
+ * every AI feature — the outcome the default-on decision exists to prevent.
+ * Nothing is sent by reading it as on: the per-feature switch and that feature's
+ * own consent question still stand between this answer and any content.
+ */
+export function aiEnabledSettingValue(): boolean {
+  return readEnabledSwitch(AI_ENABLED_KEY);
 }
 
 /**
@@ -277,17 +284,12 @@ export function aiProvidersEnabledSettingValue(): boolean {
  * manifest does not contribute, a non-string, and a read that throws. That is the
  * fail-closed direction here even though it is spelled like "decide for me",
  * because `auto` only reaches a direct endpoint when a provider is configured
- * **and** {@link aiProvidersEnabledSettingValue} is on (§8.4).
+ * (§8.4).
  */
 export function aiTransportSettingValue(): AiTransportChoice {
   const value = readSettingValue(AI_TRANSPORT_KEY);
   const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return (AI_TRANSPORT_CHOICES as readonly string[]).includes(text) ? (text as AiTransportChoice) : 'auto';
-}
-
-/** Whether a direct endpoint must resolve to the local machine or a private network. */
-export function aiLocalOnlySettingValue(): boolean {
-  return readBooleanSwitch(AI_LOCAL_ONLY_KEY);
 }
 
 /**
@@ -436,9 +438,6 @@ export function parseAiProviderConfig(value: unknown): { provider: AiProviderCon
       models,
       auth: authText,
       headers,
-      // Only a provider that says `true` promises to be local; anything else is
-      // the ordinary case, which the global policy then decides.
-      localOnly: entry.localOnly === true,
     },
   };
 }

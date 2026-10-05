@@ -24,8 +24,8 @@ import type {
  * 3. **Cancelled by further typing**, and re-armed for the new value.
  * 4. **One shot per input combination**: the same address, auth style and
  *    credential do not probe twice; a different one does.
- * 5. **Refused locally before anything is armed** when the local-only policy
- *    rejects the address — and the row says so.
+ * 5. **Nothing is armed for an address the shared URL rule refuses**: the
+ *    automatic path stays disarmed and the row says why.
  * 6. **A prefill, never a write**: the reported models are added to the draft as
  *    ordinary rows, and nothing is saved to settings or to secret storage.
  * 7. **A failure is a report**, not a dialog and not a blocked form: the host's
@@ -58,9 +58,7 @@ const { stateMock } = vi.hoisted(() => {
     testAiProvider: vi.fn(async (_id: string) => reportOf()),
     testAiProviderDraft: vi.fn(async (_draft: AiProviderDraftProbe) => reportOf()),
     setAiModelPolicy: vi.fn(async () => ({
-      enabled: false,
       transport: 'auto' as const,
-      localOnly: false,
       requestTimeoutMs: 30_000,
     })),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
@@ -115,6 +113,7 @@ function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSu
     mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
     mcpWriteAuditToFile: false,
     multiWindowLease: true,
+    aiEnabled: true,
     aiPreReview: false,
     aiPreReviewPromptScope: 'ask',
     prDescription: false,
@@ -127,9 +126,7 @@ function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {})
   return {
     providers: [],
     rejected: [],
-    enabled: false,
     transport: 'auto',
-    localOnly: false,
     requestTimeoutMs: 30_000,
     defaultModel: { providerId: '', modelId: '' },
     bindings: [],
@@ -263,7 +260,6 @@ describe('when the automatic probe runs', () => {
       name: 'api.example.com',
       baseUrl: BASE_URL,
       auth: 'bearer',
-      localOnly: false,
       key: API_KEY,
       headers: [],
     });
@@ -344,11 +340,9 @@ describe('when the automatic probe runs', () => {
           models: [],
           auth: 'bearer',
           headers: [],
-          localOnly: false,
           keySet: true,
           address: BASE_URL,
           insecure: false,
-          localOnlyBlocked: false,
         },
       ],
     });
@@ -375,15 +369,13 @@ describe('when the automatic probe runs', () => {
         {
           id: 'local-endpoint',
           name: 'Local (this machine)',
-          baseUrl: 'http://127.0.0.1:11434/v1',
+          baseUrl: 'http://localhost:11434/v1',
           models: [],
           auth: 'none',
           headers: [],
-          localOnly: false,
           keySet: false,
-          address: 'http://127.0.0.1:11434/v1',
+          address: 'http://localhost:11434/v1',
           insecure: false,
-          localOnlyBlocked: false,
         },
       ],
     });
@@ -397,7 +389,7 @@ describe('when the automatic probe runs', () => {
     // fields — is not an input event.
     expect(stateMock.testAiProviderDraft).not.toHaveBeenCalled();
 
-    await typeInto(wrapper, '#ai-provider-base-url', 'http://127.0.0.1:11434/v1/');
+    await typeInto(wrapper, '#ai-provider-base-url', 'http://localhost:11434/v1/');
     await vi.advanceTimersByTimeAsync(800);
 
     expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
@@ -419,11 +411,9 @@ describe('when the automatic probe runs', () => {
           models: [],
           auth: 'bearer',
           headers: [],
-          localOnly: false,
           keySet: true,
           address: BASE_URL,
           insecure: false,
-          localOnlyBlocked: false,
         },
       ],
     });
@@ -441,37 +431,6 @@ describe('when the automatic probe runs', () => {
 
     expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
     expect(probedDraft()['auth']).toBe('none');
-    wrapper.unmount();
-  });
-
-  it('sends nothing at all when the local-only policy refuses the address', async () => {
-    stateMock.aiProviderSettings.value = providerSnapshotOf({ localOnly: true });
-    vi.useFakeTimers();
-    const wrapper = mountView();
-    await openAddEditor(wrapper);
-
-    await typeInto(wrapper, '#ai-provider-base-url', BASE_URL);
-    await typeInto(wrapper, '#ai-provider-key', API_KEY);
-    await vi.advanceTimersByTimeAsync(5_000);
-
-    // Not "the request failed": no request was armed at all, and the address row
-    // says why (§3.3 rule 2).
-    expect(stateMock.testAiProviderDraft).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain('Refused by the local-only policy');
-    wrapper.unmount();
-  });
-
-  it('probes a local address under a local-only policy', async () => {
-    stateMock.aiProviderSettings.value = providerSnapshotOf({ localOnly: true });
-    vi.useFakeTimers();
-    const wrapper = mountView();
-    await openAddEditor(wrapper);
-
-    await typeInto(wrapper, '#ai-provider-base-url', 'http://127.0.0.1:11434/v1');
-    await typeInto(wrapper, '#ai-provider-key', API_KEY);
-    await vi.advanceTimersByTimeAsync(800);
-
-    expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 
@@ -507,11 +466,9 @@ describe('when the automatic probe runs', () => {
           models: [],
           auth: 'bearer',
           headers: [],
-          localOnly: false,
           keySet: true,
           address: BASE_URL,
           insecure: false,
-          localOnlyBlocked: false,
         },
       ],
     });
@@ -549,8 +506,8 @@ describe('what the probe does with its answer', () => {
     expect(declaredModels(wrapper)).toEqual(['hand-written', 'reported-a', 'reported-b']);
     expect(wrapper.text()).toContain("Added 2 model(s) from the endpoint's /models");
     // A success carries the one sentence a reader can take the wrong way: finding
-    // models is not permission to send content to this endpoint.
-    expect(wrapper.find('.probe-consent').text()).toContain('does not mean requests to this endpoint are allowed');
+    // models is not permission to send content anywhere.
+    expect(wrapper.find('.probe-consent').text()).toContain('This does not mean requests are allowed');
     // The row's own display name is the user's and is not overwritten.
     expect(fieldText(wrapper.findAll('.repeatable-row')[0]!.findAll('vscode-textfield')[1]!)).toBe('My own name');
     wrapper.unmount();
@@ -583,7 +540,7 @@ describe('what the probe does with its answer', () => {
     expect(wrapper.text()).toContain('reported no model this list does not already declare');
     // An answer that adds nothing is still an answer: the consent line belongs
     // here too, or "it answered" would read as permission again.
-    expect(wrapper.find('.probe-consent').text()).toContain('does not mean requests to this endpoint are allowed');
+    expect(wrapper.find('.probe-consent').text()).toContain('This does not mean requests are allowed');
     wrapper.unmount();
   });
 
@@ -675,11 +632,9 @@ describe('what the probe does with its answer', () => {
           models: [],
           auth: 'bearer',
           headers: [],
-          localOnly: false,
           keySet: true,
           address: BASE_URL,
           insecure: false,
-          localOnlyBlocked: false,
         },
       ],
     });

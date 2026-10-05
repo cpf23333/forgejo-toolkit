@@ -141,19 +141,17 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
     models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
     auth: 'bearer',
     headers: [{ name: 'api-version', valueSecret: true }],
-    localOnly: false,
     ...overrides,
   };
 }
 
 function transport(
   overrides: Partial<AiProviderConfig> = {},
-  options: { localOnly?: boolean; requestTimeoutMs?: number; secrets?: AiSecretStore } = {},
+  options: { requestTimeoutMs?: number; secrets?: AiSecretStore } = {},
 ): OpenAiCompatibleTransport {
   return new OpenAiCompatibleTransport({
     provider: provider(overrides),
     secrets: options.secrets ?? secretStore(),
-    localOnly: options.localOnly,
     requestTimeoutMs: options.requestTimeoutMs,
     // No proxy is installed in this suite; the pair is read from the module that
     // activation installs, so the test exercises the production path.
@@ -855,30 +853,6 @@ describe('the OpenAI-compatible transport: availability and the base URL rules',
     expect(availability.usable).toBe(false);
     expect(availability.usable === false ? availability.reason : '').toContain('No API key is stored');
     expect(captured).toHaveLength(0);
-  });
-
-  it('refuses to send to a non-local endpoint while the local-only policy is on', async () => {
-    captureRequest(() => sseResponse({ writes: [] }));
-
-    const policy = transport({ baseUrl: 'https://models.example.com/v1' }, { localOnly: true });
-    const availability = await policy.availability();
-    const failure = await failed(
-      policy.complete({ vendor: 'local-gateway', id: 'qwen3:8b', name: 'Qwen3 8B' }, request()),
-    );
-
-    expect(availability.usable).toBe(false);
-    expect(availability.usable === false ? availability.reason : '').toContain('forgejoToolkit.aiLocalOnly');
-    expect(failure.message).toContain('forgejoToolkit.aiLocalOnly');
-    expect(captured).toHaveLength(0);
-  });
-
-  it('allows a loopback or private endpoint while the local-only policy is on', async () => {
-    captureRequest(() => sseResponse({ writes: [] }));
-
-    for (const baseUrl of ['http://localhost:11434/v1', 'http://127.0.0.1:11434/v1', 'http://gateway.local/v1']) {
-      const availability = await transport({ baseUrl }, { localOnly: true }).availability();
-      expect(availability, baseUrl).toEqual({ usable: true });
-    }
   });
 
   it('names the header conflict in the log without the value', async () => {

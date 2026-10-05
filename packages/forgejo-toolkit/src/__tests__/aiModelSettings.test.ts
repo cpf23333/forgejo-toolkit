@@ -51,18 +51,16 @@ import {
   AI_MODEL_REQUEST_TIMEOUT_MAX_MS,
   AI_MODEL_REQUEST_TIMEOUT_MIN_MS,
   AI_MODEL_REQUEST_TOTAL_TIMEOUT_FACTOR,
-  aiLocalOnlySettingValue,
+  aiEnabledSettingValue,
   aiModelBindingFor,
   aiModelBindingsSettingValue,
   aiModelRequestTimeoutMsSettingValue,
   aiModelRequestTotalTimeoutMs,
   aiProviderConfigsSettingValue,
   aiProviderSettingsReading,
-  aiProvidersEnabledSettingValue,
   aiTransportSettingValue,
   inspectAiProviderBaseUrl,
   isAiProviderSegment,
-  isLocalAiEndpointHost,
   parseAiProviderConfig,
 } from '../ai/modelSettings';
 import {
@@ -110,10 +108,9 @@ beforeEach(() => {
 describe('the direct model settings as the manifest contributes them', () => {
   const settings = {
     'forgejoToolkit.aiProviders': [],
-    'forgejoToolkit.aiProvidersEnabled': false,
+    'forgejoToolkit.aiEnabled': true,
     'forgejoToolkit.aiTransport': 'auto',
     'forgejoToolkit.aiModelBindings': [],
-    'forgejoToolkit.aiLocalOnly': false,
     'forgejoToolkit.aiModelRequestTimeoutMs': 30_000,
   } as const;
 
@@ -144,7 +141,6 @@ describe('reading the provider list', () => {
     models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
     auth: 'bearer',
     headers: [{ name: 'api-version' }],
-    localOnly: true,
   };
 
   it('reads a well-formed entry into a provider', () => {
@@ -158,7 +154,6 @@ describe('reading the provider list', () => {
         models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
         auth: 'bearer',
         headers: [{ name: 'api-version', valueSecret: true }],
-        localOnly: true,
       },
     ]);
   });
@@ -185,11 +180,13 @@ describe('reading the provider list', () => {
     state.throws = true;
 
     expect(aiProviderSettingsReading()).toEqual({ providers: [], rejected: [] });
-    expect(aiProvidersEnabledSettingValue()).toBe(false);
     expect(aiTransportSettingValue()).toBe('auto');
-    expect(aiLocalOnlySettingValue()).toBe(false);
     expect(aiModelBindingsSettingValue()).toEqual([]);
     expect(aiModelRequestTimeoutMsSettingValue()).toBe(AI_MODEL_REQUEST_TIMEOUT_DEFAULT_MS);
+    // The global AI switch is the one reader whose answer is **on** for an
+    // unreadable configuration: its manifest default is on, and answering "off"
+    // there would silently disable every AI feature.
+    expect(aiEnabledSettingValue()).toBe(true);
   });
 
   it('keeps the reason for each entry it refuses, instead of losing the entry', () => {
@@ -229,13 +226,18 @@ describe('reading the provider list', () => {
 });
 
 describe('reading the switches and the timeout', () => {
-  it('opens the egress switch only for an explicit true', () => {
-    for (const value of [undefined, false, 'true', 1, {}, []]) {
-      state.settings = { aiProvidersEnabled: value };
-      expect(aiProvidersEnabledSettingValue(), JSON.stringify(value)).toBe(false);
+  it('closes the whole AI area only for an explicit false, and reads anything else as on', () => {
+    // The direction is the opposite of every other switch here on purpose
+    // (`docs/design/ai-model-transport.md` §8.3): the manifest default is on, so a
+    // value that is not a boolean — or a read that threw, which the case above
+    // covers — must not silently disable AI for a working configuration.
+    state.settings = { aiEnabled: false };
+    expect(aiEnabledSettingValue()).toBe(false);
+
+    for (const value of [undefined, true, 'false', 'true', 0, 1, {}, []]) {
+      state.settings = { aiEnabled: value };
+      expect(aiEnabledSettingValue(), JSON.stringify(value)).toBe(true);
     }
-    state.settings = { aiProvidersEnabled: true };
-    expect(aiProvidersEnabledSettingValue()).toBe(true);
   });
 
   it('reads an unknown transport value as auto, which is the fail-closed arm', () => {
@@ -245,13 +247,6 @@ describe('reading the switches and the timeout', () => {
     expect(aiTransportSettingValue()).toBe('openai-compatible');
     state.settings = { aiTransport: 7 };
     expect(aiTransportSettingValue()).toBe('auto');
-  });
-
-  it('opens the local-only policy only for an explicit true', () => {
-    state.settings = { aiLocalOnly: 'yes' };
-    expect(aiLocalOnlySettingValue()).toBe(false);
-    state.settings = { aiLocalOnly: true };
-    expect(aiLocalOnlySettingValue()).toBe(true);
   });
 
   it('honours a timeout inside the contributed range and falls back outside it', () => {
@@ -383,44 +378,6 @@ describe('the base URL verdict', () => {
       const verdict = inspectAiProviderBaseUrl(url);
       expect(verdict.ok, url).toBe(false);
       expect(verdict.ok === false && verdict.reason, url).toContain('credentials in the URL');
-    }
-  });
-});
-
-describe('the local-only host policy', () => {
-  it('treats loopback, the .local suffix and the private ranges as local', () => {
-    for (const host of [
-      'localhost',
-      'LOCALHOST',
-      '127.0.0.1',
-      '127.1.2.3',
-      '::1',
-      '[::1]',
-      'gateway.local',
-      '10.0.0.5',
-      '172.16.0.1',
-      '172.31.255.255',
-      '192.168.1.10',
-      'fd00::1',
-      'fc00::1',
-    ]) {
-      expect(isLocalAiEndpointHost(host), host).toBe(true);
-    }
-  });
-
-  it('treats a public address, a near-miss range and anything unreadable as not local', () => {
-    for (const host of [
-      'models.example.com',
-      '172.15.0.1',
-      '172.32.0.1',
-      '192.169.1.1',
-      '11.0.0.1',
-      '999.1.1.1',
-      '2001:db8::1',
-      '',
-      '  ',
-    ]) {
-      expect(isLocalAiEndpointHost(host), host).toBe(false);
     }
   });
 });

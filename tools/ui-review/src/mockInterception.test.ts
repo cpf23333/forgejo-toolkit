@@ -64,7 +64,7 @@ async function fetchMocked(url: string, init?: RequestInit): Promise<Served> {
 }
 
 test('an http:// instance is served by the handlers', async () => {
-  const served = await fetchMocked('http://127.0.0.1:3999/api/v1/user');
+  const served = await fetchMocked('http://forgejo.example.com:3999/api/v1/user');
   assert.equal(served.status, 200);
   assert.equal((JSON.parse(served.body) as { login?: string }).login, mockUser.login);
   assert.deepEqual(unhandledRequests(), []);
@@ -77,7 +77,7 @@ test('the https:// instance the unit suites use is still served', async () => {
 });
 
 test('an instance URL with a host and port is served, path and all', async () => {
-  const served = await fetchMocked('http://127.0.0.1:3999/api/v1/user/repos');
+  const served = await fetchMocked('http://forgejo.example.com:3999/api/v1/user/repos');
   const repos = JSON.parse(served.body) as Array<{ name?: string }>;
   assert.deepEqual(
     repos.map((repo) => repo.name),
@@ -85,7 +85,7 @@ test('an instance URL with a host and port is served, path and all', async () =>
   );
   // The defect's other symptom: `/notifications` answered `[]` from a real
   // server while the fixtures carry entries, so an empty list is also a failure.
-  const notifications = await fetchMocked('http://127.0.0.1:3999/api/v1/notifications');
+  const notifications = await fetchMocked('http://forgejo.example.com:3999/api/v1/notifications');
   assert.notDeepEqual(JSON.parse(notifications.body), []);
 });
 
@@ -93,8 +93,8 @@ test('a request no handler covers is recorded as unmatched, never silently sent'
   // The one shape `server.ts` deliberately keeps in a dev host: warn, record,
   // and let it through. Pinned here so the gate in `src/apiMode.ts` is the thing
   // that stops a profile from reaching that state, not this file.
-  await fetch('http://127.0.0.1:3999/api/v1/not-a-mocked-endpoint').catch(() => undefined);
-  assert.deepEqual(unhandledRequests(), ['GET http://127.0.0.1:3999/api/v1/not-a-mocked-endpoint']);
+  await fetch('http://forgejo.example.com:3999/api/v1/not-a-mocked-endpoint').catch(() => undefined);
+  assert.deepEqual(unhandledRequests(), ['GET http://forgejo.example.com:3999/api/v1/not-a-mocked-endpoint']);
   // Forgot on purpose: `after` calls `stopMockServer`, which fails a suite that
   // left an unmatched request behind. This test is the one that produced it, and
   // it has just asserted what it was.

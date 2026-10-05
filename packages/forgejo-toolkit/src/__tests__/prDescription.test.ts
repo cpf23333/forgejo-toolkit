@@ -146,7 +146,6 @@ const PROVIDER = {
   models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
   auth: 'bearer' as const,
   headers: [] as Array<{ name: string; valueSecret: true }>,
-  localOnly: false,
 };
 
 interface FakeTransport extends AiModelTransport {
@@ -319,7 +318,6 @@ describe('the PR-description run', () => {
     state.settings['prDescription'] = true;
     state.settings['prDescriptionPromptScope'] = 'commits-only';
     state.settings['aiProviders'] = [PROVIDER];
-    state.settings['aiProvidersEnabled'] = true;
     state.settings['aiModelBindings'] = [
       { feature: 'prDescription', providerId: 'local-gateway', modelId: 'qwen3:8b' },
     ];

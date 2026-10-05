@@ -598,10 +598,8 @@ Into `profile/User/settings.json`, as the settings the extension itself reads:
       "models": [{ "id": "mock-pre-review", "name": "Mock pre-review model" }],
       "auth": "none",
       "headers": [],
-      "localOnly": true,
     },
   ],
-  "forgejoToolkit.aiProvidersEnabled": true,
   "forgejoToolkit.aiTransport": "openai-compatible",
   "forgejoToolkit.aiPreReview": true,
   "forgejoToolkit.aiModelBindings": [
@@ -639,8 +637,11 @@ Into `profile/User/settings.json`, as the settings the extension itself reads:
   `forgejoToolkit.prDescriptionPromptScope` are deliberately **not** written: both
   default to `ask`, which _is_ the consent question, and that is the one step a
   human performs.
-- `localOnly: true` is true of this endpoint (it binds loopback only) and also
-  exercises the provider half of the local-only policy.
+- `forgejoToolkit.aiEnabled` is not written either: its manifest default is on, so
+  a value here would restate the default. Every other key above is a setting the
+  extension's manifest still contributes — `src/config.test.ts` compares the two
+  lists, which is the check that would have caught the egress switch this seed kept
+  writing after it was deleted.
 
 ### Pruning an instance the launcher refuses
 

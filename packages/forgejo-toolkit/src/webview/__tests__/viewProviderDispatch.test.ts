@@ -2611,7 +2611,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
    * export writer decides what the file carries, the preview decides what the user
    * is shown and asked, and the confirmation decides what is written. The three
    * §11.4 proofs live here — a lossless non-secret round trip, no credential in a
-   * plaintext export, and an import that leaves egress disabled — plus the
+   * plaintext export, and an import that turns no AI switch on — plus the
    * version-2 payload that has to stay importable.
    */
   describe('AI endpoint export/import', () => {
@@ -2625,11 +2625,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     const AI_PROVIDER = {
       id: 'ollama-local',
       name: 'Ollama (this machine)',
-      baseUrl: 'http://127.0.0.1:11434/v1',
+      baseUrl: 'http://localhost:11434/v1',
       models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
       auth: 'bearer' as const,
       headers: [{ name: 'api-version', valueSecret: true as const }],
-      localOnly: false,
     };
 
     /** The instance every fixture carries, matching the seeded one. */
@@ -2711,7 +2710,6 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         providers: [AI_PROVIDER],
         bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
         transport: 'openai-compatible',
-        localOnly: false,
         ...extra,
       };
     }
@@ -2786,7 +2784,6 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       settings['aiProviders'] = [AI_PROVIDER];
       settings['aiModelBindings'] = [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }];
       settings['aiTransport'] = 'openai-compatible';
-      settings['aiLocalOnly'] = true;
       secrets.set('forgejoToolkit.aiProviderKey.ollama-local', AI_KEY);
       secrets.set('forgejoToolkit.aiProviderHeader.ollama-local.api-version', AI_HEADER_VALUE);
 
@@ -2807,7 +2804,6 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // above, and in the plaintext case where its content is the point).
       const file = writeEncryptedFile({
         ai: aiSection({
-          localOnly: true,
           secrets: {
             keys: { 'ollama-local': IMPORTED_AI_KEY },
             headerValues: { 'ollama-local': { 'api-version': IMPORTED_AI_HEADER_VALUE } },
@@ -2824,16 +2820,14 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(preview?.ai).toMatchObject({
         secretsIncluded: true,
         transport: 'openai-compatible',
-        localOnly: true,
         providers: [
           {
             id: 'ollama-local',
             name: 'Ollama (this machine)',
-            baseUrl: 'http://127.0.0.1:11434/v1',
+            baseUrl: 'http://localhost:11434/v1',
             auth: 'bearer',
             models: ['qwen3:8b'],
             headers: ['api-version'],
-            localOnly: false,
             existing: false,
             insecure: true,
           },
@@ -2848,13 +2842,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(reply).toMatchObject({ success: true, count: 1 });
 
       // Lossless for the non-secret fields, including the transport value the
-      // preview showed. The local-only policy is applied because the file asked for
-      // it (and it can only ever be applied as the restricting value).
+      // preview showed without applying it.
       expect(settings['aiProviders']).toEqual([AI_PROVIDER]);
       expect(settings['aiModelBindings']).toEqual([
         { feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' },
       ]);
-      expect(settings['aiLocalOnly']).toBe(true);
       // The credentials landed in the editor's secret storage, not in settings.
       expect(storedSecret('forgejoToolkit.aiProviderKey.ollama-local')).toBe(IMPORTED_AI_KEY);
       expect(storedSecret('forgejoToolkit.aiProviderHeader.ollama-local.api-version')).toBe(IMPORTED_AI_HEADER_VALUE);
@@ -2909,14 +2901,14 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(storedSecret('forgejoToolkit.aiProviderKey.ollama-local')).toBe('sk-existing-local-key');
     });
 
-    it('does not enable egress: the import leaves the switches and the transport alone', async () => {
+    it('does not turn AI on: the import leaves the switches and the transport alone', async () => {
       // The receiving machine has an endpoint of its choosing under the same id,
-      // its own transport (the working setup a file must not walk back) and the
-      // three switches off. The file names all of them as enabled.
+      // its own transport (the working setup a file must not walk back) and its AI
+      // switches off. The file names all of them as enabled.
       settings = {
         aiProviders: [{ ...AI_PROVIDER, name: 'already here', baseUrl: 'https://models.example.com/v1' }],
         aiTransport: 'openai-compatible',
-        aiProvidersEnabled: false,
+        aiEnabled: false,
         aiPreReview: false,
         aiPreReviewPromptScope: 'ask',
       };
@@ -2924,7 +2916,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const file = writeEncryptedFile({
         ai: aiSection({
           transport: 'openai-compatible',
-          aiProvidersEnabled: true,
+          aiEnabled: true,
           aiPreReview: true,
           aiPreReviewPromptScope: 'full-diff',
         }),
@@ -2938,7 +2930,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // would prove nothing about the import. The stored entry is replaced by the
       // file's own declaration, name included.
       expect(settings['aiProviders']).toEqual([AI_PROVIDER]);
-      expect(settings['aiProvidersEnabled']).toBe(false);
+      expect(settings['aiEnabled']).toBe(false);
       expect(settings['aiPreReview']).toBe(false);
       expect(settings['aiPreReviewPromptScope']).toBe('ask');
       // Not written at all, so the receiving machine's choice survives verbatim.
@@ -2946,13 +2938,13 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(loggedText()).not.toContain('aiTransport');
     });
 
-    it('never writes the transport or the egress switches, whatever the file carries', async () => {
+    it('never writes the transport or the AI switches, whatever the file carries', async () => {
       // The strictest form of the rule: a file that names all of them, applied by
       // the narrowest path (no collision, so the entry is added as it stands).
       const file = writeInstancesFile({
         ai: aiSection({
           transport: 'openai-compatible',
-          aiProvidersEnabled: true,
+          aiEnabled: true,
           aiPreReview: true,
           aiPreReviewPromptScope: 'full-diff',
         }),
@@ -2965,7 +2957,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(reply).toMatchObject({ success: true, count: 1 });
 
       expect(Object.keys(settings).sort()).toEqual(['aiModelBindings', 'aiProviders']);
-      expect(settings['aiProvidersEnabled']).toBeUndefined();
+      expect(settings['aiEnabled']).toBeUndefined();
       expect(settings['aiPreReview']).toBeUndefined();
       expect(settings['aiPreReviewPromptScope']).toBeUndefined();
       expect(settings['aiTransport']).toBeUndefined();
@@ -6242,7 +6234,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       );
     });
 
-    it('pushes the AI endpoint snapshot when one of the six endpoint keys changes outside the panel', async () => {
+    it('pushes the AI endpoint snapshot when one of the endpoint keys changes outside the panel', async () => {
       // A hand edit of any of these in VS Code's own settings editor is invisible
       // to an open settings page, which re-reads the AI surface only on mount (and
       // on a visibility change) — measured on a live walkthrough for the import
@@ -6251,11 +6243,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const provider = {
         id: 'ollama-local',
         name: 'Ollama (this machine)',
-        baseUrl: 'http://127.0.0.1:11434/v1',
+        baseUrl: 'http://localhost:11434/v1',
         models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
         auth: 'bearer',
         headers: [],
-        localOnly: false,
       };
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
         () =>
@@ -6266,9 +6257,6 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
               }
               if (key === 'aiModelBindings') {
                 return [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }];
-              }
-              if (key === 'aiProvidersEnabled') {
-                return true;
               }
               return undefined;
             },
@@ -6284,9 +6272,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const keys = [
         'forgejoToolkit.aiProviders',
         'forgejoToolkit.aiModelBindings',
-        'forgejoToolkit.aiProvidersEnabled',
+        'forgejoToolkit.aiDefaultProvider',
+        'forgejoToolkit.aiDefaultModel',
         'forgejoToolkit.aiTransport',
-        'forgejoToolkit.aiLocalOnly',
         'forgejoToolkit.aiModelRequestTimeoutMs',
       ];
       for (const key of keys) {
@@ -6303,14 +6291,12 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
           | {
               providers: Array<Record<string, unknown>>;
               bindings: Array<Record<string, unknown>>;
-              enabled: boolean;
             }
           | undefined;
         expect(snapshot?.providers.map((entry) => entry.id)).toEqual(['ollama-local']);
         expect(snapshot?.bindings).toEqual([
           { feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' },
         ]);
-        expect(snapshot?.enabled).toBe(true);
         // A push rather than an answer to a request: no `_requestId`, exactly like
         // the one the page's own writes and the import path send.
         expect(push?._requestId).toBeUndefined();

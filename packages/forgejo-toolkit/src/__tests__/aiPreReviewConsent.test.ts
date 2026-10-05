@@ -74,17 +74,16 @@ describe('the consent destination', () => {
       {
         id: 'ollama-local',
         name: 'Ollama (this machine)',
-        baseUrl: 'http://127.0.0.1:11434/v1',
+        baseUrl: 'http://localhost:11434/v1',
         models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
         auth: 'bearer',
         headers: [],
-        localOnly: false,
       },
     ];
 
     const destination = aiPreReviewConsentDestination({ vendor: 'ollama-local', id: 'qwen3:8b', name: 'Qwen3 8B' });
 
-    expect(destination).toEqual({ name: 'Ollama (this machine)', address: 'http://127.0.0.1:11434/v1' });
+    expect(destination).toEqual({ name: 'Ollama (this machine)', address: 'http://localhost:11434/v1' });
   });
 
   it('renders the address without its query string, which can carry a secret', () => {
@@ -96,7 +95,6 @@ describe('the consent destination', () => {
         models: [],
         auth: 'api-key-header',
         headers: [],
-        localOnly: false,
       },
     ];
 
@@ -131,12 +129,12 @@ describe('the consent sentence', () => {
   it('leads with the provider and the address for a configured endpoint', () => {
     const message = aiPreReviewPromptScopeMessage({
       name: 'Ollama (this machine)',
-      address: 'http://127.0.0.1:11434/v1',
+      address: 'http://localhost:11434/v1',
     });
 
     expect(
       message.startsWith(
-        'The AI pre-review would send this to the provider you configured, "Ollama (this machine)" at http://127.0.0.1:11434/v1.',
+        'The AI pre-review would send this to the provider you configured, "Ollama (this machine)" at http://localhost:11434/v1.',
       ),
     ).toBe(true);
     // The destination is *added to* the body, not substituted for it: the scopes and

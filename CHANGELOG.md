@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Endpoints section where you add an OpenAI-compatible endpoint — a server on your
   own machine or a hosted gateway — with its display name and id, its address, its
   authentication style (`Bearer`, an `api-key` header, or none), the models it
-  declares (id and display name), custom request headers, and a local-only switch.
+  declares (id and display name) and custom request headers.
   The API key and **every** header value live in the editor's secret storage and
   are never written into settings — a gateway usually carries its token in a
   header — so the page says only whether a value is set, and clearing one is an
@@ -38,14 +38,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and reports the address it used without the query string that can carry a
   secret. The AI pre-review can run on such an endpoint instead of on your editor's
   models.
-- **Decide whether the extension may send, and to where.** Saving an endpoint and a
-  key is not permission: a separate switch has to allow requests to configured
-  endpoints, and each feature still asks its own question about what may leave your
-  machine, so a configured endpoint and a stored key send nothing by themselves. A
-  local-only rule — global, and once more per endpoint — refuses any endpoint whose
-  host is not this machine or a private network; the configured address is what is
-  checked, no name lookup is made, and an address that cannot be read counts as not
-  local. A per-feature binding names the endpoint and the model a feature uses, and
+- **One switch for the whole AI area, and each feature's own switch below it.**
+  The settings page now opens the AI part with a single **Use AI features** switch
+  (on by default): turn it off and no AI feature runs at all, and no model is asked
+  for anything — neither the chat models your editor offers nor an endpoint you
+  configured — while every control below it stays visible and editable, because
+  that page is the only place those values can be written. Below it, each feature
+  keeps its own switch — off by default — and what actually decides whether content
+  leaves your machine is still that feature's own one-time question: this switch
+  says "do not use AI", a feature's switch says "this feature is on", and the
+  question is the consent. Configuring an endpoint is itself the statement that you
+  intend to use it, so there is no second "allow requests to configured endpoints"
+  switch to find and turn on: delete the endpoint if you no longer want it. A
+  per-feature binding names the endpoint and the model a feature uses, and
   every run states in its confirmation panel, its diagnostics and the log which
   transport, endpoint, address and model served it, so you can see where your
   content went. The two ways of reaching a model never substitute for each other:
@@ -58,18 +63,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays as it is. One request is sent per combination of address, authentication
   style and credential, further typing cancels the pending one, only the model
   listing is ever requested (never a completion), and nothing is written to your
-  settings before you save. An address the local-only rule refuses is refused
-  before a byte leaves the machine, a probe that gets no answer says so on the
-  model rows and in the report card below them, and an endpoint that has no model
-  list at all is not a failure: the report says the models have to be filled in by
-  hand. Finding models is not permission to send content: a probe that answered
-  says so next to the rows it filled in, because the switch that allows requests
-  to configured endpoints and each feature's own consent question are what decide
-  that.
+  settings before you save. It sends nothing at all while the global AI switch is
+  off or for an address this extension cannot use, a probe that gets no answer says
+  so on the model rows and in the report card below them, and an endpoint that has
+  no model list at all is not a failure: the report says the models have to be
+  filled in by hand. Finding models is not permission to send content: a probe that
+  answered says so next to the rows it filled in, because the global AI switch and
+  each feature's own consent question are what decide that.
 - **Your AI endpoints travel with the rest of your configuration.** An export now
   carries a non-secret AI section — each endpoint's display name, address,
   authentication style, declared models, the **names** of its custom headers, the
-  local-only policy and the per-feature bindings — and importing it offers those
+  per-feature bindings and the transport choice — and importing it offers those
   endpoints in the same preview the instance list already uses: a plain `http://`
   address is called out there rather than only when a request is finally attempted,
   an id you already have is a choice between keeping the configured endpoint,
@@ -80,12 +84,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   secret storage rather than in settings — an unencrypted export contains none of
   them, which the export itself says before it writes the file, and importing one
   leaves the credentials you already had for that endpoint in place. Importing
-  cannot turn anything on: it never writes the switch that allows requests to
-  configured endpoints, never enables an AI feature, and never changes the model
-  transport you chose, so the first run after an import still asks you what may
-  leave your machine. An export written by an older version still imports, and
-  importing an endpoint whose address this extension refuses would say so in the
-  preview instead of writing it.
+  cannot turn anything on: it never writes the global AI switch, never enables an
+  AI feature, and never changes the model transport you chose, so the first run
+  after an import still asks you what may leave your machine. An export written by
+  an older version still imports, and importing an endpoint whose address this
+  extension refuses would say so in the preview instead of writing it.
 - **Your settings page now covers the settings.** Nine settings that used to be
   reachable only through the editor's own settings user interface are now presented
   where they belong: the notification polling switch, the multi-window polling
@@ -109,9 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `openai-compatible` it shows the endpoint surface and hides the editor's model row,
   and with `auto` it shows both and states the precedence in one sentence — the
   editor's model when one is available, the configured endpoint when it is not. The
-  switch that allows requests to configured endpoints, the local-only rule and the
-  request timeout stay visible in every case, because they also decide what a
-  per-feature override would do. Below them, a **default endpoint and model** is the
+  request timeout stays visible in every case, because it also decides what a
+  per-feature override would do. Below it, a **default endpoint and model** is the
   primary path: set it once and every AI feature uses it, which is what
   `openai-compatible` and the endpoint half of `auto` mean by "the configured
   endpoint". The former per-feature bindings are now **per-feature overrides**: each

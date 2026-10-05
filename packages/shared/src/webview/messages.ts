@@ -189,11 +189,10 @@ export interface ExportSettings {
  *
  * This is the **non-secret** half of a provider, and it is the whole of what an
  * unencrypted export carries: the id, display name, base URL, declared models,
- * authentication style, the declared header **names** (each with the
+ * authentication style and the declared header **names** (each with the
  * `valueSecret: true` marker §10.2 keeps, so a receiver is told a value exists
- * without being given it) and the per-endpoint local-only promise. The API key and
- * every header value are in {@link ExportAiSecrets} instead, which only the
- * encrypted wrapper holds.
+ * without being given it). The API key and every header value are in
+ * {@link ExportAiSecrets} instead, which only the encrypted wrapper holds.
  */
 export interface ExportAiProvider {
   id: string;
@@ -202,7 +201,6 @@ export interface ExportAiProvider {
   models: Array<{ id: string; name: string }>;
   auth: AiProviderAuthValue;
   headers: Array<{ name: string; valueSecret: true }>;
-  localOnly: boolean;
 }
 
 /**
@@ -223,8 +221,9 @@ export interface ExportAiSecrets {
  * The `ai` section of an export payload (§10.1).
  *
  * The keys that decide **whether content may leave the machine** are deliberately
- * absent — `aiProvidersEnabled`, `aiPreReview` and `aiPreReviewPromptScope` — so
- * that importing a file can never change another machine's egress posture (§7.4).
+ * absent — `aiEnabled`, `aiPreReview`, `aiPreReviewPromptScope` and the
+ * PR-description pair — so that importing a file can never change another
+ * machine's egress posture (§7.4, §10.3).
  * `transport` travels as information the preview shows; the host does not apply it
  * (§10.3's rule 1), because on the receiving machine the opposite value may be a
  * working setup.
@@ -233,7 +232,6 @@ export interface ExportAiConfig {
   providers: ExportAiProvider[];
   bindings: Array<{ feature: string; providerId: string; modelId: string }>;
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-  localOnly: boolean;
 }
 
 /**
@@ -253,7 +251,6 @@ export interface AiImportPreviewProvider {
   models: string[];
   /** The declared header **names**, never a value (§8.2). */
   headers: string[];
-  localOnly: boolean;
   /** An endpoint with this id is already configured, so the import needs a decision. */
   existing: boolean;
   /** The address is plain `http://`: flagged in the preview, not only at run time (§10.3). */
@@ -354,7 +351,6 @@ export interface AiProviderEditorEntry {
   models: AiProviderModelDraft[];
   auth: AiProviderAuthValue;
   headers: AiProviderHeaderReading[];
-  localOnly: boolean;
   /** Whether an API key is stored. `auth: 'none'` needs none, so this stays `false` there. */
   keySet: boolean;
   /** The base address as a human may see it: no query string, no userinfo. */
@@ -363,8 +359,6 @@ export interface AiProviderEditorEntry {
   addressError?: string;
   /** Set when the address is plain `http://`, which is allowed but reported (§6.2). */
   insecure: boolean;
-  /** Set when the local-only policy refuses this address, so nothing may be sent to it (§8.8). */
-  localOnlyBlocked: boolean;
 }
 
 /** One per-feature binding, as the settings page edits it. */
@@ -400,23 +394,22 @@ export interface AiProviderRejection {
  * Everything the provider section of the settings page renders, in one reply.
  *
  * One message rather than a handful, because the surface they describe is one
- * screen and the parts constrain each other: whether the egress switch is on,
- * what the transport says, which endpoints exist and which of their secrets are
- * stored are read together so the page can never show a state that was never
- * true. The default destination and the per-feature overrides travel together for
- * the same reason — the page has to be able to say that an override sits on top
- * of a default — and `capability` is the §9.3 answer for the one AI feature this
- * build has, with `selection` naming the path that answer came from. The
- * `capability` discriminator is what the "no usable model" block branches on.
+ * screen and the parts constrain each other: what the transport says, which
+ * endpoints exist and which of their secrets are stored are read together so the
+ * page can never show a state that was never true. The default destination and the
+ * per-feature overrides travel together for the same reason — the page has to be
+ * able to say that an override sits on top of a default — and `capability` is the
+ * §9.3 answer for the AI features this build has (it is read for the pre-review,
+ * the feature the selection point was first wired into), with `selection` naming
+ * the path that answer came from. The `capability` discriminator is what the "no
+ * usable model" block branches on; the global AI switch itself
+ * (`forgejoToolkit.aiEnabled`) is one of the page's own settings and travels in
+ * `SettingsSurfaceSnapshot` (`src/webview/settingsSurface.ts`), not here.
  */
 export interface AiProviderSettingsSnapshot {
   providers: AiProviderEditorEntry[];
   rejected: AiProviderRejection[];
-  /** `forgejoToolkit.aiProvidersEnabled`: the second, independent egress gate (§8.3). */
-  enabled: boolean;
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-  /** `forgejoToolkit.aiLocalOnly`: refuse endpoints that are not on this machine or a private network. */
-  localOnly: boolean;
   requestTimeoutMs: number;
   bindings: AiModelBindingDraft[];
   /**
@@ -491,8 +484,6 @@ export interface AiProviderDraftProbe {
   name: string;
   baseUrl: string;
   auth: AiProviderAuthValue;
-  /** The editor's own local-only promise, which gates the probe like the setting does. */
-  localOnly: boolean;
   /** The API key typed in this session; empty means "there is none to send". */
   key: string;
   /** The header values typed in this session, by declared name. */
@@ -573,6 +564,7 @@ export const SETTINGS_SURFACE_WRITABLE_KEYS = [
   'forgejoToolkit.mcpWriteTools.cancelActionRun',
   'forgejoToolkit.mcpWriteAuditToFile',
   'forgejoToolkit.multiWindowLease',
+  'forgejoToolkit.aiEnabled',
   'forgejoToolkit.aiPreReview',
   'forgejoToolkit.aiPreReviewPromptScope',
   'forgejoToolkit.prDescription',
@@ -607,6 +599,8 @@ export interface SettingsSurfaceSnapshot {
   mcpWriteAuditToFile: boolean;
   /** `forgejoToolkit.multiWindowLease` (default on). */
   multiWindowLease: boolean;
+  /** `forgejoToolkit.aiEnabled` (default on): the whole AI area's own switch. */
+  aiEnabled: boolean;
   /** `forgejoToolkit.aiPreReview` (default off). */
   aiPreReview: boolean;
   /** `forgejoToolkit.aiPreReviewPromptScope`, read exactly as the run reads it. */
@@ -1555,16 +1549,14 @@ export type HostToWebviewMessage =
       _requestId: string;
     }
   | { command: 'aiProviderTestReport'; report: AiProviderTestReport; _requestId: string }
-  // The settings page's own surface: the nine settings its sections present with
-  // a control (`docs/design/settings-page.md` §3.2). Reading one sends nothing
+  // The settings page's own surface: the settings its sections present with a
+  // control (`docs/design/settings-page.md` §3.2). Reading one sends nothing
   // anywhere and writes nothing; a write answers with the host's reading of the
   // state it produced, plus its own sentence when the write failed.
   | { command: 'settingsSurface'; snapshot: SettingsSurfaceSnapshot; error?: string; _requestId: string }
   | {
       command: 'aiModelPolicySaved';
-      enabled: boolean;
       transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-      localOnly: boolean;
       requestTimeoutMs: number;
       error?: string;
       _requestId: string;
@@ -1711,7 +1703,6 @@ export type HostToWebviewMessage =
         providers: AiImportPreviewProvider[];
         bindings: Array<{ feature: string; providerId: string; modelId: string }>;
         transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-        localOnly: boolean;
         /**
          * Whether the file carried credentials at all — i.e. whether it was
          * encrypted (§10.2). Stated plainly in the preview, because a plaintext
@@ -1994,7 +1985,6 @@ export type WebviewToHostMessage =
         auth: AiProviderAuthValue;
         /** Header **names** only: a value is written through `setAiProviderSecret`. */
         headers: string[];
-        localOnly: boolean;
       };
       _requestId: string;
     }
@@ -2013,8 +2003,9 @@ export type WebviewToHostMessage =
   // the first path in this extension that a request leaves the machine on without
   // a click — a typed, complete address and credential arm it after 800 ms of
   // idle — so it stays deliberately narrow: `GET /models` only, one shot per
-  // input combination, refused locally before any byte when the local-only rule
-  // forbids the address, and it never carries a saved endpoint's identity.
+  // input combination, refused locally before any byte when the global AI switch
+  // is off or the address is not usable, and it never carries a saved endpoint's
+  // identity.
   | { command: 'testAiProviderDraft'; draft: AiProviderDraftProbe; _requestId: string }
   | { command: 'getSettingsSurface'; _requestId: string }
   | {
@@ -2030,9 +2021,7 @@ export type WebviewToHostMessage =
   | { command: 'openNativeSettings' }
   | {
       command: 'setAiModelPolicy';
-      enabled: boolean;
       transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-      localOnly: boolean;
       requestTimeoutMs: number;
       _requestId: string;
     }

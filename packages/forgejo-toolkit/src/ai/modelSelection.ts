@@ -6,9 +6,9 @@ import { openAiCompatibleTransportFor } from './openAiCompatibleTransport';
 import type { AiModelInfo, AiModelTransport } from './transport';
 import {
   aiDefaultModelSettingValue,
+  aiEnabledSettingValue,
   aiModelBindingFor,
   aiProviderSettingsReading,
-  aiProvidersEnabledSettingValue,
   aiTransportSettingValue,
   isAiFeature,
   type AiFeature,
@@ -28,9 +28,10 @@ import type { AiSecretStore } from './providerSecrets';
  *   is a failure, a direct endpoint that is unavailable is a failure, and an editor
  *   that cannot serve a request is a failure. No branch here substitutes one for
  *   another, and the `unavailable` arm carries the sentence that says why.
- * - **No "configured therefore enabled"** (§7.3). A provider is reached only when
- *   `forgejoToolkit.aiProvidersEnabled` is on **and** the default or a per-feature
- *   override names it. Configuration alone never opens egress.
+ * - **No "do not use AI at all, but some path still runs"** (§8.3). The global
+ *   `forgejoToolkit.aiEnabled` switch is read before anything else and answers
+ *   `ai-off`; nothing below it is consulted while it is off, so no route — the
+ *   editor's models or a configured endpoint — can serve a run.
  *
  * It answers **by capability, never by brand** (§9.1): the `vscode.lm` question is
  * "does the API exist and does it list a model", which is why a VSCodium with no
@@ -45,15 +46,15 @@ import type { AiSecretStore } from './providerSecrets';
 
 /** Why no transport could be selected. The setting page branches on this; the sentence explains it. */
 export type AiUnavailableCode =
+  /** The global AI switch is off, so the whole area is closed (§8.3). */
+  | 'ai-off'
   /** Nothing is offered and nothing is configured. */
   | 'no-model'
   /** No endpoint is configured at all. */
   | 'configure'
   /** An endpoint is configured but nothing says which one to use. */
   | 'bind'
-  /** The egress switch (`forgejoToolkit.aiProvidersEnabled`) is off. */
-  | 'disabled'
-  /** A named endpoint exists but cannot be used (URL, local-only policy, missing key). */
+  /** A named endpoint exists but cannot be used (URL, missing key). */
   | 'endpoint-unusable'
   /** The editor's own model API is absent or failed. */
   | 'editor-unusable';
@@ -96,11 +97,10 @@ export interface AiTransportSelectionDeps {
   dispatcherPair?: () => { dispatcher?: unknown; fetchImpl?: RequestFetch };
 }
 
-/** The l10n sentence for a binding whose endpoint is switched off. */
-function bindingDisabledMessage(providerId: string): string {
+/** The l10n sentence for the global AI switch being off. */
+function aiDisabledMessage(): string {
   return vscode.l10n.t(
-    'The AI endpoint "{0}" is selected by "forgejoToolkit.aiModelBindings" for this feature, but "forgejoToolkit.aiProvidersEnabled" is off, so nothing was sent. Turn that setting on to use the configured endpoint.',
-    providerId,
+    '"forgejoToolkit.aiEnabled" is off, so no AI feature runs and nothing was sent. Turn that setting back on to use them.',
   );
 }
 
@@ -108,14 +108,6 @@ function bindingDisabledMessage(providerId: string): string {
 function bindingUnknownProviderMessage(providerId: string): string {
   return vscode.l10n.t(
     '"forgejoToolkit.aiModelBindings" names the endpoint "{0}", which is not configured under "forgejoToolkit.aiProviders". Nothing was sent.',
-    providerId,
-  );
-}
-
-/** The l10n sentence for a default destination whose endpoint is switched off. */
-function defaultDisabledMessage(providerId: string): string {
-  return vscode.l10n.t(
-    'The default AI endpoint "{0}" is selected by "forgejoToolkit.aiDefaultProvider" and "forgejoToolkit.aiDefaultModel", but "forgejoToolkit.aiProvidersEnabled" is off, so nothing was sent. Turn that setting on to use the configured endpoint.',
     providerId,
   );
 }
@@ -138,13 +130,6 @@ function noEndpointConfiguredMessage(switchReason: string, rejection: string | u
     return base;
   }
   return `${base} ${unreadableProviderMessage(rejection)}`;
-}
-
-/** The l10n sentence for a direct choice the egress switch refuses. */
-function providersDisabledMessage(): string {
-  return vscode.l10n.t(
-    '"forgejoToolkit.aiProvidersEnabled" is off, so the configured AI endpoint is not used. Nothing was sent.',
-  );
 }
 
 /** The l10n sentence for "there is an endpoint but nothing says which one to use". */
@@ -208,22 +193,18 @@ async function selectVscodeLm(transport: AiModelTransport): Promise<AiTransportS
  *
  * **One implementation for the per-feature override and the default**, because
  * they are the same statement with a different scope and §8.4 requires the same
- * three answers from both: the egress switch still applies, an endpoint that is
- * not configured fails and **names itself** rather than resolving to a neighbour,
- * and an endpoint that cannot be used is a failure rather than a reason to ask
- * another one. Only the two sentences that name the setting differ, which is why
- * they are passed in.
+ * answers from both: an endpoint that is not configured fails and **names itself**
+ * rather than resolving to a neighbour, and an endpoint that cannot be used is a
+ * failure rather than a reason to ask another one. Only the sentence that names
+ * the setting differs, which is why it is passed in.
  */
 async function resolveNamedDestination(
   deps: AiTransportSelectionDeps,
   providerId: string,
   modelId: string,
-  messages: { disabled: (providerId: string) => string; unknownProvider: (providerId: string) => string },
+  messages: { unknownProvider: (providerId: string) => string },
   reason: string,
 ): Promise<AiTransportSelection> {
-  if (!aiProvidersEnabledSettingValue()) {
-    return { kind: 'unavailable', code: 'disabled', reason: messages.disabled(providerId) };
-  }
   const reading = aiProviderSettingsReading();
   const provider = reading.providers.find((candidate) => candidate.id === providerId);
   if (provider === undefined) {
@@ -285,14 +266,14 @@ async function selectDirectWithoutBinding(
       deps,
       defaultDestination.providerId,
       defaultDestination.modelId,
-      { disabled: defaultDisabledMessage, unknownProvider: defaultUnknownProviderMessage },
+      { unknownProvider: defaultUnknownProviderMessage },
       `${switchReason}, and "forgejoToolkit.aiDefaultProvider"/"forgejoToolkit.aiDefaultModel" name ` +
         `"${defaultDestination.providerId}/${defaultDestination.modelId}" as the default`,
     );
   }
   // The provider list is read first so the sentence names the fact the user has to
-  // act on: with nothing configured, "no endpoint is configured" is useful and "the
-  // egress switch is off" is a second thing they have not reached yet.
+  // act on: with nothing configured, "no endpoint is configured" is useful and a
+  // later reading would be a second thing they have not reached yet.
   const reading = aiProviderSettingsReading();
   if (reading.providers.length === 0) {
     const rejection = reading.rejected[0];
@@ -301,9 +282,6 @@ async function selectDirectWithoutBinding(
       code: 'configure',
       reason: noEndpointConfiguredMessage(switchReason, rejection === undefined ? undefined : rejection.reason),
     };
-  }
-  if (!aiProvidersEnabledSettingValue()) {
-    return { kind: 'unavailable', code: 'disabled', reason: providersDisabledMessage() };
   }
   if (reading.providers.length > 1 || reading.rejected.length > 0) {
     // Several endpoints, or an entry that could not be read: which one receives the
@@ -345,14 +323,13 @@ async function selectExplicit(
 ): Promise<AiTransportSelection | undefined> {
   if (binding !== undefined) {
     // Rule 1: a binding is the user naming an endpoint **and** a model for this
-    // feature, so it is the most specific statement there is — and it is still
-    // subject to the egress switch (§7.3). A binding that cannot be honoured fails
-    // by name rather than being resolved to a neighbour.
+    // feature, so it is the most specific statement there is. A binding that cannot
+    // be honoured fails by name rather than being resolved to a neighbour.
     return await resolveNamedDestination(
       deps,
       binding.providerId,
       binding.modelId,
-      { disabled: bindingDisabledMessage, unknownProvider: bindingUnknownProviderMessage },
+      { unknownProvider: bindingUnknownProviderMessage },
       `"forgejoToolkit.aiModelBindings" binds "${feature}" to "${binding.providerId}/${binding.modelId}"`,
     );
   }
@@ -376,23 +353,29 @@ async function selectExplicit(
  * function never continues past a branch that named an endpoint in order to ask a
  * different one (§7.5).
  *
+ * The `forgejoToolkit.aiEnabled` check is **before** that table (§8.3), because it
+ * is not a route: it is the statement that no route may be used at all. It is the
+ * only gate here that also closes the editor's own models, which is what makes the
+ * switch mean "do not use AI" rather than "do not use the direct transport".
+ *
  * One boundary worth stating, because `auto` is the only branch that reaches a
  * direct endpoint without the user having named it: `auto` tries the editor models
  * first and considers a configured endpoint when the editor **cannot serve a
  * request** — no language model API, a listing that failed, or an empty list. That
  * is the record's "`vscode.lm` has no usable model" read as a capability question
- * (§9.1), and it is still gated twice: `aiProvidersEnabled` must be on and exactly
- * one endpoint must be determinable. An explicit `vscode-lm` choice never reaches
- * the direct branch at all, which is the half of §7.5 that has to hold even when
- * the editor is broken.
+ * (§9.1), and exactly one endpoint must still be determinable. An explicit
+ * `vscode-lm` choice never reaches the direct branch at all, which is the half of
+ * §7.5 that has to hold even when the editor is broken.
  */
 export async function selectedModelFor(
   feature: AiFeature,
   deps: AiTransportSelectionDeps,
 ): Promise<AiTransportSelection> {
-  const outcome = isAiFeature(feature)
-    ? await resolveSelection(feature, deps)
-    : { kind: 'unavailable' as const, code: 'configure' as const, reason: noDeterminableModelMessage() };
+  const outcome = !aiEnabledSettingValue()
+    ? { kind: 'unavailable' as const, code: 'ai-off' as const, reason: aiDisabledMessage() }
+    : isAiFeature(feature)
+      ? await resolveSelection(feature, deps)
+      : { kind: 'unavailable' as const, code: 'configure' as const, reason: noDeterminableModelMessage() };
   // §8.4: the choice of `auto` has to be explainable, so every arm writes one line
   // saying which transport it picked and why.
   logger.debug(
@@ -434,7 +417,7 @@ async function resolveSelection(feature: AiFeature, deps: AiTransportSelectionDe
   if (editor.code === 'editor-unusable') {
     return editor;
   }
-  if (direct.code === 'disabled' || direct.code === 'endpoint-unusable' || direct.code === 'bind') {
+  if (direct.code === 'endpoint-unusable' || direct.code === 'bind') {
     return direct;
   }
   return {

@@ -11,7 +11,6 @@ import {
   openAiEndpointFailure,
   openAiEndpointUnusableMessage,
   openAiEndpointUrl,
-  openAiLocalOnlyMessage,
   openAiMissingKeyMessage,
   openAiRequestAuth,
   openAiRequestStatus,
@@ -21,12 +20,11 @@ import {
   type OpenAiRequestAuth,
 } from './openAiCompatibleTransport';
 import {
-  aiLocalOnlySettingValue,
+  aiEnabledSettingValue,
   aiProviderSettingsReading,
   inspectAiProviderBaseUrl,
   isAiProviderAuth,
   isAiProviderSegment,
-  isLocalAiEndpointHost,
   type AiProviderConfig,
 } from './modelSettings';
 import { aiProviderHeaderSecretKey, aiProviderKeySecretKey, type AiSecretStore } from './providerSecrets';
@@ -38,9 +36,9 @@ import { aiProviderHeaderSecretKey, aiProviderKeySecretKey, type AiSecretStore }
  *
  * The order the record requires, and the reason for each step:
  *
- * 1. **Validate first, locally.** The id, the URL scheme, the local-only policy
- *    and the stored credential are all checked before a byte leaves the machine,
- *    so a mistake in the settings costs nothing and produces a sentence that names
+ * 1. **Validate first, locally.** The global AI switch, the id, the URL scheme and
+ *    the stored credential are all checked before a byte leaves the machine, so a
+ *    mistake in the settings costs nothing and produces a sentence that names
  *    what to fix rather than a transport error.
  * 2. `GET <base>/models` is best effort. A 404 or an empty list is **not** a
  *    failure — plenty of endpoints have no model list — and the probe then sends
@@ -65,8 +63,6 @@ export const COMMAND_AI_TEST_PROVIDER = 'forgejoToolkit.aiTestProvider';
 /** What one probe needs, beyond the provider it is aimed at. */
 export interface AiProviderTestDeps {
   secrets: AiSecretStore;
-  /** Overrides `forgejoToolkit.aiLocalOnly`; the policy is read fresh in production. */
-  localOnly?: boolean;
   /** Overridable so a test can run without the activation-time proxy install. */
   dispatcherPair?: () => { dispatcher?: unknown; fetchImpl?: RequestFetch };
 }
@@ -127,13 +123,26 @@ function completionContentOf(payload: unknown): string | undefined {
 }
 
 /**
- * The three local refusals both probes make, in one place: the address, the
- * local-only policy and the credential, in the order the record (§8.7 step 1)
- * requires — so a mistake costs nothing and the sentence names what to fix rather
- * than a transport error.
+ * The l10n sentence for a probe the global AI switch refuses.
  *
- * One implementation for the clicked probe and the draft probe, because "what
- * may be sent where" must not be answered twice: the automatic path's whole
+ * It is not "no AI feature runs": the probe is a diagnostic rather than a feature
+ * run, and the sentence has to say why a request the user asked for is not being
+ * made — and that the credential was therefore never presented to the endpoint.
+ */
+function aiProviderProbeDisabledMessage(): string {
+  return vscode.l10n.t(
+    '"forgejoToolkit.aiEnabled" is off, so nothing was sent to the AI endpoint. Turn that setting back on to test or use an endpoint.',
+  );
+}
+
+/**
+ * The local refusals both probes make, in one place: the global AI switch, the
+ * address and the credential, in the order the record (§8.7 step 1) requires — so
+ * a mistake costs nothing and the sentence names what to fix rather than a
+ * transport error.
+ *
+ * One implementation for the clicked probe and the draft probe, because "what may
+ * be sent where" must not be answered twice: the automatic path's whole
  * justification (settings-page record §4.3) is that it refuses locally before any
  * byte, and a second copy of this prologue is how that guarantee would rot.
  */
@@ -141,17 +150,16 @@ async function prepareAiProviderProbe(
   provider: AiProviderConfig,
   deps: AiProviderTestDeps,
 ): Promise<{ ok: true; auth: OpenAiRequestAuth } | { ok: false; ran: false; reason: string }> {
+  if (!aiEnabledSettingValue()) {
+    // "Do not use AI at all" covers the probes as well: a probe presents the
+    // stored credential to the endpoint, so it is not a read this switch can leave
+    // running while it says AI is off. Nothing is sent and the sentence names the
+    // switch that stopped it.
+    return { ok: false, ran: false, reason: aiProviderProbeDisabledMessage() };
+  }
   const verdict = inspectAiProviderBaseUrl(provider.baseUrl);
   if (!verdict.ok) {
     return { ok: false, ran: false, reason: openAiEndpointUnusableMessage(provider, verdict.reason) };
-  }
-  const localOnly = deps.localOnly ?? aiLocalOnlySettingValue();
-  if ((localOnly || provider.localOnly) && !isLocalAiEndpointHost(verdict.url.hostname)) {
-    return {
-      ok: false,
-      ran: false,
-      reason: openAiLocalOnlyMessage(provider, `${verdict.url.protocol}//${verdict.url.host}`),
-    };
   }
   const auth = await openAiRequestAuth(provider, deps.secrets);
   if (!auth.keyPresent) {
@@ -361,7 +369,6 @@ export async function aiProviderDraftTestReport(
       .map((header) => (typeof header?.name === 'string' ? header.name.trim() : ''))
       .filter((name) => name !== '' && isAiProviderSegment(name))
       .map((name) => ({ name, valueSecret: true as const })),
-    localOnly: draft.localOnly === true,
   };
   const secrets = draftSecretStore(deps.secrets, providerId, draft);
   const address = aiProviderTestAddress(provider);

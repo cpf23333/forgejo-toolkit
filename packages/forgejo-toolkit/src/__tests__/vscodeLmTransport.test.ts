@@ -8,11 +8,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * 1. **It ignores the provider settings entirely** (§5.5, §11.1 item 4). The
  *    "no fallback between transports" rule is half a mechanism and half an
  *    implementation detail, and this is the mechanism half: a full provider
- *    configuration is seeded into the mock settings — providers, the egress
- *    switch, the transport choice, a binding for this feature, the local-only
- *    policy and the timeout — and the same calls are run with and without it. The
- *    observations have to come out identical, and the test asserts the mock
- *    really was handing those values over, so it cannot pass vacuously.
+ *    configuration is seeded into the mock settings — providers, the global AI
+ *    switch, the transport choice, a binding for this feature and the timeout — and
+ *    the same calls are run with and without it. The observations have to come out
+ *    identical, and the test asserts the mock really was handing those values over,
+ *    so it cannot pass vacuously.
  * 2. **The seam's own contract**, as §5 implies it: what `availability()`,
  *    `listModels()` and `countTokens()` do without sending anything, how one
  *    request is shaped (one `User` message, no `modelOptions`, `purpose` as the
@@ -172,18 +172,16 @@ const PROVIDER_SETTINGS: Record<string, unknown> = {
     {
       id: 'ollama-local',
       name: 'Ollama (this machine)',
-      baseUrl: 'http://127.0.0.1:11434/v1',
+      baseUrl: 'http://localhost:11434/v1',
       models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
       auth: 'bearer',
       headers: [{ name: 'api-version', valueSecret: true }],
-      localOnly: false,
     },
   ],
-  aiProvidersEnabled: true,
   aiTransport: 'openai-compatible',
   aiModelBindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
-  aiLocalOnly: false,
   aiModelRequestTimeoutMs: 30_000,
+  aiEnabled: true,
 };
 
 /** One response stream from a fixed list, optionally acting before the first part. */

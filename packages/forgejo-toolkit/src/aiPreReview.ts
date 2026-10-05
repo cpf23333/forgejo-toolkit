@@ -2308,9 +2308,9 @@ type AiUnavailableSelection = Extract<AiTransportSelection, { kind: 'unavailable
  *   §9.3's "give both ways out" said in the one place the user is looking, and it is
  *   the difference between "install a model provider" and "install one, or turn on
  *   the endpoint you already configured".
- * - every other code is the configured-endpoint route's own reason — a binding that
- *   names nothing, the egress switch being off, an endpoint that cannot be used —
- *   reported by name because §8.4 requires the failure to say which one it was
+ * - every other code is the reason the selection itself wrote — the global AI
+ *   switch being off, a binding that names nothing, an endpoint that cannot be used
+ *   — reported by name because §8.4 requires the failure to say which one it was
  *   rather than resolving to a neighbour.
  *
  * Nothing here reaches for the other transport: the message is the outcome, and the

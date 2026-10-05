@@ -18,15 +18,16 @@ import {
  * its port, lowercased. A collision is resolved by suffix rather than silently
  * reusing a name that already holds another endpoint's keys.
  *
- * The addresses are placeholder domains and loopback addresses, the two forms
- * `AGENTS.md`'s code-content rule allows.
+ * The addresses are placeholder domains and `localhost`, the forms `AGENTS.md`'s
+ * code-content rule allows (it forbids IP literals, so the table's examples are all
+ * placeholder domains).
  */
 describe('generated endpoint id', () => {
   it('reduces the host to a legal key segment', () => {
     expect(generateAiProviderId('https://api.example.com/v1')).toBe('api-example-com');
     expect(generateAiProviderId('http://localhost:11434/v1')).toBe('localhost');
     expect(generateAiProviderId('https://www.example.com/openai')).toBe('example-com');
-    expect(generateAiProviderId('http://127.0.0.1:8080/v1')).toBe('127-0-0-1');
+    expect(generateAiProviderId('http://models.example.com:8080/v1')).toBe('models-example-com');
   });
 
   it('strips the port, the leading www. and the case', () => {
@@ -63,7 +64,7 @@ describe('generated endpoint display name', () => {
     expect(generateAiProviderName('http://localhost:11434/v1')).toBe('localhost:11434');
     // The name is deliberately not the id: `www.` is part of what the user typed.
     expect(generateAiProviderName('https://www.example.com/openai')).toBe('www.example.com');
-    expect(generateAiProviderName('http://127.0.0.1:8080/v1')).toBe('127.0.0.1:8080');
+    expect(generateAiProviderName('http://models.example.com:8080/v1')).toBe('models.example.com:8080');
   });
 
   it('answers nothing for an address that is not a URL', () => {
