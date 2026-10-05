@@ -178,6 +178,26 @@ export interface ForgejoChangedFile {
 }
 
 /**
+ * One commit of a ref-to-ref comparison (`GET /repos/{owner}/{repo}/compare/{basehead}`),
+ * reduced to the fields a caller can use.
+ *
+ * The comparison endpoint answers with the server's own repo-commit shape, which
+ * carries more than this (parents, stats, a files list) and may grow; the client
+ * keeps what it can name and drops the rest rather than exposing a shape it does
+ * not verify. `subject` is the message's first line and `body` the rest, split
+ * here so a caller cannot mistake a multi-paragraph commit message for a subject.
+ */
+export interface ForgejoCompareCommit {
+  sha: string;
+  /** The first line of the commit message. */
+  subject: string;
+  /** Everything after the subject line, trimmed; absent when there is none. */
+  body?: string;
+  author?: string;
+  date?: string;
+}
+
+/**
  * What a README entry is when the contents API answered with something that has
  * no text: a symlink (`type: 'symlink'`) or a submodule (`type: 'submodule'`).
  *

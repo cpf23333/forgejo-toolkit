@@ -2851,6 +2851,31 @@ describe('ForgejoClient with MSW', () => {
       expect(files.length).toBeGreaterThan(0);
     });
 
+    it('asks /compare for the merge-base range from both halves of a comparison', async () => {
+      // `base...head` is the range a pull request shows; `base..head` also lists
+      // every commit the base branch gained since the fork point. The two halves of
+      // one comparison (the commits and the changed files) have to agree about it,
+      // and the range is rendered in one place so they cannot disagree — measured
+      // on the URL the mock server received, because an assembler can drop one of
+      // the three dots silently.
+      const client = createClient();
+      const asked: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', ({ request }) => {
+          asked.push(new URL(request.url).pathname);
+          return HttpResponse.json({ total_commits: 0, commits: [], files: [] });
+        }),
+      );
+
+      await client.getCompareCommits('demo-user', 'demo-repo', 'base', 'head');
+      await client.getPullRequestFilesFromCompare('demo-user', 'demo-repo', 'base', 'head');
+
+      expect(asked).toEqual([
+        '/api/v1/repos/demo-user/demo-repo/compare/base...head',
+        '/api/v1/repos/demo-user/demo-repo/compare/base...head',
+      ]);
+    });
+
     it('does not fabricate previous_filename for compare-based renames', async () => {
       const client = createClient();
       // The real /compare endpoint has no previous_filename field and reports

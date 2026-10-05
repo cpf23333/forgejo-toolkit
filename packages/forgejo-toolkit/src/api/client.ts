@@ -139,6 +139,7 @@ import type {
   ForgejoBranch,
   ForgejoChangedFile,
   ForgejoCommit,
+  ForgejoCompareCommit,
   ForgejoContentEntry,
   ForgejoIssue,
   ForgejoIssueAttachment,
@@ -2778,7 +2779,90 @@ export class ForgejoClient {
   }
 
   /**
-   * Changed files for a commit range, derived from /compare. That endpoint
+   * The commits of a ref-to-ref comparison, from /compare.
+   *
+   * It exists for the feature that describes a pull request **before it is
+   * created**: `getPullRequestCommits` needs a pull request index, and a form that
+   * has not been submitted yet has none, while `/compare` answers for two branch
+   * names. The two calls are deliberately separate from
+   * `getPullRequestFilesFromCompare` even though they hit the same endpoint: a
+   * caller that needs one half must not be handed a reading of the other it did
+   * not ask for, and the summary line the caller logs states what it asked for.
+   *
+   * The comparison separator is `...` (merge base to head), which is the same
+   * range a pull request shows: a `..` comparison would list every commit the base
+   * branch gained since the fork point as if it were part of the change.
+   *
+   * Only the fields a description can use are kept, and they are read through
+   * `unknown` rather than trusted: this is the server's own repo-commit shape,
+   * which may grow (or be a different Forgejo version's). A commit without a sha
+   * is dropped — a commit row that cannot be identified is not worth sending.
+   */
+  async getCompareCommits(owner: string, repo: string, base: string, head: string): Promise<ForgejoCompareCommit[]> {
+    const compare = await this._compareRange(owner, repo, base, head);
+    const raw = (compare.commits ?? []) as Array<{
+      sha?: unknown;
+      commit?: { message?: unknown; author?: { name?: unknown; date?: unknown } };
+      author?: { login?: unknown; full_name?: unknown };
+    }>;
+    const commits: ForgejoCompareCommit[] = [];
+    for (const entry of raw) {
+      const sha = typeof entry.sha === 'string' ? entry.sha : '';
+      if (sha === '') {
+        continue;
+      }
+      const message = typeof entry.commit?.message === 'string' ? entry.commit.message : '';
+      const lines = message.split('\n');
+      const subject = (lines[0] ?? '').trim();
+      const body = lines.slice(1).join('\n').trim();
+      const authorName =
+        (typeof entry.author?.full_name === 'string' && entry.author.full_name !== ''
+          ? entry.author.full_name
+          : undefined) ??
+        (typeof entry.author?.login === 'string' && entry.author.login !== '' ? entry.author.login : undefined) ??
+        (typeof entry.commit?.author?.name === 'string' && entry.commit.author.name !== ''
+          ? entry.commit.author.name
+          : undefined);
+      const date = typeof entry.commit?.author?.date === 'string' ? entry.commit.author.date : undefined;
+      commits.push({
+        sha,
+        subject,
+        ...(body === '' ? {} : { body }),
+        ...(authorName === undefined ? {} : { author: authorName }),
+        ...(date === undefined ? {} : { date }),
+      });
+    }
+    return commits;
+  }
+
+  /**
+   * One `GET /compare` for a merge-base range, shared by the two halves above.
+   *
+   * It exists because the separator is **not** a detail: `base...head` asks for
+   * the merge base, which is the range a pull request shows, while `base..head`
+   * also lists every commit the base branch gained since the fork point. The two
+   * halves of one comparison must not disagree about which range they describe,
+   * and a measurement (2026-10-06) found that the changed-file half's own spelling
+   * arrived at the server as `..`: the client's request path is rendered through
+   * `slashPreservingPathSerializer`, which normalises `.`/`..` segments and
+   * therefore cannot carry a literal `...` in a path parameter. Both halves
+   * therefore read the endpoint through this method, and the range is rendered
+   * here, once, where the single encoding is applied.
+   */
+  private async _compareRange(owner: string, repo: string, base: string, head: string) {
+    // The comparison is one path segment, and the URL parser resolves dot
+    // segments, so the assembled value is encoded as a single segment: a forged
+    // `../` value cannot walk the request onto another endpoint. A value that is
+    // exactly `.`/`..` is refused by `slashPreservingPathSerializer`, which checks
+    // every string path parameter before it is rendered.
+    return await repoCompareDiff({
+      path: { owner, repo, basehead: `${base}...${head}` },
+      client: this.client,
+    });
+  }
+
+  /**
+   * The changed files for a commit range, derived from /compare. That endpoint
    * reports only the net added/removed/modified statuses (upstream builds them
    * from a CommitAffectedFiles list of {filename, status}) and carries no
    * linkage between the two halves of a rename: a rename arrives as an
@@ -2794,16 +2878,7 @@ export class ForgejoClient {
     baseSha: string,
     headSha: string,
   ): Promise<ForgejoChangedFile[]> {
-    // The comparison is one path segment (`compare/{base}..{head}`), and the URL
-    // parser resolves dot segments, so the assembled value is encoded as a
-    // single segment: a forged `../` value cannot walk the request onto another
-    // endpoint. A value that is exactly `.`/`..` is refused by
-    // `slashPreservingPathSerializer`, which checks every string path parameter
-    // before it is rendered.
-    const compare = await repoCompareDiff({
-      path: { owner, repo, basehead: `${baseSha}..${headSha}` },
-      client: this.client,
-    });
+    const compare = await this._compareRange(owner, repo, baseSha, headSha);
     const statusMap = new Map<string, string>();
     const compareFiles = (compare.files ?? []) as Array<{ filename?: string; status?: string }>;
     for (const file of compareFiles) {
