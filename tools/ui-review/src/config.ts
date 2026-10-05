@@ -4,6 +4,7 @@
 // same first window as today" checkable instead of a copy that can drift.
 import fs from 'node:fs';
 import path from 'node:path';
+import { AI_MOCK_MODEL_ID, AI_MOCK_MODEL_NAME } from './aiMockServer';
 import { CDP_PORT } from './windows';
 
 export interface LaunchConfig {
@@ -59,6 +60,36 @@ export function launchArgs(config: LaunchConfig): string[] {
 }
 
 /**
+ * The provider id `--ai-mock` seeds, and the binding it writes. The *model* id is
+ * not repeated here: it is `aiMockServer.ts`'s `AI_MOCK_MODEL_ID`, because the
+ * endpoint that answers and the profile that names it must not be able to drift.
+ */
+export const AI_MOCK_PROVIDER_ID = 'ui-review-mock';
+
+/** The provider's display name in the consent sentence, the log and the settings page. */
+export const AI_MOCK_PROVIDER_NAME = 'Local mock endpoint (tools/ui-review)';
+
+/**
+ * What an `--ai-mock` launch writes into the profile so the dev host can reach the
+ * local endpoint without anyone editing a file by hand.
+ *
+ * **No credential is written, here or anywhere else.** The endpoint needs no auth
+ * (`auth: 'none'`), so there is nothing to seed: a key could only live in the
+ * editor's `SecretStorage`, which is not a file this harness may write, and a
+ * provider whose key is missing would refuse every run. A key typed into the
+ * settings page by hand (an obvious dummy, see the README) still works — the mock
+ * endpoint accepts any `Authorization` header and never looks at it.
+ */
+export interface AiEndpointSeed {
+  /** The endpoint's base URL, used as written (the transport trims a trailing slash). */
+  baseUrl: string;
+  providerId?: string;
+  providerName?: string;
+  modelId?: string;
+  modelName?: string;
+}
+
+/**
  * Pre-seed settings so the walkthroughs work offline (mock API on by default).
  *
  * `useMockApi` is only seeded when it is absent (`??=`), exactly as before. The
@@ -67,8 +98,17 @@ export function launchArgs(config: LaunchConfig): string[] {
  * would intercept the requests the operator just asked to send for real. The
  * caller says which mode it is (`seedProfileSettings(dir, { useMockApi })`) so
  * the profile always describes the run it was last used for.
+ *
+ * `aiEndpoint` is additive and orthogonal to that switch: it points the AI
+ * transport at a local endpoint (see {@link AiEndpointSeed}). It is written as the
+ * settings the extension itself reads, and it touches only entries this harness
+ * owns — another provider, or another feature's binding, is left exactly as it was
+ * — so a profile that also holds a real endpoint keeps it.
  */
-export function seedProfileSettings(profileDir: string, options: { useMockApi?: boolean } = {}): void {
+export function seedProfileSettings(
+  profileDir: string,
+  options: { useMockApi?: boolean; aiEndpoint?: AiEndpointSeed } = {},
+): void {
   const userDir = path.join(profileDir, 'User');
   fs.mkdirSync(userDir, { recursive: true });
   const settingsPath = path.join(userDir, 'settings.json');
@@ -80,7 +120,58 @@ export function seedProfileSettings(profileDir: string, options: { useMockApi?: 
   } else {
     settings['forgejoToolkit.useMockApi'] = options.useMockApi;
   }
+  if (options.aiEndpoint !== undefined) {
+    seedAiEndpointSettings(settings, options.aiEndpoint);
+  }
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+}
+
+/** The entries one {@link AiEndpointSeed} becomes, merged into an existing settings object. */
+function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpointSeed): void {
+  const providerId = seed.providerId ?? AI_MOCK_PROVIDER_ID;
+  const modelId = seed.modelId ?? AI_MOCK_MODEL_ID;
+  const provider = {
+    id: providerId,
+    name: seed.providerName ?? AI_MOCK_PROVIDER_NAME,
+    baseUrl: seed.baseUrl,
+    models: [{ id: modelId, name: seed.modelName ?? AI_MOCK_MODEL_NAME }],
+    // The mock endpoint authenticates nothing. `none` is what keeps every
+    // credential out of this file and out of the run.
+    auth: 'none',
+    headers: [],
+    // True, and it holds: the endpoint binds the loopback address only. Writing it
+    // also exercises the provider-level half of the local-only policy.
+    localOnly: true,
+  };
+
+  const providers = Array.isArray(settings['forgejoToolkit.aiProviders'])
+    ? (settings['forgejoToolkit.aiProviders'] as unknown[])
+    : [];
+  settings['forgejoToolkit.aiProviders'] = [
+    ...providers.filter((entry) => (entry as { id?: unknown } | null)?.id !== providerId),
+    provider,
+  ];
+
+  // The egress switch is off by default and a configured endpoint is not enabled by
+  // configuration alone, so the run would refuse without this.
+  settings['forgejoToolkit.aiProvidersEnabled'] = true;
+  // The binding decides on its own (it is the most specific statement there is);
+  // the transport choice is written beside it so the profile also says which route
+  // is wanted if the binding is ever removed.
+  settings['forgejoToolkit.aiTransport'] = 'openai-compatible';
+  settings['forgejoToolkit.aiPreReview'] = true;
+
+  const bindings = Array.isArray(settings['forgejoToolkit.aiModelBindings'])
+    ? (settings['forgejoToolkit.aiModelBindings'] as unknown[])
+    : [];
+  settings['forgejoToolkit.aiModelBindings'] = [
+    ...bindings.filter((entry) => (entry as { feature?: unknown } | null)?.feature !== 'aiPreReview'),
+    { feature: 'aiPreReview', providerId, modelId },
+  ];
+
+  // `forgejoToolkit.aiPreReviewPromptScope` is deliberately **not** written: its
+  // default `ask` is the consent question the walkthrough is about, and seeding an
+  // answer would skip the one step a human has to perform.
 }
 
 /** The profile's `forgejoToolkit.useMockApi`, or `undefined` when it is not set. */

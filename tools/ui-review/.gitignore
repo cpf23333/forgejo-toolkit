@@ -7,3 +7,7 @@ workspace2/
 pushmock/
 # session state of the shared-profile dual-window mode (src/dual.ts)
 dual-window.json
+# the local OpenAI-compatible mock endpoint (src/aiMock*.ts): its state file and
+# the request log of the detached child that serves it
+ai-mock.json
+ai-mock.log

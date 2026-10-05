@@ -22,15 +22,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cdpTargets, connectAll, pagesWithTargetIds, waitWorkbench } from './driver';
 import {
+  AI_MOCK_PROVIDER_ID,
   defaultLaunchConfig,
   launchArgs,
   logsRootFor,
   readConfiguredInstances,
   readMockApiSetting,
   seedProfileSettings,
+  type AiEndpointSeed,
   type LaunchConfig,
 } from './config';
 import { buildDirFor, requireApiMode } from './apiMode';
+import { AI_MOCK_MODEL_ID } from './aiMockServer';
+import { startAiMockServerForLaunch, stopAiMockServer } from './aiMockRun';
 import { flagBool, flagNumber, flagString, parseArgs } from './cliArgs';
 import {
   attributeWindowDirs,
@@ -84,6 +88,12 @@ const USAGE = `usage: dual.ts <command> [options]
       --real-api           allow this run to poll the real instance(s) configured
                            in the profile. Without it, a build with no mock API
                            compiled in is refused before any window starts
+      --ai-mock            start this harness's local OpenAI-compatible endpoint
+                           (tools/ui-review/src/aiMockServer.ts) and point the
+                           profile's AI settings at it, so the direct model
+                           transport can be walked over a real socket. Orthogonal
+                           to --real-api
+      --ai-mock-port <n>   the port that endpoint binds (default 0: the OS chooses)
   verify                 re-check the running session (one profile, two windows,
                          two extension hosts, per-window log directories)
   targets                list the CDP target ids of both windows
@@ -119,7 +129,7 @@ try {
       await killCommand(args);
       break;
     case 'close':
-      closeCommand();
+      await closeCommand();
       break;
     case 'state':
       console.log(JSON.stringify(requireState(HARNESS_DIR), null, 2));
@@ -137,8 +147,8 @@ try {
 
 async function launchCommand(argvArgs: readonly string[]): Promise<void> {
   const parsed = parseArgs(argvArgs, {
-    value: ['--timeout'],
-    boolean: ['--system-keystroke', '--no-wait-window', '--real-api'],
+    value: ['--timeout', '--ai-mock-port'],
+    boolean: ['--system-keystroke', '--no-wait-window', '--real-api', '--ai-mock'],
   });
   const config = defaultLaunchConfig(HARNESS_DIR, parsed.positional[0]);
   const timeoutMs = flagNumber(parsed, '--timeout', 60_000);
@@ -171,7 +181,27 @@ async function launchCommand(argvArgs: readonly string[]): Promise<void> {
 
   fs.mkdirSync(config.profileDir, { recursive: true });
   fs.mkdirSync(config.extensionsDir, { recursive: true });
-  seedProfileSettings(config.profileDir, { useMockApi: mode === 'mock' });
+
+  // Same endpoint, same seeding as `launch --ai-mock` (see src/launch.ts): the
+  // second window is opened inside the running instance, so it reads the same
+  // profile and therefore the same AI settings.
+  let aiEndpoint: AiEndpointSeed | undefined;
+  if (flagBool(parsed, '--ai-mock')) {
+    const { state, reused } = await startAiMockServerForLaunch({
+      harnessDir: HARNESS_DIR,
+      port: flagNumber(parsed, '--ai-mock-port', 0),
+    });
+    aiEndpoint = { baseUrl: `${state.url}/v1` };
+    console.log(
+      `AI mock endpoint: ${reused ? 'reusing the one already running at ' : ''}${state.url} (pid ${state.pid}), ` +
+        `seeded into the profile as provider "${AI_MOCK_PROVIDER_ID}" with model "${AI_MOCK_MODEL_ID}" and auth "none"`,
+    );
+    console.log(`  its log: ${state.logFile}; 'dual close' and 'ai-mock stop' both stop it`);
+  }
+  seedProfileSettings(config.profileDir, {
+    useMockApi: mode === 'mock',
+    ...(aiEndpoint === undefined ? {} : { aiEndpoint }),
+  });
 
   console.log(`launching the first window (profile ${config.profileDir})`);
   // `code` is a shell shim on Windows; escaping is not a concern here because every
@@ -790,7 +820,7 @@ async function killCommand(argvArgs: readonly string[]): Promise<void> {
   );
 }
 
-function closeCommand(): void {
+async function closeCommand(): Promise<void> {
   const processes = listDevHostProcesses(HARNESS_DIR);
   const windows = windowProcesses(processes);
   if (windows.length === 0) {
@@ -813,6 +843,12 @@ function closeCommand(): void {
     );
   }
   console.log(clearState(HARNESS_DIR) ? `cleared ${STATE_FILE_PATH}` : 'no dual-window.json to clear');
+  // `close` stops this harness's dev host; the local AI mock endpoint it may have
+  // started (`dual launch --ai-mock`) belongs to the same run and goes with it.
+  const mock = await stopAiMockServer(HARNESS_DIR);
+  if (mock.outcome !== 'none') {
+    console.log(`AI mock endpoint: ${mock.message}`);
+  }
 }
 
 // --- small helpers ------------------------------------------------------------

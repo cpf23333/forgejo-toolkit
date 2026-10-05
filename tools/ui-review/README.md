@@ -15,6 +15,11 @@ the repo root type-checks this package too.
   dev host loads the built output, so rebuild after code changes. **The rebuild
   is the maintainer's step**: `AGENTS.md` forbids the agent from running build
   commands, so the harness only ever consumes an existing `out/`.
+- **For the local AI endpoint** (`--ai-mock`, see "The local AI endpoint" below) the
+  build also has to contain the OpenAI-compatible transport _and_ its wiring into
+  the AI pre-review. The harness can start that endpoint and point the profile at
+  it, but it cannot put the transport into a build that predates it: against such a
+  build the settings page has no AI section and no request can reach the endpoint.
 - The build has to be **mock-backed** for a launch without `--real-api`: the
   launcher reads `packages/forgejo-toolkit/out` and refuses to start a window
   when the mock API is not compiled into it (see "Mock-backed runs and the
@@ -30,8 +35,13 @@ harness directory). `pnpm launch` at the root fails with
 
 ```bash
 # From the repository root:
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch [workspacePath] [--real-api]  # start dev host (default workspace: D:\code\test)
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review kill                   # stop only the isolated dev host instance
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch [workspacePath] [--real-api] [--ai-mock] [--ai-mock-port N]  # start dev host (default workspace: D:\code\test)
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review kill                   # stop only the isolated dev host instance (and the AI mock endpoint)
+
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock serve          # the local OpenAI-compatible endpoint, in this terminal
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock url            # the running endpoint's URL
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock requests       # what the endpoint has seen
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock stop           # stop the endpoint only
 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui click <x> <y> [name] [waitMs]
@@ -45,8 +55,9 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval <js>           # evalu
 
 # Equivalent, from the harness directory (the `src/...` paths below assume it):
 cd tools/ui-review
-pnpm launch [workspacePath] [--real-api]
+pnpm launch [workspacePath] [--real-api] [--ai-mock]
 pnpm kill
+pnpm ai-mock requests
 pnpm ui shot <name>
 ```
 
@@ -128,6 +139,243 @@ costs a message rather than a surprise request. Three rules complete the picture
   every marker still exists in the mock sources, so rewording a fixture fails a
   test instead of silently reporting every build as production.
 
+## The local AI endpoint: a real socket, deliberately not MSW
+
+The extension's second model transport (`docs/design/ai-model-transport.md`) sends
+to an OpenAI-compatible endpoint the _user_ configures. The harness can serve one
+itself, so that transport can be walked end to end with nothing but loopback:
+
+```bash
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch --ai-mock
+```
+
+`--ai-mock` starts `src/aiMockServer.ts` as a **detached child** bound to the
+loopback address, on a port the OS picks (`--ai-mock-port <n>` pins it; a fixed
+port is never the default, because a fixed one collides), waits for the child to
+report the port it actually bound, writes the profile's AI settings for it, and
+then launches the dev host. `dual launch --ai-mock` does the same for the
+shared-profile mode. Nothing is edited by hand, and nothing credential-shaped is
+written (both are shown in "What `--ai-mock` writes into the profile" below).
+
+### Why this is not an MSW handler
+
+The mock API (`src/test/mocks/`) is **in-process interception**: MSW patches the
+fetch layer inside the extension host. It _could_ answer a request to the model
+endpoint, and that is exactly why it must not — a handler there would prove that
+MSW can fake an endpoint, not that this extension reaches a real HTTP server, over
+a real socket, reading an event stream that arrives in pieces. §15 of the design
+record asks for the socket for the same reason, so this endpoint is an
+`http.Server` and nothing under `src/aiMock*` knows MSW exists.
+
+The two modes coexist, measured (2026-10-05):
+
+- **MSW forwards the model origin rather than intercepting it.** With the
+  interceptor installed the way the extension installs it, a `fetch` to a loopback
+  SSE endpoint answered HTTP 200 with the real `text/event-stream` body, delivered
+  as **four separate body reads over 183 ms** (a server writing four chunks 60 ms
+  apart — so not buffered), while MSW only printed
+  `intercepted a request without a matching request handler`. That warning in the
+  dev-host log is the confirmation that MSW is _not_ the thing answering.
+- So `--ai-mock` does **not** need `--real-api`, and the Forgejo fixtures stay in
+  place. The two switches are independent: `useMockApi` / `--real-api` decide where
+  the _Forgejo_ traffic goes, `--ai-mock` decides whether a local _model_ endpoint
+  exists.
+
+Which mode to reach for:
+
+| what you want to walk through                                | what to run                                                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| the plugin's Forgejo behaviour, against the offline fixtures | `launch` (mock API on by default)                                                                       |
+| the direct model transport, entirely offline                 | `launch --ai-mock`                                                                                      |
+| the direct model transport against a real local model server | configure the endpoint in the settings page (Ollama, LM Studio, …) — same code path, different base URL |
+| both at once                                                 | `launch --ai-mock` (mock Forgejo), or `--real-api --ai-mock` (real Forgejo, local model endpoint)       |
+
+### Starting, watching and stopping it
+
+```bash
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch --ai-mock [--ai-mock-port 43117]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock url        # the endpoint's base URL
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock requests   # every request it has seen
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock stop       # stop it ('pnpm kill' does too)
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock serve      # run it in this terminal instead
+```
+
+- The state file `ai-mock.json` and the request log `ai-mock.log` sit beside this
+  README and are gitignored. `serve` (the detached child's own command, which is
+  what `--ai-mock` spawns) overwrites the log on every start and writes one line
+  per request into it; `ai-mock requests` asks the endpoint itself over HTTP for
+  the same list, so it works after the launcher has exited.
+- **One stop command stops everything**: `pnpm kill` (and `dual close`) stop the
+  endpoint as well as the dev host, so a walkthrough cannot half-clean-up.
+- **Stopping is guarded by identity, not by pid.** The recorded pid is killed only
+  while the recorded URL still answers as this endpoint (`GET /__mock/requests`
+  returning `"id": "ui-review-ai-mock"`); a record whose endpoint is gone but whose
+  pid is still alive is reported as `foreign-pid` and left alone, because nothing
+  proves that process is the endpoint.
+- **A port collision is reported, not swallowed.** The child exits, the launcher
+  prints the tail of `ai-mock.log` (`cannot bind 127.0.0.1:<port> … EADDRINUSE`) and
+  stops before any dev host is started. `aiMockServer.test.ts` asserts the same
+  rejection at the server level and `aiMockRun.test.ts` asserts the CLI path.
+- A second `--ai-mock` launch **reuses** the endpoint that is already running
+  (rather than orphaning it on a new port) and refuses when `--ai-mock-port` asks
+  for a different one than the running endpoint holds.
+
+### What `--ai-mock` writes into the profile
+
+Into `profile/User/settings.json`, as the settings the extension itself reads:
+
+```jsonc
+{
+  "forgejoToolkit.aiProviders": [
+    {
+      "id": "ui-review-mock",
+      "name": "Local mock endpoint (tools/ui-review)",
+      "baseUrl": "http://127.0.0.1:<port>/v1", // the port the endpoint actually bound
+      "models": [{ "id": "mock-pre-review", "name": "Mock pre-review model" }],
+      "auth": "none",
+      "headers": [],
+      "localOnly": true,
+    },
+  ],
+  "forgejoToolkit.aiProvidersEnabled": true,
+  "forgejoToolkit.aiTransport": "openai-compatible",
+  "forgejoToolkit.aiPreReview": true,
+  "forgejoToolkit.aiModelBindings": [
+    { "feature": "aiPreReview", "providerId": "ui-review-mock", "modelId": "mock-pre-review" },
+  ],
+}
+```
+
+- **Only the harness's own entries are touched.** Another provider (a real endpoint
+  you added) and every unrelated setting survive, and seeding twice does not
+  duplicate anything — `src/config.test.ts` pins all three.
+- **No key is written, anywhere.** `auth: "none"` is not a placeholder: the
+  endpoint needs no authentication, so there is nothing to seed. A provider's key
+  can only live in the editor's `SecretStorage`, which is not a file this harness
+  may write, and writing a credential into a repository file is forbidden outright.
+  If you want to exercise the credential path anyway, open the endpoint in the
+  settings page and type the obvious dummy `sk-mock-placeholder` into its key
+  field: that goes to the secret storage (never into a file), and the mock endpoint
+  accepts any credential and never looks at it.
+- `forgejoToolkit.aiPreReviewPromptScope` is deliberately **not** written: its
+  default `ask` _is_ the consent question, which is the one step a human performs.
+- `localOnly: true` is true of this endpoint (it binds loopback only) and also
+  exercises the provider half of the local-only policy.
+
+### What the endpoint answers
+
+| route                    | answer                                                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /chat/completions` | SSE by default: openai-shaped `chat.completion.chunk` events ~60 ms apart (seven of them for the default answer), one deliberately unparseable `data:` line, a `finish_reason` chunk, and `data: [DONE]`. Without `stream: true` in the body (or with `?scenario=json`) it answers one `chat.completion` document instead |
+| `GET /models`            | `{"object":"list","data":[…]}` with two models                                                                                                                                                                                                                                                                            |
+| `GET /__mock/requests`   | everything it has seen (`ai-mock requests` prints it)                                                                                                                                                                                                                                                                     |
+
+Every route also answers under a `/v1` prefix, because the seeded base URL carries
+one while a bare base URL is the mistake the transport has to report.
+
+The default answer is the AI pre-review's contracted JSON with **one comment
+anchored to the offline fixtures' pull request** (`src/index.ts`, new-file line 2
+of `mockPullRequestDiff`), so a run against the mock Forgejo produces a genuine
+draft comment rather than one the validator drops for an unusable anchor.
+
+Scenarios, as `?scenario=<name>` in the base URL or the `x-ai-mock-scenario`
+header:
+
+| name                          | what it answers                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `stream` (default)            | the streamed answer above, including the one skipped `data:` line                                       |
+| `clean-stream`                | the same answer without that line                                                                       |
+| `json`                        | a non-streaming document even though the request asked for a stream (§6.4 item 7)                       |
+| `reasoning`                   | `delta.reasoning_content` prose beside the `delta.content` answer (two candidate streams, never joined) |
+| `truncated`                   | a partial answer ending in `finish_reason: "length"`                                                    |
+| `stall`                       | one chunk and then silence for 60 s — the idle-watchdog walkthrough                                     |
+| `401` `403` `429` `500` `503` | that status with a JSON error body, on every route                                                      |
+
+The transport keeps a base URL's query string, so appending `?scenario=429` to the
+endpoint's address **in the settings page** makes every request to it take that
+path — no code change, and the Test button then reports the 429 sentence. An
+unknown scenario name is answered with 400 and the list of known ones.
+
+### Walkthrough: endpoint → test connection → pre-review → destination
+
+**Rebuild first — it is the maintainer's step.** The dev host loads
+`packages/forgejo-toolkit/out`, and a build that predates the transport (or its
+wiring into the AI pre-review) makes every step below unreachable: the settings
+page has no AI section, and the pre-review still asks the editor's own models. So
+the walkthrough starts from a build that includes **both** the transport and its
+wiring; ask for `pnpm --filter forgejo-toolkit build:extension` and check the build
+time rather than running it yourself (`AGENTS.md`).
+
+1. **Launch.** `pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch --ai-mock`.
+   Expect three things before the window appears: the endpoint line (URL, pid), the
+   profile line (provider, model, `auth "none"`), and then `CDP ready:`. Take a
+   screenshot (`ui shot ai-mock-home`) and read the seeded address — it is the port
+   the endpoint bound, and nothing else in the run knows it.
+2. **Look at the settings page.** Open it (Dashboard → settings, or the
+   `Forgejo Toolkit: Open Settings` command) and find the `AI Endpoints` section.
+   Expect one row: `Local mock endpoint (tools/ui-review)`, the address
+   `http://127.0.0.1:<port>/v1`, `mock-pre-review` in its model list, and no
+   "key missing" state — the endpoint needs none. The `Feature Bindings` section
+   should show `aiPreReview` bound to `ui-review-mock / mock-pre-review`.
+3. **Test the connection.** Click the row's `Test connection` (the same code as the
+   palette command `AI: Test Configured Endpoint`). Expect a report naming the
+   address, `HTTP 200`, the elapsed time and
+   `The endpoint reported 2 model(s) from "/models"`. Then prove it from the socket
+   side — this is the part a screenshot cannot show:
+
+   ```bash
+   pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock requests
+   ```
+
+   Expect `GET /v1/models` and `POST /v1/chat/completions`, both `HTTP 200`, the
+   second with `json` (the probe asks for one character, not a stream). Nothing
+   there means the extension never reached the endpoint.
+
+4. **Run an AI pre-review.** Open the fixture pull request (`Add dark mode`, #2)
+   from the dashboard's `Pull Requests · demo-repo` list and open its diff, then use
+   the pre-review action — the sparkle in the **editor title** of the PR diff
+   (`forgejoToolkit.aiPreReviewPullRequest`; it is contributed there, not in the
+   command palette). The profile has `forgejoToolkit.aiPreReview: true`, so the
+   action is there.
+5. **Answer the consent modal — a human has to do this.** The first pre-review
+   shows one native VS Code modal naming the destination; nothing is requested or
+   sent until it is answered (`ask` is the default scope, and `--ai-mock` does not
+   write it). It is a separate Win32 window and never appears in a CDP screenshot:
+   use `powershell -File src/win/activate.ps1 -OutFile shots\screen.png` to see it
+   and `powershell -File src/win/dialog.ps1 -Keys '{ENTER}'` to answer it, or just
+   answer it by hand. On the direct path the sentence must name both the endpoint's
+   display name and its address — that is §7.1's whole point (a `vscode.lm` run
+   names the editor's model vendor instead).
+6. **Read the destination in the log.** After the modal, `ai-mock requests` must
+   gain a `POST /v1/chat/completions` with `sse` and `chunks=7`: a streamed answer,
+   which is only possible if the chunks were read as they arrived. In the
+   extension's output channel (`Forgejo Toolkit`) the debug lines say which
+   transport served the run, and — with `forgejoToolkit.debug` on, which the shared
+   profile already has — `skipped 1 data line(s) that did not parse as JSON`, the
+   deliberate bad line being counted rather than failing the run.
+7. **Look at what came back.** The run proposes one comment anchored at
+   `src/index.ts:2`; the normal confirmation list appears
+   (`AI pre-review: review the proposed comments`), and confirming it writes drafts
+   of a pending review — the extension never submits. If the panel instead reports
+   the comment as dropped, check the prompt scope: `metadata-only` sends no diff, so
+   there is no line to anchor to; the scopes that carry one
+   (`changed-lines-only`, `full-diff`, `changed-files`) keep it.
+8. **The failure faces, if you want them.** Append `?scenario=429` (or `401`, `500`)
+   to the endpoint's address in the settings page, run the test again, and read the
+   sentence the transport renders — the key is never printed. `?scenario=json`
+   exercises the non-streaming fallback, `?scenario=truncated` the "answer was cut
+   off" report, and `?scenario=stall` the idle watchdog
+   (`forgejoToolkit.aiModelRequestTimeoutMs`, 30 s by default).
+9. **Clean up.** `pnpm kill` stops the dev host and the endpoint; `ai-mock stop`
+   stops the endpoint alone. The seeded settings stay in the profile — they are what
+   the next `--ai-mock` run rewrites, and a later run without `--ai-mock` keeps
+   whatever endpoint you configured by hand.
+
+What a human has to do, stated plainly: **answer the consent modal** (a native
+modal, step 5), and click in the webview if the agent is not driving it. Everything
+else — starting, seeding, the HTTP traffic, reading the log, stopping — is done by
+the commands above and by the extension itself.
+
 ## Shared-profile dual-window mode
 
 Everything above is one isolated profile per launch, which can never produce "two
@@ -151,7 +399,7 @@ real run established" below for what that settled and "Still unproven" for what 
 did not.
 
 ```bash
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch [workspace] [--real-api]  # first window, then window2
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch [workspace] [--real-api] [--ai-mock]  # first window, then window2
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual verify              # one profile, two windows, one exthost each
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual targets             # CDP target ids to address each window
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual windows             # each window's log directory
@@ -173,7 +421,9 @@ Useful options: `--timeout <ms>` (how long to wait for window2, default 60000),
 `--no-wait-window` (skip waiting for the log directories),
 `--system-keystroke` (see the traps below), `--real-api` (allow this run to poll the
 real instance instead of the mock API; it is refused without it when the build has
-no mock API compiled in). The driver addresses a window either
+no mock API compiled in) and `--ai-mock [--ai-mock-port <n>]` (point the profile at
+this harness's local model endpoint, exactly as `launch --ai-mock` does — see "The
+local AI endpoint" above). The driver addresses a window either
 positionally or by target id (`src/ui.ts` takes these, and they must come before
 the command):
 
@@ -478,8 +728,10 @@ localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] �
 
 ## Runtime state
 
-`profile/` (persisted dev-host settings), `extensions/` and `shots/` are gitignored. The
-launcher pre-seeds `forgejoToolkit.useMockApi: true`, but **that setting alone does not give
+`profile/` (persisted dev-host settings), `extensions/`, `shots/`, the AI mock
+endpoint's `ai-mock.json` / `ai-mock.log` and the dual-window session file are
+gitignored. The launcher pre-seeds `forgejoToolkit.useMockApi: true`, but **that
+setting alone does not give
 you mock data**: `packages/forgejo-toolkit/src/extension.ts` starts the mock server only when
 `process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'`, and `packages/forgejo-toolkit/rolldown.config.mjs`
 _defines_ that expression at build time — `'true'` for a non-production build
@@ -519,6 +771,11 @@ produces (bundle size, render cost, activation time and the like) are recorded i
 the commit that made the change and in that change's `CHANGELOG` entry, not in
 `FEATURES.md`'s delivered list; a design document keeps only the measurements that
 drove one of its decisions.
+
+The local AI endpoint has its own procedure instead of an item here — it needs a
+build that includes the model transport, plus its own start/stop commands. It is
+the "Walkthrough: endpoint → test connection → pre-review → destination" section
+of "The local AI endpoint: a real socket, deliberately not MSW" above.
 
 1. **Dirty PR worktree confirmation.** In an opened PR worktree leave an
    uncommitted edit (or make a local commit), then click "Open in Worktree" for
