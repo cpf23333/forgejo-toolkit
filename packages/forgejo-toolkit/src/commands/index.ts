@@ -122,6 +122,16 @@ export function registerCommands(
       viewProvider.openSettings();
     }),
 
+    // The settings page's own way into VS Code's settings editor, **filtered to
+    // this extension** (`docs/design/settings-page.md` §2.1). The unfiltered
+    // command would drop the user into every setting the editor has, which is the
+    // situation this page exists to answer; and it is a **separate** command from
+    // `forgejoToolkit.openSettings` (which opens this page) on purpose, so the
+    // palette does not hold two entries whose titles both read "Open Settings".
+    vscode.commands.registerCommand('forgejoToolkit.openNativeSettings', () => {
+      void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:forgejo-toolkit');
+    }),
+
     vscode.commands.registerCommand('forgejoToolkit.openOnboarding', () => {
       OnboardingWebviewPanel.createOrShow(context, context.extensionUri, config, readmeProvider);
     }),

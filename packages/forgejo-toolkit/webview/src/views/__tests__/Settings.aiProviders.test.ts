@@ -97,6 +97,33 @@ const { stateMock, snapshot } = vi.hoisted(() => {
     copyToClipboard: vi.fn(),
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
+    // The settings page reads its own surface on mount and renders the host's
+    // reading rather than a value of its own; the defaults below are the
+    // manifest's, so a test that does not care about those sections still mounts
+    // a page with the values a fresh install has.
+    settingsSurface: {
+      value: {
+        notificationPollingEnabled: true,
+        mcpEnabled: true,
+        mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
+        mcpWriteAuditToFile: false,
+        multiWindowLease: true,
+        aiPreReview: false,
+        aiPreReviewPromptScope: 'ask',
+      },
+    },
+    loadSettingsSurface: vi.fn(async () => undefined),
+    setSettingsSurfaceValue: vi.fn(async () => ({ snapshot: undefined })),
+    testAiProviderDraft: vi.fn(async () => ({
+      providerId: '',
+      providerName: '',
+      address: '',
+      ok: true,
+      ran: true,
+      shadowed: [],
+    })),
+    openNativeSettings: vi.fn(),
+
     showConfirm: vi.fn(async () => true),
   };
   return { stateMock: mock, snapshot: holder };
@@ -703,7 +730,10 @@ describe('Settings AI model bindings', () => {
     const select = wrapper.find('#ai-binding-aiPreReview');
     expect(select.exists()).toBe(true);
     const optionLabels = select.findAll('vscode-option').map((option) => option.text());
-    expect(optionLabels).toEqual(['No binding — use the transport choice above', 'Ollama (this machine)']);
+    expect(optionLabels).toEqual([
+      'No binding — use the transport setting forgejoToolkit.aiTransport',
+      'Ollama (this machine)',
+    ]);
 
     (select.element as unknown as { value: string }).value = 'ollama-local';
     await select.trigger('change');

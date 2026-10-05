@@ -44,7 +44,7 @@ import {
   sanitizeForPath,
 } from '../worktree/gitOperations';
 import type { StalePrWorktreeInfo } from '../worktree/gitOperations';
-import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { HostToWebviewMessage, SettingsSurfaceSnapshot } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   computeImportTokenConflicts,
   ImportCancelledError,
@@ -88,6 +88,8 @@ import {
   writeAiModelPolicy,
   writeAiProviderSecret,
 } from './aiProviderSettings';
+import { readSettingsSurface, writeSettingsSurfaceValue } from './settingsSurface';
+import { aiProviderDraftTestReport } from '../ai/testProvider';
 import { aiProviderSettingsReading } from '../ai/modelSettings';
 
 /**
@@ -1394,6 +1396,47 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         this._reply('aiProviderTestReport', { report, _requestId: message._requestId });
+        return;
+      }
+      // The draft probe (`docs/design/settings-page.md` §4): the endpoint editor's
+      // own fields, probed **without** saving anything. The typed credential is
+      // held for this one request and is never written to settings or to secret
+      // storage, and the probe itself only ever asks for the model list — the
+      // minimal completion stays behind the explicit test-connection click. It is
+      // the first path in this extension that sends without a click, which is why
+      // the webview's own idle/one-shot rules and the local refusals above it are
+      // the whole reason it is acceptable (the record's §8.1 states the cost).
+      case 'testAiProviderDraft': {
+        const report = await aiProviderDraftTestReport(message.draft, { secrets: this._context.secrets });
+        this._reply('aiProviderTestReport', { report, _requestId: message._requestId });
+        return;
+      }
+      // The settings page's own surface: the nine settings its sections render
+      // with a control. Reading sends nothing anywhere and writes nothing; a write
+      // is validated (the webview is untrusted input) and answered with the host's
+      // own reading of the state it produced, so the control on screen always
+      // shows what is actually stored.
+      case 'getSettingsSurface': {
+        this._reply('settingsSurface', { snapshot: this._readSettingsSurface(), _requestId: message._requestId });
+        return;
+      }
+      case 'setSettingsSurfaceValue': {
+        const result = await writeSettingsSurfaceValue(message.key, message.value);
+        this._reply('settingsSurface', {
+          snapshot: this._readSettingsSurface(),
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        return;
+      }
+      // The settings page's pointer rows and its header control all land here, and
+      // all of them run the **command** rather than reaching for
+      // `executeCommand` here: one implementation, and the command is also what the
+      // palette offers. It carries the `@ext:` filter, which is the whole point —
+      // an unfiltered settings editor is the place the user could not find this
+      // extension's settings in.
+      case 'openNativeSettings': {
+        void vscode.commands.executeCommand('forgejoToolkit.openNativeSettings');
         return;
       }
       case 'setAiModelPolicy': {
@@ -5077,6 +5120,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private _aiProviderName(id: string): string {
     const providers = aiProviderSettingsReading().providers;
     return providers.find((provider) => provider.id === id)?.name ?? id;
+  }
+
+  /**
+   * The settings page's own surface, read fresh for every request and after every
+   * write (`docs/design/settings-page.md` §3.2).
+   *
+   * Each value comes from the reader the behaviour itself uses, which is why the
+   * notification switch is passed in rather than read here: the poller owns that
+   * reading (`ConfigManager.isNotificationPollingEnabled`), and a page that read
+   * it a second way could show "on" while the poller disagreed.
+   */
+  private _readSettingsSurface(): SettingsSurfaceSnapshot {
+    return readSettingsSurface({
+      isNotificationPollingEnabled: () => this._config.isNotificationPollingEnabled(),
+    });
   }
 
   /**

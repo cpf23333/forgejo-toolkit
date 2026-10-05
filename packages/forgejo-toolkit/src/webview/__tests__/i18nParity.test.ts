@@ -242,15 +242,22 @@ describe('manifest nls pairs', () => {
     // — an English, mis-capitalized name — in every UI language, while its
     // description is translated. The names therefore have to come from the nls
     // pair like every other manifest string (AGENTS.md, i18n / host-side
-    // strings), starting with the settings added by these changes.
+    // strings), starting with the settings added by these changes. The three
+    // settings the settings page presents with its own control and that had no
+    // name yet (`notificationPollingEnabled`, `mcpEnabled`, `multiWindowLease`)
+    // joined the list with it: the page's header opens VS Code's settings editor
+    // filtered to this extension, so those entries are now a surface a user reads.
     const titled = Object.keys(manifest.contributes.configuration.properties).filter(
       (key) => typeof manifest.contributes.configuration.properties[key]?.title === 'string',
     );
     expect(titled).toEqual([
+      'forgejoToolkit.notificationPollingEnabled',
+      'forgejoToolkit.mcpEnabled',
       'forgejoToolkit.mcpWriteTools.createIssueComment',
       'forgejoToolkit.mcpWriteTools.submitPullReview',
       'forgejoToolkit.mcpWriteTools.cancelActionRun',
       'forgejoToolkit.mcpWriteAuditToFile',
+      'forgejoToolkit.multiWindowLease',
       'forgejoToolkit.aiPreReview',
       'forgejoToolkit.aiPreReviewPromptScope',
       'forgejoToolkit.aiPreReviewModel',
@@ -262,10 +269,13 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.aiModelRequestTimeoutMs',
     ]);
     const names = [
+      'config.notificationPollingEnabled.title',
+      'config.mcpEnabled.title',
       'config.mcpWriteTools.createIssueComment.title',
       'config.mcpWriteTools.submitPullReview.title',
       'config.mcpWriteTools.cancelActionRun.title',
       'config.mcpWriteAuditToFile.title',
+      'config.multiWindowLease.title',
       'config.aiPreReview.title',
       'config.aiPreReviewPromptScope.title',
       'config.aiPreReviewModel.title',
@@ -278,6 +288,10 @@ describe('manifest nls pairs', () => {
       'command.aiPreReviewPullRequest.title',
       'command.aiPreReviewChooseModel.title',
       'command.aiTestProvider.title',
+      // The settings page's own way into the native settings editor: a second
+      // entry whose title must not read like the existing "Open Settings" one,
+      // which opens this page.
+      'command.openNativeSettings.title',
     ];
     for (const key of names) {
       expect(en.get(key), `en: ${key}`).toBeTruthy();

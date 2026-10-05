@@ -61,9 +61,16 @@ type VscodeButtonProps = Pick<
   | 'value'
 >;
 
+/**
+ * `disabled` is here because the element implements it (`VscodeCheckbox.disabled`
+ * in the package's own typings) and the settings page needs it for the one case
+ * its controls have: a value the host has not reported yet must not look like a
+ * value the user can act on. The other form controls in this list already declare
+ * it.
+ */
 type VscodeCheckboxProps = Pick<
   VscodeCheckbox,
-  'autofocus' | 'checked' | 'defaultChecked' | 'invalid' | 'name' | 'label'
+  'autofocus' | 'checked' | 'defaultChecked' | 'disabled' | 'invalid' | 'name' | 'label'
 >;
 
 type VscodeContextMenuProps = Pick<VscodeContextMenu, 'data' | 'preventClose' | 'show' | 'tabIndex'>;

@@ -411,6 +411,7 @@
   "No AI model is available: this editor provides no chat model (the language model API lists none), and no AI endpoint is configured. Install an extension that contributes a chat model, or configure an endpoint under \"forgejoToolkit.aiProviders\". Nothing was sent.": "No AI model is available: this editor provides no chat model (the language model API lists none), and no AI endpoint is configured. Install an extension that contributes a chat model, or configure an endpoint under \"forgejoToolkit.aiProviders\". Nothing was sent.",
   "One configured entry could not be read: {0}": "One configured entry could not be read: {0}",
   "The endpoint reported {0} model(s) from \"/models\".": "The endpoint reported {0} model(s) from \"/models\".",
+  "The endpoint has no \"/models\" list (HTTP {0}); its models have to be declared by hand.": "The endpoint has no \"/models\" list (HTTP {0}); its models have to be declared by hand.",
   "The endpoint reported no models from \"/models\" (that is not a failure).": "The endpoint reported no models from \"/models\" (that is not a failure).",
   "The endpoint reported no models from \"/models\" (that is not a failure), and it answered a minimal chat request with \"{0}\".": "The endpoint reported no models from \"/models\" (that is not a failure), and it answered a minimal chat request with \"{0}\".",
   "The AI endpoint test for \"{0}\" failed: {1}": "The AI endpoint test for \"{0}\" failed: {1}",
@@ -437,5 +438,9 @@
   "\"{0}\" is not an AI feature this build knows.": "\"{0}\" is not an AI feature this build knows.",
   "No AI endpoint with the id \"{0}\" is configured, so nothing can be bound to it.": "No AI endpoint with the id \"{0}\" is configured, so nothing can be bound to it.",
   "A binding needs the model id to ask the endpoint for.": "A binding needs the model id to ask the endpoint for.",
-  "Remove the AI endpoint \"{0}\" and its stored secrets?": "Remove the AI endpoint \"{0}\" and its stored secrets?"
+  "Remove the AI endpoint \"{0}\" and its stored secrets?": "Remove the AI endpoint \"{0}\" and its stored secrets?",
+  "That setting cannot be written from this page.": "That setting cannot be written from this page.",
+  "The setting \"{0}\" was not written: it takes on or off.": "The setting \"{0}\" was not written: it takes on or off.",
+  "The setting \"{0}\" was not written: it takes one of {1}.": "The setting \"{0}\" was not written: it takes one of {1}.",
+  "The setting \"{0}\" was not written: {1}": "The setting \"{0}\" was not written: {1}"
 }

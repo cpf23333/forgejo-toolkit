@@ -1,4 +1,8 @@
 import * as vscode from 'vscode';
+import {
+  AI_PRE_REVIEW_PROMPT_SCOPES,
+  type AiPreReviewPromptScopeValue,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { resolveLocale } from './utils/resolveLocale';
 import type { AiPreReviewBodyLanguage } from './aiPreReviewBrief';
 
@@ -54,24 +58,23 @@ export const AI_PRE_REVIEW_SETTING = `${SETTINGS_SECTION}.aiPreReview`;
 export const AI_PRE_REVIEW_PROMPT_SCOPE_SETTING = `${SETTINGS_SECTION}.aiPreReviewPromptScope`;
 
 /**
- * The four values of `forgejoToolkit.aiPreReviewPromptScope`, in the order the
- * manifest's dropdown shows them.
+ * The five values of `forgejoToolkit.aiPreReviewPromptScope`, in the order the
+ * manifest's dropdown and the settings page's own dropdown show them.
+ *
+ * Defined in the shared package and re-exported here because the settings page
+ * renders the same five values with its own control
+ * (`docs/design/settings-page.md` §3.2): one enumeration for the reader, the
+ * writer and the page, so a value one of them cannot name cannot exist.
  *
  * `ask` is first because it is the default and because it is the only value
- * that sends nothing on its own: it is the question, not an answer. The three
+ * that sends nothing on its own: it is the question, not an answer. The ones
  * after it are the answers, and the order is the order of how much code leaves
  * the machine.
  */
-export const AI_PRE_REVIEW_PROMPT_SCOPES = [
-  'ask',
-  'metadata-only',
-  'changed-lines-only',
-  'full-diff',
-  'changed-files',
-] as const;
+export { AI_PRE_REVIEW_PROMPT_SCOPES };
 
 /** One value of `forgejoToolkit.aiPreReviewPromptScope`. */
-export type AiPreReviewPromptScope = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[number];
+export type AiPreReviewPromptScope = AiPreReviewPromptScopeValue;
 
 /**
  * One scope the user **stated** — every value but `ask`. Only one of these may

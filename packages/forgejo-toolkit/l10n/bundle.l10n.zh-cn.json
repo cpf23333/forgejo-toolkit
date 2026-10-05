@@ -411,6 +411,7 @@
   "No AI model is available: this editor provides no chat model (the language model API lists none), and no AI endpoint is configured. Install an extension that contributes a chat model, or configure an endpoint under \"forgejoToolkit.aiProviders\". Nothing was sent.": "没有可用的 AI 模型：本编辑器没有提供任何聊天模型（语言模型 API 列表为空），也没有配置 AI 端点。请安装一个贡献聊天模型的扩展，或在 \"forgejoToolkit.aiProviders\" 里配置一个端点。本次没有发出任何内容。",
   "One configured entry could not be read: {0}": "有一条已配置的条目读不出来：{0}",
   "The endpoint reported {0} model(s) from \"/models\".": "端点从 \"/models\" 报告了 {0} 个模型。",
+  "The endpoint has no \"/models\" list (HTTP {0}); its models have to be declared by hand.": "端点没有 \"/models\" 列表（HTTP {0}），它的模型需要手动声明。",
   "The endpoint reported no models from \"/models\" (that is not a failure).": "端点从 \"/models\" 没有报告任何模型（这不算失败）。",
   "The endpoint reported no models from \"/models\" (that is not a failure), and it answered a minimal chat request with \"{0}\".": "端点从 \"/models\" 没有报告任何模型（这不算失败），并对一次最小的聊天请求回答 \"{0}\"。",
   "The AI endpoint test for \"{0}\" failed: {1}": "AI 端点 \"{0}\" 的测试失败：{1}",
@@ -437,5 +438,9 @@
   "\"{0}\" is not an AI feature this build knows.": "本版本不认识 AI 功能 \"{0}\"。",
   "No AI endpoint with the id \"{0}\" is configured, so nothing can be bound to it.": "没有配置 id 为 \"{0}\" 的 AI 端点，因此无法把功能绑定到它。",
   "A binding needs the model id to ask the endpoint for.": "绑定必须给出要向端点请求的模型 id。",
-  "Remove the AI endpoint \"{0}\" and its stored secrets?": "要删除 AI 端点 \"{0}\" 以及为它保存的密钥吗？"
+  "Remove the AI endpoint \"{0}\" and its stored secrets?": "要删除 AI 端点 \"{0}\" 以及为它保存的密钥吗？",
+  "That setting cannot be written from this page.": "这条设置不能从本页写入。",
+  "The setting \"{0}\" was not written: it takes on or off.": "设置 \"{0}\" 没有写入：它只接受开或关。",
+  "The setting \"{0}\" was not written: it takes one of {1}.": "设置 \"{0}\" 没有写入：它只接受 {1} 之一。",
+  "The setting \"{0}\" was not written: {1}": "设置 \"{0}\" 没有写入：{1}"
 }

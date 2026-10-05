@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { RequestFetch } from '@cpf23333-forgejo-toolkit/shared/request';
-import type { AiProviderTestReport } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { AiProviderDraftProbe, AiProviderTestReport } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 import { getProxyFetch } from '../api/proxy';
 import { aiPreReviewAnswerExcerpt } from '../aiPreReviewBrief';
@@ -18,15 +18,18 @@ import {
   openAiUnreadableResponseMessage,
   sendOpenAiRequest,
   type OpenAiFailureContext,
+  type OpenAiRequestAuth,
 } from './openAiCompatibleTransport';
 import {
   aiLocalOnlySettingValue,
   aiProviderSettingsReading,
   inspectAiProviderBaseUrl,
+  isAiProviderAuth,
+  isAiProviderSegment,
   isLocalAiEndpointHost,
   type AiProviderConfig,
 } from './modelSettings';
-import type { AiSecretStore } from './providerSecrets';
+import { aiProviderHeaderSecretKey, aiProviderKeySecretKey, type AiSecretStore } from './providerSecrets';
 
 /**
  * The `forgejoToolkit.aiTestProvider` command: one endpoint, one click, and a
@@ -124,17 +127,20 @@ function completionContentOf(payload: unknown): string | undefined {
 }
 
 /**
- * One endpoint test, without any user interface: validate, probe, report.
+ * The three local refusals both probes make, in one place: the address, the
+ * local-only policy and the credential, in the order the record (§8.7 step 1)
+ * requires — so a mistake costs nothing and the sentence names what to fix rather
+ * than a transport error.
  *
- * The two requests are the only ones this function makes, and each goes through
- * `sendOpenAiRequest` — the same shared client and the same proxy dispatcher pair
- * the transport uses, so the probe cannot disagree with the transport about how a
- * configured endpoint behaves.
+ * One implementation for the clicked probe and the draft probe, because "what
+ * may be sent where" must not be answered twice: the automatic path's whole
+ * justification (settings-page record §4.3) is that it refuses locally before any
+ * byte, and a second copy of this prologue is how that guarantee would rot.
  */
-export async function runAiProviderTest(
+async function prepareAiProviderProbe(
   provider: AiProviderConfig,
   deps: AiProviderTestDeps,
-): Promise<AiProviderTestOutcome> {
+): Promise<{ ok: true; auth: OpenAiRequestAuth } | { ok: false; ran: false; reason: string }> {
   const verdict = inspectAiProviderBaseUrl(provider.baseUrl);
   if (!verdict.ok) {
     return { ok: false, ran: false, reason: openAiEndpointUnusableMessage(provider, verdict.reason) };
@@ -151,6 +157,26 @@ export async function runAiProviderTest(
   if (!auth.keyPresent) {
     return { ok: false, ran: false, reason: openAiMissingKeyMessage(provider) };
   }
+  return { ok: true, auth };
+}
+
+/**
+ * One endpoint test, without any user interface: validate, probe, report.
+ *
+ * The two requests are the only ones this function makes, and each goes through
+ * `sendOpenAiRequest` — the same shared client and the same proxy dispatcher pair
+ * the transport uses, so the probe cannot disagree with the transport about how a
+ * configured endpoint behaves.
+ */
+export async function runAiProviderTest(
+  provider: AiProviderConfig,
+  deps: AiProviderTestDeps,
+): Promise<AiProviderTestOutcome> {
+  const prepared = await prepareAiProviderProbe(provider, deps);
+  if (!prepared.ok) {
+    return prepared;
+  }
+  const auth = prepared.auth;
 
   const context: OpenAiFailureContext = {
     provider,
@@ -252,6 +278,183 @@ export async function runAiProviderTest(
  */
 export function aiProviderTestAddress(provider: AiProviderConfig): string {
   return openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, ''));
+}
+
+/**
+ * The secret store one draft probe reads from: the values the user has typed in
+ * the editor, over the stored ones.
+ *
+ * The overlay is a **read-through** store rather than a copy: anything the draft
+ * did not type (a header value stored for an endpoint being edited, for instance)
+ * still resolves through the real store, and nothing here can write. `store` and
+ * `delete` throw rather than silently doing nothing, because a probe that started
+ * writing would be a write path reached without a Save — the one thing the draft
+ * probe exists to avoid (settings-page record §4.2).
+ *
+ * Only names that can be part of a `SecretStorage` key are overlaid, matching the
+ * readers: a header name the host would refuse is not a value the request could
+ * have used anyway.
+ */
+function draftSecretStore(base: AiSecretStore, providerId: string, draft: AiProviderDraftProbe): AiSecretStore {
+  const overrides = new Map<string, string>();
+  if (draft.key !== '') {
+    overrides.set(aiProviderKeySecretKey(providerId), draft.key);
+  }
+  for (const header of draft.headers) {
+    const name = header.name.trim();
+    if (name === '' || header.value === '' || !isAiProviderSegment(name)) {
+      continue;
+    }
+    const key = aiProviderHeaderSecretKey(providerId, name);
+    if (key !== undefined) {
+      overrides.set(key, header.value);
+    }
+  }
+  const refuse = (): Promise<never> =>
+    Promise.reject(new Error('a draft probe reads credentials; it never stores or deletes one'));
+  return {
+    get: async (key: string) => (overrides.has(key) ? overrides.get(key) : await base.get(key)),
+    store: refuse,
+    delete: refuse,
+  };
+}
+
+/**
+ * One **draft** probe: the endpoint editor's own fields, without saving anything
+ * (settings-page record §4.2–§4.4).
+ *
+ * Two things separate it from {@link aiProviderTestReport}, and both are the
+ * record's own decisions rather than an implementation shortcut:
+ *
+ * 1. **`GET /models` only.** The minimal `chat/completions` request stays behind
+ *    the explicit "test connection" click, because the automatic path must not be
+ *    a thing that sends content on its own: it answers "which models does this
+ *    endpoint report" and nothing more.
+ * 2. **A 404 / 405 / 501 is an answer, not a failure** (§4.4): plenty of endpoints
+ *    have no model list, and the report says the models have to be declared by
+ *    hand instead of showing an error.
+ *
+ * The credential is the one typed in the editor. It is held in memory for this
+ * request only: no setting is written, `SecretStorage` is not touched, and the
+ * report never carries the key or a header value (the same shape the clicked probe
+ * returns, so one component renders both).
+ */
+export async function aiProviderDraftTestReport(
+  draft: AiProviderDraftProbe,
+  deps: AiProviderTestDeps,
+): Promise<AiProviderTestReport> {
+  const typedId = typeof draft.id === 'string' ? draft.id.trim() : '';
+  // The id is only what the report is about, but it is also half of every secret
+  // key this probe reads, so an id that cannot be one is replaced rather than
+  // making the typed credential unusable: the user asked for a probe of *this*
+  // address with *this* key, and a half-typed id must not silently drop it.
+  const providerId = isAiProviderSegment(typedId) ? typedId : 'draft';
+  const provider: AiProviderConfig = {
+    id: providerId,
+    name: draftDisplayName(draft),
+    baseUrl: typeof draft.baseUrl === 'string' ? draft.baseUrl : '',
+    // The declaration is empty on purpose: a draft has no stored model list, and
+    // nothing in this probe may fall back to asking a model something.
+    models: [],
+    auth: isAiProviderAuth(draft.auth) ? draft.auth : 'bearer',
+    headers: (Array.isArray(draft.headers) ? draft.headers : [])
+      .map((header) => (typeof header?.name === 'string' ? header.name.trim() : ''))
+      .filter((name) => name !== '' && isAiProviderSegment(name))
+      .map((name) => ({ name, valueSecret: true as const })),
+    localOnly: draft.localOnly === true,
+  };
+  const secrets = draftSecretStore(deps.secrets, providerId, draft);
+  const address = aiProviderTestAddress(provider);
+  const prepared = await prepareAiProviderProbe(provider, { ...deps, secrets });
+  if (!prepared.ok) {
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      address,
+      ok: false,
+      ran: false,
+      reason: prepared.reason,
+      shadowed: [],
+    };
+  }
+  const auth = prepared.auth;
+  const context: OpenAiFailureContext = {
+    provider,
+    endpoint: openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, MODELS_PATH, auth.query)),
+    viaProxy: Boolean(getProxyFetch()),
+  };
+  const started = Date.now();
+  try {
+    const response = await sendOpenAiRequest({
+      url: openAiEndpointUrl(provider.baseUrl, MODELS_PATH, auth.query),
+      method: 'GET',
+      headers: auth.headers,
+      responseType: 'json',
+      dispatcherPair: deps.dispatcherPair,
+    });
+    const modelIds = modelIdsOf(response.data) ?? [];
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      address,
+      ok: true,
+      ran: true,
+      status: response.status,
+      elapsedMs: Date.now() - started,
+      summary:
+        modelIds.length > 0
+          ? vscode.l10n.t('The endpoint reported {0} model(s) from "/models".', modelIds.length)
+          : vscode.l10n.t('The endpoint reported no models from "/models" (that is not a failure).'),
+      models: modelIds,
+      shadowed: auth.shadowed,
+    };
+  } catch (error) {
+    const status = openAiRequestStatus(error);
+    if (status === 404 || status === 405 || status === 501) {
+      return {
+        providerId: provider.id,
+        providerName: provider.name,
+        address,
+        ok: true,
+        ran: true,
+        status,
+        elapsedMs: Date.now() - started,
+        summary: vscode.l10n.t(
+          'The endpoint has no "/models" list (HTTP {0}); its models have to be declared by hand.',
+          status,
+        ),
+        models: [],
+        shadowed: auth.shadowed,
+      };
+    }
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      address,
+      ok: false,
+      ran: true,
+      reason: openAiEndpointFailure(error, context).message,
+      shadowed: auth.shadowed,
+    };
+  }
+}
+
+/**
+ * What a draft probe's report calls the endpoint: the editor's display name, or
+ * the id if there is none, or the address's own host — never an empty string,
+ * because the report card names the endpoint in its title.
+ */
+function draftDisplayName(draft: AiProviderDraftProbe): string {
+  const name = typeof draft.name === 'string' ? draft.name.trim() : '';
+  if (name !== '') {
+    return name;
+  }
+  const id = typeof draft.id === 'string' ? draft.id.trim() : '';
+  if (id !== '') {
+    return id;
+  }
+  const verdict = inspectAiProviderBaseUrl(typeof draft.baseUrl === 'string' ? draft.baseUrl : '');
+  return verdict.ok ? verdict.url.host : '';
 }
 
 /**

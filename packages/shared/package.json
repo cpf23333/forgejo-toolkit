@@ -16,6 +16,10 @@
       "types": "./src/webview/messages.ts",
       "default": "./src/webview/messages.ts"
     },
+    "./ai/providerPolicy": {
+      "types": "./src/ai/providerPolicy.ts",
+      "default": "./src/ai/providerPolicy.ts"
+    },
     "./git/url": {
       "types": "./src/git/url.ts",
       "default": "./src/git/url.ts"

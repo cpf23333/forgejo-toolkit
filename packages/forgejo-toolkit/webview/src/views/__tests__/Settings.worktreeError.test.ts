@@ -81,6 +81,32 @@ const { stateMock } = vi.hoisted(() => ({
     // the worktree removal error, so the row stays empty here.
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
+    // The settings page reads its own surface on mount and renders the host's
+    // reading rather than a value of its own; the defaults below are the
+    // manifest's, so a test that does not care about those sections still mounts
+    // a page with the values a fresh install has.
+    settingsSurface: {
+      value: {
+        notificationPollingEnabled: true,
+        mcpEnabled: true,
+        mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
+        mcpWriteAuditToFile: false,
+        multiWindowLease: true,
+        aiPreReview: false,
+        aiPreReviewPromptScope: 'ask',
+      },
+    },
+    loadSettingsSurface: vi.fn(async () => undefined),
+    setSettingsSurfaceValue: vi.fn(async () => ({ snapshot: undefined })),
+    testAiProviderDraft: vi.fn(async () => ({
+      providerId: '',
+      providerName: '',
+      address: '',
+      ok: true,
+      ran: true,
+      shadowed: [],
+    })),
+    openNativeSettings: vi.fn(),
   },
 }));
 

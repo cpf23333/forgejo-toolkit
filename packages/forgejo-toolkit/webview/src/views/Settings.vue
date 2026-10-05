@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
+import { ref, computed, reactive, watch, onMounted, onUnmounted, useTemplateRef, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, saveInstanceTargetKey, type SaveInstanceTarget } from '../composables/useAppState';
@@ -10,10 +10,30 @@ import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
 import type {
   AiPreReviewChatModelOption,
+  AiProviderDraftProbe,
   AiProviderEditorEntry,
   AiProviderTestReport,
+  SettingsSurfaceSnapshot,
+  SettingsSurfaceWritableKey,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { AI_PRE_REVIEW_PROMPT_SCOPES, stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { inspectAiProviderBaseUrl, isLocalAiEndpointHost } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
+import { generateAiProviderId, generateAiProviderName, uniqueAiProviderId } from '../utils/providerIdentity';
+
+/**
+ * The two settings that stay in VS Code's own settings editor and are **named**
+ * here with a pointer row (`docs/design/settings-page.md` §2.2, §2.3).
+ *
+ * They are written as full setting ids and never translated: the user needs the
+ * exact string to search for in the settings editor, and a translated name finds
+ * nothing. They are identifiers rather than interface text, which is why they are
+ * literals here and not entries in the i18n catalogues; the sentence around them
+ * is translated. `src/__tests__/settingsSurface.test.ts` holds these two against
+ * `NATIVE_ONLY_SETTINGS` — and holds `forgejoToolkit.useMockApi`, the third
+ * native-only setting, out of this file entirely.
+ */
+const POLLING_INTERVAL_SETTING = 'forgejoToolkit.notificationPollingInterval';
+const AI_TRANSPORT_SETTING = 'forgejoToolkit.aiTransport';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -884,9 +904,255 @@ async function storeAiPreReviewModel(value: string) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// The settings this page presents itself, and the settings it deliberately
+// leaves to VS Code (`docs/design/settings-page.md` §3.2).
+//
+// Nine settings get a control here. Every one of them is read from, and written
+// through, the host: the page never keeps a value of its own, and the host's
+// answer to a write is the host's fresh reading of the state, so a control that
+// a refused write bounced back shows what is stored rather than what was
+// clicked. The one thing the page does keep is a *mirror* per control, because a
+// `vscode-checkbox` toggles itself on click: the mirror is what the click sets
+// optimistically, and the host's next reading is what puts it right again.
+// ---------------------------------------------------------------------------
+
+/** The host's last reading, or `undefined` until it answers. */
+const settingsSurface = computed(() => state.settingsSurface.value);
+/** What the host's own sentence about the last write is, and which setting it was about. */
+const settingsSurfaceStatus = ref<{
+  key: SettingsSurfaceWritableKey;
+  message: string;
+  type: 'success' | 'error';
+} | null>(null);
+/** The page-level read failure, when the nine settings could not be read at all. */
+const settingsSurfaceLoadError = ref('');
+
+const pollingEnabled = ref(false);
+const mcpEnabledValue = ref(false);
+const writeToolCreateIssueComment = ref(false);
+const writeToolSubmitPullReview = ref(false);
+const writeToolCancelActionRun = ref(false);
+const mcpAuditToFile = ref(false);
+const leaseEnabled = ref(false);
+const preReviewEnabled = ref(false);
+/**
+ * The stored prompt scope. The fallback is the host's own reading rule for a
+ * value it cannot read (`ask`, the question) rather than a default of this page:
+ * `aiPreReviewPromptScopeSettingValue` answers `ask` for anything unusable, so
+ * the page cannot show a scope the run would not use.
+ */
+const promptScope = ref<SettingsSurfaceSnapshot['aiPreReviewPromptScope']>('ask');
+
+/**
+ * Whether the host has reported at least once. Until it has, the controls are
+ * disabled rather than showing a value the page invented: a switch whose stored
+ * state is unknown must not look like a switch that is off.
+ */
+const settingsSurfaceReady = computed(() => settingsSurface.value !== undefined);
+const settingsSurfaceSaving = ref<SettingsSurfaceWritableKey | null>(null);
+
+/** The settings of one section, so only the section being written is disabled. */
+const NOTIFICATION_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.notificationPollingEnabled',
+  'forgejoToolkit.multiWindowLease',
+];
+
+const MCP_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.mcpEnabled',
+  'forgejoToolkit.mcpWriteTools.createIssueComment',
+  'forgejoToolkit.mcpWriteTools.submitPullReview',
+  'forgejoToolkit.mcpWriteTools.cancelActionRun',
+  'forgejoToolkit.mcpWriteAuditToFile',
+];
+
+const PRE_REVIEW_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.aiPreReview',
+  'forgejoToolkit.aiPreReviewPromptScope',
+];
+
+/**
+ * Whether one section's controls are waiting on a write.
+ *
+ * The gate is per section rather than one flag for the whole page: a write is a
+ * `WorkspaceConfiguration.update` round trip, and greying out an unrelated switch
+ * while it lands would claim the page is busy when only one of its controls is.
+ */
+function surfaceBusy(keys: readonly SettingsSurfaceWritableKey[]): boolean {
+  const saving = settingsSurfaceSaving.value;
+  return saving !== null && keys.includes(saving);
+}
+
+watch(
+  settingsSurface,
+  (snapshot) => {
+    if (!snapshot) {
+      return;
+    }
+    pollingEnabled.value = snapshot.notificationPollingEnabled;
+    mcpEnabledValue.value = snapshot.mcpEnabled;
+    writeToolCreateIssueComment.value = snapshot.mcpWriteTools.createIssueComment;
+    writeToolSubmitPullReview.value = snapshot.mcpWriteTools.submitPullReview;
+    writeToolCancelActionRun.value = snapshot.mcpWriteTools.cancelActionRun;
+    mcpAuditToFile.value = snapshot.mcpWriteAuditToFile;
+    leaseEnabled.value = snapshot.multiWindowLease;
+    preReviewEnabled.value = snapshot.aiPreReview;
+    promptScope.value = snapshot.aiPreReviewPromptScope;
+  },
+  { immediate: true },
+);
+
+/** Reads the nine settings from the host once, when the page mounts. */
+async function loadSettingsSurface(): Promise<void> {
+  try {
+    await state.loadSettingsSurface();
+  } catch (error) {
+    // A failed read leaves every one of the nine controls disabled and says so
+    // once, in the header: the page cannot show what it was never told, and nine
+    // separate "could not be read" lines would be nine copies of one fact.
+    settingsSurfaceLoadError.value = t('settings.header.loadFailed', { error: errorText(error) });
+  }
+}
+
+/**
+ * Writes one setting through the host and reports what the host said.
+ *
+ * A refused or failed write is a sentence beside the section, and the control —
+ * which renders the host's reading, not the click — is already back on the value
+ * that is stored. The page adds no interpretation of its own to the host's
+ * sentence (§3.3 rule 3).
+ */
+async function saveSettingsSurfaceValue(key: SettingsSurfaceWritableKey, value: boolean | string): Promise<void> {
+  if (settingsSurfaceSaving.value !== null) {
+    return;
+  }
+  settingsSurfaceSaving.value = key;
+  settingsSurfaceStatus.value = null;
+  try {
+    const answer = await state.setSettingsSurfaceValue(key, value);
+    if (answer.error) {
+      settingsSurfaceStatus.value = { key, message: answer.error, type: 'error' };
+    }
+  } catch (error) {
+    settingsSurfaceStatus.value = { key, message: errorText(error), type: 'error' };
+  } finally {
+    settingsSurfaceSaving.value = null;
+  }
+}
+
+/**
+ * The last write's sentence, when it was about one of these settings. A message
+ * is rendered by the section it belongs to and nowhere else: the host's sentence
+ * names the setting, and a failure of the MCP switch printed under the
+ * notification section would be a second puzzle rather than a report.
+ */
+function surfaceStatusIn(keys: readonly SettingsSurfaceWritableKey[]) {
+  const status = settingsSurfaceStatus.value;
+  return status && keys.includes(status.key) ? status : null;
+}
+
+const notificationsSurfaceStatus = computed(() =>
+  surfaceStatusIn(['forgejoToolkit.notificationPollingEnabled', 'forgejoToolkit.multiWindowLease']),
+);
+
+const mcpSurfaceStatus = computed(() =>
+  surfaceStatusIn([
+    'forgejoToolkit.mcpEnabled',
+    'forgejoToolkit.mcpWriteTools.createIssueComment',
+    'forgejoToolkit.mcpWriteTools.submitPullReview',
+    'forgejoToolkit.mcpWriteTools.cancelActionRun',
+    'forgejoToolkit.mcpWriteAuditToFile',
+  ]),
+);
+
+const preReviewSurfaceStatus = computed(() =>
+  surfaceStatusIn(['forgejoToolkit.aiPreReview', 'forgejoToolkit.aiPreReviewPromptScope']),
+);
+
+function handlePollingEnabledChange(event: Event): void {
+  pollingEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.notificationPollingEnabled', pollingEnabled.value);
+}
+
+function handleMcpEnabledChange(event: Event): void {
+  mcpEnabledValue.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.mcpEnabled', mcpEnabledValue.value);
+}
+
+type McpWriteToolSwitch = 'createIssueComment' | 'submitPullReview' | 'cancelActionRun';
+
+/** The full setting id of one write tool, from the container key §5 of the MCP record uses. */
+const WRITE_TOOL_SETTING_IDS: Readonly<Record<McpWriteToolSwitch, SettingsSurfaceWritableKey>> = {
+  createIssueComment: 'forgejoToolkit.mcpWriteTools.createIssueComment',
+  submitPullReview: 'forgejoToolkit.mcpWriteTools.submitPullReview',
+  cancelActionRun: 'forgejoToolkit.mcpWriteTools.cancelActionRun',
+};
+
+const writeToolValues: Readonly<Record<McpWriteToolSwitch, Ref<boolean>>> = {
+  createIssueComment: writeToolCreateIssueComment,
+  submitPullReview: writeToolSubmitPullReview,
+  cancelActionRun: writeToolCancelActionRun,
+};
+
+function handleWriteToolChange(tool: McpWriteToolSwitch, event: Event): void {
+  const target = writeToolValues[tool];
+  target.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue(WRITE_TOOL_SETTING_IDS[tool], target.value);
+}
+
+function handleMcpAuditChange(event: Event): void {
+  mcpAuditToFile.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.mcpWriteAuditToFile', mcpAuditToFile.value);
+}
+
+function handleLeaseChange(event: Event): void {
+  leaseEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.multiWindowLease', leaseEnabled.value);
+}
+
+function handlePreReviewEnabledChange(event: Event): void {
+  preReviewEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.aiPreReview', preReviewEnabled.value);
+}
+
+/**
+ * Stores the prompt scope. The five values come from the shared enumeration the
+ * host reads and writes with, so the page cannot offer one the host would refuse
+ * (§3.2); a value that could not be stored leaves the select on the host's own
+ * reading, beside the host's sentence.
+ */
+function handlePromptScopeChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as SettingsSurfaceSnapshot['aiPreReviewPromptScope'];
+  promptScope.value = value;
+  void saveSettingsSurfaceValue('forgejoToolkit.aiPreReviewPromptScope', value);
+}
+
+/**
+ * The page's own wording for one scope: shorter than the manifest's
+ * `enumDescriptions`, and synonymous with it (`docs/design/settings-page.md`
+ * §3.2). The five labels exist in both catalogues for every value of the shared
+ * enumeration — `Settings.settingsSurface.test.ts` holds the two lists together,
+ * which is what a `v-for` over that enumeration needs to stay honest.
+ */
+function promptScopeLabel(scope: SettingsSurfaceSnapshot['aiPreReviewPromptScope']): string {
+  return t(`settings.aiPreReview.scopeOption.${scope}`);
+}
+
+/**
+ * Opens VS Code's own settings editor, filtered to this extension (§2.1).
+ *
+ * One action for the page header and for every pointer row: the host runs the
+ * `forgejoToolkit.openNativeSettings` command, which is the same command the
+ * palette offers, and the filter is part of it.
+ */
+function openNativeSettings(): void {
+  state.openNativeSettings();
+}
+
 onMounted(() => {
   void loadAiPreReviewModels();
   void loadProviderSettings();
+  void loadSettingsSurface();
 });
 
 // ---------------------------------------------------------------------------
@@ -1130,6 +1396,7 @@ function openProviderEditor(entry: AiProviderEditorEntry): void {
   providerTestReport.value = null;
   providerTestReportId.value = null;
   providerSaving.value = false;
+  resetDraftProbe();
   setProviderStatus('');
   providerEditorOpen.value = true;
 }
@@ -1143,6 +1410,7 @@ function openNewProviderEditor(): void {
   providerTestReport.value = null;
   providerTestReportId.value = null;
   providerSaving.value = false;
+  resetDraftProbe();
   setProviderStatus('');
   providerEditorOpen.value = true;
 }
@@ -1157,6 +1425,7 @@ function closeProviderEditor(): void {
   providerDraft.value = emptyProviderDraft();
   openedProviderAddress.value = '';
   providerSaving.value = false;
+  resetDraftProbe();
 }
 
 /** Whether the draft holds anything the endpoint list would lose by closing it. */
@@ -1461,9 +1730,25 @@ function reportedModelsToAdd(): string[] {
 
 /** Appends the reported models to the draft, replacing the empty placeholder row. */
 function addReportedModels(): void {
-  const ids = reportedModelsToAdd();
-  if (ids.length === 0) {
-    return;
+  addDraftModels(reportedModelsToAdd());
+}
+
+/**
+ * Adds the model ids a probe reported that the draft does not declare yet, and
+ * answers how many were added.
+ *
+ * Shared by the explicit test's button and the automatic probe, because the
+ * record's rule for both is the same (§4.5): the report is a **prefill**, so the
+ * ids go in as ordinary rows — editable and removable — the user's own rows are
+ * never touched, and a draft holding only the empty placeholder has that
+ * placeholder replaced rather than added to. Nothing is overwritten and nothing
+ * is renamed.
+ */
+function addDraftModels(candidateIds: string[]): number {
+  const declared = new Set(providerDraft.value.models.map((model) => model.id.trim()).filter((id) => id !== ''));
+  const missing = candidateIds.filter((id) => id !== '' && !declared.has(id));
+  if (missing.length === 0) {
+    return 0;
   }
   const placeholderOnly =
     providerDraft.value.models.length === 1 &&
@@ -1472,9 +1757,270 @@ function addReportedModels(): void {
   if (placeholderOnly) {
     providerDraft.value.models = [];
   }
-  for (const id of ids) {
+  for (const id of missing) {
     providerDraft.value.models.push({ id, name: '' });
   }
+  return missing.length;
+}
+
+// ---------------------------------------------------------------------------
+// The automatic model probe (`docs/design/settings-page.md` §4) and the identity
+// this page generates for a new endpoint (§5).
+//
+// The probe is the first path in this extension that sends a request without a
+// click, and the record's §8.1 states that cost in the open: a user who typed a
+// wrong address and then a credential will send one `GET /models` to that
+// address. Everything below is the mitigation the same record requires — one
+// shot per input combination, 800 ms of idle, cancelled by any further typing,
+// refused locally before a byte when the local-only rule says no, `GET /models`
+// only, and a failure that is reported without blocking the form.
+// ---------------------------------------------------------------------------
+
+/** How long the editor has to be idle before the draft probe fires (§4.3). */
+const DRAFT_PROBE_IDLE_MS = 800;
+
+/** The last draft probe's report, rendered by the same component as the clicked test. */
+const draftProbeReport = ref<AiProviderTestReport | null>(null);
+const draftProbeState = ref<'idle' | 'probing' | 'done'>('idle');
+/** How many rows the last probe added, for the status line under the model list. */
+const draftProbeAddedCount = ref(0);
+let draftProbeTimer: number | undefined;
+/**
+ * The input combination the last probe was fired for. One shot per combination:
+ * the user asks again with the probe control, not by re-typing what is already
+ * there (§4.3).
+ */
+let lastProbedSignature: string | null = null;
+/** Whether the address field has been left once, so its local refusal can be shown. */
+const providerAddressCommitted = ref(false);
+/**
+ * The values this page generated, while the field still holds them untouched. A
+ * generated value follows the address; the moment the user edits the field, the
+ * field is theirs and generation stops for it (§5.1).
+ */
+let generatedProviderId: string | null = null;
+let generatedProviderName: string | null = null;
+
+/** The address's verdict, computed once for the row warning, the probe and the identity. */
+const providerDraftVerdict = computed(() => inspectAiProviderBaseUrl(providerDraft.value.baseUrl.trim()));
+
+/**
+ * Whether the local-only rule refuses this draft's address.
+ *
+ * The page computes this from the same shared rule the host uses (§7.3) for one
+ * reason: the probe must not even be *armed* for an address nothing may be sent
+ * to, so that "nothing is sent" is true of the page as well as of the host. The
+ * host re-checks it and refuses without a byte, which is what makes the guarantee
+ * hold even if this page is wrong.
+ */
+const providerDraftLocalOnlyBlocked = computed(() => {
+  const verdict = providerDraftVerdict.value;
+  if (!verdict.ok) {
+    return false;
+  }
+  const policyBlocks = (providerSnapshot.value?.localOnly ?? false) || providerDraft.value.localOnly;
+  return policyBlocks && !isLocalAiEndpointHost(verdict.url.hostname);
+});
+
+/** Why the typed address cannot be used, once the user has left the field (§3.3 rule 1). */
+const providerDraftAddressReason = computed(() => {
+  if (!providerAddressCommitted.value || providerDraft.value.baseUrl.trim() === '') {
+    return '';
+  }
+  const verdict = providerDraftVerdict.value;
+  return verdict.ok ? '' : verdict.reason;
+});
+
+/**
+ * The input combination the automatic probe would run for, or `null` when it must
+ * not run at all: no editor, a save in flight, no freshly typed credential, an
+ * address that is not a URL yet, an address the local-only rule refuses, or a
+ * policy the host has not reported yet.
+ *
+ * The signature holds the typed key so that typing a different one counts as a
+ * new combination. It is a value in this component's memory only: it is never
+ * rendered, never logged and never sent anywhere — only the probe's own payload
+ * carries the credential, and only to the host.
+ */
+const draftProbeSignature = computed<string | null>(() => {
+  if (!providerEditorOpen.value || providerSaving.value || providerRemovingId.value !== null) {
+    return null;
+  }
+  if (!providerSnapshot.value) {
+    // The local-only policy is part of the decision, so an unread policy is "do
+    // not send" rather than "probably fine".
+    return null;
+  }
+  if (!providerDraftVerdict.value.ok || providerDraftLocalOnlyBlocked.value) {
+    return null;
+  }
+  const draft = providerDraft.value;
+  if (draft.auth !== 'none' && draft.key.trim() === '') {
+    // A stored key is not a new one: opening an existing endpoint and leaving the
+    // field empty is not an input event, and the probe is for "I just typed the
+    // address and the credential" (§4.3).
+    return null;
+  }
+  return JSON.stringify([
+    draft.baseUrl.trim(),
+    draft.auth,
+    draft.key,
+    draft.localOnly,
+    draft.headers.map((header) => [header.name.trim(), header.value]),
+  ]);
+});
+
+function cancelDraftProbe(): void {
+  if (draftProbeTimer !== undefined) {
+    window.clearTimeout(draftProbeTimer);
+    draftProbeTimer = undefined;
+  }
+}
+
+onUnmounted(() => {
+  cancelDraftProbe();
+});
+
+watch(draftProbeSignature, (signature) => {
+  // Any further typing cancels the pending probe and starts the window again.
+  cancelDraftProbe();
+  if (signature === null || signature === lastProbedSignature) {
+    return;
+  }
+  draftProbeTimer = window.setTimeout(() => {
+    draftProbeTimer = undefined;
+    void runDraftProbe(signature);
+  }, DRAFT_PROBE_IDLE_MS);
+});
+
+/** The editor's current fields, as the host's draft probe takes them (§4.2). */
+function draftProbePayload(): AiProviderDraftProbe {
+  const draft = providerDraft.value;
+  return {
+    id: draft.id.trim(),
+    name: draft.name.trim(),
+    baseUrl: draft.baseUrl.trim(),
+    auth: draft.auth,
+    localOnly: draft.localOnly,
+    key: draft.key,
+    headers: draft.headers
+      .filter((header) => header.name.trim() !== '' && header.value !== '')
+      .map((header) => ({ name: header.name.trim(), value: header.value })),
+  };
+}
+
+/**
+ * Runs one draft probe and renders its report.
+ *
+ * The combination is marked as probed **before** the request goes out: a watcher
+ * that fires again while the answer is in flight must not queue a second one. A
+ * failure is a report card and never a native dialog — this page has not raised
+ * one for a setting, and a probe the user did not click must not start.
+ */
+async function runDraftProbe(signature: string | null): Promise<void> {
+  lastProbedSignature = signature;
+  draftProbeState.value = 'probing';
+  try {
+    applyDraftProbeReport(await state.testAiProviderDraft(draftProbePayload()));
+  } catch (error) {
+    draftProbeState.value = 'idle';
+    setProviderStatus(errorText(error), 'error');
+  }
+}
+
+/** The editor's own "probe again" control: an explicit run that ignores the idle rules. */
+function probeDraftModels(): void {
+  cancelDraftProbe();
+  void runDraftProbe(draftProbeSignature.value);
+}
+
+function applyDraftProbeReport(report: AiProviderTestReport): void {
+  draftProbeReport.value = report;
+  draftProbeState.value = 'done';
+  draftProbeAddedCount.value = report.ok && report.models !== undefined ? addDraftModels(report.models) : 0;
+}
+
+/**
+ * What the line under the model list says: the probe in progress, or how many
+ * rows it filled in. A failed probe says nothing here — its report card carries
+ * the host's own sentence, which is the answer to "why".
+ */
+const draftProbeStatus = computed(() => {
+  if (draftProbeState.value === 'probing') {
+    return t('settings.aiProviders.probe.probing');
+  }
+  if (draftProbeState.value !== 'done' || !draftProbeReport.value?.ok) {
+    return '';
+  }
+  return draftProbeAddedCount.value > 0
+    ? t('settings.aiProviders.probe.added', { count: draftProbeAddedCount.value })
+    : t('settings.aiProviders.probe.unchanged');
+});
+
+function handleProviderBaseUrlInput(event: Event): void {
+  providerDraft.value.baseUrl = (event.target as HTMLInputElement).value;
+  providerAddressCommitted.value = false;
+  syncGeneratedProviderIdentity();
+}
+
+function handleProviderIdInput(event: Event): void {
+  // The field is the user's from here on: generation never overwrites what they
+  // typed, and never renames an endpoint behind their back (§5.2 rule 3).
+  generatedProviderId = null;
+  providerDraft.value.id = (event.target as HTMLInputElement).value;
+}
+
+function handleProviderNameInput(event: Event): void {
+  generatedProviderName = null;
+  providerDraft.value.name = (event.target as HTMLInputElement).value;
+}
+
+/**
+ * Fills the id and the display name a new endpoint's address suggests (§5.1).
+ *
+ * Only in the add mode, and only for a field that is empty or still holds what
+ * this function generated: an id the user typed is theirs, and an id that follows
+ * every keystroke of the address would be unusable. Both values land in the
+ * fields, where the user sees them and can change them; nothing is generated at
+ * save time.
+ */
+function syncGeneratedProviderIdentity(): void {
+  if (editingProviderId.value !== null) {
+    return;
+  }
+  const address = providerDraft.value.baseUrl.trim();
+  if (address === '') {
+    return;
+  }
+  const draft = providerDraft.value;
+  if (draft.id === '' || draft.id === generatedProviderId) {
+    const taken = [
+      ...providerEntries.value.map((entry) => entry.id),
+      ...providerRejections.value.map((rejection) => rejection.id ?? ''),
+    ];
+    const next = uniqueAiProviderId(generateAiProviderId(address), taken);
+    generatedProviderId = next;
+    draft.id = next;
+  }
+  if (draft.name === '' || draft.name === generatedProviderName) {
+    const next = generateAiProviderName(address);
+    if (next !== '') {
+      generatedProviderName = next;
+      draft.name = next;
+    }
+  }
+}
+
+/** Clears this editor's probe state, on every transition in or out of it. */
+function resetDraftProbe(): void {
+  cancelDraftProbe();
+  draftProbeReport.value = null;
+  draftProbeState.value = 'idle';
+  draftProbeAddedCount.value = 0;
+  lastProbedSignature = null;
+  providerAddressCommitted.value = false;
+  generatedProviderId = null;
+  generatedProviderName = null;
 }
 
 /**
@@ -1547,11 +2093,12 @@ function handlePolicyEnabledChange(event: Event): void {
   void savePolicy();
 }
 
-function handlePolicyTransportChange(event: Event): void {
-  policyTransport.value = (event.target as HTMLSelectElement).value as 'auto' | 'vscode-lm' | 'openai-compatible';
-  void savePolicy();
-}
-
+/**
+ * The transport is not rendered here any more (§1.3 puts it in the native-only
+ * list), but it is still part of the policy a write submits: `setAiModelPolicy`
+ * sends all four gates, so the value comes from the host's snapshot and goes back
+ * unchanged rather than being dropped or defaulted.
+ */
 function handlePolicyLocalOnlyChange(event: Event): void {
   policyLocalOnly.value = (event.target as HTMLInputElement).checked;
   void savePolicy();
@@ -1867,6 +2414,25 @@ defineExpose({
     inline custom property is what `scroll-padding-top` reads.
   -->
   <div class="settings" :style="{ '--editor-sticky-height': `${editorStickyHeight}px` }">
+    <!--
+      The page header. It is visible in all three states — the instance list and
+      both editors — because it is a property of the page and not of a section
+      (`docs/design/settings-page.md` §2.1): it answers "where are the rest of
+      this extension's settings", which is a question about the page. The control
+      runs the `forgejoToolkit.openNativeSettings` command, which opens VS Code's
+      own settings editor **filtered to this extension** — the unfiltered editor
+      is exactly the place the user could not find these settings in.
+    -->
+    <header class="settings-header">
+      <vscode-button secondary icon="settings-gear" @click="openNativeSettings">
+        {{ t('settings.header.openNativeSettings') }}
+      </vscode-button>
+      <p class="field-description">{{ t('settings.header.openNativeSettingsDescription') }}</p>
+      <div v-if="settingsSurfaceLoadError" class="status error" role="status" aria-live="polite">
+        {{ settingsSurfaceLoadError }}
+      </div>
+    </header>
+
     <div v-if="editorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
       <!--
         The editor's subject: the heading names the instance (name and URL), so
@@ -2039,8 +2605,17 @@ defineExpose({
             :value="providerDraft.id"
             :label="t('settings.aiProviders.editor.id')"
             :disabled="editingProviderId !== null"
-            @input="providerDraft.id = ($event.target as HTMLInputElement).value"
+            @input="handleProviderIdInput"
           />
+          <!--
+            The price of the id is stated where it is created, not only where it is
+            locked (§5.3): the secret keys derive from it, so a later change loses
+            the stored credentials. Shown in the add mode, right under the field —
+            the moment the user can still choose.
+          -->
+          <p v-if="editingProviderId === null" class="field-description">
+            {{ t('settings.aiProviders.editor.idCreateWarning') }}
+          </p>
           <p class="field-description">{{ t('settings.aiProviders.editor.idDescription') }}</p>
           <p v-if="editingProviderId" class="field-description">{{ t('settings.aiProviders.editor.idLocked') }}</p>
         </div>
@@ -2051,7 +2626,7 @@ defineExpose({
             id="ai-provider-name"
             :value="providerDraft.name"
             :label="t('settings.aiProviders.editor.name')"
-            @input="providerDraft.name = ($event.target as HTMLInputElement).value"
+            @input="handleProviderNameInput"
           />
           <p class="field-description">{{ t('settings.aiProviders.editor.nameDescription') }}</p>
         </div>
@@ -2063,9 +2638,27 @@ defineExpose({
             :value="providerDraft.baseUrl"
             :label="t('settings.aiProviders.editor.baseUrl')"
             type="url"
-            @input="providerDraft.baseUrl = ($event.target as HTMLInputElement).value"
+            @input="handleProviderBaseUrlInput"
+            @change="providerAddressCommitted = true"
           />
           <p class="field-description">{{ t('settings.aiProviders.editor.baseUrlDescription') }}</p>
+          <!--
+            What is wrong locally, said on the row and with the field left as the
+            user typed it (§3.3 rule 1). The reason is the shared verdict's own
+            sentence, and it appears once the user has left the field rather than
+            on every keystroke of an address being typed.
+          -->
+          <p v-if="providerDraftAddressReason" class="field-description warn">
+            {{ t('settings.aiProviders.editor.addressInvalid', { reason: providerDraftAddressReason }) }}
+          </p>
+          <!--
+            The local-only refusal, on the row and with the control still usable
+            (§3.3 rule 2): the address is what has to change, and the page says
+            what will not happen rather than disabling the field.
+          -->
+          <p v-if="providerDraftLocalOnlyBlocked" class="field-description warn">
+            {{ t('settings.aiProviders.editor.localOnlyBlocked') }}
+          </p>
         </div>
 
         <div class="form-row">
@@ -2154,6 +2747,29 @@ defineExpose({
           <div class="cache-directory-actions">
             <vscode-button secondary icon="add" @click="addProviderModel">
               {{ t('settings.aiProviders.editor.addModel') }}
+            </vscode-button>
+          </div>
+          <!--
+            The automatic model probe (§4.5.5): one line saying what the list is
+            doing or where its new rows came from, so "these rows appeared by
+            themselves" always has an answer. The report below it is the host's own
+            wording, and the control after it is the one the record keeps there for
+            good — the retry after a failure is exactly this button.
+          -->
+          <p class="field-description probe-status" role="status" aria-live="polite">{{ draftProbeStatus }}</p>
+          <AiTestReport v-if="draftProbeReport" :report="draftProbeReport" />
+          <div class="cache-directory-actions">
+            <vscode-button
+              secondary
+              icon="refresh"
+              :disabled="draftProbeState === 'probing' || providerDraft.baseUrl.trim() === ''"
+              @click="probeDraftModels"
+            >
+              {{
+                draftProbeState === 'probing'
+                  ? t('settings.aiProviders.probe.probingAction')
+                  : t('settings.aiProviders.probe.action')
+              }}
             </vscode-button>
           </div>
         </div>
@@ -2284,13 +2900,209 @@ defineExpose({
       </section>
 
       <!--
-        The AI pre-review chat model. The list comes from the running extension
+        Notifications. The polling switch is one of the settings the record moves
+        onto this page: the dashboard explains the unread badge with it, and until
+        now the only place to change it was VS Code's settings editor
+        (`docs/design/settings-page.md` §1.3). The interval stays native — it is a
+        plain bounded number — and is named by a pointer row instead.
+      -->
+      <section class="setting-section">
+        <h2>{{ t('settings.notifications.title') }}</h2>
+        <p class="description">{{ t('settings.notifications.description') }}</p>
+        <div class="form-row">
+          <vscode-checkbox
+            id="notification-polling-enabled"
+            :checked="pollingEnabled"
+            :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+            @change="handlePollingEnabledChange"
+          >
+            {{ t('settings.notifications.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.notifications.enabledDefault') }}</p>
+          <p v-if="!pollingEnabled" class="field-description">{{ t('settings.notifications.disabledHint') }}</p>
+          <!--
+            The pointer row (§2.2) is clickable as a whole and carries all three
+            parts: the setting's full id in monospace, one sentence about what it
+            controls, and the action. The id is the literal the guard holds against
+            NATIVE_ONLY_SETTINGS; the sentence around it is translated.
+          -->
+          <button type="button" class="link-button pointer-row" @click="openNativeSettings">
+            <span>{{ t('settings.nativePointer.label') }}</span>
+            <code class="pointer-id">{{ POLLING_INTERVAL_SETTING }}</code>
+            <span class="pointer-note">{{ t('settings.nativePointer.interval') }}</span>
+            <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
+          </button>
+        </div>
+
+        <div class="settings-group">
+          <h3>{{ t('settings.multiWindow.title') }}</h3>
+          <div class="form-row">
+            <vscode-checkbox
+              id="multi-window-lease"
+              :checked="leaseEnabled"
+              :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+              @change="handleLeaseChange"
+            >
+              {{ t('settings.multiWindow.lease') }}
+            </vscode-checkbox>
+            <p class="field-description">{{ t('settings.multiWindow.default') }}</p>
+            <!--
+              The degraded case `leaseDegradedNotice` reports once in a toast has
+              its readable home here: the setting is what decides whether the
+              mechanism runs at all, so this is where "what happens when the
+              editor cannot tell which window is focused" belongs.
+            -->
+            <p class="field-description">{{ t('settings.multiWindow.description') }}</p>
+            <p v-if="!leaseEnabled" class="field-description">{{ t('settings.multiWindow.offHint') }}</p>
+          </div>
+        </div>
+
+        <div
+          v-if="notificationsSurfaceStatus"
+          :class="['status', notificationsSurfaceStatus.type]"
+          role="status"
+          aria-live="polite"
+        >
+          {{ notificationsSurfaceStatus.message }}
+        </div>
+      </section>
+
+      <!--
+        The MCP surface: the master switch, the three per-tool write gates and the
+        audit's destination. They belong on one screen because they are one
+        confirmation model — the gates are only understandable together
+        (`docs/design/mcp-write-tools-confirmation.md` §3.3), and the audit is
+        where the answer to "what did the agent change" is written.
+      -->
+      <section class="setting-section">
+        <h2>{{ t('settings.mcp.title') }}</h2>
+        <p class="description">{{ t('settings.mcp.description') }}</p>
+        <div class="form-row">
+          <vscode-checkbox
+            id="mcp-enabled"
+            :checked="mcpEnabledValue"
+            :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+            @change="handleMcpEnabledChange"
+          >
+            {{ t('settings.mcp.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.mcp.enabledDefault') }}</p>
+          <p v-if="!mcpEnabledValue" class="field-description">{{ t('settings.mcp.disabledHint') }}</p>
+        </div>
+
+        <div class="settings-group">
+          <h3>{{ t('settings.mcp.writeTools.title') }}</h3>
+          <p class="description">{{ t('settings.mcp.writeTools.description') }}</p>
+          <div class="form-row checkbox-row">
+            <vscode-checkbox
+              id="mcp-write-create-issue-comment"
+              :checked="writeToolCreateIssueComment"
+              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+              @change="handleWriteToolChange('createIssueComment', $event)"
+            >
+              {{ t('settings.mcp.writeTools.createIssueComment') }}
+            </vscode-checkbox>
+          </div>
+          <div class="form-row checkbox-row">
+            <vscode-checkbox
+              id="mcp-write-submit-pull-review"
+              :checked="writeToolSubmitPullReview"
+              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+              @change="handleWriteToolChange('submitPullReview', $event)"
+            >
+              {{ t('settings.mcp.writeTools.submitPullReview') }}
+            </vscode-checkbox>
+          </div>
+          <div class="form-row checkbox-row">
+            <vscode-checkbox
+              id="mcp-write-cancel-action-run"
+              :checked="writeToolCancelActionRun"
+              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+              @change="handleWriteToolChange('cancelActionRun', $event)"
+            >
+              {{ t('settings.mcp.writeTools.cancelActionRun') }}
+            </vscode-checkbox>
+          </div>
+          <!-- One line for all three: the model is "off by default, one gate per tool". -->
+          <p class="field-description">{{ t('settings.mcp.writeTools.default') }}</p>
+        </div>
+
+        <div class="settings-group">
+          <h3>{{ t('settings.mcp.audit.title') }}</h3>
+          <div class="form-row">
+            <vscode-checkbox
+              id="mcp-write-audit-to-file"
+              :checked="mcpAuditToFile"
+              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+              @change="handleMcpAuditChange"
+            >
+              {{ t('settings.mcp.audit.enabled') }}
+            </vscode-checkbox>
+            <p class="field-description">{{ t('settings.mcp.audit.default') }}</p>
+            <p v-if="mcpAuditToFile" class="field-description">{{ t('settings.mcp.audit.file') }}</p>
+          </div>
+        </div>
+
+        <div v-if="mcpSurfaceStatus" :class="['status', mcpSurfaceStatus.type]" role="status" aria-live="polite">
+          {{ mcpSurfaceStatus.message }}
+        </div>
+      </section>
+
+      <!--
+        The AI pre-review: the feature switch, the prompt scope and the chat
+        model, in that order — first what turns the feature on, then what it may
+        send, then which model sends it (`docs/design/settings-page.md` §3.2).
+        The model's list comes from the running extension
         (`vscode.lm.selectChatModels()`), so it cannot be a contributed setting's
         dropdown; picking here writes the same value the QuickPick command does.
       -->
       <section class="setting-section">
-        <h2>{{ t('settings.aiPreReviewModel.title') }}</h2>
-        <p class="description">{{ t('settings.aiPreReviewModel.description') }}</p>
+        <h2>{{ t('settings.aiPreReview.title') }}</h2>
+        <p class="description">{{ t('settings.aiPreReview.description') }}</p>
+
+        <div class="form-row">
+          <vscode-checkbox
+            id="ai-pre-review-enabled"
+            :checked="preReviewEnabled"
+            :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
+            @change="handlePreReviewEnabledChange"
+          >
+            {{ t('settings.aiPreReview.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.aiPreReview.enabledDefault') }}</p>
+          <!--
+            The two rows below stay usable while the feature is off: choosing a
+            scope or a model is configuration, not use, and the consent question
+            the scope exists for is asked by the run itself. The hint says what
+            being off means for them instead of disabling them.
+          -->
+          <p v-if="!preReviewEnabled" class="field-description">{{ t('settings.aiPreReview.disabledHint') }}</p>
+        </div>
+
+        <!--
+          The egress scope. It is the single source of the answer — the modal asks
+          once and writes here — so the page renders the host's reading and offers
+          exactly the values the host accepts, from the shared enumeration. It
+          never corrects a value it cannot read: the host reads such a value as
+          `ask`, and that is what the select then shows.
+        -->
+        <div class="form-row">
+          <label for="ai-pre-review-scope">{{ t('settings.aiPreReview.scope') }}</label>
+          <vscode-single-select
+            id="ai-pre-review-scope"
+            :value="promptScope"
+            :label="t('settings.aiPreReview.scope')"
+            :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
+            @change="handlePromptScopeChange"
+          >
+            <vscode-option v-for="scope in AI_PRE_REVIEW_PROMPT_SCOPES" :key="scope" :value="scope">
+              {{ promptScopeLabel(scope) }}
+            </vscode-option>
+          </vscode-single-select>
+          <p class="field-description">{{ t('settings.aiPreReview.scopeDescription') }}</p>
+          <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
+        </div>
+
         <div class="form-row">
           <label for="ai-pre-review-model">{{ t('settings.aiPreReviewModel.selectLabel') }}</label>
           <vscode-single-select
@@ -2316,6 +3128,7 @@ defineExpose({
               {{ t('settings.aiPreReviewModel.refresh') }}
             </vscode-button>
           </div>
+          <p class="field-description">{{ t('settings.aiPreReviewModel.description') }}</p>
           <p v-if="selectedAiPreReviewModelDescription" class="field-description">
             {{ selectedAiPreReviewModelDescription }}
           </p>
@@ -2333,6 +3146,14 @@ defineExpose({
           aria-live="polite"
         >
           {{ aiPreReviewModelStatus.message }}
+        </div>
+        <div
+          v-if="preReviewSurfaceStatus"
+          :class="['status', preReviewSurfaceStatus.type]"
+          role="status"
+          aria-live="polite"
+        >
+          {{ preReviewSurfaceStatus.message }}
         </div>
       </section>
 
@@ -2410,24 +3231,6 @@ defineExpose({
         </div>
 
         <div class="form-row">
-          <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
-          <vscode-single-select
-            id="ai-transport"
-            :value="policyTransport"
-            :label="t('settings.aiProviders.policy.transport')"
-            :disabled="policySaving"
-            @change="handlePolicyTransportChange"
-          >
-            <vscode-option value="auto">{{ t('settings.aiProviders.policy.transportAuto') }}</vscode-option>
-            <vscode-option value="vscode-lm">{{ t('settings.aiProviders.policy.transportVscodeLm') }}</vscode-option>
-            <vscode-option value="openai-compatible">{{
-              t('settings.aiProviders.policy.transportOpenAiCompatible')
-            }}</vscode-option>
-          </vscode-single-select>
-          <p class="field-description">{{ t('settings.aiProviders.policy.transportDescription') }}</p>
-        </div>
-
-        <div class="form-row">
           <vscode-checkbox id="ai-local-only" :checked="policyLocalOnly" @change="handlePolicyLocalOnlyChange">
             {{ t('settings.aiProviders.policy.localOnly') }}
           </vscode-checkbox>
@@ -2452,6 +3255,20 @@ defineExpose({
           </div>
           <p class="field-description">{{ t('settings.aiProviders.policy.timeoutDescription') }}</p>
         </div>
+
+        <!--
+          The transport stays in VS Code's own settings editor — a three-value enum
+          it renders completely — and is named here by a pointer row (§2.2): its
+          full id, what the three values mean and that a binding wins, then the
+          action. The page reads the value with the rest of the policy only so a
+          write of the other gates can send the transport back unchanged.
+        -->
+        <button type="button" class="link-button pointer-row" @click="openNativeSettings">
+          <span>{{ t('settings.nativePointer.label') }}</span>
+          <code class="pointer-id">{{ AI_TRANSPORT_SETTING }}</code>
+          <span class="pointer-note">{{ t('settings.aiProviders.policy.transportPointer') }}</span>
+          <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
+        </button>
 
         <div v-if="policyStatus.message" :class="['status', policyStatus.type]" role="status" aria-live="polite">
           {{ policyStatus.message }}
@@ -2946,6 +3763,82 @@ vscode-single-select {
 }
 
 /*
+ * The page header: the one control that opens VS Code's own settings editor,
+ * filtered to this extension, plus the sentence saying what it is. It is a column
+ * like every other block, and it is deliberately not sticky — the settings it
+ * opens are not a property of the record being edited, so it does not have to
+ * follow the fields.
+ */
+.settings-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * A group inside a section: the multi-window half of the notification section,
+ * the two groups of the MCP section. It is one step down the hierarchy (an `h3`
+ * under the section's `h2`), and the hierarchy is carried by the heading and the
+ * spacing alone — no frame, no rule down its side. A bordered box would read as a
+ * card (a control), and the page's own left rules are reserved for the two places
+ * that really mark something: a row the host would refuse, and a probe report.
+ */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-group h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/*
+ * A "more settings" pointer row (`docs/design/settings-page.md` §2.2): the full
+ * native setting id, one sentence about what it controls, and the action that
+ * opens the filtered settings editor. The whole row is one button — it is a link
+ * to another surface, so the click target is the sentence, not a word inside it —
+ * and it wraps because the id is a single unbreakable run (`overflow-wrap` comes
+ * from the prose rule below).
+ */
+.pointer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  text-align: left;
+  font-size: 0.85em;
+}
+
+.pointer-id {
+  font-family: var(--vscode-editor-font-family), monospace;
+  font-size: 0.95em;
+}
+
+.pointer-note {
+  color: var(--vscode-descriptionForeground);
+}
+
+.pointer-action {
+  color: var(--vscode-textLink-foreground);
+}
+
+/*
+ * The line under the endpoint editor's model rows: what the automatic probe is
+ * doing, or how many rows it filled in. It is a live region so the answer arrives
+ * announced rather than only painted, and it is empty (`:empty` below) until
+ * there is something to say.
+ */
+.probe-status {
+  min-height: 0;
+}
+
+/*
  * The Saved Instances header: the section's name and the three controls that act
  * on the list. Both parts have a hard minimum — the heading is text, and a
  * `vscode-button` sets `white-space: nowrap` on its label — so at the sidebar's
@@ -3020,7 +3913,8 @@ h2 {
 .empty-list,
 .status,
 .provider-fact,
-.rejected-list li {
+.rejected-list li,
+.pointer-row {
   overflow-wrap: anywhere;
 }
 
@@ -3449,7 +4343,14 @@ label {
   min-width: 0;
 }
 
-.binding-row .field-description.warn {
+/*
+ * A description that reports a refusal is stated in the theme's own warning
+ * colour — the same token VS Code uses for the same kind of message — and never
+ * in a colour of this view's own invention. One rule for every such line on the
+ * page: the binding that names a missing endpoint, the endpoint editor's refused
+ * address, and the address the local-only policy will not send to.
+ */
+.field-description.warn {
   color: var(--vscode-editorWarning-foreground);
 }
 </style>

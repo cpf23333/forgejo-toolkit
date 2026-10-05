@@ -347,6 +347,109 @@ export interface AiProviderTestReport {
   shadowed: string[];
 }
 
+/**
+ * One probe of an endpoint the editor has **not saved**
+ * (`docs/design/settings-page.md` §4.2).
+ *
+ * The settings page's automatic model probe runs on a draft: the fields the user
+ * has typed, not a stored endpoint. The host builds a temporary
+ * `AiProviderConfig` from this payload and never writes any of it — the `key` and
+ * the header values below are held in memory for the one request and are never
+ * stored in settings or in secret storage by this path. `id` and `name` are only
+ * what the report says the probe was about.
+ */
+export interface AiProviderDraftProbe {
+  id: string;
+  name: string;
+  baseUrl: string;
+  auth: AiProviderAuthValue;
+  /** The editor's own local-only promise, which gates the probe like the setting does. */
+  localOnly: boolean;
+  /** The API key typed in this session; empty means "there is none to send". */
+  key: string;
+  /** The header values typed in this session, by declared name. */
+  headers: Array<{ name: string; value: string }>;
+}
+
+/**
+ * The five values of `forgejoToolkit.aiPreReviewPromptScope`, in the order the
+ * manifest's dropdown and the settings page's own dropdown both show them.
+ *
+ * Shared rather than declared twice: the settings record's §3.2 requires the
+ * page's dropdown to come from the same enumeration the host reads and writes, so
+ * a value the page cannot render and a value the host cannot store cannot drift
+ * apart. `ask` is first because it is the default and the only value that sends
+ * nothing on its own — it is the question, not an answer.
+ */
+export const AI_PRE_REVIEW_PROMPT_SCOPES = [
+  'ask',
+  'metadata-only',
+  'changed-lines-only',
+  'full-diff',
+  'changed-files',
+] as const;
+
+/** One value of `forgejoToolkit.aiPreReviewPromptScope`. */
+export type AiPreReviewPromptScopeValue = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[number];
+
+/**
+ * The settings this extension's own settings page renders with a control of its
+ * own, spelled as the full setting ids the manifest contributes.
+ *
+ * It is the **writable** half of the page's ownership policy
+ * (`docs/design/settings-page.md` §1.3, §3.2): the host accepts a write for one of
+ * these keys from the page and refuses every other key, and the drift guard
+ * (`src/__tests__/settingsSurface.test.ts`) holds the same list — read from the
+ * webview's English string catalogue — against the manifest. A setting that is
+ * not here is native-only, and `NATIVE_ONLY_SETTINGS` in
+ * `src/webview/settingsSurface.ts` is where its reason lives.
+ */
+export const SETTINGS_SURFACE_WRITABLE_KEYS = [
+  'forgejoToolkit.notificationPollingEnabled',
+  'forgejoToolkit.mcpEnabled',
+  'forgejoToolkit.mcpWriteTools.createIssueComment',
+  'forgejoToolkit.mcpWriteTools.submitPullReview',
+  'forgejoToolkit.mcpWriteTools.cancelActionRun',
+  'forgejoToolkit.mcpWriteAuditToFile',
+  'forgejoToolkit.multiWindowLease',
+  'forgejoToolkit.aiPreReview',
+  'forgejoToolkit.aiPreReviewPromptScope',
+] as const;
+
+/** One setting the settings page may write. */
+export type SettingsSurfaceWritableKey = (typeof SETTINGS_SURFACE_WRITABLE_KEYS)[number];
+
+/**
+ * The settings the page's own sections present, as the host last read them
+ * (`docs/design/settings-page.md` §3.2).
+ *
+ * One message rather than one per setting, for the reason the AI endpoint
+ * snapshot gives: the page renders a screen, and every control on it has to be
+ * showing the host's own reading rather than a value the page remembered. The
+ * values are the **effective** ones (`getConfiguration` resolves workspace over
+ * user over default), which is what the user is actually living with.
+ */
+export interface SettingsSurfaceSnapshot {
+  /** `forgejoToolkit.notificationPollingEnabled` (default on). */
+  notificationPollingEnabled: boolean;
+  /** `forgejoToolkit.mcpEnabled` (default on). */
+  mcpEnabled: boolean;
+  /** The three per-tool write gates, each off by default. */
+  mcpWriteTools: {
+    createIssueComment: boolean;
+    submitPullReview: boolean;
+    cancelActionRun: boolean;
+  };
+  /** `forgejoToolkit.mcpWriteAuditToFile` (default off). */
+  mcpWriteAuditToFile: boolean;
+  /** `forgejoToolkit.multiWindowLease` (default on). */
+  multiWindowLease: boolean;
+  /** `forgejoToolkit.aiPreReview` (default off). */
+  aiPreReview: boolean;
+  /** `forgejoToolkit.aiPreReviewPromptScope`, read exactly as the run reads it. */
+  aiPreReviewPromptScope: AiPreReviewPromptScopeValue;
+}
+
 /** Events accepted by the Forgejo API when submitting a pending pull review. */
 export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
@@ -1250,6 +1353,11 @@ export type HostToWebviewMessage =
       _requestId: string;
     }
   | { command: 'aiProviderTestReport'; report: AiProviderTestReport; _requestId: string }
+  // The settings page's own surface: the nine settings its sections present with
+  // a control (`docs/design/settings-page.md` §3.2). Reading one sends nothing
+  // anywhere and writes nothing; a write answers with the host's reading of the
+  // state it produced, plus its own sentence when the write failed.
+  | { command: 'settingsSurface'; snapshot: SettingsSurfaceSnapshot; error?: string; _requestId: string }
   | {
       command: 'aiModelPolicySaved';
       enabled: boolean;
@@ -1659,6 +1767,26 @@ export type WebviewToHostMessage =
       _requestId: string;
     }
   | { command: 'testAiProvider'; id: string; _requestId: string }
+  // The draft probe (§4 of the settings-page record): the same report shape the
+  // explicit test answers with, for an endpoint that has not been saved. It is
+  // the first path in this extension that a request leaves the machine on without
+  // a click — a typed, complete address and credential arm it after 800 ms of
+  // idle — so it stays deliberately narrow: `GET /models` only, one shot per
+  // input combination, refused locally before any byte when the local-only rule
+  // forbids the address, and it never carries a saved endpoint's identity.
+  | { command: 'testAiProviderDraft'; draft: AiProviderDraftProbe; _requestId: string }
+  | { command: 'getSettingsSurface'; _requestId: string }
+  | {
+      command: 'setSettingsSurfaceValue';
+      key: SettingsSurfaceWritableKey;
+      value: boolean | string;
+      _requestId: string;
+    }
+  // The settings page's way into VS Code's own settings editor, filtered to this
+  // extension (`docs/design/settings-page.md` §2.1). A webview cannot run a
+  // command, so the host runs the one the per-section pointers and the page
+  // header both name. No reply: the effect is a window the user is looking at.
+  | { command: 'openNativeSettings' }
   | {
       command: 'setAiModelPolicy';
       enabled: boolean;

@@ -519,8 +519,37 @@
     "username": "Username"
   },
   "settings": {
+    "forgejoToolkit.locale": "settings.language",
+    "forgejoToolkit.debug": "settings.debug.title",
+    "forgejoToolkit.worktreeOpenMode": "settings.worktree.openMode",
+    "forgejoToolkit.worktreeCacheDirectory": "settings.worktree.cacheDirectory",
+    "forgejoToolkit.notificationPollingEnabled": "settings.notifications.enabled",
+    "forgejoToolkit.mcpEnabled": "settings.mcp.enabled",
+    "forgejoToolkit.mcpWriteTools.createIssueComment": "settings.mcp.writeTools.createIssueComment",
+    "forgejoToolkit.mcpWriteTools.submitPullReview": "settings.mcp.writeTools.submitPullReview",
+    "forgejoToolkit.mcpWriteTools.cancelActionRun": "settings.mcp.writeTools.cancelActionRun",
+    "forgejoToolkit.mcpWriteAuditToFile": "settings.mcp.audit.enabled",
+    "forgejoToolkit.multiWindowLease": "settings.multiWindow.lease",
+    "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
+    "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
+    "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
+    "forgejoToolkit.aiProviders": "settings.aiProviders.title",
+    "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
+    "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
+    "forgejoToolkit.aiLocalOnly": "settings.aiProviders.policy.localOnly",
+    "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
     "language": "Language",
     "languageDescription": "Select display language for the Forgejo Toolkit panel.",
+    "header": {
+      "openNativeSettings": "Open Extension Settings",
+      "openNativeSettingsDescription": "Every setting this extension contributes, in VS Code's own settings editor, filtered to it. The settings that are not on this page live there.",
+      "loadFailed": "The extension's settings could not be read: {error}"
+    },
+    "nativePointer": {
+      "label": "More settings:",
+      "action": "Open in VS Code Settings",
+      "interval": "(the polling interval in seconds, 60–3600)"
+    },
     "addInstanceTitle": "Add Forgejo Instance",
     "instanceUrl": "Instance URL",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
@@ -568,8 +597,59 @@
       "description": "Enable request/response logging to the Forgejo Toolkit output channel.",
       "enable": "Enable debug logging"
     },
+    "notifications": {
+      "title": "Notifications",
+      "description": "How this window watches your instances for unread notifications.",
+      "enabled": "Poll for unread notifications",
+      "enabledDefault": "Default on: polling works as soon as an instance is configured.",
+      "disabledHint": "While this is off the unread badge and the alerts stop updating."
+    },
+    "multiWindow": {
+      "title": "Multiple windows",
+      "lease": "Poll and alert from one window only",
+      "default": "Default on: one window polls and raises the alerts, the others stay quiet.",
+      "description": "The lease tries to follow the window you are working in. Where VS Code's focus state cannot be trusted, the current holder keeps it, so the alerts stay with one window and none is lost — this is the state the extension reports when it cannot decide.",
+      "offHint": "With this off every window polls and alerts on its own, which uses more requests."
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "description": "Expose your Forgejo instances to agents in agent mode, as MCP servers.",
+      "enabled": "Expose instances as MCP servers",
+      "enabledDefault": "Default on: the servers work as soon as an instance is configured.",
+      "disabledHint": "Turning this off withdraws the server definitions immediately and stops the workspace-repository mapping and the local broker; a client that is already connected keeps the server process it started until you reload the window.",
+      "writeTools": {
+        "title": "Write tools",
+        "description": "Off by default, one switch per tool. While one is on, an agent acts under your account: VS Code asks you to confirm each call, but you can turn that confirmation off for a tool, and a client other than VS Code may not ask at all.",
+        "default": "Default off: every write tool stays off until you turn on the one you mean.",
+        "createIssueComment": "Create issue and pull request comments",
+        "submitPullReview": "Submit pull request reviews",
+        "cancelActionRun": "Cancel running Actions workflow runs"
+      },
+      "audit": {
+        "title": "Audit",
+        "enabled": "Also write the audit to a file",
+        "default": "Default off: the audit stays in the Forgejo Toolkit output channel, and is lost when the window closes.",
+        "file": "When this is on, each record is also appended to `mcp-write-audit.jsonl` in the extension's log folder (VS Code: \"Developer: Open Logs Folder\"), on top of the output channel. The file is capped at 1 MB with two rolled files."
+      }
+    },
+    "aiPreReview": {
+      "title": "AI Pre-Review",
+      "description": "A chat model reads a pull request and proposes line-level review comments; you pick the ones you agree with, and only those are written as drafts of a pending review. The extension never submits a review.",
+      "enabled": "Enable AI pre-review",
+      "enabledDefault": "Default off: nothing is sent to a model until you turn this on.",
+      "disabledHint": "The prompt scope and the model below are configuration; a run uses them only while this is on.",
+      "scope": "Prompt scope",
+      "scopeDescription": "What the prompt may carry. This is the only place the answer is recorded: every run reads it from here, and `ask` means the question has not been answered yet.",
+      "scopeDefault": "Default: `ask` — the first run asks once and writes your answer here.",
+      "scopeOption": {
+        "ask": "Ask before each run — nothing is requested, sent or written until you answer",
+        "metadata-only": "Metadata only — no code: the title, the branch names, the changed-file paths with their line counts, and review-comment metadata",
+        "changed-lines-only": "Changed lines only — the added and removed lines with their file and hunk headers, and no unchanged context",
+        "full-diff": "Full diff — every hunk, including the unchanged context lines, but not the files' own text",
+        "changed-files": "Changed files — the whole diff plus the full text of every changed file at the pull request's head version"
+      }
+    },
     "aiPreReviewModel": {
-      "title": "AI Pre-Review Chat Model",
       "description": "Which chat model reviews a pull request. VS Code only lists the models at run time, so this dropdown is loaded from the running extension.",
       "selectLabel": "Chat model",
       "askEachRun": "Ask each run (no stored model)",
@@ -626,11 +706,7 @@
       "policy": {
         "enabled": "Allow requests to configured endpoints",
         "enabledDescription": "A configured endpoint and a stored key send nothing by themselves. Turning this on is the second of the three separate facts a request needs: the endpoint is configured, the key is stored, and you agreed to send content — which each feature asks separately.",
-        "transport": "Model transport",
-        "transportDescription": "Which transport serves a feature that has no binding below. There is no switching between the two: a transport that fails reports the failure instead of quietly asking the other one.",
-        "transportAuto": "auto — prefer this editor's models, use a configured endpoint only when it offers none",
-        "transportVscodeLm": "vscode-lm — always this editor's models",
-        "transportOpenAiCompatible": "openai-compatible — always a configured endpoint",
+        "transportPointer": "Model transport — `auto` prefers this editor's models, `vscode-lm` always uses them, `openai-compatible` always uses a configured endpoint; a binding set below wins over all three.",
         "localOnly": "Local endpoints only",
         "localOnlyDescription": "Refuse any configured endpoint whose host is not this machine or a private network. The configured address is what is checked: no name lookup is made, and an address that cannot be read is treated as not local.",
         "timeout": "Endpoint idle timeout (ms)",
@@ -641,7 +717,7 @@
       "bindings": {
         "title": "Feature Bindings",
         "description": "Which endpoint and model each AI feature uses. A binding names the destination, so it is used whatever the transport above says. An endpoint that is not configured, or that cannot be used, fails by name rather than resolving to another one.",
-        "none": "No binding — use the transport choice above",
+        "none": "No binding — use the transport setting forgejoToolkit.aiTransport",
         "model": "Model id",
         "modelPlaceholder": "The model name the endpoint expects",
         "save": "Save binding",
@@ -679,10 +755,13 @@
         "id": "Endpoint id",
         "idDescription": "Letters, digits, \"_\" and \"-\" only. The id is part of the key each stored secret uses, which is why it is fixed once the endpoint exists.",
         "idLocked": "The id cannot be changed: the stored secrets are keyed by it.",
+        "idCreateWarning": "Decide the id now: it cannot be changed once the endpoint is saved. Every stored key and header value is filed under it, so changing it later would mean losing them.",
         "name": "Display name",
         "nameDescription": "What the consent question, the log and this page call the endpoint.",
         "baseUrl": "Base URL",
         "baseUrlDescription": "Used exactly as written apart from a trailing slash: /v1 is deliberately not appended, because Azure's address and a gateway's /openai/v1 would both be made wrong by it. Only /chat/completions and /models are appended.",
+        "addressInvalid": "This address cannot be used: {reason}",
+        "localOnlyBlocked": "Refused by the local-only policy: nothing will be sent to this address. The switch that decides this is \"Local endpoints only\", below.",
         "auth": "Authentication",
         "authBearer": "bearer — send the key as an Authorization: Bearer header",
         "authApiKeyHeader": "api-key-header — send the key as an api-key header (Azure)",
@@ -719,6 +798,13 @@
         "cancel": "Cancel",
         "addReportedModels": "Add the reported model(s) ({count})",
         "secretFailed": "The endpoint was saved, but a stored value could not be written: {error}"
+      },
+      "probe": {
+        "action": "Probe model list",
+        "probing": "Probing this endpoint's model list...",
+        "probingAction": "Probing...",
+        "added": "Added {count} model(s) from the endpoint's /models; they are ordinary rows you can edit or remove.",
+        "unchanged": "The endpoint's /models reported no model this list does not already declare."
       }
     },
     "status": {

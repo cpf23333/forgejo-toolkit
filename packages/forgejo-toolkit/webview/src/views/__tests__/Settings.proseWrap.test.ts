@@ -49,6 +49,7 @@ const PROSE_SELECTORS = [
   '.status',
   '.provider-fact',
   '.rejected-list li',
+  '.pointer-row',
 ];
 
 describe('Settings prose blocks wrap long identifiers', () => {

@@ -120,6 +120,7 @@
         "forgejoToolkit.notificationPollingEnabled": {
           "type": "boolean",
           "default": true,
+          "title": "%config.notificationPollingEnabled.title%",
           "description": "%config.notificationPollingEnabled.description%"
         },
         "forgejoToolkit.notificationPollingInterval": {
@@ -137,6 +138,7 @@
         "forgejoToolkit.mcpEnabled": {
           "type": "boolean",
           "default": true,
+          "title": "%config.mcpEnabled.title%",
           "description": "%config.mcpEnabled.description%"
         },
         "forgejoToolkit.mcpWriteTools.createIssueComment": {
@@ -166,6 +168,7 @@
         "forgejoToolkit.multiWindowLease": {
           "type": "boolean",
           "default": true,
+          "title": "%config.multiWindowLease.title%",
           "description": "%config.multiWindowLease.description%"
         },
         "forgejoToolkit.aiPreReview": {
@@ -377,6 +380,12 @@
         "title": "%command.openSettings.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(gear)"
+      },
+      {
+        "command": "forgejoToolkit.openNativeSettings",
+        "title": "%command.openNativeSettings.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "forgejoToolkit.refreshInstances",

@@ -283,11 +283,14 @@ import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
   AiPreReviewChatModelOption,
+  AiProviderDraftProbe,
   AiProviderSettingsSnapshot,
   AiProviderTestReport,
   ExportSettings,
   HostToWebviewMessage,
   LinkedRepository,
+  SettingsSurfaceSnapshot,
+  SettingsSurfaceWritableKey,
   // The import preview payload never carries tokens (structurally excluded);
   // the regular instance list never does either.
   ImportPreviewInstance,
@@ -396,6 +399,20 @@ export interface AiModelPolicyPayload {
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
   localOnly: boolean;
   requestTimeoutMs: number;
+}
+
+/**
+ * What the host answered to a settings-surface read or write: its reading of the
+ * state, plus its own sentence when a write was refused or failed.
+ *
+ * One shape for both, because the answer to "write this" *is* the new reading:
+ * the page renders the snapshot rather than the value it hoped for, which is what
+ * keeps a control from showing a state that was never stored
+ * (`docs/design/settings-page.md` §3.3 rule 3).
+ */
+export interface SettingsSurfaceAnswer {
+  snapshot: SettingsSurfaceSnapshot;
+  error?: string;
 }
 
 /**
@@ -1018,6 +1035,35 @@ function createAppState() {
   const aiProviderSettings = ref<AiProviderSettingsSnapshot | undefined>(undefined);
 
   /**
+   * The settings page's own surface: the nine settings its sections render with a
+   * control (`docs/design/settings-page.md` §3.2). The page renders this ref, so
+   * every control follows the host's reading rather than the click — including
+   * the values the host refuses.
+   */
+  const settingsSurface = ref<SettingsSurfaceSnapshot | undefined>(undefined);
+  let settingsSurfaceRequestId = 0;
+  const pendingSettingsSurfaceRequests = new Map<
+    string,
+    { resolve: (answer: SettingsSurfaceAnswer) => void; reject: (error: Error) => void }
+  >();
+
+  /**
+   * One request on the settings page's own surface. The reply is the host's
+   * reading of the state after the attempt (plus its sentence when the write was
+   * refused), so both callers share one registry and one shape.
+   */
+  function settingsSurfaceRequest(
+    command: 'getSettingsSurface' | 'setSettingsSurfaceValue',
+    payload: Record<string, unknown>,
+  ): Promise<SettingsSurfaceAnswer> {
+    const _requestId = `settingsSurface-${++settingsSurfaceRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingSettingsSurfaceRequests, _requestId, command, { resolve, reject });
+      postMessage({ command, _requestId, ...payload });
+    });
+  }
+
+  /**
    * Hands one host reply to the request that asked for it, if it is still
    * waiting. A reply that arrives after its request timed out is dropped, which is
    * the same discipline every other request/response pair here follows: a late
@@ -1123,6 +1169,7 @@ function createAppState() {
       pendingAiPreReviewModelLists,
       pendingAiPreReviewModelSaves,
       pendingAiProviderRequests,
+      pendingSettingsSurfaceRequests,
       pendingRenderMarkdownRequests,
     ];
     for (const map of errorMaps) {
@@ -2251,6 +2298,21 @@ function createAppState() {
       }
       case 'aiProviderTestReport': {
         settleAiProviderRequest(message._requestId, { kind: 'test', report: message.report });
+        break;
+      }
+      // The settings page's own surface. The reply is the host's reading after the
+      // attempt, so it is stored as the screen state before it resolves the
+      // request that asked for it.
+      case 'settingsSurface': {
+        settingsSurface.value = message.snapshot;
+        const pending = pendingSettingsSurfaceRequests.get(message._requestId);
+        if (pending) {
+          pendingSettingsSurfaceRequests.delete(message._requestId);
+          pending.resolve({
+            snapshot: message.snapshot,
+            ...(message.error !== undefined ? { error: message.error } : {}),
+          });
+        }
         break;
       }
       case 'aiModelPolicySaved': {
@@ -4773,6 +4835,59 @@ function createAppState() {
     return aiProviderRequest('binding', 'setAiModelBinding', { ...binding });
   }
 
+  /**
+   * Reads the settings the page's own sections present. Reading sends nothing
+   * anywhere and writes nothing; it is the page's only way to learn what the host
+   * currently has, so every control renders this answer and never a value the
+   * page remembered.
+   */
+  async function loadSettingsSurface(): Promise<SettingsSurfaceSnapshot> {
+    const answer = await settingsSurfaceRequest('getSettingsSurface', {});
+    settingsSurface.value = answer.snapshot;
+    return answer.snapshot;
+  }
+
+  /**
+   * Writes one of the nine settings, through the host, and returns the host's
+   * reading of the state it produced. A refused or failed write comes back in
+   * `error` with the snapshot unchanged, which is what lets the control bounce
+   * back to the truth instead of keeping the value that was never stored.
+   */
+  async function setSettingsSurfaceValue(
+    key: SettingsSurfaceWritableKey,
+    value: boolean | string,
+  ): Promise<SettingsSurfaceAnswer> {
+    const answer = await settingsSurfaceRequest('setSettingsSurfaceValue', { key, value });
+    settingsSurface.value = answer.snapshot;
+    return answer;
+  }
+
+  /**
+   * One **draft** probe of the endpoint editor's current fields
+   * (`docs/design/settings-page.md` §4.2).
+   *
+   * This is the only command in this composable that can send without a click:
+   * the component arms it after 800 ms of idle on a completed address and
+   * credential, one shot per input combination, and never when the local-only
+   * policy refuses the address. The typed credential travels in the payload and is
+   * never stored — not in a setting, not in `SecretStorage` — which is why this is
+   * not `saveAiProvider` followed by `testAiProvider`.
+   */
+  async function testAiProviderDraft(draft: AiProviderDraftProbe): Promise<AiProviderTestReport> {
+    const reply = await aiProviderRequest('test', 'testAiProviderDraft', { draft });
+    return reply.report;
+  }
+
+  /**
+   * Opens VS Code's own settings editor, filtered to this extension
+   * (`docs/design/settings-page.md` §2.1). The filter is the point: the
+   * unfiltered editor is the place the user could not find this extension's
+   * settings in, which is why this page exists.
+   */
+  function openNativeSettings(): void {
+    postMessage({ command: 'openNativeSettings' });
+  }
+
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
     router.push({ name: 'repoDetail', params: { instanceId, owner, repo } });
     loadRepoDetail(instanceId, owner, repo);
@@ -7012,8 +7127,13 @@ function createAppState() {
     removeAiProvider,
     setAiProviderSecret,
     testAiProvider,
+    testAiProviderDraft,
+    openNativeSettings,
     setAiModelPolicy,
     setAiModelBinding,
+    settingsSurface,
+    loadSettingsSurface,
+    setSettingsSurfaceValue,
     openRepoDetail,
     loadRepoDetail,
     loadRepoBranchCommits,

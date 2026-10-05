@@ -519,8 +519,37 @@
     "username": "用户名"
   },
   "settings": {
+    "forgejoToolkit.locale": "settings.language",
+    "forgejoToolkit.debug": "settings.debug.title",
+    "forgejoToolkit.worktreeOpenMode": "settings.worktree.openMode",
+    "forgejoToolkit.worktreeCacheDirectory": "settings.worktree.cacheDirectory",
+    "forgejoToolkit.notificationPollingEnabled": "settings.notifications.enabled",
+    "forgejoToolkit.mcpEnabled": "settings.mcp.enabled",
+    "forgejoToolkit.mcpWriteTools.createIssueComment": "settings.mcp.writeTools.createIssueComment",
+    "forgejoToolkit.mcpWriteTools.submitPullReview": "settings.mcp.writeTools.submitPullReview",
+    "forgejoToolkit.mcpWriteTools.cancelActionRun": "settings.mcp.writeTools.cancelActionRun",
+    "forgejoToolkit.mcpWriteAuditToFile": "settings.mcp.audit.enabled",
+    "forgejoToolkit.multiWindowLease": "settings.multiWindow.lease",
+    "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
+    "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
+    "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
+    "forgejoToolkit.aiProviders": "settings.aiProviders.title",
+    "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
+    "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
+    "forgejoToolkit.aiLocalOnly": "settings.aiProviders.policy.localOnly",
+    "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
     "language": "语言",
     "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
+    "header": {
+      "openNativeSettings": "打开扩展设置",
+      "openNativeSettingsDescription": "本扩展贡献的全部设置，在 VS Code 自己的设置界面里、按本扩展筛过。没有放在本页的设置都在那里。",
+      "loadFailed": "读不到本扩展的设置：{error}"
+    },
+    "nativePointer": {
+      "label": "更多设置：",
+      "action": "在 VS Code 设置中打开",
+      "interval": "（轮询间隔，单位秒，60–3600）"
+    },
     "addInstanceTitle": "添加 Forgejo 实例",
     "instanceUrl": "实例地址",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
@@ -568,8 +597,59 @@
       "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",
       "enable": "启用调试日志"
     },
+    "notifications": {
+      "title": "通知",
+      "description": "本窗口如何监视各实例的未读通知。",
+      "enabled": "轮询未读通知",
+      "enabledDefault": "默认开：配好一个实例即可生效。",
+      "disabledHint": "关闭期间角标与提醒都不再更新。"
+    },
+    "multiWindow": {
+      "title": "多窗口",
+      "lease": "只由一个窗口轮询并提醒",
+      "default": "默认开：一个窗口负责轮询与提醒，其余窗口保持安静。",
+      "description": "租约会尽量跟着你正在使用的窗口走。当 VS Code 的焦点状态不可信时，现任窗口继续持有租约，于是提醒始终留在同一个窗口、不会漏掉——这正是扩展无法判断时报告的状态。",
+      "offHint": "关闭后每个窗口各自轮询与提醒，请求更多。"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "description": "把已配置的 Forgejo 实例作为 MCP server 暴露给 agent mode 里的 agent。",
+      "enabled": "把实例作为 MCP server 暴露出去",
+      "enabledDefault": "默认开：配好一个实例即可生效。",
+      "disabledHint": "关闭后立即撤销 server 定义，并停止工作区仓库映射与本地 broker；已连接的客户端会继续使用它已启动的 server 进程，直到重载窗口。",
+      "writeTools": {
+        "title": "写工具",
+        "description": "默认关闭，每个工具一道闸。任一个开启期间，agent 就以你的名义行动：VS Code 会对每次调用弹出确认框，但你可以为某个工具关掉确认，非 VS Code 的客户端也可能根本不问。",
+        "default": "默认关：你要用哪个写工具，就单独打开哪一个。",
+        "createIssueComment": "创建 Issue 与 Pull Request 评论",
+        "submitPullReview": "提交 Pull Request 评审",
+        "cancelActionRun": "取消正在运行的 Actions workflow 运行"
+      },
+      "audit": {
+        "title": "审计",
+        "enabled": "把审计同时写入文件",
+        "default": "默认关：审计只留在 Forgejo Toolkit 输出通道，窗口关闭即丢失。",
+        "file": "开启后，每条记录会在输出通道之外同时追加到扩展日志目录下的 `mcp-write-audit.jsonl`（VS Code：「开发人员: 打开日志文件夹」）。文件上限 1 MB，另有两个滚动文件。"
+      }
+    },
+    "aiPreReview": {
+      "title": "AI 预评审",
+      "description": "由聊天模型读一遍 Pull Request 并给出行级评审意见；你逐条勾选认可的那些，只有勾中的才写成待提交评审的草稿。扩展从不提交评审。",
+      "enabled": "启用 AI 预评审",
+      "enabledDefault": "默认关：打开它才会把内容发给模型。",
+      "disabledHint": "下面的提示词范围与模型属于配置项，只有本开关打开后才会被用到。",
+      "scope": "提示词范围",
+      "scopeDescription": "提示词可以携带什么。这是这个答案的唯一记录处：每次运行都从这里读，`ask` 表示这个问题还没有被回答。",
+      "scopeDefault": "默认：`ask`——第一次运行时问一次，并把你的回答写进这里。",
+      "scopeOption": {
+        "ask": "每次运行前询问——在你回答之前不请求、不发送、不写入任何东西",
+        "metadata-only": "仅元数据——完全不发代码：标题、分支名、变更文件路径与行数、评审意见的元数据",
+        "changed-lines-only": "仅变更行——新增与删除的行连同文件头与 hunk 头，不含未改动的上下文",
+        "full-diff": "整份 diff——每个 hunk 都发，含未改动的上下文行，但不含文件正文",
+        "changed-files": "变更文件——整份 diff 再加上每个变更文件在 PR head 版本的完整内容"
+      }
+    },
     "aiPreReviewModel": {
-      "title": "AI 预评审聊天模型",
       "description": "由哪个聊天模型评审 PR。VS Code 只在运行时才知道有哪些模型，因此这个下拉列表是从正在运行的扩展读取的。",
       "selectLabel": "聊天模型",
       "askEachRun": "每次运行都询问（不保存模型）",
@@ -626,11 +706,7 @@
       "policy": {
         "enabled": "允许向已配置的端点发请求",
         "enabledDescription": "配好端点、存好密钥本身都不会发出任何内容。打开它是直连请求所必需的三个独立事实中的第二个：端点已配置、密钥已存、你已同意发送内容——最后这件事由各功能自己单独询问。",
-        "transport": "模型传输",
-        "transportDescription": "没有绑定的功能走哪条路。两条路之间不会互相切换：哪条失败就报告那条的失败，绝不悄悄改用另一条。",
-        "transportAuto": "auto——优先用本编辑器的模型，一个都没有时才用已配置的端点",
-        "transportVscodeLm": "vscode-lm——始终用本编辑器的模型",
-        "transportOpenAiCompatible": "openai-compatible——始终用已配置的端点",
+        "transportPointer": "模型传输方式——`auto` 优先用本编辑器提供的模型，`vscode-lm` 始终用它们，`openai-compatible` 始终用已配置的端点；下方设了绑定则绑定优先于这三者。",
         "localOnly": "仅允许本地端点",
         "localOnlyDescription": "拒绝主机不在本机或内网的已配置端点。判定只看配置里的地址：不做域名解析，读不出来的地址一律按不本地处理。",
         "timeout": "端点空闲超时（毫秒）",
@@ -641,7 +717,7 @@
       "bindings": {
         "title": "逐功能绑定",
         "description": "每个 AI 功能用哪个端点与哪个模型。绑定点明了目的地，所以无论上面的传输设置说什么都用它。指向未配置或不可用端点时会点名失败，绝不就近改用别的端点。",
-        "none": "不绑定——用上面的传输设置",
+        "none": "不绑定——用传输设置 forgejoToolkit.aiTransport",
         "model": "模型 id",
         "modelPlaceholder": "端点期望的模型名",
         "save": "保存绑定",
@@ -679,10 +755,13 @@
         "id": "端点 id",
         "idDescription": "只能用字母、数字、\"_\" 与 \"-\"。id 是每个已存密钥所用键的一部分，所以端点一旦存在它就不能再改。",
         "idLocked": "id 不可更改：已存的密钥都以它为键。",
+        "idCreateWarning": "先想好这个 id：端点存下之后就不能改。已存的密钥与 header 值都按它做键，改了就等于把它们丢掉。",
         "name": "显示名",
         "nameDescription": "同意询问、日志与本页都用它称呼这个端点。",
         "baseUrl": "Base URL",
         "baseUrlDescription": "按原样使用，只去掉尾部斜杠：\"不会\"替你补 /v1，因为 Azure 的地址与自建网关的 /openai/v1 都会被补错。只会在后面接 /chat/completions 与 /models。",
+        "addressInvalid": "这个地址不能用：{reason}",
+        "localOnlyBlocked": "被仅本地策略拒绝：不会向这个地址发出任何内容。决定它的开关是下方的「仅允许本地端点」。",
         "auth": "认证方式",
         "authBearer": "bearer——把密钥作为 Authorization: Bearer 请求头发送",
         "authApiKeyHeader": "api-key-header——把密钥作为 api-key 请求头发送（Azure）",
@@ -719,6 +798,13 @@
         "cancel": "取消",
         "addReportedModels": "加入端点报告的模型（{count} 个）",
         "secretFailed": "端点已保存，但有一个值没能写进密钥存储：{error}"
+      },
+      "probe": {
+        "action": "探测模型列表",
+        "probing": "正在探测该端点的模型列表……",
+        "probingAction": "探测中……",
+        "added": "已从端点的 /models 补入 {count} 个模型；它们就是普通行，可改可删。",
+        "unchanged": "端点的 /models 没有报出这份列表里还没有的模型。"
       }
     },
     "status": {

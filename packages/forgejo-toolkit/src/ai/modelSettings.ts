@@ -102,21 +102,27 @@ export const AI_MODEL_REQUEST_TIMEOUT_MAX_MS = 600_000;
 export const AI_MODEL_REQUEST_TOTAL_TIMEOUT_FACTOR = 10;
 
 /**
- * The characters a provider id and a header name may use.
- *
- * One pattern for both, and the reason is the same in both cases: the id is part
- * of a `SecretStorage` key (`forgejoToolkit.aiProviderKey.<id>`) and the header
- * name is part of another (`forgejoToolkit.aiProviderHeader.<id>.<name>`), where
- * `.` is the separator. A name containing a `.` — or a space, a colon, a
- * non-ASCII letter — would make the key ambiguous, so it is refused at the point
- * the value is read rather than guessed at (§8.2).
+ * The provider-id / header-name character class, the base-URL verdict and the
+ * local-only host rule are defined once, in the shared package, because the
+ * settings page needs the same three answers this host does and must not have a
+ * second copy of them (`docs/design/settings-page.md` §5.1, §7.3). Imported and
+ * re-exported here so every host-side caller has one import site.
  */
-export const AI_PROVIDER_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
+import {
+  AI_PROVIDER_SEGMENT_PATTERN,
+  isAiProviderSegment,
+  inspectAiProviderBaseUrl,
+  isLocalAiEndpointHost,
+  type AiProviderBaseUrlVerdict,
+} from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
 
-/** Whether a value is usable as a provider id / header name (§8.2). */
-export function isAiProviderSegment(value: string): boolean {
-  return AI_PROVIDER_SEGMENT_PATTERN.test(value);
-}
+export {
+  AI_PROVIDER_SEGMENT_PATTERN,
+  isAiProviderSegment,
+  inspectAiProviderBaseUrl,
+  isLocalAiEndpointHost,
+  type AiProviderBaseUrlVerdict,
+};
 
 /** How a provider authenticates one request (§8.5). */
 export type AiProviderAuth = 'bearer' | 'api-key-header' | 'none';
@@ -475,121 +481,4 @@ export function aiModelBindingsSettingValue(): AiModelBinding[] {
 /** The binding that names this feature, or `undefined` when there is none. */
 export function aiModelBindingFor(feature: AiFeature): AiModelBinding | undefined {
   return aiModelBindingsSettingValue().find((binding) => binding.feature === feature);
-}
-
-/**
- * What a base URL is: usable or not, and whether it is usable but not encrypted.
- *
- * Three refusals, each with its own reason (§6.2): a value that is not an absolute
- * URL at all, a scheme other than `http:`/`https:` (`file:`, `data:`,
- * `javascript:`, an editor-internal scheme), and a URL that carries credentials as
- * userinfo — a credential belongs in `SecretStorage`, and Node's `fetch` refuses
- * such a URL outright, so accepting one would produce a transport error blaming
- * the endpoint for a credential in the wrong field (the same reasoning as
- * `hasUrlUserinfo` in `src/utils/redactUrlUserinfo.ts`).
- *
- * `http://` is **allowed**: "this machine, no egress" is one of the reasons this
- * transport exists, and a loopback endpoint has no certificate to be had. It is
- * not silent, though — `warning` is the sentence a surface shows and the transport
- * logs whenever it is about to send to one (§6.2, §10.2).
- */
-export type AiProviderBaseUrlVerdict =
-  | { ok: true; url: URL; insecure: boolean; warning?: string }
-  | { ok: false; reason: string };
-
-/** See {@link AiProviderBaseUrlVerdict}. */
-export function inspectAiProviderBaseUrl(baseUrl: string): AiProviderBaseUrlVerdict {
-  let parsed: URL;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    return { ok: false, reason: 'it is not an absolute URL' };
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return {
-      ok: false,
-      reason: `its scheme is "${parsed.protocol}", and only http: and https: can be a model endpoint`,
-    };
-  }
-  if (parsed.username !== '' || parsed.password !== '') {
-    return {
-      ok: false,
-      reason:
-        "it carries credentials in the URL, and a credential belongs in the extension's secret storage rather than in a setting",
-    };
-  }
-  if (parsed.protocol === 'http:') {
-    return {
-      ok: true,
-      url: parsed,
-      insecure: true,
-      warning: `This endpoint address is plain http://, so the request and the answer are not encrypted in transit (${redactHostOf(parsed)}).`,
-    };
-  }
-  return { ok: true, url: parsed, insecure: false };
-}
-
-/** A URL's origin, without its userinfo (there is none left after the check above). */
-function redactHostOf(url: URL): string {
-  return `${url.protocol}//${url.host}`;
-}
-
-/**
- * Whether a hostname is "local" for `forgejoToolkit.aiLocalOnly` (§8.8).
- *
- * The rule reads the **configured** address and nothing else: no lookup, no
- * connectivity probe. DNS rebinding is explicitly not this policy's threat model
- * (the record's §13 question 5), and a policy that resolved the name would add a
- * network round trip and a new failure mode to the one check that has to be able
- * to say no.
- *
- * An empty or unrecognised host is **not** local: "read it and, if you cannot,
- * do not allow it" is the direction `resolveProxyUrl` already uses for the
- * opposite decision.
- */
-export function isLocalAiEndpointHost(hostname: string): boolean {
-  const host = hostname
-    .trim()
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '');
-  if (host === '' || host.includes(' ')) {
-    return false;
-  }
-  if (host === 'localhost' || host === '::1' || host === '0:0:0:0:0:0:0:1') {
-    return true;
-  }
-  // A LAN name (`.local`, the mDNS suffix) names a machine on this network, which
-  // is what the policy is about; a public name ending in something else is not.
-  if (host.endsWith('.local')) {
-    return true;
-  }
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const octets = ipv4.slice(1, 5).map((part) => Number(part));
-    if (octets.some((octet) => octet > 255)) {
-      return false;
-    }
-    const [first, second] = octets as [number, number, number, number];
-    if (first === 127) {
-      return true;
-    }
-    if (first === 10) {
-      return true;
-    }
-    if (first === 172 && second >= 16 && second <= 31) {
-      return true;
-    }
-    if (first === 192 && second === 168) {
-      return true;
-    }
-    return false;
-  }
-  // `fc00::/7` (unique local addresses) and the IPv6 loopback above are the two
-  // IPv6 forms the policy names; anything else is not local.
-  const firstHextet = /^([0-9a-f]{1,4}):/.exec(host);
-  if (firstHextet) {
-    const value = Number.parseInt(firstHextet[1] as string, 16);
-    return (value & 0xfe00) === 0xfc00;
-  }
-  return false;
 }
