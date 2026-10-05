@@ -16,10 +16,15 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   MOCK_BUILD_MARKERS,
+  MOCKS_HANDLERS_SOURCE,
   apiModeReport,
   bundleFiles,
   decideApiMode,
   detectMockBuild,
+  handledApiPath,
+  mockableInstancePath,
+  readHandledApiPath,
+  unmockableInstances,
   type ApiModeContext,
 } from './apiMode';
 import { readConfiguredInstances, readMockApiSetting } from './config';
@@ -53,6 +58,8 @@ const CONTEXT: ApiModeContext = {
   instances: [{ id: 'demo-1', url: 'https://forgejo.example.com', name: 'Demo Forgejo' }],
   buildPresent: true,
 };
+
+const HANDLED_PATH = '/api/v1/';
 
 test('every detection marker still exists in the mock sources', () => {
   const text = mocksSourceText();
@@ -231,4 +238,155 @@ test('missing profile files read as "unknown" rather than throwing', () => {
   const profileDir = tempDir();
   assert.equal(readMockApiSetting(profileDir), undefined);
   assert.deepEqual(readConfiguredInstances(profileDir), []);
+});
+
+// The mockability gate (see `src/apiMode.ts`). The measured defect it answers:
+// handlers registered for `https://*/api/v1/…` while the seeded profile's
+// instances were `http://`, so MSW matched nothing, the unhandled path handed the
+// request to the network, and the run still printed "Mock-backed run".
+
+test('the handled API path is read out of the handler patterns, not restated', () => {
+  // The longest common prefix, cut back to its last whole segment: one endpoint
+  // deeper than another must not narrow the answer.
+  assert.equal(readHandledApiPath("http.get('*://*/api/v1/user', () => x)"), HANDLED_PATH);
+  assert.equal(
+    readHandledApiPath("http.get('*://*/api/v1/user', () => x)\nhttp.get('*://*/api/v1/repos/:owner/:repo', () => x)"),
+    HANDLED_PATH,
+  );
+  // A parameter or wildcard ends a pattern's literal part. One lone deep pattern
+  // cannot say where its API root ends, so it narrows to its own parent segment —
+  // still a strict superset of what the gate needs to see (`/api/v1/` instances
+  // remain under it), and never a laxer answer.
+  assert.equal(readHandledApiPath("http.get('*://*/api/v1/repos/:owner/:repo', () => x)"), '/api/v1/repos/');
+  assert.equal(readHandledApiPath("http.get('*://*/api/v1/contents/*', () => x)"), '/api/v1/contents/');
+  // Nothing to read is `undefined`, never a guess.
+  assert.equal(readHandledApiPath('export const handlers = [];'), undefined);
+  assert.equal(readHandledApiPath(''), undefined);
+  // Patterns that do not share an API path leave nothing usable behind: the
+  // answer collapses to the origin root, which accepts ordinary instances but
+  // grants no API path — the conservative direction, never a laxer answer.
+  assert.equal(readHandledApiPath("http.get('*://*/alpha/x', () => x)\nhttp.get('*://*/beta/y', () => x)"), '/');
+});
+
+test('the gate and the handlers on disk agree on the API path', () => {
+  const read = handledApiPath();
+  assert.equal(
+    read,
+    HANDLED_PATH,
+    `every pattern in ${MOCKS_HANDLERS_SOURCE} must live under one literal prefix; if the mock API moved, ` +
+      'update the gate (this test is what keeps the two from drifting apart silently)',
+  );
+  // The prefix has to be one the patterns really use: a regex that matched some
+  // other literal would pass the equality above only by coincidence.
+  const source = fs.readFileSync(path.join(REPO_ROOT, MOCKS_HANDLERS_SOURCE), 'utf8');
+  assert.match(source, /\*:\/\/\*\/api\/v1\//, 'the handlers must be scheme-agnostic (see handlers.ts)');
+});
+
+test('an http(s) instance at the origin root is mockable; a path prefix is not', () => {
+  assert.equal(mockableInstancePath('http://127.0.0.1:3004', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('http://127.0.0.1:3004/', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('https://forgejo.example.com', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('https://forgejo.example.com/', HANDLED_PATH), '/');
+  assert.equal(mockableInstancePath('https://forgejo.example.com/api/v1', HANDLED_PATH), HANDLED_PATH);
+  // A reverse-proxy spelling: every request lands under /forgejo/api/v1/…, which
+  // no handler matches, so MSW would pass it straight to that real host.
+  assert.equal(mockableInstancePath('https://forgejo.example.com/forgejo', HANDLED_PATH), undefined);
+  assert.equal(mockableInstancePath('http://127.0.0.1:3004/forgejo/', HANDLED_PATH), undefined);
+  // Not a URL, or not HTTP at all.
+  assert.equal(mockableInstancePath('forgejo.example.com', HANDLED_PATH), undefined);
+  assert.equal(mockableInstancePath('ftp://forgejo.example.com', HANDLED_PATH), undefined);
+});
+
+test('the gate names only the instances the handlers cannot serve', () => {
+  const instances = [
+    { id: 'plain', url: 'http://127.0.0.1:3004' },
+    { id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' },
+    { id: 'secure', url: 'https://forgejo.example.com' },
+  ];
+  const blocked = unmockableInstances(instances, HANDLED_PATH);
+  assert.deepEqual(
+    blocked.instances.map((instance) => instance.id),
+    ['prefixed'],
+  );
+  assert.match(blocked.reasons['prefixed'] ?? '', /path is not the origin root/);
+});
+
+test('an unreadable handler path blocks every instance rather than guessing', () => {
+  const instances = [
+    { id: 'plain', url: 'http://127.0.0.1:3004' },
+    { id: 'secure', url: 'https://forgejo.example.com' },
+  ];
+  const blocked = unmockableInstances(instances, undefined);
+  assert.deepEqual(
+    blocked.instances.map((instance) => instance.id),
+    ['plain', 'secure'],
+  );
+  assert.match(blocked.reasons['plain'] ?? '', /could not be read from .*handlers\.ts/);
+});
+
+test('an unmockable instance turns a mock-backed launch into an abort', () => {
+  const blocked = [{ id: 'prefixed', url: 'https://forgejo.example.com/forgejo' }];
+  assert.deepEqual(decideApiMode({ mocksCompiledIn: true, realApiRequested: false, unmockableInstances: blocked }), {
+    action: 'abort',
+    reason: 'unmockable-instances',
+  });
+  // The explicit opt-in still wins: with --real-api the run is *meant* to reach
+  // those instances, which is the whole point of asking for it.
+  assert.deepEqual(decideApiMode({ mocksCompiledIn: true, realApiRequested: true, unmockableInstances: blocked }), {
+    action: 'launch',
+    mode: 'real-api',
+    because: 'mocks-compiled-in',
+  });
+  // And an empty list changes nothing.
+  assert.deepEqual(decideApiMode({ mocksCompiledIn: true, realApiRequested: false, unmockableInstances: [] }), {
+    action: 'launch',
+    mode: 'mock',
+  });
+});
+
+test('the refusal names the instance, the reason and both ways forward', () => {
+  const report = apiModeReport(
+    { action: 'abort', reason: 'unmockable-instances' },
+    {
+      ...CONTEXT,
+      instances: [
+        { id: 'plain', url: 'http://127.0.0.1:3004' },
+        { id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' },
+      ],
+      unmockableInstances: [{ id: 'prefixed', url: 'https://forgejo.example.com/forgejo', name: 'Behind a proxy' }],
+      unmockableReasons: { prefixed: 'its path is not the origin root the handlers match (they cover …)' },
+      handledApiPath: HANDLED_PATH,
+    },
+  );
+  const text = report.lines.join('\n');
+  assert.equal(report.fatal, true);
+  assert.match(text, /Refusing to launch: this dev host would poll a real server\./);
+  assert.match(text, /\(mock API compiled in\)/);
+  assert.match(text, new RegExp(MOCKS_HANDLERS_SOURCE.replace(/[.]/g, '\\.')));
+  assert.match(text, /Behind a proxy <https:\/\/forgejo\.example\.com\/forgejo>/);
+  assert.match(text, /its path is not the origin root/);
+  assert.match(text, /--real-api/);
+  assert.match(text, /mark all as read/, 'the real-API caveat is spelled out');
+  assert.match(text, /no path prefix/);
+});
+
+test('a mock-backed run says the instances it checked are all served', () => {
+  const report = apiModeReport(
+    { action: 'launch', mode: 'mock' },
+    { ...CONTEXT, marker: 'A demo repository for offline development.', handledApiPath: HANDLED_PATH },
+  );
+  const text = report.lines.join('\n');
+  assert.match(text, /Mock-backed run:/);
+  assert.match(text, /every configured instance is one the handlers cover/);
+  assert.doesNotMatch(text, /none recorded yet/, 'the profile has an instance, so that note is wrong here');
+});
+
+test('a mock-backed run with no configured instance is still honest about it', () => {
+  const report = apiModeReport(
+    { action: 'launch', mode: 'mock' },
+    { ...CONTEXT, instances: [], handledApiPath: HANDLED_PATH },
+  );
+  const text = report.lines.join('\n');
+  assert.match(text, /Mock-backed run:/);
+  assert.match(text, /none recorded yet/);
 });

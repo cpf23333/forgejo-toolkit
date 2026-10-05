@@ -1,6 +1,14 @@
 // Whether the build on disk can serve mock data — and what the launcher does
 // about it.
 //
+// Two questions, both asked before anything is spawned, because either one
+// answered wrong produces a run that reaches the network while calling itself
+// mock-backed:
+//
+//   1. **Does the build contain the mock API at all?** (detection, below)
+//   2. **Can the handlers serve what this profile configures?** (the mockability
+//      gate, `mockableInstancePath` / `unmockableInstances`)
+//
 // Why detection and not a launcher flag: the mock API (msw plus
 // `packages/forgejo-toolkit/src/test/mocks/`) is compiled in only for a
 // non-production build. `packages/forgejo-toolkit/rolldown.config.mjs` *defines*
@@ -29,6 +37,16 @@
 // Every marker below is checked by `apiMode.test.ts` against the mock sources,
 // so rewording a fixture fails a test instead of silently switching detection
 // off.
+//
+// Why the second question exists at all — measured 2026-10-05: the handlers were
+// registered for `https://*/api/v1/…` while the isolated profile's instances were
+// plain `http://`, so MSW matched none of them. Outside a test run
+// `onUnhandledRequest` only warns and then hands the request to the network, and
+// the run printed `Mock-backed run: mock API compiled in …` while the dev host
+// polled a real Forgejo server. The handlers are scheme-agnostic now
+// (`*://*/api/v1/…`, see `src/test/mocks/handlers.ts`), and this gate refuses any
+// profile the handlers still cannot serve, so the two halves cannot disagree
+// silently again.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ConfiguredInstance } from './config';
@@ -40,6 +58,93 @@ export const MOCK_BUILD_MARKERS: readonly string[] = [
   'A demo repository for offline development.',
   'Demonstrates API failure states: changed-files fetches fail with 500.',
 ];
+
+/**
+ * Where the mock API's handlers live, relative to the repository root. The gate
+ * below reads this file to learn **which request paths the handlers serve**
+ * instead of restating them: a hardcoded copy would be one fixture edit away
+ * from describing handlers that no longer exist, which is the same class of
+ * silent mismatch this gate exists to refuse.
+ */
+export const MOCKS_HANDLERS_SOURCE = 'packages/forgejo-toolkit/src/test/mocks/handlers.ts';
+
+/**
+ * The origin-root-relative path prefix the handlers cover: /api/v1/.
+ *
+ * Read out of the handler patterns themselves: every pattern is a scheme-agnostic
+ * origin followed by the API path and then any endpoint path, parameters or
+ * wildcards. The **longest common prefix** of those paths is taken and then cut
+ * back to its last whole segment, so `/api/v1/user` and `/api/v1/repos/:owner`
+ * both yield `/api/v1/`. That is deliberately the conservative direction: a
+ * shorter prefix can only make the launcher's mockability gate stricter, never
+ * laxer. Returns `undefined` when nothing could be read (the source moved, or no
+ * pattern matched) — the caller then says "cannot verify" rather than pretending
+ * the check passed.
+ */
+export function readHandledApiPath(text: string): string | undefined {
+  const paths: string[] = [];
+  for (const match of text.matchAll(/\*:\/\/\*(\/[^'"]*)/g)) {
+    if (!match[1]) continue;
+    // A pattern is truncated at its first parameter (`:repo`) or wildcard (`*`).
+    const cut = match[1].search(/[:*]/);
+    paths.push(cut === -1 ? match[1] : match[1].slice(0, cut));
+  }
+  const [first, ...rest] = paths;
+  if (first === undefined) return undefined;
+  let common = first;
+  for (const candidate of rest) {
+    let length = 0;
+    while (length < common.length && length < candidate.length && common[length] === candidate[length]) {
+      length += 1;
+    }
+    common = common.slice(0, length);
+  }
+  const trimmed = common.endsWith('/') ? common : common.slice(0, common.lastIndexOf('/') + 1);
+  return trimmed || undefined;
+}
+
+/** The handled path prefix from the mock sources on disk, or `undefined`. */
+export function handledApiPath(repoRoot: string = defaultRepoRoot()): string | undefined {
+  try {
+    return readHandledApiPath(fs.readFileSync(path.join(repoRoot, MOCKS_HANDLERS_SOURCE), 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+function defaultRepoRoot(): string {
+  return path.resolve(import.meta.dirname, '..', '..', '..');
+}
+
+/**
+ * The URL path of an instance that these handlers serve, or `undefined` when
+ * they cannot.
+ *
+ * The handlers match **any scheme and any host** (`*://*`, see
+ * `src/test/mocks/handlers.ts`) but only under one API path, so an instance URL
+ * is mockable when its own path is empty — the instance spells the API base
+ * itself — and its scheme is http(s). A path prefix
+ * (`https://host/forgejo`, a common reverse-proxy spelling) puts every request
+ * outside the patterns: MSW does not match it, `onUnhandledRequest` warns and
+ * passes it through, and the dev host reaches the real server while the run still
+ * calls itself mock-backed.
+ *
+ * `apiPath` is what {@link readHandledApiPath} read out of the handlers, so the
+ * gate follows the handlers rather than a second copy of their shape. It is also
+ * spelled `/` when the patterns share no API path — see that function's comment
+ * on why the conservative direction is the only safe one.
+ */
+export function mockableInstancePath(instanceUrl: string, apiPath: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(instanceUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+  const pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
+  return pathname === '/' || pathname === apiPath ? pathname : undefined;
+}
 
 /** The build the dev host loads: `<extension package>/out`. */
 export function buildDirFor(extensionDevDir: string): string {
@@ -123,11 +228,27 @@ export interface ApiModeContext {
   marker?: string;
   file?: string;
   buildPresent: boolean;
+  /**
+   * The configured instances the mock handlers **cannot** serve (see
+   * {@link mockableInstancePath}) — a mock-backed run with any of these would
+   * reach the real network, so it is refused instead.
+   */
+  unmockableInstances?: readonly ConfiguredInstance[];
+  /** What each unmockable instance cannot be modelled as, keyed by instance id. */
+  unmockableReasons?: Readonly<Record<string, string>>;
+  /** The path prefix the handlers cover (`/api/v1/`), or `undefined` if unreadable. */
+  handledApiPath?: string;
 }
 
 export interface ApiModeInput {
   mocksCompiledIn: boolean;
   realApiRequested: boolean;
+  /**
+   * Configured instances the handlers cannot serve. Any entry makes a
+   * mock-backed run impossible: the request would fall through MSW to the
+   * network, which is exactly the failure this gate exists to refuse.
+   */
+  unmockableInstances?: readonly ConfiguredInstance[];
 }
 
 export type ApiModeDecision =
@@ -140,12 +261,21 @@ export type ApiModeDecision =
    */
   | { action: 'launch'; mode: 'real-api'; because: 'mocks-compiled-in' | 'production-build' }
   /** No mocks in the build and no opt-in: refuse before anything is started. */
-  | { action: 'abort'; reason: 'no-mocks-and-no-opt-in' };
+  | { action: 'abort'; reason: 'no-mocks-and-no-opt-in' }
+  /** Mocks are compiled in, but a configured instance cannot be served by them. */
+  | { action: 'abort'; reason: 'unmockable-instances' };
 
 /**
- * The whole decision, as a pure function of "can this build mock?" and "did the
- * operator opt in?". Both entry points (`launch.ts` and `dual.ts launch`) run it
- * before they spawn anything, so there is one rule rather than two.
+ * The whole decision, as a pure function of "can this build mock?", "did the
+ * operator opt in?" and "can the handlers serve what the profile configures?".
+ * Both entry points (`launch.ts` and `dual.ts launch`) run it before they spawn
+ * anything, so there is one rule rather than two.
+ *
+ * The third input is not optional in spirit: a mock-capable build is still a run
+ * that reaches the network when the profile's instances sit outside the handler
+ * patterns (an `http://` instance under an `https://` handler was the measured
+ * case — see `src/test/mocks/handlers.ts`). Refusing beats a run whose own log
+ * line says "Mock-backed".
  */
 export function decideApiMode(input: ApiModeInput): ApiModeDecision {
   if (input.realApiRequested) {
@@ -156,6 +286,9 @@ export function decideApiMode(input: ApiModeInput): ApiModeDecision {
     };
   }
   if (input.mocksCompiledIn) {
+    if ((input.unmockableInstances?.length ?? 0) > 0) {
+      return { action: 'abort', reason: 'unmockable-instances' };
+    }
     return { action: 'launch', mode: 'mock' };
   }
   return { action: 'abort', reason: 'no-mocks-and-no-opt-in' };
@@ -190,12 +323,48 @@ const REAL_API_WARNING: readonly string[] = [
   '(for example "mark all as read", which changes data on every configured instance)',
 ];
 
+/** The header every refusal starts with (both refusals are the same promise). */
+const REFUSAL_HEADER = 'Refusing to launch: this dev host would poll a real server.';
+
 /**
  * The text for one decision. Kept separate from the printing so the exact
  * wording — including the two ways forward — is pinned by tests instead of
  * living only in a `console.error` call.
  */
 export function apiModeReport(decision: ApiModeDecision, context: ApiModeContext): ApiModeReport {
+  if (decision.action === 'abort' && decision.reason === 'unmockable-instances') {
+    // A mock-capable build whose profile configures something the handlers do
+    // not cover. Naming the instance and the reason is the whole point: the
+    // measured failure was a run that printed "Mock-backed run" and then polled
+    // a real server, because MSW matched no handler and passed the request on.
+    const offending = context.unmockableInstances ?? [];
+    const apiPath = context.handledApiPath ?? '/api/v1/';
+    const lines = [
+      REFUSAL_HEADER,
+      '',
+      `  build:     ${context.buildDir}  (mock API compiled in)`,
+      `             every handler in ${MOCKS_HANDLERS_SOURCE} matches <any scheme>://<any host>${apiPath}…`,
+      `  profile:   ${context.profileDir}`,
+      ...instanceLines(context),
+      '',
+      `Cannot mock ${offending.length === 1 ? 'this instance' : 'these instances'}:`,
+    ];
+    for (const instance of offending) {
+      lines.push(`  ${describeInstance(instance)}`);
+      lines.push(`             ${context.unmockableReasons?.[instance.id] ?? 'outside the mocked API path'}`);
+    }
+    lines.push(
+      '',
+      'Two ways forward:',
+      '  --real-api   run against those instances anyway. This is the explicit opt-in;',
+      ...REAL_API_WARNING.map((line) => `               ${line}`),
+      '  fix the profile, so every configured instance is one the mock API serves:',
+      `               an http(s) URL with no path prefix (the handlers cover the origin root only),`,
+      '               or remove the instance from the profile for this run',
+    );
+    return { fatal: true, lines };
+  }
+
   if (decision.action === 'abort') {
     const buildLine = context.buildPresent
       ? `  build:     ${context.buildDir}  (no mock API compiled in)`
@@ -210,7 +379,7 @@ export function apiModeReport(decision: ApiModeDecision, context: ApiModeContext
     return {
       fatal: true,
       lines: [
-        'Refusing to launch: this dev host would poll a real server.',
+        REFUSAL_HEADER,
         '',
         buildLine,
         ...why,
@@ -260,7 +429,17 @@ export function apiModeReport(decision: ApiModeDecision, context: ApiModeContext
   }
   return {
     fatal: false,
-    lines: [`Mock-backed run: ${matched}, and forgejoToolkit.useMockApi is on in this profile.`],
+    lines: [
+      `Mock-backed run: ${matched}, and forgejoToolkit.useMockApi is on in this profile.`,
+      ...(context.handledApiPath === undefined
+        ? []
+        : [
+            `  instances: every configured instance is one the handlers cover (<any scheme>://<any host>${context.handledApiPath}…)`,
+          ]),
+      ...(context.instances.length === 0
+        ? ['             (none recorded yet — a window that runs has nothing to poll until one is added)']
+        : []),
+    ],
   };
 }
 
@@ -273,15 +452,47 @@ export interface RequireApiModeOptions {
 }
 
 /**
+ * The configured instances the mock API cannot serve, with the reason for each.
+ *
+ * `handledPath` is the API path read out of the handlers themselves
+ * ({@link handledApiPath}); when it cannot be read, **nothing** is called
+ * mockable, so a mock-backed run is refused rather than started on a guess. That
+ * is the conservative direction on purpose: the cost of refusing is one message
+ * before anything is spawned, the cost of being wrong is a run that reaches the
+ * network while claiming to be offline.
+ */
+export function unmockableInstances(
+  instances: readonly ConfiguredInstance[],
+  handledPath: string | undefined,
+): { instances: ConfiguredInstance[]; reasons: Record<string, string> } {
+  const blocked: ConfiguredInstance[] = [];
+  const reasons: Record<string, string> = {};
+  for (const instance of instances) {
+    if (handledPath !== undefined && mockableInstancePath(instance.url, handledPath) !== undefined) {
+      continue;
+    }
+    blocked.push(instance);
+    reasons[instance.id] =
+      handledPath === undefined
+        ? `the handlers' own API path could not be read from ${MOCKS_HANDLERS_SOURCE}, so nothing is known to be mockable`
+        : `its path is not the origin root the handlers match (they cover <any scheme>://<any host>${handledPath}…)`;
+  }
+  return { instances: blocked, reasons };
+}
+
+/**
  * The gate both entry points call before they start anything: detect, decide,
  * print the report, and `process.exit(1)` on the refusal. Returns the mode the
  * run may use.
  */
 export function requireApiMode(options: RequireApiModeOptions): 'mock' | 'real-api' {
   const detection = detectMockBuild(options.buildDir);
+  const apiPath = handledApiPath();
+  const blocked = unmockableInstances(options.instances, apiPath);
   const decision = decideApiMode({
     mocksCompiledIn: detection.mocksCompiledIn,
     realApiRequested: options.realApiRequested,
+    unmockableInstances: blocked.instances,
   });
   const report = apiModeReport(decision, {
     buildDir: options.buildDir,
@@ -290,6 +501,10 @@ export function requireApiMode(options: RequireApiModeOptions): 'mock' | 'real-a
     ...(options.mockApiSetting === undefined ? {} : { mockApiSetting: options.mockApiSetting }),
     ...(detection.marker === undefined ? {} : { marker: detection.marker }),
     ...(detection.file === undefined ? {} : { file: detection.file }),
+    ...(apiPath === undefined ? {} : { handledApiPath: apiPath }),
+    ...(blocked.instances.length === 0
+      ? {}
+      : { unmockableInstances: blocked.instances, unmockableReasons: blocked.reasons }),
     buildPresent: detection.buildPresent,
   });
   for (const line of report.lines) {
@@ -298,7 +513,8 @@ export function requireApiMode(options: RequireApiModeOptions): 'mock' | 'real-a
   }
   if (report.fatal || decision.action === 'abort') {
     // Nothing has been spawned at this point: the refusal is what keeps a
-    // production build from silently polling the profile's real instance.
+    // production build — or a profile the handlers cannot serve — from silently
+    // polling the real instance.
     process.exit(1);
   }
   return decision.mode;

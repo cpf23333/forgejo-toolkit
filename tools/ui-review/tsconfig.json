@@ -9,7 +9,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    // `src/mockInterception.test.ts` imports the extension's own mock server
+    // (`packages/forgejo-toolkit/src/test/mocks/server.ts`) by path so the test
+    // runs against the handlers the dev host really installs. `tsx` resolves ESM
+    // specifiers literally, so those imports carry a `.ts` extension; that needs
+    // `allowImportingTsExtensions` here (allowed because `noEmit` is on).
+    "allowImportingTsExtensions": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]

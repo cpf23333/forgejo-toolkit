@@ -1,0 +1,2 @@
+
+D:\code\forgejo-toolkit\tools\ui-review>node  "D:\code\forgejo-toolkit\tools\ui-review\node_modules\.bin\\..\tsx\dist\cli.mjs" src\zzz-argv-probe.ts shots\argv.json () = 

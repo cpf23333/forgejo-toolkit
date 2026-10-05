@@ -138,20 +138,42 @@ function issueMatchesKeyword(item: { title?: string; body?: string; number?: num
   return fields.some((field) => typeof field === 'string' && field.toLowerCase().includes(needle));
 }
 
+/**
+ * Every handler is registered for **any scheme** (`*://*`), not for `https://*`.
+ *
+ * The pattern is a scheme-agnostic origin plus the API path, so a request is
+ * matched whatever protocol the configured instance uses. That matters outside
+ * the test suite: the UI-review harness seeds an isolated profile whose instances
+ * are plain `http://` (a dev server, a local container), and with an `https://`
+ * pattern MSW matched none of it — the request fell to `onUnhandledRequest`,
+ * which in a dev host warns and then **passes the request to the real network**
+ * (see `server.ts`). A run labelled "Mock-backed" therefore polled a real server
+ * while every log line said otherwise. Tests never saw it: the unit suites all
+ * configure `https://` instances, so the mismatch was invisible here.
+ *
+ * `{http,https}://…` was tried first and does **not** work: MSW compiles the
+ * pattern with `path-to-regexp`, which anchors at the pathname and treats the
+ * leading `{…}` as a literal, so only `*://…` matches both schemes.
+ *
+ * The path still has to be at the origin root (`/api/v1/…`): an instance
+ * configured with a path prefix (`https://host/forgejo`) is not served by these
+ * handlers, which is what the launcher's mockability gate refuses (see
+ * `tools/ui-review/src/apiMode.ts`).
+ */
 export const handlers = [
-  http.get('https://*/api/v1/user', () => json(mockUser)),
+  http.get('*://*/api/v1/user', () => json(mockUser)),
 
   // Server version probe (feature gates); a modern version keeps every
   // feature enabled in the mock environment.
-  http.get('https://*/api/v1/version', () => json({ version: MOCK_SERVER_VERSION })),
+  http.get('*://*/api/v1/version', () => json({ version: MOCK_SERVER_VERSION })),
 
-  http.get('https://*/api/v1/user/repos', ({ request }) =>
+  http.get('*://*/api/v1/user/repos', ({ request }) =>
     json(paginate(request, [mockRepository, mockRepository2, mockRepositoryFail])),
   ),
 
   // Publish flow: creating a repository echoes the requested name back with
   // the clone URL the publish command needs to add the remote.
-  http.post('https://*/api/v1/user/repos', async ({ request }) => {
+  http.post('*://*/api/v1/user/repos', async ({ request }) => {
     const body = (await request.json()) as { name?: string; private?: boolean };
     const name = body.name ?? 'new-repo';
     return json(
@@ -167,9 +189,9 @@ export const handlers = [
     );
   }),
 
-  http.get('https://*/api/v1/user/stopwatches', () => json([])),
+  http.get('*://*/api/v1/user/stopwatches', () => json([])),
 
-  http.get('https://*/api/v1/notifications', ({ request }) => {
+  http.get('*://*/api/v1/notifications', ({ request }) => {
     const url = new URL(request.url);
     // Forgejo uses collectionFormat: multi — array params arrive as repeated keys.
     const statusTypes = url.searchParams.getAll('status-types');
@@ -212,13 +234,13 @@ export const handlers = [
     return json(ordered.slice(0, limit));
   }),
 
-  http.patch('https://*/api/v1/notifications', () => json([])),
+  http.patch('*://*/api/v1/notifications', () => json([])),
 
-  http.put('https://*/api/v1/notifications', () => json([])),
+  http.put('*://*/api/v1/notifications', () => json([])),
 
-  http.patch('https://*/api/v1/notifications/threads/:id', () => json({})),
+  http.patch('*://*/api/v1/notifications/threads/:id', () => json({})),
 
-  http.get('https://*/api/v1/repos/search', ({ request }) => {
+  http.get('*://*/api/v1/repos/search', ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get('q') ?? '';
     const data = [mockRepository, mockRepository2, mockRepositoryFail].filter((repo) =>
@@ -227,7 +249,7 @@ export const handlers = [
     return json({ ok: true, data, total_count: data.length });
   }),
 
-  http.get('https://*/api/v1/repos/issues/search', ({ request }) => {
+  http.get('*://*/api/v1/repos/issues/search', ({ request }) => {
     const url = new URL(request.url);
     const type = url.searchParams.get('type');
     const state = url.searchParams.get('state') ?? 'open';
@@ -246,11 +268,11 @@ export const handlers = [
     return json(paginate(request, data));
   }),
 
-  http.get('https://*/api/v1/users/search', () => json({ ok: true, data: [mockUser], total_count: 1 })),
+  http.get('*://*/api/v1/users/search', () => json({ ok: true, data: [mockUser], total_count: 1 })),
 
-  http.get('https://*/api/v1/users/:username', () => json(mockUser)),
+  http.get('*://*/api/v1/users/:username', () => json(mockUser)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo', ({ params }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo', ({ params }) =>
     json(
       params.repo === mockRepository2.name
         ? mockRepository2
@@ -260,7 +282,7 @@ export const handlers = [
     ),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') ?? 'open';
     const type = url.searchParams.get('type');
@@ -286,9 +308,9 @@ export const handlers = [
     return json(paginate(request, data));
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index', () => json({ ...mockIssueDetail, ...issueEdits })),
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index', () => json({ ...mockIssueDetail, ...issueEdits })),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/issues', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     return json(
       {
@@ -300,7 +322,7 @@ export const handlers = [
     );
   }),
 
-  http.patch('https://*/api/v1/repos/:owner/:repo/issues/:index', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/issues/:index', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     issueEdits = {
       title: body.title !== undefined ? String(body.title) : (issueEdits?.title ?? mockIssueDetail.title),
@@ -310,9 +332,9 @@ export const handlers = [
     return json({ ...mockIssueDetail, ...issueEdits });
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 204 })),
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 204 })),
 
-  http.put('https://*/api/v1/repos/:owner/:repo/issues/:index/labels', async ({ request }) => {
+  http.put('*://*/api/v1/repos/:owner/:repo/issues/:index/labels', async ({ request }) => {
     const body = (await request.json()) as { labels?: number[] };
     return json(
       (body.labels ?? []).map((id) => ({
@@ -322,32 +344,32 @@ export const handlers = [
     );
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/check', () => json(mockWatchInfo)),
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/check', () => json(mockWatchInfo)),
 
-  http.put('https://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/:user', () => json({})),
+  http.put('*://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/:user', () => json({})),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/:user',
+    '*://*/api/v1/repos/:owner/:repo/issues/:index/subscriptions/:user',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/start', () => json({})),
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/start', () => json({})),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/stop', () => json({})),
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/stop', () => json({})),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/delete',
+    '*://*/api/v1/repos/:owner/:repo/issues/:index/stopwatch/delete',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
   // Paginated like every other list endpoint: the client pages with `page` and
   // `limit`, so a handler that answered the whole list on page 1 would make the
   // client's "short page means the end" rule depend on the fixture's size.
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) =>
     json(paginate(request, trackedTimes)),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/times', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/times', async ({ request }) => {
     const body = (await request.json()) as { time?: number; created?: string };
     const created = {
       ...mockTrackedTime,
@@ -362,67 +384,64 @@ export const handlers = [
     return json(created);
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times', () => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index/times', () => {
     // `issueResetTime` deletes every tracked time of the calling user; the mock
     // has a single user, so the whole list goes.
     trackedTimes = [];
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times/:id', ({ params }) => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index/times/:id', ({ params }) => {
     trackedTimes = trackedTimes.filter((entry) => String(entry.id) !== String(params.id));
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json(dependencies)),
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json(dependencies)),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json({})),
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json({})),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies/:id', ({ params }) => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index/dependencies/:id', ({ params }) => {
     dependencies = dependencies.filter((entry) => String(entry.id) !== String(params.id));
     return new HttpResponse(null, { status: 204 });
   }),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies',
+    '*://*/api/v1/repos/:owner/:repo/issues/:index/dependencies',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/reactions', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/reactions', ({ request }) => {
     const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
     return json(page > 1 ? [] : [mockReaction]);
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/reactions', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/reactions', async ({ request }) => {
+    const body = (await request.json()) as { content?: string };
+    return json({ ...mockReaction, content: body.content ?? mockReaction.content });
+  }),
+
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index/reactions', () => new HttpResponse(null, { status: 204 })),
+
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions', () => json([mockReaction])),
+
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions', async ({ request }) => {
     const body = (await request.json()) as { content?: string };
     return json({ ...mockReaction, content: body.content ?? mockReaction.content });
   }),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/reactions',
+    '*://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions', () => json([mockReaction])),
-
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions', async ({ request }) => {
-    const body = (await request.json()) as { content?: string };
-    return json({ ...mockReaction, content: body.content ?? mockReaction.content });
-  }),
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/assets', () => json(mockIssueAttachment)),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/comments/:id/reactions',
+    '*://*/api/v1/repos/:owner/:repo/issues/:index/assets/:attachment_id',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/assets', () => json(mockIssueAttachment)),
-
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/assets/:attachment_id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
-
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') ?? 'open';
     let list = mockPullRequests.map((pr) =>
@@ -436,11 +455,11 @@ export const handlers = [
   }),
 
   http.get(
-    'https://*/api/v1/repos/:owner/:repo/pulls/:index.diff',
+    '*://*/api/v1/repos/:owner/:repo/pulls/:index.diff',
     () => new HttpResponse(mockPullRequestDiff, { status: 200, headers: { 'Content-Type': 'text/plain' } }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
     json(
       prMerged
         ? { ...mockPullRequestDetail, ...pullEdits, state: 'closed', merged: true, merged_at: '2026-09-03T15:00:00Z' }
@@ -448,7 +467,7 @@ export const handlers = [
     ),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/pulls', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     return json(
       {
@@ -460,7 +479,7 @@ export const handlers = [
     );
   }),
 
-  http.patch('https://*/api/v1/repos/:owner/:repo/pulls/:index', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/pulls/:index', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     pullEdits = {
       title: body.title !== undefined ? String(body.title) : (pullEdits?.title ?? mockPullRequestDetail.title),
@@ -470,7 +489,7 @@ export const handlers = [
     return json({ ...mockPullRequestDetail, ...pullEdits });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request, params }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request, params }) => {
     // Walkthrough failure switch: broken-repo always fails the changed-files
     // fetch, so the UI error state can be told apart from an empty file list.
     if (params.repo === mockRepositoryFail.name) {
@@ -481,7 +500,7 @@ export const handlers = [
     );
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
     json({
       total_commits: 1,
       commits: [mockPullRequestCommit],
@@ -489,28 +508,28 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) =>
     json(paginate(request, [mockTimelineComment])),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/commits', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index/commits', ({ request }) =>
     json(paginate(request, [mockPullRequestCommit])),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => {
+  http.post('*://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => {
     prMerged = true;
     return new HttpResponse(null, { status: 200 });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', ({ request }) =>
     json(paginate(request, [mockPullReview, ...submittedReviews, ...(pendingReview ? [pendingReview] : [])])),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', ({ request }) =>
     json(paginate(request, [mockPullReviewComment])),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', async ({ request }) => {
     const body = (await request.json()) as { event?: string; body?: string; comments?: unknown[] };
     const review = {
       ...mockPullReview,
@@ -529,7 +548,7 @@ export const handlers = [
     return json(review);
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', async ({ request, params }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', async ({ request, params }) => {
     // The real API only accepts comments on a pending review.
     if (!pendingReview || String(pendingReview.id) !== String(params.id)) {
       return json({ message: 'review is not pending' }, 422);
@@ -538,7 +557,7 @@ export const handlers = [
     return json({ ...mockPullReviewComment, body: String(body.body ?? mockPullReviewComment.body) });
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', async ({ request, params }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', async ({ request, params }) => {
     // The real API only submits a pending review.
     if (!pendingReview || String(pendingReview.id) !== String(params.id)) {
       return json({ message: 'review is not pending' }, 422);
@@ -555,13 +574,13 @@ export const handlers = [
     return json(submitted);
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', () => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', () => {
     pendingReview = undefined;
     return new HttpResponse(null, { status: 204 });
   }),
 
   http.delete(
-    'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment',
+    '*://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
@@ -571,19 +590,19 @@ export const handlers = [
   // response alone cannot say whether the caller asked for an empty directory or
   // hit a repository with no commits. The handlers below therefore precede the
   // fixture tree's: a specific path must not answer a listing in this repository.
-  http.get(`https://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents`, () => json([])),
+  http.get(`*://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents`, () => json([])),
 
-  http.get(`https://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents/*`, () => json([])),
+  http.get(`*://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents/*`, () => json([])),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents', () => json(mockRootContents)),
+  http.get('*://*/api/v1/repos/:owner/:repo/contents', () => json(mockRootContents)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/src', () => json(mockSrcContents)),
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/src', () => json(mockSrcContents)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/docs', () => json(mockDocsContents)),
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/docs', () => json(mockDocsContents)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () => json(mockReadmeContent)),
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/README.md', () => json(mockReadmeContent)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
 
   // Paths that are not regular files. Forgejo fills `content` only for
   // `type: 'file'`: a symlink answers with `target` and a `size` equal to the
@@ -592,7 +611,7 @@ export const handlers = [
   // `content`. Each is a different answer, and the MCP `get_file_content` tool
   // must not turn the first two into a withheld-payload notice or an empty
   // string (see mcp/__tests__/tools.test.ts).
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/docs/link.md', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/docs/link.md', () =>
     json({
       name: 'link.md',
       path: 'docs/link.md',
@@ -603,7 +622,7 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/vendor/lib', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/vendor/lib', () =>
     json({
       name: 'lib',
       path: 'vendor/lib',
@@ -614,7 +633,7 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/huge.bin', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/huge.bin', () =>
     json({
       name: 'huge.bin',
       path: 'huge.bin',
@@ -633,7 +652,7 @@ export const handlers = [
   // outside the tree is a 404, like the real API: the old catch-all invented a
   // file for *any* path, which hid 404s (and the directory guard, since `src`
   // answered a file instead of its children).
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
     const url = new URL(request.url);
     const ref = url.searchParams.get('ref');
     const filepath = decodeURIComponent(url.pathname.split('/contents/')[1] ?? '');
@@ -660,7 +679,7 @@ export const handlers = [
     });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
     json(
       paginate(request, [
         { name: 'main', commit: { sha: 'abc123' }, protected: true },
@@ -669,17 +688,17 @@ export const handlers = [
     ),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/branches', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/branches', async ({ request }) => {
     const body = (await request.json()) as { branch_name?: string };
     return json({ ...mockBranch, name: body.branch_name ?? mockBranch.name }, 201);
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/branches/:branch', () => new HttpResponse(null, { status: 204 })),
+  http.delete('*://*/api/v1/repos/:owner/:repo/branches/:branch', () => new HttpResponse(null, { status: 204 })),
 
   // `structs.BranchProtection` names the branch `branch_name` (there is no
   // `name`, and no `protected` flag on this endpoint); the merge status reads
   // the approval and status-check requirements from here.
-  http.get('https://*/api/v1/repos/:owner/:repo/branch_protections/:name', () =>
+  http.get('*://*/api/v1/repos/:owner/:repo/branch_protections/:name', () =>
     json({
       branch_name: 'main',
       required_approvals: 1,
@@ -692,7 +711,7 @@ export const handlers = [
   // The combined status a merge-blocker check reads: it always names the commit
   // it describes (the client asks for the PR head's sha) and counts the statuses
   // it returns.
-  http.get('https://*/api/v1/repos/:owner/:repo/commits/:ref/status', ({ params }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/commits/:ref/status', ({ params }) =>
     json({
       sha: params.ref,
       state: 'success',
@@ -711,18 +730,18 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/tags', ({ request }) => json(paginate(request, [{ name: 'v1.0.0' }]))),
+  http.get('*://*/api/v1/repos/:owner/:repo/tags', ({ request }) => json(paginate(request, [{ name: 'v1.0.0' }]))),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/tags', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/tags', async ({ request }) => {
     const body = (await request.json()) as { tag_name?: string };
     return json({ ...mockTag, name: body.tag_name ?? mockTag.name }, 201);
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/tags/:tag', () => new HttpResponse(null, { status: 204 })),
+  http.delete('*://*/api/v1/repos/:owner/:repo/tags/:tag', () => new HttpResponse(null, { status: 204 })),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/releases', ({ request }) => json(paginate(request, releases))),
+  http.get('*://*/api/v1/repos/:owner/:repo/releases', ({ request }) => json(paginate(request, releases))),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/releases', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/releases', async ({ request }) => {
     const body = (await request.json()) as { tag_name?: string; name?: string };
     return json(
       { ...mockRelease, tag_name: body.tag_name ?? mockRelease.tag_name, name: body.name ?? mockRelease.name },
@@ -730,14 +749,14 @@ export const handlers = [
     );
   }),
 
-  http.patch('https://*/api/v1/repos/:owner/:repo/releases/:id', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/releases/:id', async ({ request }) => {
     const body = (await request.json()) as { name?: string };
     return json({ ...mockRelease, name: body.name ?? mockRelease.name });
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/releases/:id/assets', () => json(mockReleaseAttachment)),
+  http.post('*://*/api/v1/repos/:owner/:repo/releases/:id/assets', () => json(mockReleaseAttachment)),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/releases/:id/assets/:attachment_id', ({ params }) => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/releases/:id/assets/:attachment_id', ({ params }) => {
     releases = releases.map((release) =>
       String(release.id) === String(params.id)
         ? { ...release, assets: release.assets?.filter((asset) => String(asset.id) !== String(params.attachment_id)) }
@@ -746,12 +765,12 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/releases/:id', ({ params }) => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/releases/:id', ({ params }) => {
     releases = releases.filter((release) => String(release.id) !== String(params.id));
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/commits', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/commits', ({ request }) => {
     const url = new URL(request.url);
     const path = url.searchParams.get('path');
     if (path) {
@@ -769,7 +788,7 @@ export const handlers = [
     ]);
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
     const url = new URL(request.url);
     const recursive = url.searchParams.get('recursive');
     if (recursive) {
@@ -786,13 +805,13 @@ export const handlers = [
     return json({ sha: 'tree-sha', tree: [], truncated: false });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/labels', ({ request }) => json(paginate(request, [mockLabel]))),
+  http.get('*://*/api/v1/repos/:owner/:repo/labels', ({ request }) => json(paginate(request, [mockLabel]))),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/assignees', () => json(mockAssignees)),
+  http.get('*://*/api/v1/repos/:owner/:repo/assignees', () => json(mockAssignees)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/milestones', ({ request }) => json(paginate(request, [mockMilestone]))),
+  http.get('*://*/api/v1/repos/:owner/:repo/milestones', ({ request }) => json(paginate(request, [mockMilestone]))),
 
-  http.post('https://*/api/v1/markdown', async ({ request }) => {
+  http.post('*://*/api/v1/markdown', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     const text = String(body.Text ?? '');
     const html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/__(.+?)__/g, '<strong>$1</strong>');
@@ -802,7 +821,7 @@ export const handlers = [
     });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', ({ request }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/actions/runs', ({ request }) => {
     // Paginated with an exact total, like the real endpoint: the webview uses
     // `total_count` to decide whether "Load more" is offered and the page's row
     // count to detect the last page.
@@ -819,7 +838,7 @@ export const handlers = [
   // plus the run a dispatch mints, which the view opens immediately): answering
   // every id with run 42 made a walkthrough of run #2 show run #1's title and
   // URLs. An id no fixture declares is a 404, like the API's.
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', ({ params }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', ({ params }) => {
     const requestedId = Number(params.run_id);
     const run = [...mockActionRuns, mockDispatchedActionRun].find((candidate) => candidate.id === requestedId);
     return run ? json(run) : json({ message: 'not found' }, 404);
@@ -828,11 +847,11 @@ export const handlers = [
   // A bare array: `structs.ActionRunJobList` is an array, not an envelope (the
   // generated client only tolerates `{ jobs }` for older servers). The job's
   // `run_id` follows the run that was asked for, so the fixture stays one run.
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', ({ params }) =>
+  http.get('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', ({ params }) =>
     json([{ ...mockActionRunJob, run_id: Number(params.run_id) }]),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request, params }) => {
+  http.get('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request, params }) => {
     const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
     // Also a bare array (`structs.ActionArtifactList`), with `run_id` following
     // the requested run like the jobs above.
@@ -840,21 +859,21 @@ export const handlers = [
   }),
 
   http.get(
-    'https://*/api/v1/repos/:owner/:repo/actions/jobs/:job_id/logs',
+    '*://*/api/v1/repos/:owner/:repo/actions/jobs/:job_id/logs',
     () => new HttpResponse('build log output', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
   ),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches', () =>
+  http.post('*://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches', () =>
     json(mockDispatchWorkflowRun),
   ),
 
   http.post(
-    'https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/cancel',
+    '*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/cancel',
     () => new HttpResponse(null, { status: 204 }),
   ),
 
   http.get(
-    'https://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
+    '*://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
     () =>
       new HttpResponse(new Uint8Array([1, 2, 3]).buffer, {
         status: 200,
@@ -862,29 +881,26 @@ export const handlers = [
       }),
   ),
 
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', () => new HttpResponse(null, { status: 204 })),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/comments', async ({ request }) => {
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/:index/comments', async ({ request }) => {
     const body = (await request.json()) as { body?: string };
     return json({ ...mockTimelineComment, body: body.body ?? mockTimelineComment.body }, 201);
   }),
 
-  http.patch('https://*/api/v1/repos/:owner/:repo/issues/comments/:id', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/issues/comments/:id', async ({ request }) => {
     const body = (await request.json()) as { body?: string };
     return json({ ...mockTimelineComment, body: body.body ?? mockTimelineComment.body });
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/comments/:id', () => new HttpResponse(null, { status: 204 })),
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/comments/:id', () => new HttpResponse(null, { status: 204 })),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id', ({ params }) => {
+  http.delete('*://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id', ({ params }) => {
     commentAttachments = commentAttachments.filter((entry) => String(entry.id) !== String(params.attachment_id));
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(mockCommentAttachment)),
+  http.post('*://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(mockCommentAttachment)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(commentAttachments)),
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(commentAttachments)),
 ];

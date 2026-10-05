@@ -15,6 +15,27 @@ the repo root type-checks this package too.
   dev host loads the built output, so rebuild after code changes. **The rebuild
   is the maintainer's step**: `AGENTS.md` forbids the agent from running build
   commands, so the harness only ever consumes an existing `out/`.
+- **Both halves of the extension have to be rebuilt, and they are two commands.**
+  The host bundle is compiled by Rolldown (`rolldown.config.mjs`) and the webview
+  assets by Vite (`webview/vite.config.mts`); `build:extension` runs only the
+  first, so after it the webview under `out/webview` is whatever was there before
+  (the repository carries a checked-in one — a stale webview is the default, not
+  an accident). The settings page lives in the webview, so against a host-only
+  rebuild it renders the old UI with no AI section at all and the walkthrough's
+  own settings step is unreachable. Rebuild both:
+
+  ```bash
+  pnpm --filter forgejo-toolkit build:extension   # host: out/extension.mjs + chunks (Rolldown)
+  pnpm --filter forgejo-toolkit build:webview     # webview: out/webview/** (Vite)
+  ```
+
+  `pnpm --filter forgejo-toolkit build` runs both, in the same order, but adds
+  the production flag — it strips the mock API, so use it only for a
+  production-shaped walkthrough (see "Release walkthrough checklist" below).
+  Check the build time of `out/extension.mjs` **and** of `out/webview/index.html`
+  rather than trusting one of them: a host-only rebuild leaves the webview's
+  timestamp old, which is exactly the state this note is about.
+
 - **For the local AI endpoint** (`--ai-mock`, see "The local AI endpoint" below) the
   build also has to contain the OpenAI-compatible transport _and_ its wiring into
   the AI pre-review. The harness can start that endpoint and point the profile at
@@ -23,7 +44,10 @@ the repo root type-checks this package too.
 - The build has to be **mock-backed** for a launch without `--real-api`: the
   launcher reads `packages/forgejo-toolkit/out` and refuses to start a window
   when the mock API is not compiled into it (see "Mock-backed runs and the
-  real-API opt-in" below).
+  real-API opt-in" below). It also refuses when the profile's own instances are
+  not ones the mock handlers can serve (an `http://` instance is, a URL with a
+  path prefix is not), so a mock-backed run either polls the fixtures or stops
+  with a message.
 - No Playwright browser download needed; only `connectOverCDP` is used.
 
 ## Commands
@@ -44,14 +68,15 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock requests       # what 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock stop           # stop the endpoint only
 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scale [name]  # devicePixelRatio + viewport, against the last reading
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui click <x> <y> [name] [waitMs]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui rclick <x> <y> [name] [waitMs]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scroll <x> <y> <deltaY> [name]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui drag <x1> <y1> <x2> <y2> [name]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui hover <x> <y> [name]
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui type <text> [name]  # types into the focused element
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui type <text> [name]  # types into the focused element; quote the text
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui key <key> [name]    # e.g. Escape, Enter, Tab
-pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval <js>           # evaluates in the workbench page, prints the result
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval --script-file <path.js> [name]  # evaluates in the workbench page, prints the result
 
 # Equivalent, from the harness directory (the `src/...` paths below assume it):
 cd tools/ui-review
@@ -76,6 +101,72 @@ A throwaway git repo under `workspace/` (gitignored) with its `origin` set to
 card clean, mock-backed data for screenshots.
 
 Coordinates are read off the previous CDP screenshot (viewport, e.g. 1440x900).
+
+**The pixel scale can move under you, and a coordinate read off an older
+screenshot then points somewhere else.** Measured 2026-10-05: `devicePixelRatio`
+in the dev host went 1 → 1.5 mid-session; a screenshot is in device pixels while
+CDP input is in CSS pixels, so every coordinate taken from the earlier capture
+landed elsewhere and the clicks missed — silently, since a click that hits nothing
+still exits 0. Two things answer it:
+
+- **Automatic guard.** Every pointer command (`click`, `rclick`, `scroll`, `drag`,
+  `hover`) compares the page's `devicePixelRatio` with the last reading (recorded
+  in the gitignored `pixel-units.json` by `shot` and by every command) and
+  **refuses** when it moved, naming both scales and telling you to take a fresh
+  screenshot. It does not rescale: only a new capture gives coordinates that are
+  truthful again.
+- **On demand.** `ui scale` prints the current `devicePixelRatio`, the viewport and
+  the scale the last reading recorded, so a screenshot that looks "zoomed" can be
+  confirmed rather than guessed at.
+
+```
+ui click: the page's pixel scale changed from 1 to 1.5 since the last reading (2026-10-05T…).
+  A screenshot is in device pixels and CDP input is in CSS pixels, so a coordinate read off the older capture
+  no longer points at the same place and the click would miss.
+  Take a fresh screenshot (viewport 1440x900) and read the coordinates off that. Nothing was clicked.
+```
+
+`ui type` takes one text argument and an optional screenshot name, so a third token
+means the shell split the text: the command refuses it and prints the tokens instead
+of typing the first word and reporting success.
+
+### `ui eval`: pass the script as a file, not as an argument
+
+A script argument has to survive the shell `pnpm run` uses before `tsx` ever sees
+it, and an **arrow function is where that goes wrong**: the unquoted `=>` is read
+as a redirection rather than as part of the script. Reproduced 2026-10-05 by
+forwarding the command line straight through `cmd.exe` to a throwaway script that
+dumps `process.argv`:
+
+| what was typed       | what the CLI received                                                  |
+| -------------------- | ---------------------------------------------------------------------- |
+| `"() => 1"` (quoted) | `["() => 1"]` — intact                                                 |
+| `() => 1` (unquoted) | `["()", "="]` — split, and the redirect target is at the shell's mercy |
+| `"() => 1" name`     | `["() => 1", "name"]`                                                  |
+
+Two consequences. The quoted, metacharacter-free form does work, and it is the only
+argument form worth using. The unquoted form does not merely truncate the script —
+the `=` that survives is whatever the shell did with the redirection, which is how a
+report of this trap described stray files appearing in the repository root. `tsx`
+never mangled anything; the damage happens before the process starts, so this is not
+something the harness can fix from inside. `ui eval` now **refuses** a script that
+arrives as several arguments (naming them) or empty, instead of evaluating the
+fragment and exiting 0, and the reliable invocation is a file:
+
+```powershell
+# Write the script to a file first. A here-string keeps quotes and "=>" intact:
+@'
+() => document.querySelectorAll('.monaco-workbench').length
+'@ | Set-Content shots\eval.js
+
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui eval --script-file shots\eval.js
+```
+
+`--script-file` carries a path, so no shell metacharacter from the script reaches
+the command line. The single-argument form (`ui eval "…"`) still exists, but the
+script must arrive as **one already-quoted argument** with no metacharacters the
+shell would touch; if it arrives split or empty the command fails loudly and names
+the file form instead of evaluating a fragment.
 
 Each `ui` invocation is its own CDP connection, so a `click` does not always take
 focus before the `type` of the **next** invocation runs. Measured in one acceptance
@@ -119,7 +210,50 @@ Two ways forward:
 ```
 
 The refusal happens before anything is created or spawned, so a production build
-costs a message rather than a surprise request. Three rules complete the picture:
+costs a message rather than a surprise request.
+
+**A mock-capable build is not enough on its own: the handlers also have to match
+what the profile configures.** Measured 2026-10-05: the handlers were registered
+for `https://*/api/v1/…` while the isolated profile seeded `http://` instances, so
+MSW matched nothing and the request fell to the unhandled path — which in a dev
+host only warns and then **passes the request to the network**. The run printed
+`Mock-backed run: mock API compiled in …` and then polled a real Forgejo server
+(nine repositories, one of them in no fixture; `/notifications` answering `[]`
+against a non-empty fixture list). Two changes answer it:
+
+- every handler is registered for **any scheme** (`*://*/api/v1/…`, see
+  `src/test/mocks/handlers.ts`), so an `http://` instance is intercepted exactly
+  like an `https://` one;
+- the launcher refuses a mock-backed run whose profile holds an instance the
+  handlers cannot serve — today that means a URL with a path prefix
+  (`https://host/forgejo`; the handlers only cover the origin root). The message
+  names the instance and the reason, and `src/mockInterception.test.ts` drives the
+  real mock server for both schemes and asserts that nothing reaches the network.
+
+```
+Refusing to launch: this dev host would poll a real server.
+
+  build:     …\packages\forgejo-toolkit\out  (mock API compiled in)
+             every handler in packages/forgejo-toolkit/src/test/mocks/handlers.ts matches <any scheme>://<any host>/api/v1/…
+  profile:   …\tools\ui-review\profile
+  instances: Behind a proxy <https://forgejo.example.com/forgejo>
+
+Cannot mock this instance:
+  Behind a proxy <https://forgejo.example.com/forgejo>
+             its path is not the origin root the handlers match (they cover <any scheme>://<any host>/api/v1/…)
+
+Two ways forward:
+  --real-api   run against those instances anyway. This is the explicit opt-in;
+               polling here is read-only, but instance-wide actions reach these servers
+               (for example "mark all as read", which changes data on every configured instance)
+  fix the profile, so every configured instance is one the mock API serves:
+               an http(s) URL with no path prefix (the handlers cover the origin root only),
+               or remove the instance from the profile for this run
+```
+
+`src/apiMode.ts` reads the API path out of the handler patterns themselves rather
+than restating it, so a moved mock API fails a test instead of silently widening
+what the gate accepts. Three rules complete the picture:
 
 - **`--real-api` is the opt-in**, accepted by both `launch` and `dual launch`. It
   prints a warning naming the profile, the instance(s) they will use and what that
@@ -298,13 +432,21 @@ unknown scenario name is answered with 400 and the list of known ones.
 
 ### Walkthrough: endpoint → test connection → pre-review → destination
 
-**Rebuild first — it is the maintainer's step.** The dev host loads
-`packages/forgejo-toolkit/out`, and a build that predates the transport (or its
-wiring into the AI pre-review) makes every step below unreachable: the settings
-page has no AI section, and the pre-review still asks the editor's own models. So
-the walkthrough starts from a build that includes **both** the transport and its
-wiring; ask for `pnpm --filter forgejo-toolkit build:extension` and check the build
-time rather than running it yourself (`AGENTS.md`).
+**Rebuild first — it is the maintainer's step, and it is two builds.** The dev host
+loads `packages/forgejo-toolkit/out`, and a build that predates the transport (or
+its wiring into the AI pre-review) makes every step below unreachable: the
+settings page has no AI section, and the pre-review still asks the editor's own
+models. **The settings page is webview code**, so a host-only rebuild is not
+enough either: `build:extension` leaves `out/webview` at whatever it was, and with
+the repository's checked-in (stale) webview the settings page has no `AI Endpoints`
+section at all — step 2 below cannot be reached, and step 3 has nothing to click.
+Ask for both and check both timestamps rather than running anything yourself
+(`AGENTS.md`):
+
+```bash
+pnpm --filter forgejo-toolkit build:extension   # host: out/extension.mjs + chunks
+pnpm --filter forgejo-toolkit build:webview     # webview: out/webview/**  <- the settings page
+```
 
 1. **Launch.** `pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch --ai-mock`.
    Expect three things before the window appears: the endpoint line (URL, pid), the
@@ -327,9 +469,18 @@ time rather than running it yourself (`AGENTS.md`).
    pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock requests
    ```
 
-   Expect `GET /v1/models` and `POST /v1/chat/completions`, both `HTTP 200`, the
-   second with `json` (the probe asks for one character, not a stream). Nothing
-   there means the extension never reached the endpoint.
+   Expect **`GET /v1/models`, `HTTP 200`, and nothing else from the probe**. That
+   is the whole probe on this endpoint, not a truncated walkthrough: the test is
+   `GET <base>/models` first, and when it reports model(s) the probe has already
+   answered its question and returns (`packages/forgejo-toolkit/src/ai/testProvider.ts`,
+   pinned by its `aiTestProvider` suite). The minimal
+   `POST <base>/chat/completions` — one character, no `stream`, no `temperature` —
+   is the **fallback**, and it is sent only when `/models` answers 404, 405 or 501,
+   or answers an empty list _and_ the provider declares no model of its own. A
+   `POST` here therefore means the model listing did not come back; check the
+   report sentence, which then reads
+   `The endpoint reported no models from "/models" …`. Nothing in the log at all
+   means the extension never reached the endpoint.
 
 4. **Run an AI pre-review.** Open the fixture pull request (`Add dark mode`, #2)
    from the dashboard's `Pull Requests · demo-repo` list and open its diff, then use
@@ -347,8 +498,10 @@ time rather than running it yourself (`AGENTS.md`).
    display name and its address — that is §7.1's whole point (a `vscode.lm` run
    names the editor's model vendor instead).
 6. **Read the destination in the log.** After the modal, `ai-mock requests` must
-   gain a `POST /v1/chat/completions` with `sse` and `chunks=7`: a streamed answer,
-   which is only possible if the chunks were read as they arrived. In the
+   show a new `POST /v1/chat/completions` with `sse` and `chunks=7` — a _second_
+   one only if step 3 also sent one, which it does when the model listing failed;
+   the probe's POST is not streamed. A streamed answer is possible only if the
+   chunks were read as they arrived. In the
    extension's output channel (`Forgejo Toolkit`) the debug lines say which
    transport served the run, and — with `forgejoToolkit.debug` on, which the shared
    profile already has — `skipped 1 data line(s) that did not parse as JSON`, the
@@ -744,7 +897,21 @@ instance for a whole session. **Since 2026-09-28 the launcher detects this befor
 anything**: it reads `packages/forgejo-toolkit/out` for mock-only markers and refuses the launch
 when the build has no mock API compiled in, unless `--real-api` says the real instance is wanted
 (the exact message, the markers and the opt-in are in "Mock-backed runs and the real-API opt-in"
-above). Treat a harness run as able to touch a real server: the polling
+above).
+
+Two more things the same setting does not cover, both measured 2026-10-05:
+
+- **The handlers have to match the profile's instances.** They were `https://`-only
+  while the seeded profile was `http://`, so intercepting never happened and the
+  unmatched request went to the network. The handlers are scheme-agnostic now
+  (`*://*/api/v1/…`) and the launcher refuses a profile the handlers still cannot
+  serve, so "mock-backed" is either true or the run stops.
+- **The webview is a second build.** The settings page and every other webview
+  surface come from `out/webview`, which `build:extension` does not touch; the
+  repository carries a checked-in copy, so a host-only rebuild silently serves the
+  old UI. Rebuild `build:webview` too (see Prerequisites).
+
+Treat a harness run as able to touch a real server: the polling
 here is read-only, but the instance-wide actions under "Some UI actions are instance-wide"
 below apply unchanged, and `--real-api` is what turns that possibility into a stated intent.
 Rebuild without `--production` (the checklist's mock-backed walkthrough
@@ -758,12 +925,17 @@ forbids the agent from running build commands), so ask for it and then check the
 build time rather than running it yourself. Which build matters:
 
 - **mock-backed walkthroughs** (everything below except the push-target and MCP
-  items): `pnpm --filter forgejo-toolkit build:extension`, i.e. Rolldown _without_
-  the production flag. The production build strips `src/test/mocks/`
+  items): `pnpm --filter forgejo-toolkit build:extension` (**host**) **plus**
+  `pnpm --filter forgejo-toolkit build:webview` (**webview**), i.e. Rolldown and
+  Vite, both _without_ the production flag. The host-only command leaves
+  `out/webview` stale, and every flow below is driven through the webview — a
+  host-only rebuild is how a walkthrough silently exercises the previous UI. The
+  production build strips `src/test/mocks/`
   (`FORGEJO_TOOLKIT_INCLUDE_MOCKS=false`), so with it the Dashboard lists no
   repositories and every request goes to the real network.
 - **production-shaped walkthroughs** (install the packaged `.vsix` instead):
-  `pnpm --filter forgejo-toolkit build`, and point an instance at a real server.
+  `pnpm --filter forgejo-toolkit build` (it runs both builds, in production mode),
+  and point an instance at a real server.
 
 Then run through the flows below; each one covers behaviour that unit tests
 cannot observe (native modals, real git, real MCP clients). Numbers a walkthrough

@@ -11,3 +11,7 @@ dual-window.json
 # the request log of the detached child that serves it
 ai-mock.json
 ai-mock.log
+# the page's pixel scale as of the last `ui` command (src/driver.ts): what lets a
+# pointer command notice that devicePixelRatio moved since the screenshot its
+# coordinates came from
+pixel-units.json

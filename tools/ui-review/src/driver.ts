@@ -17,6 +17,108 @@ export const DIRS = {
 };
 fs.mkdirSync(DIRS.shots, { recursive: true });
 
+/**
+ * Where the page's pixel scale is remembered between `ui` invocations.
+ *
+ * Every `ui` call is its own CDP connection, so nothing in memory can notice that
+ * `devicePixelRatio` changed since the screenshot the coordinates were read off.
+ * This file is that memory: the pointer commands refuse to click when the scale
+ * moved, because CDP input is in CSS pixels while a screenshot is in device
+ * pixels — the two agree only while the ratio holds.
+ */
+export const PIXEL_UNITS_FILE = 'pixel-units.json';
+export const PIXEL_UNITS_VERSION = 1;
+
+/** What the workbench page reports about its own pixel geometry. */
+export interface PixelReport {
+  /** `window.devicePixelRatio` at the moment of the reading. */
+  scale: number;
+  /** CSS-pixel viewport, i.e. the coordinate space CDP input uses. */
+  viewport: { width: number; height: number };
+}
+
+/** The remembered scale, or `null` when there is no usable record. */
+export interface PixelUnitsState {
+  version: number;
+  scale: number;
+  viewport: { width: number; height: number };
+  /** ISO timestamp of the last reading, and the page it came from. */
+  at: string;
+  url: string;
+}
+
+export function pixelUnitsPath(harnessDir: string): string {
+  return path.join(harnessDir, PIXEL_UNITS_FILE);
+}
+
+/** The recorded scale, or `null` when the file is missing or unusable. */
+export function readPixelUnits(harnessDir: string): PixelUnitsState | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(pixelUnitsPath(harnessDir), 'utf8')) as PixelUnitsState;
+    if (parsed?.version !== PIXEL_UNITS_VERSION) return null;
+    if (typeof parsed.scale !== 'number' || !(parsed.scale > 0)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function writePixelUnits(harnessDir: string, report: PixelReport, url: string): PixelUnitsState {
+  const state: PixelUnitsState = {
+    version: PIXEL_UNITS_VERSION,
+    scale: report.scale,
+    viewport: report.viewport,
+    at: new Date().toISOString(),
+    url,
+  };
+  fs.writeFileSync(pixelUnitsPath(harnessDir), `${JSON.stringify(state, null, 2)}\n`);
+  return state;
+}
+
+/** Reads the page's pixel geometry — the same reading the screenshot is taken in. */
+export async function readPixelReport(page: Page): Promise<PixelReport> {
+  // `window` is reached through `globalThis` on purpose: this package's tsconfig
+  // has no DOM lib (the harness is a Node CLI), so a bare `window` is not a known
+  // name here even though this function only ever runs inside the page.
+  return page.evaluate((): PixelReport => {
+    const win = globalThis as unknown as {
+      devicePixelRatio: number;
+      innerWidth: number;
+      innerHeight: number;
+    };
+    return {
+      scale: win.devicePixelRatio,
+      viewport: { width: win.innerWidth, height: win.innerHeight },
+    };
+  });
+}
+
+/**
+ * Refuses a pointer command when the scale moved since the last reading.
+ *
+ * Measured 2026-10-05: the dev host's `devicePixelRatio` went 1 → 1.5 mid-session.
+ * Coordinates read off the earlier screenshot are CSS coordinates at scale 1; at
+ * 1.5 the same numbers land elsewhere in the page, so every click missed and the
+ * run went on for a while before anyone noticed the clicks were going nowhere.
+ *
+ * Refusing rather than rescaling on purpose: a screenshot is in device pixels, so
+ * at a different scale the honest fix is to take a fresh `shot` and read the
+ * coordinates off **that**, not to multiply numbers by a ratio (which would also
+ * silently re-map a number the operator may have read off a stale capture).
+ */
+export function pointerScaleGuard(harnessDir: string, current: PixelReport, command: string): PixelUnitsState | null {
+  const previous = readPixelUnits(harnessDir);
+  if (previous === null || previous.scale === current.scale) return previous;
+  throw new Error(
+    `${command}: the page's pixel scale changed from ${previous.scale} to ${current.scale} since the last reading ` +
+      `(${previous.at}).\n` +
+      '  A screenshot is in device pixels and CDP input is in CSS pixels, so a coordinate read off the older ' +
+      'capture no longer points at the same place and the click would miss.\n' +
+      `  Take a fresh screenshot (viewport ${current.viewport.width}x${current.viewport.height}) and read the ` +
+      'coordinates off that. Nothing was clicked.',
+  );
+}
+
 export interface WindowPage {
   label: string;
   page: Page;
