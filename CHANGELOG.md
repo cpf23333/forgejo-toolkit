@@ -62,7 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before a byte leaves the machine, a probe that gets no answer says so on the
   model rows and in the report card below them, and an endpoint that has no model
   list at all is not a failure: the report says the models have to be filled in by
-  hand.
+  hand. Finding models is not permission to send content: a probe that answered
+  says so next to the rows it filled in, because the switch that allows requests
+  to configured endpoints and each feature's own consent question are what decide
+  that.
 - **Your AI endpoints travel with the rest of your configuration.** An export now
   carries a non-secret AI section — each endpoint's display name, address,
   authentication style, declared models, the **names** of its custom headers, the

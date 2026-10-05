@@ -2042,6 +2042,17 @@ const draftProbeStatus = computed(() => {
     : t('settings.aiProviders.probe.unchanged');
 });
 
+/**
+ * Whether the last probe answered, which is when the "this is not consent" line
+ * belongs under the model rows (§8 question 2).
+ *
+ * Only an answer may carry that sentence: a probe that failed or was refused
+ * sends nothing at all, so it cannot be mistaken for permission and needs no
+ * disclaimer. A success is the one outcome a reader can turn into "so this
+ * endpoint is allowed" — and it is not allowed by any of what the probe did.
+ */
+const draftProbeSucceeded = computed(() => draftProbeState.value === 'done' && draftProbeReport.value?.ok === true);
+
 function handleProviderBaseUrlInput(event: Event): void {
   providerDraft.value.baseUrl = (event.target as HTMLInputElement).value;
   providerAddressCommitted.value = false;
@@ -2853,13 +2864,25 @@ defineExpose({
             </vscode-button>
           </div>
           <!--
-            The automatic model probe (§4.5.5): one line saying what the list is
+            The automatic model probe (§4.5): one line saying what the list is
             doing or where its new rows came from, so "these rows appeared by
             themselves" always has an answer. The report below it is the host's own
             wording, and the control after it is the one the record keeps there for
             good — the retry after a failure is exactly this button.
           -->
           <p class="field-description probe-status" role="status" aria-live="polite">{{ draftProbeStatus }}</p>
+          <!--
+            What a successful probe must not be read as (`docs/design/settings-page.md`
+            §8 question 2): the endpoint answering with a model list says only that
+            this address and credential reach it, not that content may be sent to it.
+            It stands next to the status line rather than in the report card because
+            the card is shared with the pressed "Test connection", where the same
+            sentence is off topic, and because this is where the rows the probe just
+            filled in are explained.
+          -->
+          <p v-if="draftProbeSucceeded" class="field-description probe-consent">
+            {{ t('settings.aiProviders.probe.notConsent') }}
+          </p>
           <AiTestReport v-if="draftProbeReport" source="automatic" :report="draftProbeReport" />
           <div class="cache-directory-actions">
             <vscode-button

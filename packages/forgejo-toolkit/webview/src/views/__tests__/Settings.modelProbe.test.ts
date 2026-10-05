@@ -31,6 +31,11 @@ import type {
  * 7. **A failure is a report**, not a dialog and not a blocked form: the host's
  *    own sentence is rendered, the line above the model rows says the probe got no
  *    answer and where the reason is, and the card names its own source.
+ * 8. **A success is not consent** (§8 question 2): the line under the model rows
+ *    says so in the same breath as the rows it just filled in, because "the probe
+ *    answered" is the one outcome a reader can mistake for permission. A failed or
+ *    refused probe says nothing about consent — it sent nothing to be mistaken for
+ *    it.
  */
 
 const { stateMock } = vi.hoisted(() => {
@@ -540,6 +545,9 @@ describe('what the probe does with its answer', () => {
 
     expect(declaredModels(wrapper)).toEqual(['hand-written', 'reported-a', 'reported-b']);
     expect(wrapper.text()).toContain("Added 2 model(s) from the endpoint's /models");
+    // A success carries the one sentence a reader can take the wrong way: finding
+    // models is not permission to send content to this endpoint.
+    expect(wrapper.find('.probe-consent').text()).toContain('does not mean requests to this endpoint are allowed');
     // The row's own display name is the user's and is not overwritten.
     expect(fieldText(wrapper.findAll('.repeatable-row')[0]!.findAll('vscode-textfield')[1]!)).toBe('My own name');
     wrapper.unmount();
@@ -570,6 +578,9 @@ describe('what the probe does with its answer', () => {
     await vi.advanceTimersByTimeAsync(800);
 
     expect(wrapper.text()).toContain('reported no model this list does not already declare');
+    // An answer that adds nothing is still an answer: the consent line belongs
+    // here too, or "it answered" would read as permission again.
+    expect(wrapper.find('.probe-consent').text()).toContain('does not mean requests to this endpoint are allowed');
     wrapper.unmount();
   });
 
@@ -603,6 +614,9 @@ describe('what the probe does with its answer', () => {
     const status = wrapper.find('.probe-status');
     expect(status.text()).toContain('did not get an answer');
     expect(status.text()).toContain('report below');
+    // A probe that got no answer sent nothing, so it cannot be mistaken for
+    // permission and carries no consent line.
+    expect(wrapper.find('.probe-consent').exists()).toBe(false);
     // The card also says it came from the automatic probe, not from a pressed test.
     expect(report.text()).toContain('automatic model-list probe');
     // No native dialog: the page has never raised one for a setting, and a probe
@@ -638,6 +652,8 @@ describe('what the probe does with its answer', () => {
 
     expect(wrapper.find('.probe-status').text()).toContain('sent nothing');
     expect(wrapper.find('.test-report').text()).toContain('was not tested: nothing was sent');
+    // Nothing was sent, so there is nothing to read as consent.
+    expect(wrapper.find('.probe-consent').exists()).toBe(false);
     wrapper.unmount();
   });
 

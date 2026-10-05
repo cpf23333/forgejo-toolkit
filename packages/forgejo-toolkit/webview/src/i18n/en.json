@@ -830,7 +830,8 @@
         "added": "Added {count} model(s) from the endpoint's /models; they are ordinary rows you can edit or remove.",
         "unchanged": "The endpoint's /models reported no model this list does not already declare.",
         "failed": "The probe did not get an answer: the endpoint's own reason is in the report below.",
-        "refused": "The probe sent nothing: the reason is in the report below."
+        "refused": "The probe sent nothing: the reason is in the report below.",
+        "notConsent": "This does not mean requests to this endpoint are allowed. The probe only read the model list; the switch that allows requests to configured endpoints, and each feature's own consent question, are what decide whether content is ever sent."
       }
     },
     "status": {
