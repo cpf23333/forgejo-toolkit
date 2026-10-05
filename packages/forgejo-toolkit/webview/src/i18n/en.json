@@ -804,6 +804,8 @@
     "coverage": "This run covered the whole pull request: {count} changed file(s).",
     "coveragePartial": "This run covered {count} of the pull request's {total} changed files.",
     "model": "Model",
+    "transport": "Transport",
+    "provider": "Provider",
     "scope": "Prompt scope",
     "candidates": "Proposed comments",
     "candidateCount": "{count} passed the anchor validation",

@@ -422,11 +422,34 @@ export interface AiPreReviewPanelDrop {
 }
 
 /**
+ * Which transport served one run, and where it sent the content.
+ *
+ * Three facts, in the order a reader needs them: the seam's own identifier
+ * (`'vscode.lm'` or `'openai-compatible:<providerId>'`), which of the two branches
+ * that is (so a reader does not have to parse the id), and the party that received
+ * the content — the editor's model vendor, or a configured endpoint's display name
+ * together with its address. `address` is absent for the editor's own models: there
+ * is no address this extension may promise for them, and the consent question says
+ * the same by leaving its address clause out.
+ */
+export interface AiPreReviewPanelTransport {
+  /** The seam's stable identifier: `'vscode.lm'` or `'openai-compatible:<providerId>'`. */
+  id: string;
+  /** Which branch of the seam served the run. */
+  kind: 'vscode.lm' | 'openai-compatible';
+  /** The party that received the content: the model's vendor, or the endpoint's display name. */
+  provider: string;
+  /** The configured endpoint's display address; absent for the editor's own models. */
+  address?: string;
+}
+
+/**
  * Everything the panel's header states about the run that produced the cards.
  *
- * This is the transparency the quick pick could not give: the pull request, the
- * model (with its vendor, so the privacy point stays on screen), the prompt scope
- * the run actually used, the coverage of the whole-pull-request run, and both
+ * This is the transparency the quick pick could not give: the pull request, which
+ * transport and provider served the run and with which model (so the privacy point
+ * stays on screen and an odd answer can be traced to where it came from), the prompt
+ * scope the run actually used, the coverage of the whole-pull-request run, and both
  * counts — how many candidates survived validation and how many were dropped, by
  * reason.
  */
@@ -443,6 +466,18 @@ export interface AiPreReviewPanelPayload {
     family: string;
     id: string;
   };
+  /**
+   * Which **transport**, **provider** and endpoint address served the run
+   * (`docs/design/ai-model-transport.md` §11.3).
+   *
+   * The model name alone no longer answers "where did my content go?": the same
+   * model name can arrive from the editor's own provider list or from a configured
+   * OpenAI-compatible endpoint, and only this block says which of the two — and,
+   * for an endpoint, the address the request actually went to. It is always
+   * present, because every run is served by exactly one transport; the panel
+   * exists to be the surface where that is visible.
+   */
+  transport: AiPreReviewPanelTransport;
   scope: AiPreReviewPanelScope;
   /**
    * How many changed files this run actually covered, which is what makes the

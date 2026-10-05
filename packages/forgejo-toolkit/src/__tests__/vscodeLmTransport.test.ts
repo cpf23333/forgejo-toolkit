@@ -701,6 +701,18 @@ describe('the run through the seam', () => {
       aiPreReviewPromptScope: 'metadata-only',
       aiPreReviewModel: 'fake/only',
       ...PROVIDER_SETTINGS,
+      // Two of the record's rules decide this case's shape, and both are §8.4's:
+      // a **binding** names an endpoint for this feature outright and outranks
+      // everything else (row 1), and an explicit `openai-compatible` choice reaches
+      // the endpoint with no editor model involved at all (row 3). Neither is what
+      // this case is about — "configuration that does not name this feature moves
+      // nothing" — so the endpoint is fully configured and **enabled** here without
+      // either of them, which leaves row 4: `auto` with an editor model available.
+      // A run that must follow a binding is asserted in
+      // `src/__tests__/aiPreReviewTransport.test.ts`, which is where stage 3's
+      // selection wiring is pinned.
+      aiTransport: 'auto',
+      aiModelBindings: [],
     };
     const model = createModel({ answer: DEFAULT_ANSWER, id: 'only', family: 'only' });
 

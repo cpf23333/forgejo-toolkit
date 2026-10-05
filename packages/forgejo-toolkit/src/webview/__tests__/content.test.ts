@@ -150,6 +150,7 @@ describe('getWebviewContent', () => {
         repo: 'demo-repo',
         index: 2,
         model: { name: 'Fake Model', vendor: 'fake', family: 'fake', id: 'fake-model' },
+        transport: { id: 'vscode.lm', kind: 'vscode.lm', provider: 'fake' },
         scope: 'changed-files',
         // The coverage the panel's header states: one file covered out of the
         // three the run fetched, which is the "N of M" branch the header renders.

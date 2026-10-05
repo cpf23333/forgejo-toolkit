@@ -880,10 +880,29 @@ VS Code 与一个 VSCodium 在能力上完全一样。**本文不引入任何按
    生产构建里存在**（`FORGEJO_TOOLKIT_INCLUDE_MOCKS`）。SSE 的 `ReadableStream` 响应能不能被 MSW 稳定地分块
    吐出，是本设计里**最大的技术未知**。备选：`undici` 起一个真实的本机 HTTP server（`tools/ui-review/` 的 dev
    host 需要同一件事，见下条）。
-3. **端点没有 tokenizer 时，预算怎么给？** 三个候选：(a) 保守的字符 → token 比（例如 4 字符 = 1 token）加安全
-   边距；(b) 用端点自己的 `/tokenize`（只有 llama.cpp / vLLM 有，不是协议的一部分）；(c) 干脆按
-   `maxInputTokens` 未知处理，只在明显过大时拒绝。**建议 (a)**，但边距取多少要实测（同一份 brief 在 Ollama 与
-   某个托管端点上分别量一次）。
+3. **端点没有 tokenizer 时，预算怎么给？——已裁决（阶段 3）。** 三个候选里取 **(a) 保守估算**，并把它与 (c) 的
+   "预算未知"合起来用；**(b) 不采用**：`/tokenize` 只有 llama.cpp / vLLM 有，不是协议的一部分，为一个非协议扩展
+   新增一条请求路径不划算。裁决有三条，实现里各有对应的常量与判词：
+   - **测量**：`countTokens` 回答 `undefined` **且**该模型未声明 `maxInputTokens` 时，按 **2 个 UTF-8 字节 =
+     1 token** 估算并向上取整（`estimateAiPreReviewTokens`，常量 `AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN`）。
+     "4 字符 ≈ 1 token"是英文散文的经验值，而本功能的提示词是代码、JSON、路径与 diff 标记；改用 **UTF-8 字节**
+     计数还顺带覆盖了非 ASCII 文本（一个汉字 3 字节），而按 JS 的 `text.length`（UTF-16 码元）会把它算成 1。
+   - **预算**：模型自己声明的 `maxInputTokens` 优先；直连端点**声明不了**（`AiProviderModelDeclaration` 只有
+     id 与 name），此时用**假定的** `AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS = 32768`。方向由两种错误的代价决定：
+     假定得**比端点小**会把端点本来放得下的文件从提示词里剪掉——用户看不见的质量损失；假定得**比某台小上下文
+     本机服务大**只会让它用自己的错误拒掉这次请求，正是 §9.2 要的"响亮地失败"。所以预算这一半取宽松值，测量
+     那一半取保守值，不变量是**宁可少发、不可超发**。
+   - **第三种状态**：模型**声明了**预算却回答"量不出来"是实现自相矛盾，不是"这条传输没有 tokenizer"，此时保持接缝
+     之前的读法——不做比较，并在日志与 dump 里说明（`AiPreReviewBudgetMode` 的 `'unmeasured'`；`'measured'`
+     是普通路径，`'estimated'` 是上面那条）。
+     **边距的依据（本次能实测到的部分）**：本仓没有可用的 tokenizer 依赖，直连端点也不提供，所以"同一份 brief 在
+     Ollama 与某个托管端点上各量一次"这一步**本次做不到**（留到真实端点验收时补）。能实测的是本功能自己提示词的
+     字节密度，量在 `src/__tests__/aiPreReviewTransport.test.ts` 的同一批形状上（中英文指令块、四种 scope 的
+     brief、`changed-files` 的整文件文本）：全部约 **1.00 字节/字符**（代码与 JSON 都是 ASCII），一段纯中文样本是
+     **3.00 字节/字符**。因此 2 字节/token 对前者约是散文经验值（4 字符/token）的 **2 倍宽松**，对汉字文本约合
+     1.5 token/字（真实分词器约 0.6–1 token/字）。**已知残余风险**：字节级 BPE 的严格上界是"1 字节 = 1 token"，
+     2 字节/token 在那种最坏输入（几乎每字节一个 token）下会低估一半；这条不掩盖也不静默——超长请求会被端点用
+     自己的错误拒掉，是明确失败。
 4. **共享层要不要补一个受限重试？** §6.6 的处置是"传输层不重试"，`TODO.md` 的措辞则假定重试已经存在。要么在
    `shared/request` 补一个只对幂等 GET 生效的重试，要么把 TODO 的措辞改成"代理 / 超时 / dispatcher"。这是需要
    单独裁决的事，本文只记录偏差。
@@ -921,6 +940,18 @@ Ollama"这件事了）。所以 harness 要长的是：
 2. 一个把它的地址写进隔离 profile 的 `forgejoToolkit.aiProviders` 的启动步骤；
 3. 一个**不走 MSW** 的说明（否则两套拦截会互相遮蔽），以及走查清单里"配 provider → 测试连接 → 跑一次预评审 →
    在 Out 里看目的地"这条路径。
+4. **上面三条已落地（2026-10-05）**：`tools/ui-review/src/aiMockServer.ts` 就是那台本机 SSE server，
+   `aiMockRun.ts` 管状态文件、detached 子进程与"只杀自己认得的 pid"的停止逻辑，`aiMock.ts` 是它的命令行
+   （`serve` / `url` / `requests` / `stop`）。`launch --ai-mock`（`dual launch --ai-mock` 同）先起端点、再把它实际绑到的
+   端口写进隔离 profile 的 `forgejoToolkit.aiProviders`，连同 `aiProvidersEnabled`、`aiTransport` 与
+   `aiPreReview` 的逐功能绑定；**不写任何密钥**（端点 `auth: "none"`，需要鉴权的端点才需要，而密钥只进
+   `SecretStorage`），也**不写** `forgejoToolkit.aiPreReviewPromptScope`——它的默认 `ask` 正是走查里唯一必须由人回答的
+   一步。两处与上面措辞不同，按实现记录：① 写成 **TypeScript**（`.ts`）而不是 `.mjs`，因为 harness 本来就用 `tsx`
+   直接跑 TS、`pnpm check` 也覆盖它；② 第 3 条的"不走 MSW"已实测：带 MSW 拦截器时，指向回环 SSE 端点的请求被**放行**
+   （四个 body chunk 在 183 ms 内分别到达，不是缓冲后一次给出），MSW 只打印一句
+   `intercepted a request without a matching request handler`——所以本地端点模式**不需要** `--real-api`，Forgejo 那套
+   fixture 原样留着。走查本身仍有前置：构建必须**同时**含传输与 AI 预评审的接线，否则设置页没有 AI 段、预评审也到不了
+   端点；这条前置与完整步骤写在 `tools/ui-review/README.md` 的 "The local AI endpoint" 一节里。
 
 ---
 

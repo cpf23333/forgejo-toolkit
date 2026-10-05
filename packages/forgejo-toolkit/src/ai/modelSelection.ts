@@ -62,7 +62,30 @@ export type AiUnavailableCode =
 export type AiTransportSelection =
   | { kind: 'vscode-lm'; transport: AiModelTransport; reason: string }
   | { kind: 'openai-compatible'; transport: AiModelTransport; model: AiModelInfo; reason: string }
-  | { kind: 'unavailable'; code: AiUnavailableCode; reason: string };
+  | {
+      kind: 'unavailable';
+      code: AiUnavailableCode;
+      reason: string;
+      /**
+       * The configured-endpoint route's own reading, present only when the selector
+       * consulted it **and** the run still could not be served by the editor's
+       * models (§8.4 row 5, whose failure is the general `no-model` one).
+       *
+       * It is carried so the surface above can state every reason it has rather than
+       * only the last one: §9.3 asks the degraded surface to give the user **both**
+       * ways out, and "this editor lists no model" alone does not say whether an
+       * endpoint is configured, disabled, ambiguous or unusable. Nothing branches on
+       * it — it is the reason, not a second decision — and the arm stays final: a
+       * selection that ends `unavailable` never continues on to another route.
+       */
+      direct?: AiUnavailableRoute;
+    };
+
+/** One route the selection could not use, with the sentence that says why. */
+export interface AiUnavailableRoute {
+  code: AiUnavailableCode;
+  reason: string;
+}
 
 /** What one selection needs. */
 export interface AiTransportSelectionDeps {
@@ -90,9 +113,10 @@ function bindingUnknownProviderMessage(providerId: string): string {
 }
 
 /** The l10n sentence for a direct-only choice with no endpoint configured. */
-function noEndpointConfiguredMessage(rejection: string | undefined): string {
+function noEndpointConfiguredMessage(switchReason: string, rejection: string | undefined): string {
   const base = vscode.l10n.t(
-    '"forgejoToolkit.aiTransport" asks for a configured AI endpoint, but none is configured under "forgejoToolkit.aiProviders", so there is no model to use. Nothing was sent.',
+    '{0}, but no AI endpoint is configured under "forgejoToolkit.aiProviders", so no configured endpoint can serve this run. Nothing was sent.',
+    switchReason,
   );
   if (rejection === undefined) {
     return base;
@@ -187,7 +211,7 @@ async function selectDirectWithoutBinding(
     return {
       kind: 'unavailable',
       code: 'configure',
-      reason: noEndpointConfiguredMessage(rejection === undefined ? undefined : rejection.reason),
+      reason: noEndpointConfiguredMessage(switchReason, rejection === undefined ? undefined : rejection.reason),
     };
   }
   if (!aiProvidersEnabledSettingValue()) {
@@ -348,5 +372,14 @@ async function resolveSelection(feature: AiFeature, deps: AiTransportSelectionDe
   if (direct.code === 'disabled' || direct.code === 'endpoint-unusable' || direct.code === 'bind') {
     return direct;
   }
-  return { kind: 'unavailable', code: 'no-model', reason: noModelAtAllMessage() };
+  return {
+    kind: 'unavailable',
+    code: 'no-model',
+    reason: noModelAtAllMessage(),
+    // The endpoint route was consulted and its answer was "nothing is configured",
+    // which is the one direct reading the general `no-model` sentence above does not
+    // already carry (it carries the editor half). It travels so the run can state
+    // both absences in its own wording rather than only the editor's.
+    direct: { code: direct.code, reason: direct.reason },
+  };
 }

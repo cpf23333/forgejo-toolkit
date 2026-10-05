@@ -80,6 +80,7 @@ function payload(overrides: Partial<AiPreReviewPanelPayload> = {}): AiPreReviewP
     index: 2,
     pullRequestTitle: 'Add dark mode',
     model: { name: 'Fake Model', vendor: 'fake', family: 'fake', id: 'fake-model' },
+    transport: { id: 'vscode.lm', kind: 'vscode.lm', provider: 'fake' },
     scope: 'changed-files',
     // Two of the three files the run fetched: the run covered the pull request as
     // far as the brief's table went, which is what the header has to say.

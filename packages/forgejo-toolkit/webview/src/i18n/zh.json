@@ -804,6 +804,8 @@
     "coverage": "本次运行覆盖整个 Pull Request：{count} 个变更文件。",
     "coveragePartial": "本次运行覆盖了该 Pull Request {total} 个变更文件中的 {count} 个。",
     "model": "模型",
+    "transport": "传输",
+    "provider": "提供方",
     "scope": "提示词范围",
     "candidates": "候选评论",
     "candidateCount": "{count} 条通过了锚点校验",

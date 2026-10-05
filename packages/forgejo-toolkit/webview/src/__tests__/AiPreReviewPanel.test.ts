@@ -46,6 +46,7 @@ function payload(overrides: Partial<AiPreReviewPanelConfig> = {}): AiPreReviewPa
     index: 2,
     pullRequestTitle: 'Add dark mode',
     model: { name: 'Fake Model', vendor: 'fake', family: 'fake', id: 'fake-model' },
+    transport: { id: 'vscode.lm', kind: 'vscode.lm', provider: 'fake' },
     scope: 'changed-files',
     changedFileCount: 2,
     changedFilesTotal: 2,
@@ -134,6 +135,30 @@ describe('AiPreReviewPanel header', () => {
     const wrapper = mountPanel({ drops: [] });
 
     expect(wrapper.find('.dropped').text()).toBe('nothing was dropped');
+    wrapper.unmount();
+  });
+
+  it('states the transport, the provider and the address a direct run sent to', () => {
+    // The same panel, served by a configured endpoint instead of the editor's own
+    // models: the header has to say which of the two, and where the content went —
+    // the model name alone cannot answer either.
+    const wrapper = mountPanel({
+      transport: {
+        id: 'openai-compatible:local-gateway',
+        kind: 'openai-compatible',
+        provider: 'Local Gateway',
+        address: 'http://localhost:11434/v1',
+      },
+      // A configured endpoint's model carries a vendor and an id and no family, which
+      // must not render as `(local-gateway/)`.
+      model: { name: 'Qwen3 8B', vendor: 'local-gateway', family: '', id: 'qwen3:8b' },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain('openai-compatible:local-gateway');
+    expect(text).toContain('Local Gateway');
+    expect(text).toContain('http://localhost:11434/v1');
+    expect(text).toContain('Qwen3 8B (local-gateway)');
     wrapper.unmount();
   });
 });

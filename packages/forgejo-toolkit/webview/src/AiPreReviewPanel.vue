@@ -13,8 +13,9 @@ import type { AiPreReviewPanelCandidate, AiPreReviewPanelConfig } from './types/
  * truncates, with no `description` and no `tooltip` for the rest — so a person
  * could not read the comment they were about to accept. Here every candidate
  * gets a card with its **own editor** holding the whole body, and the header can
- * state what the quick pick had no room for: the pull request, the model that
- * answered (with its vendor), the prompt scope that run actually used, and both
+ * state what the quick pick had no room for: the pull request, the **transport**
+ * that served the run with the provider behind it (and, for a configured endpoint,
+ * the address it sent to), the prompt scope that run actually used, and both
  * counts — how many candidates survived validation and how many were dropped,
  * grouped by reason.
  *
@@ -74,6 +75,23 @@ const canCreate = computed(
     checkedCount.value > 0 && !submitting.value && result.value === undefined && blockingCandidate.value === undefined,
 );
 const isAnswered = computed(() => result.value !== undefined);
+
+/**
+ * The model's identifiers as the header renders them: `vendor/family`, and the
+ * vendor alone when the model has no family.
+ *
+ * A configured endpoint's models carry a `vendor` (the provider's id) and an `id`
+ * and no family at all, so the old unconditional `vendor/family` rendered
+ * `(local-gateway/)` — which reads as a missing value rather than as a model that
+ * has none.
+ */
+const modelIdentifiers = computed(() => {
+  const model = payload.value?.model;
+  if (!model) {
+    return '';
+  }
+  return model.family.trim() === '' ? model.vendor : `${model.vendor}/${model.family}`;
+});
 
 /** Pre-fills every editor with the model's wording, dropping any edit. */
 function resetBodies(): void {
@@ -234,9 +252,31 @@ onUnmounted(() => {
         }}
       </p>
       <dl class="facts">
+        <!--
+          Where the content went, in three facts rather than one: the transport
+          that served the run, the provider behind it (and, for a configured
+          endpoint, the address it sent to), and the model. A model name alone
+          cannot answer "where did my content go" once two transports can serve
+          the same feature with the same model name.
+        -->
+        <div class="fact">
+          <dt>{{ t('aiPreReview.transport') }}</dt>
+          <dd>
+            <code>{{ payload.transport.id }}</code>
+          </dd>
+        </div>
+        <div class="fact">
+          <dt>{{ t('aiPreReview.provider') }}</dt>
+          <dd>
+            {{ payload.transport.provider }}
+            <span v-if="payload.transport.address" class="endpoint"
+              >— <code>{{ payload.transport.address }}</code></span
+            >
+          </dd>
+        </div>
         <div class="fact">
           <dt>{{ t('aiPreReview.model') }}</dt>
-          <dd>{{ payload.model.name }} ({{ payload.model.vendor }}/{{ payload.model.family }})</dd>
+          <dd>{{ payload.model.name }} ({{ modelIdentifiers }})</dd>
         </div>
         <div class="fact">
           <dt>{{ t('aiPreReview.scope') }}</dt>
@@ -401,6 +441,12 @@ onUnmounted(() => {
 
 .fact dd {
   margin: 0;
+}
+
+/* The endpoint address is a fact about where the content went, so it stays on the
+   provider's own line and reads as a value rather than as prose. */
+.fact dd .endpoint {
+  color: var(--vscode-descriptionForeground);
 }
 
 .hint,

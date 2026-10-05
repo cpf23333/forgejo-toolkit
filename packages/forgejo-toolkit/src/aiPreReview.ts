@@ -69,6 +69,8 @@ import {
 } from './ai/vscodeLmTransport';
 import type { AiCompletionRequest, AiCompletionResult, AiModelInfo, AiModelTransport } from './ai/transport';
 import { aiProviderSettingsReading } from './ai/modelSettings';
+import { selectedModelFor, type AiTransportSelection } from './ai/modelSelection';
+import type { AiSecretStore } from './ai/providerSecrets';
 import { openAiEndpointDisplayUrl, openAiEndpointUrl } from './ai/openAiCompatibleTransport';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
@@ -100,19 +102,22 @@ import type { ForgejoChangedFile, ForgejoPullRequestDetail } from './api/types';
  *    nothing selected, an empty selection writes nothing, and the run reports
  *    how many candidates were dropped and why.
  *
- * **Model access goes through one seam.** This module never touches
- * `vscode.lm`'s `sendRequest` or `countTokens`: the run lists models, measures a
- * prompt and runs a request through `AiModelTransport`
- * (`src/ai/transport.ts`), whose one implementation today is the `vscode.lm`
- * transport (`src/ai/vscodeLmTransport.ts`) — the code that used to live here,
- * moved (`docs/design/ai-model-transport.md` §5.1). The seam exists so a second
- * transport (a user-configured OpenAI-compatible endpoint) can be added without
- * touching this feature, and it deliberately carries no fallback between
- * transports: a transport that cannot serve the run reports why, and this module
- * refuses rather than quietly reaching for another one. The one surface that
- * still speaks to `vscode.lm` directly is the debug-only model probe below,
- * because one of its four shapes is a deliberately two-message request the
- * `vscode.lm` transport flattens into one.
+ * **Model access goes through one seam, and the seam is chosen in one place.**
+ * This module never touches `vscode.lm`'s `sendRequest` or `countTokens`: the run
+ * asks `selectedModelFor('aiPreReview', …)` (`src/ai/modelSelection.ts`) which
+ * transport and model serve it — the editor's own models through the `vscode.lm`
+ * transport, or a configured OpenAI-compatible endpoint — and then lists,
+ * measures and asks through `AiModelTransport` (`src/ai/transport.ts`). The seam
+ * deliberately carries no fallback between transports: a transport that cannot
+ * serve the run reports why, and this module refuses rather than quietly reaching
+ * for another one (§7.5). The one surface that still speaks to `vscode.lm`
+ * directly is the debug-only model probe below, because one of its four shapes is
+ * a deliberately two-message request the `vscode.lm` transport flattens into one.
+ *
+ * The choice is *only* the transport and the model: which **model** the editor
+ * path uses is still the user's own setting and picker (below), and the direct
+ * path's model is the one its binding or its provider declaration names — never a
+ * model this module picked.
  *
  * Every anchor is validated by the pure validator in `aiPreReviewBrief.ts`; this
  * module never moves a line, flips a side or clamps a range. Deleting a draft
@@ -393,12 +398,53 @@ export function registerAiPreReviewCommand(
  * notification or the confirmation panel, and the caller here is a command
  * handler or a message dispatch that must return immediately.
  */
+/**
+ * The `ExtensionContext` fields one run reads.
+ *
+ * In production this **is** the `ExtensionContext` itself (the command handler and
+ * the view provider's runner both hand their own along), which is why `secrets` is
+ * optional here rather than a separate parameter: a host that carries no
+ * `SecretStorage` is a test double, and `hostSecrets` below says what that means.
+ * `extensionUri` is what the confirmation panel's document is loaded from, and
+ * `logUri` is where the debug diagnostics dump is written.
+ */
+export interface AiPreReviewRunHost {
+  extensionUri: vscode.Uri;
+  logUri?: vscode.Uri;
+  /** `ExtensionContext.secrets`: where a configured endpoint's credential lives (§8.2). */
+  secrets?: AiSecretStore;
+}
+
+/**
+ * The secret store a run reads a configured endpoint's credential from.
+ *
+ * The fallback is not a second store: a host with no `SecretStorage` cannot hold a
+ * credential at all, so every read answers "nothing is stored" and an endpoint that
+ * needs a key is simply unavailable — the fail-closed direction §7.3 already
+ * requires, and the reason nothing here ever needs to write. It exists so the seam's
+ * selection can be handed a store unconditionally; the run itself only ever reads.
+ */
+function hostSecrets(host: AiPreReviewRunHost): AiSecretStore {
+  return host.secrets ?? NO_AI_SECRETS;
+}
+
+/** See {@link hostSecrets}: no credential can be stored, so none can be read. */
+const NO_AI_SECRETS: AiSecretStore = {
+  get: async () => undefined,
+  store: async () => {
+    throw new Error('this host has no secret storage, so no AI provider credential can be stored');
+  },
+  delete: async () => {
+    throw new Error('this host has no secret storage, so no AI provider credential can be deleted');
+  },
+};
+
 function startAiPreReview(
   config: ConfigManager,
   viewProvider: ForgejoToolkitViewProvider | undefined,
   pullReviewCommentController: PullReviewCommentController,
   target: PullRequestTarget,
-  host: { extensionUri: vscode.Uri; logUri?: vscode.Uri },
+  host: AiPreReviewRunHost,
 ): void {
   runAiPreReview(config, viewProvider, pullReviewCommentController, target, host).catch((error: unknown) => {
     const err = userFacingErrorMessage(error);
@@ -408,9 +454,10 @@ function startAiPreReview(
 
 /**
  * The chat model one run uses — the model the user chose — with the fixed
- * instruction prompt already measured in that model's own tokenizer (§7.2).
- * The measurement travels with the model because every later comparison for
- * this run compares against the same number.
+ * instruction prompt already measured (§7.2). The measurement travels with the
+ * model because every later comparison for this run compares against the same
+ * number, and so does the budget it is compared against and the mode that
+ * produced both.
  *
  * A run has exactly one of these. There is no list to rank and no second model
  * to move to: ranking candidates is choosing for the user, and choosing for the
@@ -420,22 +467,134 @@ export interface AiPreReviewChosenModel {
   /** The model as the seam exposes it (`src/ai/transport.ts`). */
   model: AiModelInfo;
   /**
-   * Tokens the fixed instruction prompt costs this model, or `undefined` when the
-   * transport answered no measurement at all — the seam's "this model has no
-   * tokenizer" arm (§4.2), which is not the same thing as a tokenizer that
-   * **threw** (that refusal is reported as "could not measure", see
-   * `validateChosenAiPreReviewModel`). An absent measurement is not a budget
-   * failure: no comparison is made, exactly as no comparison could be made before
-   * the seam existed.
+   * Tokens the fixed instruction prompt costs this run's own measure. See
+   * {@link AiPreReviewBudgetMode} for which measure that was; `undefined` only ever
+   * means "a model that declares a budget answered no measurement at all", the one
+   * arm in which no comparison can be made (the pre-seam behaviour, kept).
+   *
+   * A tokenizer that **threw** is not this arm: that refusal is reported as
+   * "could not measure" and ends the run (`validateChosenAiPreReviewModel`).
    */
   instructionTokens: number | undefined;
+  /** Which measure produced {@link instructionTokens} and every later count of this run. */
+  mode: AiPreReviewBudgetMode;
+  /**
+   * The input budget this run compares its prompts against: the model's own
+   * `maxInputTokens`, or {@link AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS} when a transport
+   * with no tokenizer declares none (§13 question 3).
+   */
+  availableTokens: number;
+}
+
+/**
+ * How this run measures a prompt and what it measures against
+ * (`docs/design/ai-model-transport.md` §13 question 3, decided in this stage).
+ *
+ * The three arms are the three states the seam can leave the run in, and they are
+ * deliberately not collapsed into one "unknown":
+ *
+ * - `'measured'` — the model's own tokenizer answered. Both numbers are the
+ *   model's, and this is the arm every `vscode.lm` model takes.
+ * - `'estimated'` — the transport answered **no** measurement and the model declares
+ *   **no** budget, which is the direct endpoint's ordinary state (a configured
+ *   endpoint has no tokenizer this extension can ask, and a provider declaration
+ *   carries no `maxInputTokens`). The run then supplies both numbers itself: the
+ *   conservative estimate of {@link estimateAiPreReviewTokens} and the assumed
+ *   budget of {@link AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS}. This is the arm §13
+ *   question 3 asks for — the budget check runs, instead of being skipped.
+ * - `'unmeasured'` — a model that **declares** a budget answered no measurement.
+ *   That is a provider contradicting its own declaration rather than a transport
+ *   with no tokenizer, so the pre-seam reading is kept: no comparison is made, and
+ *   the run says so in its log and in the diagnostics dump. Substituting an estimate
+ *   here would either override the budget the model did declare or invent one for a
+ *   model that already answered half the question.
+ */
+export type AiPreReviewBudgetMode = 'measured' | 'estimated' | 'unmeasured';
+
+/**
+ * The conservative estimate of what one prompt costs a transport that has no
+ * tokenizer: **2 UTF-8 bytes per token**.
+ *
+ * Why bytes rather than characters, and why 2. Every endpoint §6.1 guarantees to
+ * cover uses a byte-level BPE vocabulary, in which a token covers **at least one
+ * byte**; the density of ordinary English and code is about 4 bytes per token, and
+ * the densest text a pull request can carry — Han prose, whose characters cost 3
+ * bytes each and roughly one token each — sits near 2–3 bytes per token. Two bytes
+ * per token is therefore at or below the measured density of every script this
+ * feature can send, which is what "conservative" has to mean for a number that
+ * decides whether a request is cut or refused.
+ *
+ * The measurement behind the choice, and its limits, are recorded in
+ * `docs/design/ai-model-transport.md` §13 question 3: the estimate is applied to the
+ * feature's own prompt shapes in `src/__tests__/aiPreReviewTransport.test.ts`, and
+ * no real endpoint's tokenizer was reachable in this pass, so the density is the
+ * published behaviour of the byte-level BPE family rather than a count taken here.
+ */
+export const AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN = 2;
+
+/**
+ * The input budget assumed for a transport that has no tokenizer and whose model
+ * declares none, in tokens.
+ *
+ * 32,768 is the smallest context window among the models the record's own examples
+ * name (`qwen3:8b` in §8.1), and the hosted endpoints §6.1 covers are at 64k and
+ * above. The asymmetry of the two ways of being wrong decides the direction:
+ * assuming **less** than the endpoint has cuts files out of a prompt the endpoint
+ * could have taken — a quality loss the user cannot see — while assuming **more**
+ * than a small local server has makes that server refuse the request with its own
+ * error, which is the loud, honest failure §9.2 asks for. Assuming absence of a
+ * budget must therefore be generous, and the estimate above is what keeps the
+ * generous side conservative.
+ */
+export const AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS = 32_768;
+
+/**
+ * What one prompt costs a transport with no tokenizer, by the rule above.
+ *
+ * The length is the **UTF-8** length, not `text.length`: JavaScript's string length
+ * counts UTF-16 code units, so a Han character would count 1 where it costs 3 bytes,
+ * and a surrogate pair 2 where it costs 4. The estimate is the ceiling of the byte
+ * count over {@link AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN}, so it is never zero for
+ * a non-empty prompt and never under-counts the shortest token a byte-level BPE can
+ * allocate.
+ */
+export function estimateAiPreReviewTokens(text: string): number {
+  return Math.ceil(Buffer.byteLength(text, 'utf8') / AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN);
+}
+
+/**
+ * Which measure one run is in, from the two facts the seam states: what
+ * `countTokens` answered, and what budget the model declared
+ * (`docs/design/ai-model-transport.md` §13 question 3).
+ *
+ * This is the decision itself, as a function, so the three arms can be pinned
+ * without a whole pre-review: an answer is `'measured'`; **no** answer with **no**
+ * declared budget is `'estimated'` (the direct endpoint's ordinary state, and the
+ * case the policy exists for); and no answer with a declared budget is
+ * `'unmeasured'`, where the provider contradicted its own declaration and the
+ * pre-seam reading — no comparison — stands.
+ */
+export function aiPreReviewBudgetMode(measured: number | undefined, declaredBudget: number): AiPreReviewBudgetMode {
+  if (measured !== undefined) {
+    return 'measured';
+  }
+  return declaredBudget === 0 ? 'estimated' : 'unmeasured';
+}
+
+/**
+ * What one run compares its prompts against: the model's own budget, unless the run
+ * is in `'estimated'` mode — where the model declared none, so the assumed budget
+ * decided in §13 question 3 stands in for it.
+ */
+export function aiPreReviewAvailableTokens(mode: AiPreReviewBudgetMode, declaredBudget: number): number {
+  return mode === 'estimated' ? AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS : declaredBudget;
 }
 
 /** The two numbers a request that does not fit reports (§7.2). */
 export interface AiPreReviewBudgetFailure {
   /** Tokens the shortest prompt for this pull request still needs. */
   neededTokens: number;
-  /** The chosen model's `maxInputTokens`. */
+  /** The chosen model's `maxInputTokens`, or the assumed budget when it declares none. */
   availableTokens: number;
 }
 
@@ -589,20 +748,23 @@ type GatheredPreReview =
  * cancellable progress notification, and cancelling it is the same outcome as
  * dismissing the confirmation panel: one sentence, nothing written (§6.4).
  *
- * `host` carries the two things only an `ExtensionContext` has: `extensionUri`
- * is what the confirmation panel's document is loaded from (the panel is an
- * editor tab, so it needs the extension's `out/webview` root), and `logUri` is
- * where the debug diagnostics dump is written. It is required rather than
- * optional because the confirmation step cannot exist without the first — a run
- * that could not build its panel would have no way to ask for confirmation, and
- * creating nothing is the only honest outcome for that.
+ * `host` is the `ExtensionContext` the caller already holds (see
+ * `AiPreReviewRunHost`): `extensionUri` is what the confirmation panel's document
+ * is loaded from (the panel is an editor tab, so it needs the extension's
+ * `out/webview` root), `logUri` is where the debug diagnostics dump is written (it
+ * is optional because a host without a log directory degrades to writing none), and
+ * `secrets` is where a configured endpoint's credential lives — the third read this
+ * run needs to answer "which transport serves this feature" at all. The first is
+ * required because the confirmation step cannot exist without it — a run that could
+ * not build its panel would have no way to ask for confirmation, and creating
+ * nothing is the only honest outcome for that.
  */
 export async function runAiPreReview(
   config: ConfigManager,
   viewProvider: ForgejoToolkitViewProvider | undefined,
   pullReviewCommentController: PullReviewCommentController,
   params: PullRequestTarget,
-  host: { extensionUri: vscode.Uri; logUri?: vscode.Uri },
+  host: AiPreReviewRunHost,
 ): Promise<void> {
   // The feature switch is checked first and answers with a pointer to the
   // setting. Nothing below this line may run while it is off: the tests assert
@@ -630,58 +792,97 @@ export async function runAiPreReview(
   try {
     const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
 
-    // Which model reviews this pull request is settled **before** anything is
-    // read: the setting if it names one, otherwise the user's answer to the
-    // picker. No HTTP request and no model call can happen on a path that
-    // returns from this block, which is what makes "a dismissed pick creates
-    // nothing" true by construction rather than by remembering to check.
+    // **Which transport and which model serve this run** is settled here, before
+    // anything is read: the one function that owns that decision (§8.4) answers
+    // "the editor's own models" or "the configured endpoint you named, with this
+    // model", or refuses with a sentence that says why. Every read it makes —
+    // `availability()`, `listModels()`, the settings and the secrets — is a lookup,
+    // so "nothing leaves the machine before the consent question is answered" stays
+    // true by construction (§7.2, and `src/__tests__/aiModelSelection.test.ts`
+    // proves the mechanism).
     //
-    // Both reads go through the model seam (`src/ai/transport.ts`), and neither of
-    // them sends anything: `availability()` answers whether this editor has a
-    // usable language model API at all (with the sentence to show when it does
-    // not), and `listModels()` is the editor's own unfiltered list.
-    const transport = vscodeLmTransport;
-    const availability = await transport.availability();
-    if (!availability.usable) {
-      void vscode.window.showErrorMessage(availability.reason);
+    // It is deliberately **not** a fallback layer: a selection that comes back
+    // `unavailable` ends the run here, and a transport that fails later fails
+    // (§7.5). No branch below reaches for the other transport.
+    const selection = await selectedModelFor('aiPreReview', { secrets: hostSecrets(host) });
+    if (selection.kind === 'unavailable') {
+      reportNoTransportForRun(selection);
       return;
     }
-    const offered = await transport.listModels();
-    if (offered.length === 0) {
-      reportNoChatModel();
-      return;
+    const transport = selection.transport;
+
+    /**
+     * The editor's offered models, for the diagnostics dump and the refusal
+     * message. Empty on the direct path, where the editor's list was never asked
+     * for and the endpoint's own declaration is the only list there is.
+     */
+    let offered: readonly AiModelInfo[] = [];
+    let chosen: AiModelInfo;
+    /** Where the model choice came from, as the diagnostics header states it. */
+    let origin: string;
+    /** The value of `forgejoToolkit.aiPreReviewModel`, for the diagnostics header. */
+    let configured = '';
+
+    if (selection.kind === 'openai-compatible') {
+      // The user named this endpoint **and** this model in the settings the direct
+      // selection reads (§8.4 rows 1 and 3), so there is no question to ask and no
+      // setting to write: the choice is already theirs, and the picker — which
+      // lists the editor's models — must not appear on a direct run at all.
+      chosen = selection.model;
+      origin = `the transport selection: ${selection.reason}`;
+      offered = await transport.listModels();
+      logger.info(
+        `AI pre-review: model choice: ${transport.id} serves this run with ${modelLabel(chosen)} (${selection.reason}); no pick was shown`,
+      );
+    } else {
+      // The editor's models: which one is the user's own setting and picker, and
+      // nothing here changes that. `listModels()` is the editor's own unfiltered
+      // list, which the selection has already proved non-empty; it is read again
+      // because this run needs the model values themselves.
+      offered = await transport.listModels();
+      if (offered.length === 0) {
+        reportNoChatModel();
+        return;
+      }
+      configured = aiPreReviewModelSettingValue();
+      if (configured === '') {
+        // Nothing configured: the run has to ask. The picker lists every model the
+        // editor offers — not only the ones some heuristic would have approved —
+        // and its answer is written into the setting, so this question is asked
+        // once per choice rather than once per run.
+        const picked = await pickAiPreReviewModel(offered);
+        if (!picked) {
+          reportModelChoiceDismissed();
+          return;
+        }
+        chosen = picked;
+        await rememberChosenAiPreReviewModel(picked);
+        origin = 'the model the user picked just now (written into the setting)';
+      } else {
+        // A configured value that is not one of the accepted forms, or that names
+        // none of the offered models, refuses the run instead of being silently
+        // ignored or replaced: the whole point of the setting is that the choice
+        // is the user's, and a silent substitution would send the brief to a
+        // provider the user did not name.
+        const match = findOfferedAiPreReviewModel(configured, offered);
+        if (!match) {
+          reportAiPreReviewModelRefusal({ configured, offered: describeOfferedAiPreReviewModels(offered) });
+          return;
+        }
+        chosen = match;
+        origin = `the setting "${AI_PRE_REVIEW_MODEL_SETTING}" = "${configured}"`;
+        logger.info(
+          `AI pre-review: model choice: the setting "${AI_PRE_REVIEW_MODEL_SETTING}" = "${configured}" names ${modelLabel(chosen)}; no pick was shown`,
+        );
+      }
     }
 
-    const configured = aiPreReviewModelSettingValue();
-    let chosen: AiModelInfo;
-    if (configured === '') {
-      // Nothing configured: the run has to ask. The picker lists every model the
-      // editor offers — not only the ones some heuristic would have approved —
-      // and its answer is written into the setting, so this question is asked
-      // once per choice rather than once per run.
-      const picked = await pickAiPreReviewModel(offered);
-      if (!picked) {
-        reportModelChoiceDismissed();
-        return;
-      }
-      chosen = picked;
-      await rememberChosenAiPreReviewModel(picked);
-    } else {
-      // A configured value that is not one of the accepted forms, or that names
-      // none of the offered models, refuses the run instead of being silently
-      // ignored or replaced: the whole point of the setting is that the choice
-      // is the user's, and a silent substitution would send the brief to a
-      // provider the user did not name.
-      const match = findOfferedAiPreReviewModel(configured, offered);
-      if (!match) {
-        reportAiPreReviewModelRefusal({ configured, offered: describeOfferedAiPreReviewModels(offered) });
-        return;
-      }
-      chosen = match;
-      logger.info(
-        `AI pre-review: model choice: the setting "${AI_PRE_REVIEW_MODEL_SETTING}" = "${configured}" names ${modelLabel(chosen)}; no pick was shown`,
-      );
-    }
+    // Where this run's content goes, named once and carried everywhere it is
+    // reported: the panel's header, the log lines and the diagnostics dump all say
+    // the same three facts, so a user can tell a `vscode.lm` answer from a
+    // configured endpoint's without reading the settings (§11.3).
+    const servedBy = aiPreReviewServedBy(transport.id, selection.kind, chosen);
+    logger.info(`AI pre-review: this run is served by ${formatAiPreReviewServedBy(servedBy, chosen)}`);
 
     // What the prompt may carry is settled next, and it is settled **before**
     // this run reads or sends anything: with the setting at `ask` the modal is
@@ -690,8 +891,12 @@ export async function runAiPreReview(
     // is why this question comes after the model choice: the modal has to name
     // who would receive the content, and that destination is derived from the
     // chosen model (§7.1) — a `vscode.lm` vendor, or a configured endpoint's
-    // display name **and** address.
-    const scope = await resolveAiPreReviewPromptScope(aiPreReviewConsentDestination(chosen));
+    // display name **and** address. It is `servedBy`'s own naming, so the modal
+    // and the panel cannot name two different parties.
+    const scope = await resolveAiPreReviewPromptScope({
+      name: servedBy.provider,
+      ...(servedBy.address !== undefined ? { address: servedBy.address } : {}),
+    });
     if (scope === undefined) {
       reportPromptScopeNotChosen();
       return;
@@ -711,13 +916,24 @@ export async function runAiPreReview(
     // Validation, and only validation: the instruction block is prepared once,
     // so whether the chosen model can hold it is answered before the first
     // request goes out — and a model that cannot hold it refuses the run rather
-    // than being swapped for a larger one.
-    const chosenModel = await validateChosenAiPreReviewModel(transport, chosen, systemPrompt);
+    // than being swapped for a larger one. On a transport with no tokenizer this is
+    // also where this run's budget mode is decided (§13 question 3), because the
+    // instructions are the first text it has to measure.
+    const chosenModel = await validateChosenAiPreReviewModel(transport, chosen, systemPrompt, servedBy);
     if (!chosenModel) {
       return;
     }
 
-    const diagnostics = await createRunDiagnostics(host, params, offered, chosenModel, configured, scope);
+    const diagnostics = await createRunDiagnostics(
+      host,
+      params,
+      offered,
+      chosenModel,
+      configured,
+      scope,
+      servedBy,
+      origin,
+    );
 
     // Everything from the first request to the model's answer runs under one
     // cancellable notification (§6.2): the model call is the only slow step, and
@@ -741,6 +957,7 @@ export async function runAiPreReview(
           progress,
           token,
           diagnostics,
+          servedBy,
         ),
     );
 
@@ -749,12 +966,20 @@ export async function runAiPreReview(
       return;
     }
     if (gathered.kind === 'budget') {
-      reportRequestBudgetFailure(gathered.failure, chosenModel.model, gathered.changedFileCount);
+      reportRequestBudgetFailure(
+        gathered.failure,
+        chosenModel.model,
+        gathered.changedFileCount,
+        servedBy,
+        chosenModel.mode === 'estimated',
+      );
       return;
     }
     if (gathered.kind === 'failed') {
       if (!gathered.reported) {
-        logger.error(`AI pre-review model call failed: ${gathered.error}`);
+        logger.error(
+          `AI pre-review model call failed (${formatAiPreReviewServedBy(servedBy, chosenModel.model)}): ${gathered.error}`,
+        );
         void vscode.window.showErrorMessage(
           vscode.l10n.t(
             'The AI pre-review of the whole pull request could not be completed: {0}. This does not affect your review — nothing was created.',
@@ -765,7 +990,7 @@ export async function runAiPreReview(
       return;
     }
     if (gathered.kind === 'unparsed') {
-      reportContractFailures(gathered.attempts, gathered.changedFileCount);
+      reportContractFailures(gathered.attempts, gathered.changedFileCount, servedBy);
       return;
     }
 
@@ -799,6 +1024,15 @@ export async function runAiPreReview(
         index: params.index,
         pullRequestTitle: gathered.pullRequestTitle,
         model: aiPreReviewModelIdentity(chosen),
+        // Which transport and provider served this run, beside the model: the
+        // panel's header is where "where did my content go, and why does this
+        // answer look the way it does" has to be answerable (§11.3).
+        transport: {
+          id: servedBy.id,
+          kind: servedBy.kind,
+          provider: servedBy.provider,
+          ...(servedBy.address !== undefined ? { address: servedBy.address } : {}),
+        },
         scope,
         // The coverage the panel's header states. It comes from the brief this
         // run validated against — not from a second read of the pull request,
@@ -875,10 +1109,12 @@ export async function runAiPreReview(
  *
  * The header carries the facts a reader would otherwise have to reconstruct
  * from a bug report: which pull request, which prompt scope was chosen (and
- * that the feature switch is on at all), which model the
- * run is using and where that choice came from, which models the editor offered
- * with their input budgets, and the shape of the request. The answer never
- * appears here — only in the per-attempt blocks below.
+ * that the feature switch is on at all), **which transport and provider served the
+ * run** (§11.3), which model the run is using and where that choice came from,
+ * which models the editor offered with their input budgets, how this run's prompt
+ * budget was measured when the transport has no tokenizer (§13 question 3), and the
+ * shape of the request. The answer never appears here — only in the per-attempt
+ * blocks below.
  */
 async function createRunDiagnostics(
   host: { logUri?: vscode.Uri } | undefined,
@@ -887,6 +1123,8 @@ async function createRunDiagnostics(
   candidate: AiPreReviewChosenModel,
   configured: string,
   scope: AiPreReviewStatedScope,
+  servedBy: AiPreReviewServedBy,
+  origin: string,
 ): Promise<AiPreReviewDiagnostics> {
   const diagnostics = createAiPreReviewDiagnostics({
     directory: host?.logUri?.fsPath,
@@ -899,26 +1137,59 @@ async function createRunDiagnostics(
   logger.info(
     `AI pre-review diagnostics ("forgejoToolkit.debug" is on): the prompts sent and the raw answers received are written to ${diagnostics.filePath}`,
   );
-  const origin =
-    configured === ''
-      ? 'the model the user picked just now (written into the setting)'
-      : `the setting "${AI_PRE_REVIEW_MODEL_SETTING}" = "${configured}"`;
   await diagnostics.section({
     kind: 'run',
     startedAt: new Date(),
     facts: [
       `target: ${runKey(params)}`,
       `settings: ${AI_PRE_REVIEW_SETTING}=true, ${AI_PRE_REVIEW_PROMPT_SCOPE_SETTING}=${scope}, ${AI_PRE_REVIEW_MODEL_SETTING}="${configured}"`,
-      `chat models offered by vscode.lm.selectChatModels(): ${models.length}`,
-      ...models.map(
-        (model, index) => `  model ${index + 1}: ${modelLabel(model)} maxInputTokens=${maxInputTokensOf(model)}`,
-      ),
-      `model used by this run: ${modelLabel(candidate.model)} maxInputTokens=${maxInputTokensOf(candidate.model)}, its tokenizer charges ${candidate.instructionTokens} token(s) for the fixed instructions; chosen from ${origin}`,
+      // The transport first, then whichever model list belongs to it: an editor list
+      // on a direct run would describe a list that run never consulted.
+      `served by: ${formatAiPreReviewServedBy(servedBy, candidate.model)}`,
+      ...(servedBy.kind === 'vscode.lm'
+        ? [
+            `chat models offered by vscode.lm.selectChatModels(): ${models.length}`,
+            ...models.map(
+              (model, index) => `  model ${index + 1}: ${modelLabel(model)} maxInputTokens=${maxInputTokensOf(model)}`,
+            ),
+          ]
+        : [
+            `models the configured endpoint declares: ${models.length}`,
+            ...models.map((model, index) => `  model ${index + 1}: ${modelLabel(model)}`),
+          ]),
+      `model used by this run: ${modelLabel(candidate.model)} maxInputTokens=${candidate.availableTokens}, ${describeBudgetMeasurement(candidate)}; chosen from ${origin}`,
       `attempt bound: at most ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} model call(s) per run — one chosen model, asked again only after a contract violation; no other model is ever called`,
-      'request shape: one User message carrying the fixed instructions and then the request (this API has no system role)',
+      ...(servedBy.kind === 'vscode.lm'
+        ? [
+            'request shape: one User message carrying the fixed instructions and then the request (this API has no system role)',
+          ]
+        : [
+            'request shape: a `system` message carrying the fixed instructions and then one `user` message carrying the request (an OpenAI-compatible endpoint has a system role)',
+          ]),
     ],
   });
   return diagnostics;
+}
+
+/**
+ * How the run's budget numbers were produced, as one diagnostics clause
+ * (`docs/design/ai-model-transport.md` §13 question 3).
+ *
+ * The three arms are the three states the seam can leave a run in, and each says
+ * what a reader of the dump has to know before comparing a number in it with what a
+ * provider charged: a measured number is the model's own, an estimated one is a
+ * conservative bound rather than a count, and an `unmeasured` run made no comparison
+ * at all.
+ */
+function describeBudgetMeasurement(candidate: AiPreReviewChosenModel): string {
+  switch (candidate.mode) {
+    case 'measured':
+      return `its tokenizer charges ${candidate.instructionTokens} token(s) for the fixed instructions`;
+    case 'estimated':
+      return `it has no tokenizer, so the run estimates ${candidate.instructionTokens} token(s) for the fixed instructions at ${AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN} bytes per token (conservative) and compares against the assumed input budget of ${candidate.availableTokens} token(s)`;
+    case 'unmeasured':
+      return `it answered no measurement although it declares an input budget of ${candidate.availableTokens} token(s), so no budget comparison was made for this run`;
+  }
 }
 
 /**
@@ -1465,6 +1736,8 @@ function reportInstructionBudgetFailure(chosen: {
   model: AiPreReviewModelIdentity;
   neededTokens: number;
   availableTokens: number;
+  /** Whether both numbers are this extension's conservative estimate rather than a count. */
+  estimated?: boolean;
 }): void {
   logger.error(
     `AI pre-review: the chosen chat model ${formatAiPreReviewModelIdentity(chosen.model)} cannot hold the fixed instruction prompt (${chosen.neededTokens} tokens needed, ${chosen.availableTokens} available); nothing was sent and no other model was substituted`,
@@ -1478,6 +1751,11 @@ function reportInstructionBudgetFailure(chosen: {
       chooseModelActionHint(),
     ),
   );
+  if (chosen.estimated === true) {
+    // Two of the three numbers above are this extension's rather than the model's, so
+    // the header of the panel would mislead a user who reads them as the model's own.
+    void vscode.window.showInformationMessage(estimatedBudgetExplanation());
+  }
 }
 
 /**
@@ -1509,14 +1787,21 @@ function reportChosenModelNotMeasurable(model: AiPreReviewModelIdentity): void {
  * The smaller-scope remedy names the two cheapest scopes explicitly, because
  * "choose a smaller scope" is not an instruction a user can act on while the
  * setting is called `metadata-only` / `changed-lines-only` in the Settings UI.
+ *
+ * `servedBy` names the transport and provider of the run, and `estimated` marks the
+ * one case where both numbers are this extension's conservative estimate rather than
+ * the endpoint's own report (§13 question 3): a refusal that quoted an assumed budget
+ * as if the endpoint had declared it would send the user to the wrong remedy.
  */
 function reportRequestBudgetFailure(
   failure: AiPreReviewBudgetFailure,
   model: AiModelInfo,
   changedFileCount: number,
+  servedBy: AiPreReviewServedBy,
+  estimated: boolean,
 ): void {
   logger.error(
-    `AI pre-review: the shortest prompt for this pull request needs ${failure.neededTokens} tokens but the chosen model ${modelLabel(model)} has an input budget of ${failure.availableTokens}; nothing was sent`,
+    `AI pre-review: the shortest prompt for this pull request needs ${failure.neededTokens} token(s) but ${formatAiPreReviewServedBy(servedBy, model)} has an input budget of ${failure.availableTokens}; nothing was sent`,
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
@@ -1527,6 +1812,26 @@ function reportRequestBudgetFailure(
       failure.availableTokens,
       chooseModelActionHint(),
     ),
+  );
+  if (estimated) {
+    void vscode.window.showInformationMessage(estimatedBudgetExplanation());
+  }
+}
+
+/**
+ * Why two of the numbers a budget refusal prints are this extension's rather than the
+ * endpoint's (`docs/design/ai-model-transport.md` §13 question 3).
+ *
+ * It is a second message rather than a longer one because the refusal itself is the
+ * existing sentence, pinned word for word by the measured path, and because the
+ * distinction is one a user only needs once they are looking at the numbers: the
+ * estimate is deliberately pessimistic, so a run that refuses here may well have fit.
+ */
+function estimatedBudgetExplanation(): string {
+  return vscode.l10n.t(
+    'About the token numbers in the message above: this endpoint has no tokenizer this extension can ask, so they are estimates rather than counts — the cost is estimated at {0} UTF-8 bytes per token, and the budget is the {1} tokens this extension assumes for an endpoint that declares none. The estimate is deliberately pessimistic, so a request refused with these numbers may still have fit the endpoint.',
+    AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN,
+    AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS,
   );
 }
 
@@ -1546,12 +1851,20 @@ function reportRequestBudgetFailure(
  * answer now is and how to get the whole text, because "the answer was not JSON"
  * on its own is what the maintainer could not diagnose.
  */
-function reportContractFailures(attempts: readonly AiPreReviewModelAttempt[], changedFileCount: number): void {
+function reportContractFailures(
+  attempts: readonly AiPreReviewModelAttempt[],
+  changedFileCount: number,
+  servedBy: AiPreReviewServedBy,
+): void {
   const tried = describeFailedAttempts(attempts);
   const model = attempts[0]?.model;
   const label = model ? formatAiPreReviewModelIdentity(model) : 'the chosen chat model';
+  const served =
+    model === undefined
+      ? `transport=${servedBy.id}, provider="${servedBy.provider}"`
+      : formatAiPreReviewServedBy(servedBy, model);
   logger.error(
-    `AI pre-review: ${label} did not return the contracted JSON on any of its ${attempts.length} attempt(s); the bound is ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} attempt(s) of the one chosen model, and no other model was called`,
+    `AI pre-review: ${served} did not return the contracted JSON on any of its ${attempts.length} attempt(s); the bound is ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} attempt(s) of the one chosen model, and no other model was called`,
   );
   void vscode.window.showErrorMessage(
     vscode.l10n.t(
@@ -1889,14 +2202,64 @@ function reportCancelled(changedFileCount?: number): void {
  * layer that substitutes heuristics: without a model this feature does not exist,
  * and pretending otherwise would produce review comments attributed to a machine
  * that never read anything.
+ *
+ * This is also the sentence a **degraded** run shows for the editor half of "no
+ * transport can serve this feature", which is why it is a function of its own: the
+ * caller adds the configured endpoint's own reason to it (§9.3's "give both ways
+ * out") without this sentence being rewritten.
  */
+function noChatModelMessage(): string {
+  return vscode.l10n.t(
+    'No chat model is available: install and sign in to a chat model provider (for example GitHub Copilot), then try again. The AI pre-review is not broken — this feature cannot run without one.',
+  );
+}
+
 function reportNoChatModel(): void {
   logger.error('AI pre-review: vscode.lm.selectChatModels() returned no chat model.');
-  void vscode.window.showErrorMessage(
-    vscode.l10n.t(
-      'No chat model is available: install and sign in to a chat model provider (for example GitHub Copilot), then try again. The AI pre-review is not broken — this feature cannot run without one.',
-    ),
-  );
+  void vscode.window.showErrorMessage(noChatModelMessage());
+}
+
+/** The selection's refusal arm, as this module reads it. */
+type AiUnavailableSelection = Extract<AiTransportSelection, { kind: 'unavailable' }>;
+
+/**
+ * "No transport can serve this run" (§8.4 row 6, §9.2).
+ *
+ * Every route the run actually consulted is named, and nothing is substituted:
+ *
+ * - `editor-unusable` keeps the editor transport's own sentence **verbatim** — "no
+ *   language model API" and "the listing failed" are different conditions with
+ *   different remedies, and the transport that observed them is the one that words
+ *   them.
+ * - `no-model` is the editor offering nothing, which is the run's own existing
+ *   sentence; the configured endpoint's own reason is added after it when the
+ *   selection consulted that route and it could not serve the run either. That is
+ *   §9.3's "give both ways out" said in the one place the user is looking, and it is
+ *   the difference between "install a model provider" and "install one, or turn on
+ *   the endpoint you already configured".
+ * - every other code is the configured-endpoint route's own reason — a binding that
+ *   names nothing, the egress switch being off, an endpoint that cannot be used —
+ *   reported by name because §8.4 requires the failure to say which one it was
+ *   rather than resolving to a neighbour.
+ *
+ * Nothing here reaches for the other transport: the message is the outcome, and the
+ * run ends.
+ */
+function reportNoTransportForRun(selection: AiUnavailableSelection): void {
+  if (selection.code === 'editor-unusable') {
+    logger.error(`AI pre-review: no usable chat model transport: ${selection.reason}`);
+    void vscode.window.showErrorMessage(selection.reason);
+    return;
+  }
+  const parts = [selection.code === 'no-model' ? noChatModelMessage() : selection.reason];
+  if (selection.direct !== undefined) {
+    // Named as "either" rather than as a second failure of the same kind: the
+    // editor route is the primary one here, and this is the other route's reason.
+    parts.push(vscode.l10n.t('The configured AI endpoint cannot serve this run either: {0}', selection.direct.reason));
+  }
+  const message = parts.join(' ');
+  logger.error(`AI pre-review: no transport can serve this run (${selection.code}): ${message}`);
+  void vscode.window.showErrorMessage(message);
 }
 
 /**
@@ -2124,6 +2487,71 @@ export function aiPreReviewConsentDestination(chosen: AiModelInfo): AiPreReviewC
 }
 
 /**
+ * Which **transport**, **provider** and model served one run
+ * (`docs/design/ai-model-transport.md` §11.3).
+ *
+ * It exists because the model's name stopped being enough to answer "where did my
+ * content go?": the same model name can arrive from the editor's own provider list
+ * or from a configured endpoint, and an answer that looks off is triaged differently
+ * depending on which one produced it. The three facts travel together from here to
+ * the three surfaces that state them — the log, the diagnostics dump and the
+ * confirmation panel — so they cannot drift apart.
+ */
+export interface AiPreReviewServedBy {
+  /** The seam's stable identifier (`src/ai/transport.ts`): `'vscode.lm'` or `'openai-compatible:<providerId>'`. */
+  id: string;
+  /** Which branch of the seam served the run. */
+  kind: 'vscode.lm' | 'openai-compatible';
+  /** The party that received the content, exactly as the consent modal named it (§7.1). */
+  provider: string;
+  /** The configured endpoint's display address; absent for the editor's own models. */
+  address?: string;
+}
+
+/**
+ * The served-by facts of one run, from the transport that was selected and the model
+ * it will use.
+ *
+ * The provider and the address are `aiPreReviewConsentDestination`'s answer — the
+ * same function the consent modal reads — so the sentence a user agreed to and the
+ * header of the panel that reports the run can never name two different parties.
+ * A direct model's `vendor` is the provider's own `id` (`src/ai/modelSelection.ts`),
+ * which is what makes that lookup the address the request really goes to.
+ *
+ * `kind` is the selection's own spelling (`'vscode-lm'`, the setting's value) and is
+ * mapped here to the seam's (`'vscode.lm'`, the transport's id): one conversion, at
+ * the one place the two vocabularies meet, rather than at each of the three
+ * surfaces that report it.
+ */
+export function aiPreReviewServedBy(
+  transportId: string,
+  kind: 'vscode-lm' | 'openai-compatible',
+  chosen: AiModelInfo,
+): AiPreReviewServedBy {
+  const destination = aiPreReviewConsentDestination(chosen);
+  return {
+    id: transportId,
+    kind: kind === 'vscode-lm' ? 'vscode.lm' : 'openai-compatible',
+    provider: destination.name,
+    ...(destination.address !== undefined ? { address: destination.address } : {}),
+  };
+}
+
+/**
+ * One run's serving facts as one clause: `transport=…, provider="…"[ at …], model=…`.
+ *
+ * The shape the rest of this module's log lines use — `key=value` pairs with the
+ * model spelled by `modelLabel` — rather than a sentence, because it is appended to
+ * lines that are already sentences and because a reader greps it. The address is the
+ * endpoint's display URL (`openAiEndpointDisplayUrl`), the same one the consent modal
+ * and the test-connection report show.
+ */
+export function formatAiPreReviewServedBy(servedBy: AiPreReviewServedBy, model: AiModelInfo): string {
+  const address = servedBy.address === undefined ? '' : ` at ${servedBy.address}`;
+  return `transport=${servedBy.id}, provider="${servedBy.provider}"${address}, model=${modelLabel(model)}`;
+}
+
+/**
  * The sentence the one-time consent modal shows for one destination (§7.1).
  *
  * A pure function of the destination so the wording can be pinned without running
@@ -2336,12 +2764,13 @@ async function validateChosenAiPreReviewModel(
   transport: AiModelTransport,
   model: AiModelInfo,
   systemPrompt: string,
+  servedBy: AiPreReviewServedBy,
 ): Promise<AiPreReviewChosenModel | undefined> {
   const identity = aiPreReviewModelIdentity(model);
-  const availableTokens = maxInputTokensOf(model);
-  let instructionTokens: number | undefined;
+  const declaredBudget = maxInputTokensOf(model);
+  let measured: number | undefined;
   try {
-    instructionTokens = await transport.countTokens(model, systemPrompt);
+    measured = await transport.countTokens(model, systemPrompt);
   } catch (error) {
     logger.debug(
       `AI pre-review: could not count the instructions for ${modelLabel(model)} (${userFacingErrorMessage(error)})`,
@@ -2351,42 +2780,69 @@ async function validateChosenAiPreReviewModel(
   }
   // The seam's two "no number" arms are different things (§4.2): a **throw** was
   // reported above as "could not measure", while `undefined` means this model has
-  // no tokenizer at all — there is nothing to compare, so no budget failure is
-  // declared and the run proceeds with the number it does not have. That is what
-  // the code did before the seam existed, where such a value simply failed the
-  // `>=` comparison.
+  // no tokenizer. What the run does with that is §13 question 3's decision, and it
+  // is decided by whether the model declared a budget at all — see
+  // {@link aiPreReviewBudgetMode}.
+  const mode = aiPreReviewBudgetMode(measured, declaredBudget);
+  const availableTokens = aiPreReviewAvailableTokens(mode, declaredBudget);
+  const instructionTokens =
+    mode === 'measured' ? measured : mode === 'estimated' ? estimateAiPreReviewTokens(systemPrompt) : undefined;
   if (instructionTokens !== undefined && instructionTokens >= availableTokens) {
-    reportInstructionBudgetFailure({ model: identity, neededTokens: instructionTokens, availableTokens });
+    reportInstructionBudgetFailure({
+      model: identity,
+      neededTokens: instructionTokens,
+      availableTokens,
+      ...(mode === 'estimated' ? { estimated: true } : {}),
+    });
     return undefined;
   }
-  if (instructionTokens !== undefined) {
+  if (mode === 'measured') {
     logger.debug(
-      `AI pre-review: the fixed instruction prompt costs ${instructionTokens} token(s) for ${modelLabel(model)}, whose input budget is ${availableTokens}`,
+      `AI pre-review: the fixed instruction prompt costs ${instructionTokens} token(s) for ${modelLabel(model)} (${formatAiPreReviewServedBy(servedBy, model)}), whose input budget is ${availableTokens}`,
+    );
+  } else if (mode === 'estimated') {
+    // Said out loud, because a number that is a bound rather than a count must never
+    // be read as a count: this is the log line the seam's own contract asks for
+    // ("the caller then has to fall back to a conservative character cap, and say so
+    // in the log").
+    logger.info(
+      `AI pre-review: ${formatAiPreReviewServedBy(servedBy, model)} has no tokenizer, so this run estimates ${AI_PRE_REVIEW_ESTIMATED_BYTES_PER_TOKEN} UTF-8 bytes per token: the fixed instructions are about ${instructionTokens} token(s) against an assumed input budget of ${availableTokens}`,
+    );
+  } else {
+    logger.debug(
+      `AI pre-review: ${modelLabel(model)} answered no measurement although it declares an input budget of ${availableTokens} token(s), so this run makes no budget comparison`,
     );
   }
-  return { model, instructionTokens };
+  return { model, instructionTokens, mode, availableTokens };
 }
 
 /**
- * What one model's tokenizer charges for the request this run would send: the
- * exact text of the single message (`aiPreReviewPromptText`), the run's
- * instruction half included.
+ * What one prompt costs this run, by the measure the run is in (see
+ * {@link AiPreReviewBudgetMode}).
  *
- * Not the sum of two separate `countTokens` calls, which is how the request used
- * to be measured when it was two messages: the request is one string now, and
- * the number the budget failure reports has to be the number the model is
- * actually handed, or the guidance that message gives is off by whatever the
- * two halves cost together rather than apart. The instruction half is passed in
- * rather than rebuilt here, so the bytes measured are the bytes the request will
- * carry.
+ * The text is the exact text the request would carry (`aiPreReviewPromptText`), the
+ * run's instruction half included — never the sum of two separate counts, which is
+ * how the request used to be measured when it was two messages, and which would be
+ * off by whatever the two halves cost together rather than apart. The instruction
+ * half is passed in rather than rebuilt here, so the bytes measured are the bytes
+ * the request will carry.
+ *
+ * In `'estimated'` mode the transport is **not** asked: a transport that has no
+ * tokenizer would answer `undefined` again, and asking it once per candidate file
+ * during the cut below would be a call that can never say anything new.
  */
 async function countRequestTokens(
   transport: AiModelTransport,
   model: AiModelInfo,
   systemPrompt: string,
   userPrompt: string,
+  mode: AiPreReviewBudgetMode,
 ): Promise<number | undefined> {
-  return await transport.countTokens(model, aiPreReviewPromptText(systemPrompt, userPrompt));
+  const text = aiPreReviewPromptText(systemPrompt, userPrompt);
+  if (mode === 'estimated') {
+    return estimateAiPreReviewTokens(text);
+  }
+  return await transport.countTokens(model, text);
 }
 
 /** One existing comment's metadata — never its body (§7.1, §13.5). */
@@ -2649,6 +3105,7 @@ async function gatherPreReviewRequest(
   progress: vscode.Progress<{ message?: string; increment?: number }>,
   token: vscode.CancellationToken,
   diagnostics: AiPreReviewDiagnostics,
+  servedBy: AiPreReviewServedBy,
 ): Promise<GatheredPreReview> {
   // The scope is stated from the first line: this run reads **every** changed
   // file and the whole diff, which is exactly why its entry point is the pull
@@ -2825,7 +3282,7 @@ async function gatherPreReviewRequest(
         // how many asks that took: the confirmation list looks the same either
         // way, so the log is where the next diagnosis starts.
         logger.info(
-          `AI pre-review: ${failedAttempts.length} earlier answer(s) did not return the contracted JSON; ${identityLabel} did, on attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model (${calls} call(s) spent this run)`,
+          `AI pre-review: ${failedAttempts.length} earlier answer(s) did not return the contracted JSON; ${identityLabel} did, on attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model (${calls} call(s) spent this run); ${formatAiPreReviewServedBy(servedBy, candidate.model)}`,
         );
       }
       logger.debug(
@@ -2848,7 +3305,7 @@ async function gatherPreReviewRequest(
     // reach it, a successful run quotes nothing, and the dump (debug only, a file
     // rather than the channel) is where the whole answer goes.
     logger.error(
-      `${contractFailureLogLine(identity, parsed, chosenText)} (attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model)`,
+      `${contractFailureLogLine(identity, parsed, chosenText)} (attempt ${attempt} of ${AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL} for the chosen model; ${formatAiPreReviewServedBy(servedBy, candidate.model)})`,
     );
     const shape = describeAiPreReviewAnswerShape(chosenText);
     logger.debug(`AI pre-review: ${identityLabel} answer shape: ${shape}`);
@@ -2870,14 +3327,16 @@ async function gatherPreReviewRequest(
  *
  * A prompt that does not fit is reduced by **file granularity**: whole files
  * (their line of the changed-file table and every section the stated scope gave
- * them — the diff block, the file's own text) are dropped from the end until
- * `countTokens` says it fits. The brief's own truncation note then says so,
+ * them — the diff block, the file's own text) are dropped from the end until the
+ * run's own measure says it fits. The brief's own truncation note then says so,
  * because a model that is shown part of a change must know it is part of a
  * change.
  *
  * Every measurement is of the exact text the request would carry
- * (`countRequestTokens`), so the number this function compares with
- * `maxInputTokens` is the number the model is handed.
+ * (`countRequestTokens`), so the number this function compares with the budget is
+ * the number the model is handed — and on a transport with no tokenizer that number
+ * is the conservative estimate of §13 question 3, compared against the assumed budget
+ * that decision defines, so the cut still happens rather than the check being skipped.
  *
  * Reports `budget` when even the single-file prompt does not fit, with both
  * numbers, so the caller can say what was needed and what was available rather
@@ -2892,9 +3351,9 @@ async function preparePrompt(
   sections: AiPreReviewPromptSections,
   systemPrompt: string,
 ): Promise<PreparedPrompt> {
-  const available = maxInputTokensOf(candidate.model);
+  const available = candidate.availableTokens;
   const needed = async (prompt: string): Promise<number | undefined> =>
-    await countRequestTokens(transport, candidate.model, systemPrompt, prompt);
+    await countRequestTokens(transport, candidate.model, systemPrompt, prompt, candidate.mode);
 
   let files: AiPreReviewBriefFile[] = brief.files;
   let current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: undefined }, sections);
@@ -2904,10 +3363,11 @@ async function preparePrompt(
   // importance, so dropping from either end is arbitrary; the end is chosen
   // because it is stable and the note says exactly how many were dropped.
   //
-  // An absent measurement (`undefined`, the seam's "no tokenizer" arm) never
-  // triggers a cut and never reports a budget failure: there is no number to
-  // compare, which is the same outcome the old `undefined > available` comparison
-  // produced.
+  // An absent measurement (`undefined`) never triggers a cut and never reports a
+  // budget failure: that is the `'unmeasured'` mode only — a model that declares a
+  // budget while answering no measurement — where there is no number to compare at
+  // all. `'estimated'` mode always answers a number, so a tokenizer-less transport
+  // is cut like any other.
   while (total !== undefined && total > available && files.length > 1) {
     files = files.slice(0, files.length - 1);
     current = buildAiPreReviewUserPrompt({ ...brief, files, truncatedBy: 'token-budget' }, sections);
@@ -2917,7 +3377,7 @@ async function preparePrompt(
     // Everything left still does not fit: the run reports the budget failure
     // honestly instead of sending an oversized request.
     logger.error(
-      `AI pre-review: the shortest prompt for this pull request needs ${total} tokens but the chosen model's input budget is ${available}`,
+      `AI pre-review: the shortest prompt for this pull request needs ${total} tokens but the chosen model's input budget is ${available}${candidate.mode === 'estimated' ? ' (a conservative estimate, because this transport has no tokenizer)' : ''}`,
     );
     return { kind: 'budget', failure: { neededTokens: total, availableTokens: available } };
   }
