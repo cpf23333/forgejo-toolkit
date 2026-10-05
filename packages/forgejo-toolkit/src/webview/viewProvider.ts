@@ -631,6 +631,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (event.affectsConfiguration('forgejoToolkit.aiPreReview')) {
           this._reply('setAiPreReview', { aiPreReview: isAiPreReviewEnabled() });
         }
+        // Not listed here: `forgejoToolkit.aiProviders`, `aiModelBindings`,
+        // `aiProvidersEnabled`, `aiTransport`, `aiLocalOnly` and
+        // `aiModelRequestTimeoutMs`. A hand edit of those in VS Code's own settings
+        // editor therefore leaves an open settings page on the snapshot it read
+        // when it mounted (`Settings.vue` re-reads only then and on a visibility
+        // change) — the same staleness the import path had until it pushed. The
+        // page's own writes and the import push; this path does not, yet.
         if (!event.affectsConfiguration('forgejoToolkit.locale')) {
           return;
         }
@@ -5632,12 +5639,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
       }
       await this._applyImportSettings(settings);
+      let aiConfigApplied = false;
       if (instancesToImport !== undefined) {
-        await this._applyImportedAiConfig(aiChoices);
+        aiConfigApplied = await this._applyImportedAiConfig(aiChoices);
       }
       this._sendInstances();
       this._detectAndSendLinkedRepository();
       this._reply('instancesImported', { success: true, count: instances.length });
+      if (aiConfigApplied) {
+        // The settings page renders the AI half from the last snapshot the host
+        // pushed and reads it only on mount, so the endpoints and bindings this
+        // import just wrote would stay invisible until a reload without this —
+        // measured: the settings file held the imported endpoint while the page
+        // still showed the pre-import list, policy mirror and binding label.
+        // After the reply, so the page reports the import's own outcome first.
+        await this._pushAiProviderSettings();
+      }
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`importInstances failed: ${err}`);
@@ -5656,12 +5673,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    * already succeeded: the endpoints are a second half of the file, and losing them
    * must not turn a completed instance import into a failure. Nothing is logged with
    * a value in it — only the failure and the counts.
+   *
+   * The answer says whether the file carried an AI section this call **reached** —
+   * not whether every write in it succeeded. A file with an AI section can change
+   * the provider list, the bindings and the local-only policy, each of which the
+   * settings page renders from its own snapshot, so the caller has to re-push that
+   * snapshot for any of them. A failure is reported to the user by itself (below)
+   * and leaves the page on the host's own re-reading of what actually landed, which
+   * is the honest state either way.
    */
-  private async _applyImportedAiConfig(choices: AiImportConflictChoices | undefined) {
+  private async _applyImportedAiConfig(choices: AiImportConflictChoices | undefined): Promise<boolean> {
     const parsed: ParsedAiSection | undefined = this._pendingImportAi;
     this._pendingImportAi = undefined;
     if (parsed === undefined || this._view === undefined) {
-      return;
+      return false;
     }
     const plan: AiImportPlan = {
       config: parsed.config,
@@ -5691,6 +5716,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         vscode.l10n.t('Could not apply the AI configuration from the import file: {0}', err),
       );
     }
+    // Answered for the section that reached the writer, failures included: the
+    // caller re-pushes the page's own reading of the state, not this function's
+    // report of it.
+    return true;
   }
 
   /**

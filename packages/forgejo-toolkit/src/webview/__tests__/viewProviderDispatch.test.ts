@@ -2974,6 +2974,54 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect((settings['aiProviders'] as Array<{ id: string }>).map((entry) => entry.id)).toEqual(['ollama-local']);
     });
 
+    it('pushes the AI endpoint snapshot after an import that carried the AI section', async () => {
+      // The page reads the AI surface only on mount and then renders whatever the
+      // host pushed last, so an import that writes endpoints or bindings has to
+      // re-push it — measured on a live walkthrough: the settings file held the
+      // imported endpoint and the binding naming it while the page still showed the
+      // pre-import list, policy mirror and binding label until the window reloaded.
+      const file = writeInstancesFile({
+        ai: aiSection({
+          providers: [{ ...AI_PROVIDER, id: 'imported-endpoint', name: 'Imported endpoint' }],
+          bindings: [{ feature: 'aiPreReview', providerId: 'imported-endpoint', modelId: 'qwen3:8b' }],
+        }),
+      });
+
+      await previewAi(file);
+      const reply = await confirm({}, FILE_INSTANCE.id);
+      expect(reply).toMatchObject({ success: true, count: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'aiProviderSettings'));
+
+      const push = postedMessages(fake.posted).find((m) => m.command === 'aiProviderSettings');
+      // The snapshot has to carry what the import wrote, not a fresh empty state:
+      // the endpoints and the binding below are the two things the page renders.
+      expect(push).toBeDefined();
+      const snapshot = push?.snapshot as
+        | { providers: Array<Record<string, unknown>>; bindings: Array<Record<string, unknown>> }
+        | undefined;
+      const provider = snapshot?.providers.find((entry) => entry.id === 'imported-endpoint');
+      expect(provider).toMatchObject({ name: 'Imported endpoint', baseUrl: AI_PROVIDER.baseUrl });
+      expect(snapshot?.bindings).toEqual([
+        { feature: 'aiPreReview', providerId: 'imported-endpoint', modelId: 'qwen3:8b' },
+      ]);
+      // A push rather than an answer: it carries no request id, exactly like the
+      // one a page-initiated write gets.
+      expect(push?._requestId).toBeUndefined();
+    });
+
+    it('does not push the AI endpoint snapshot for a file that carries no AI section', async () => {
+      // A version 2 file has no AI half at all, so the page's snapshot is not
+      // stale and a push would only be noise.
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-import-v2-')), 'export.json');
+      fs.writeFileSync(file, JSON.stringify({ version: 2, instances: [FILE_INSTANCE] }));
+
+      await previewAi(file);
+      const reply = await confirm({}, FILE_INSTANCE.id);
+      expect(reply).toMatchObject({ success: true, count: 1 });
+
+      expect(postedMessages(fake.posted).some((m) => m.command === 'aiProviderSettings')).toBe(false);
+    });
+
     it('still imports a version 2 payload, which carries no AI section', async () => {
       const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-import-v2-')), 'export.json');
       fs.writeFileSync(file, JSON.stringify({ version: 2, instances: [FILE_INSTANCE], settings: { debug: false } }));
