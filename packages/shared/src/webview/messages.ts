@@ -183,6 +183,102 @@ export interface ExportSettings {
   worktreeCacheDirectory?: string;
 }
 
+/**
+ * One configured AI endpoint as the `version: 3` export writes it
+ * (`docs/design/ai-model-transport.md` §10.1).
+ *
+ * This is the **non-secret** half of a provider, and it is the whole of what an
+ * unencrypted export carries: the id, display name, base URL, declared models,
+ * authentication style, the declared header **names** (each with the
+ * `valueSecret: true` marker §10.2 keeps, so a receiver is told a value exists
+ * without being given it) and the per-endpoint local-only promise. The API key and
+ * every header value are in {@link ExportAiSecrets} instead, which only the
+ * encrypted wrapper holds.
+ */
+export interface ExportAiProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  models: Array<{ id: string; name: string }>;
+  auth: AiProviderAuthValue;
+  headers: Array<{ name: string; valueSecret: true }>;
+  localOnly: boolean;
+}
+
+/**
+ * The credentials an **encrypted** export carries (§10.2), keyed the way
+ * `SecretStorage` keys them: one API key per provider id, one value per
+ * provider id and header name.
+ *
+ * The split is by kind of data rather than by field name, which is the same rule
+ * §8.2 applies to the settings themselves: request headers routinely *are* the
+ * credential, so a custom header's value is protected exactly like the API key.
+ */
+export interface ExportAiSecrets {
+  keys: Record<string, string>;
+  headerValues: Record<string, Record<string, string>>;
+}
+
+/**
+ * The `ai` section of an export payload (§10.1).
+ *
+ * The keys that decide **whether content may leave the machine** are deliberately
+ * absent — `aiProvidersEnabled`, `aiPreReview` and `aiPreReviewPromptScope` — so
+ * that importing a file can never change another machine's egress posture (§7.4).
+ * `transport` travels as information the preview shows; the host does not apply it
+ * (§10.3's rule 1), because on the receiving machine the opposite value may be a
+ * working setup.
+ */
+export interface ExportAiConfig {
+  providers: ExportAiProvider[];
+  bindings: Array<{ feature: string; providerId: string; modelId: string }>;
+  transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+  localOnly: boolean;
+}
+
+/**
+ * One provider as the import preview shows it.
+ *
+ * No secret travels here, and none could: a header is rendered by its **name**, and
+ * whether a value was stored is answered once for the whole file by
+ * `secretsIncluded` rather than per provider, because that is the fact §10.2 has to
+ * state plainly — an unencrypted export contains no key and no header value at all.
+ */
+export interface AiImportPreviewProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  auth: AiProviderAuthValue;
+  /** The declared model ids: a receiver wants the list, not each entry's display name. */
+  models: string[];
+  /** The declared header **names**, never a value (§8.2). */
+  headers: string[];
+  localOnly: boolean;
+  /** An endpoint with this id is already configured, so the import needs a decision. */
+  existing: boolean;
+  /** The address is plain `http://`: flagged in the preview, not only at run time (§10.3). */
+  insecure?: boolean;
+  /**
+   * The reason the settings editor's own validation refuses this entry, when it
+   * does. The entry is shown so the user can see what the file declared, but it is
+   * never written: an address the editor refuses must not become a destination by
+   * being imported.
+   */
+  unusable?: string;
+}
+
+/**
+ * How an imported provider whose id is already configured is resolved.
+ *
+ * The same three answers the instance preview offers:
+ * - `rename` — the entry is written under a collision-free sibling id;
+ * - `keep` — the stored entry stays and the file's entry is not written;
+ * - `replace` — the file's entry overwrites the stored one.
+ *
+ * Absent means `keep`, the direction that changes nothing on the receiving machine.
+ */
+export type ImportAiConflictStrategy = 'rename' | 'replace' | 'keep';
+
 export interface LinkedRepository {
   instanceId: string;
   owner: string;
@@ -1452,6 +1548,14 @@ export type HostToWebviewMessage =
       error?: string;
       /** The user dismissed the export dialog; not a failure. */
       cancelled?: boolean;
+      /**
+       * Whether the file carries AI endpoint credentials — i.e. whether the user
+       * chose the encrypted export. Absent on a reply that failed, was cancelled,
+       * or came from a host build that predates the field, and the settings page
+       * then says nothing rather than claiming a file was written without secrets
+       * when none was written at all.
+       */
+      aiSecretsIncluded?: boolean;
     }
   | {
       command: 'instancesImported';
@@ -1479,6 +1583,25 @@ export type HostToWebviewMessage =
        */
       tokenConflicts?: boolean[];
       settings?: ExportSettings;
+      /**
+       * The AI half of the file (`docs/design/ai-model-transport.md` §10.1). Absent
+       * on a reply from a host build that predates AI import, and on a file with no
+       * `ai` section (every `version: 1`/`2` payload): the view then shows no AI
+       * block, which is exactly "this file carried no AI configuration".
+       */
+      ai?: {
+        providers: AiImportPreviewProvider[];
+        bindings: Array<{ feature: string; providerId: string; modelId: string }>;
+        transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+        localOnly: boolean;
+        /**
+         * Whether the file carried credentials at all — i.e. whether it was
+         * encrypted (§10.2). Stated plainly in the preview, because a plaintext
+         * export contains no API key and no header value, and the endpoints it
+         * carries will therefore have no credential until the user adds one.
+         */
+        secretsIncluded: boolean;
+      };
       error?: string;
       /**
        * How many entries of the import file the host had to skip. Present only
@@ -2233,6 +2356,14 @@ export type WebviewToHostMessage =
        */
       ids?: string[];
       settings?: ExportSettings;
+      /**
+       * How to resolve each imported AI endpoint whose id is already configured,
+       * keyed by the id the **file** declared. The chosen providers themselves
+       * travel in the host-side preview stash, never in this message, so a
+       * credential the encrypted file carried stays in the extension host. An
+       * absent strategy for a colliding id means `keep` (§10.1).
+       */
+      aiConflicts?: Record<string, ImportAiConflictStrategy>;
     }
   /** Drop the host's stashed import preview (user cancelled the preview). */
   | { command: 'cancelImportInstances' }

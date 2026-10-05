@@ -9,6 +9,7 @@ import type {
 import { isHttpUrl } from './connectionTest';
 import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { parseDeclaredServerVersion } from '../api/serverVersion';
+import { parseAiImportedAiConfig, type ParsedAiSection } from './aiConfigImport';
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
 
@@ -58,6 +59,15 @@ export function decryptExportData(
 export interface ExportData {
   instances: ForgejoInstance[];
   settings?: ExportSettings;
+  /**
+   * The file's `ai` section, already rebuilt field by field (`parseAiImportedAiConfig`).
+   * Present only when the file carries one: a `version: 1`/`2` payload — and every
+   * export written before the AI section existed — has none, and the import then
+   * writes no AI configuration at all rather than an empty one. The credentials
+   * (`secrets`) are host-side only: they are what the caller must route to
+   * `SecretStorage`, and they never reach the preview payload.
+   */
+  ai?: ParsedAiSection;
   /**
    * How many entries of the file's `instances` array could not be used (not an
    * object, or a required field missing or wrongly typed). Reported so the
@@ -269,9 +279,9 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
   } else {
     raw = parsed;
   }
-  const data: { instances?: unknown[]; settings?: unknown } =
+  const data: { instances?: unknown[]; settings?: unknown; ai?: unknown } =
     raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? (raw as { instances?: unknown[]; settings?: unknown })
+      ? (raw as { instances?: unknown[]; settings?: unknown; ai?: unknown })
       : { instances: Array.isArray(raw) ? raw : undefined, settings: undefined };
   const instances = Array.isArray(data.instances) ? data.instances : [];
   const { valid: validInstances, dropped } = sanitizeImportedInstances(instances);
@@ -279,5 +289,11 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
     throw new Error(vscode.l10n.t('No valid instances found in file'));
   }
   const settings = sanitizeImportedSettings(data.settings);
-  return { instances: validInstances, settings, dropped };
+  // The payload version is not validated: `1` (no settings), `2` (settings) and
+  // `3` (the `ai` section) are all read by the same field-by-field whitelist, and
+  // a version this build has never heard of is not a reason to refuse instances
+  // it can read. What a newer file adds is simply dropped, exactly like an
+  // unknown field inside a section.
+  const ai = parseAiImportedAiConfig(data.ai);
+  return { instances: validInstances, settings, ...(ai === undefined ? {} : { ai }), dropped };
 }

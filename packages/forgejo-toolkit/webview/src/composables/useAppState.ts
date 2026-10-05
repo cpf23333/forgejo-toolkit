@@ -282,12 +282,14 @@ import type {
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  AiImportPreviewProvider,
   AiPreReviewChatModelOption,
   AiProviderDraftProbe,
   AiProviderSettingsSnapshot,
   AiProviderTestReport,
   ExportSettings,
   HostToWebviewMessage,
+  ImportAiConflictStrategy,
   LinkedRepository,
   SettingsSurfaceSnapshot,
   SettingsSurfaceWritableKey,
@@ -849,6 +851,20 @@ function createAppState() {
         existingIds: string[];
         tokenConflicts?: boolean[];
         settings?: ExportSettings;
+        /**
+         * The file's AI endpoint section, as the host read it
+         * (`docs/design/ai-model-transport.md` §10.1). Absent on a reply that
+         * predates AI import and on a file with no `ai` section — which is the same
+         * statement as "this file carries no AI configuration", so the view shows
+         * no AI block rather than an empty one. No credential ever travels here.
+         */
+        ai?: {
+          providers: AiImportPreviewProvider[];
+          bindings: Array<{ feature: string; providerId: string; modelId: string }>;
+          transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+          localOnly: boolean;
+          secretsIncluded: boolean;
+        };
         error?: string;
         /**
          * How many entries in the file the host could not use (missing or wrongly
@@ -2373,6 +2389,13 @@ function createAppState() {
           existingIds?: string[];
           tokenConflicts?: boolean[];
           settings?: ExportSettings;
+          ai?: {
+            providers: AiImportPreviewProvider[];
+            bindings: Array<{ feature: string; providerId: string; modelId: string }>;
+            transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+            localOnly: boolean;
+            secretsIncluded: boolean;
+          };
           error?: string;
           dropped?: number;
         };
@@ -2381,6 +2404,10 @@ function createAppState() {
           existingIds: previewMessage.existingIds ?? [],
           tokenConflicts: previewMessage.tokenConflicts ?? [],
           settings: previewMessage.settings,
+          // Absent stays absent: a host build without AI import, or a file with no
+          // `ai` section, is not a file whose AI configuration is empty — it is one
+          // that has none to show.
+          ai: previewMessage.ai,
           // A failed read arrives with empty arrays; keep the error so the
           // preview view can explain the failure instead of looking empty.
           error: previewMessage.error,
@@ -4646,13 +4673,20 @@ function createAppState() {
     postMessage({ command: 'previewImportInstances' });
   }
 
-  function confirmImportInstances(ids: string[], settings?: ExportSettings) {
+  function confirmImportInstances(
+    ids: string[],
+    settings?: ExportSettings,
+    aiConflicts?: Record<string, ImportAiConflictStrategy>,
+  ) {
     // Only the selected ids cross over: the host rehydrates the full entries
-    // (tokens included) from the stash it kept when previewing the file.
+    // (tokens included) from the stash it kept when previewing the file. The AI
+    // endpoints travel the same way — what crosses here is only the collision
+    // decision for each id the file declared, never a credential.
     postMessage({
       command: 'importInstances',
       ids: [...ids],
       settings: settings ? { ...settings } : undefined,
+      ...(aiConflicts && Object.keys(aiConflicts).length > 0 ? { aiConflicts: { ...aiConflicts } } : {}),
     });
   }
 

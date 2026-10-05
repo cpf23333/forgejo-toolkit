@@ -848,7 +848,23 @@
       "settingsTitle": "包含的设置",
       "tokenUpdated": "Token 将会被更新",
       "tokenConflict": "Token 已存在",
-      "dropped": "该文件中有 {count} 项无法使用，已被跳过。"
+      "dropped": "该文件中有 {count} 项无法使用，已被跳过。",
+      "ai": {
+        "title": "该文件里的 AI 端点",
+        "policyNote": "导入只把这些端点存成配置：它不会放开「允许向已配置的端点发请求」，也不会打开任何 AI 功能。那两道开关只有你能动；而每个功能在真正发送之前仍会先问一次\"什么内容可以离开你的机器\"。",
+        "secretsIncluded": "这个加密文件带着它 {count} 个端点的凭据，它们会被存进编辑器的密钥存储，而不是设置里。",
+        "noSecrets": "这个文件没有加密，所以它不包含 {count} 个端点的 API 密钥，也不包含任何请求头的值。把它们当配置导入即可；之后在 AI 端点设置里逐个补上凭据，否则对它们的请求无法通过鉴权。",
+        "insecure": "其中 {count} 个地址是明文 http://，请求与回答在传输中不会被加密。",
+        "modelCount": "声明了 {count} 个模型",
+        "headerNames": "请求头：{names}",
+        "localOnly": "仅限本地端点",
+        "unusable": "这一条无法导入：{reason}",
+        "conflict": "该 id 已经配置过：",
+        "keep": "保留已配置的端点",
+        "rename": "换个新 id 一并导入",
+        "replace": "替换已配置的端点",
+        "bindings": "该文件里的 {count} 条功能绑定会随它导入的端点一起应用。"
+      }
     },
     "worktree": {
       "title": "PR Worktree",

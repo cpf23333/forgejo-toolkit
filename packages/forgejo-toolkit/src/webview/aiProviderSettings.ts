@@ -129,7 +129,7 @@ function readSettingValue(key: string): unknown {
 }
 
 /** Writes one setting at global scope. */
-async function writeSettingValue(key: string, value: unknown): Promise<void> {
+export async function writeSettingValue(key: string, value: unknown): Promise<void> {
   await vscode.workspace.getConfiguration(SETTINGS_SECTION).update(key, value, vscode.ConfigurationTarget.Global);
 }
 

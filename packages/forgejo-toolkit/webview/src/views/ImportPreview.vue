@@ -3,7 +3,11 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppRouter } from '../composables/useAppRouter';
 import { useAppState } from '../composables/useAppState';
-import type { ImportPreviewInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type {
+  AiImportPreviewProvider,
+  ImportAiConflictStrategy,
+  ImportPreviewInstance,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instance';
 
 const { t } = useI18n();
@@ -39,6 +43,32 @@ const previewError = computed(() => preview.value?.error);
 // silently skipped them looked like a complete file. Absent (an older host) and
 // zero both mean there is nothing to report.
 const droppedCount = computed(() => preview.value?.dropped ?? 0);
+// The file's AI endpoint section. Absent means the file carries none (an older
+// host build, or a `version: 1`/`2` payload): the block is then not rendered at
+// all, which is the honest statement — there is nothing to show and nothing to
+// decide.
+const aiConfig = computed(() => preview.value?.ai);
+const aiProviders = computed(() => aiConfig.value?.providers ?? []);
+/**
+ * Per-provider collision decision, keyed by the id the **file** declared.
+ *
+ * `keep` is the default for an entry whose id is already configured: it is the
+ * only one of the three that changes nothing on this machine, and the preview
+ * therefore starts on it. The host reads an absent strategy the same way, so the
+ * two cannot disagree.
+ */
+const aiChoices = ref<Record<string, ImportAiConflictStrategy>>({});
+function aiChoice(provider: AiImportPreviewProvider): ImportAiConflictStrategy {
+  return aiChoices.value[provider.id] ?? 'keep';
+}
+function setAiChoice(provider: AiImportPreviewProvider, event: Event) {
+  const strategy = (event.target as HTMLSelectElement).value as ImportAiConflictStrategy;
+  aiChoices.value = { ...aiChoices.value, [provider.id]: strategy };
+}
+/** The endpoints this file will actually write, for the confirmation summary. */
+const aiConflictCount = computed(() => aiProviders.value.filter((provider) => provider.existing).length);
+const aiUnusableCount = computed(() => aiProviders.value.filter((provider) => provider.unusable !== undefined).length);
+const aiInsecureCount = computed(() => aiProviders.value.filter((provider) => provider.insecure === true).length);
 
 /**
  * Whether the warning may carry its text yet.
@@ -145,7 +175,7 @@ function handleImport() {
   if (selected.length === 0) {
     return;
   }
-  state.confirmImportInstances(selected, settings.value);
+  state.confirmImportInstances(selected, settings.value, aiChoices.value);
   state.importPreview.value = undefined;
   if (router) {
     router.replace({ name: 'settings' });
@@ -220,6 +250,64 @@ watch(
             {{ t('settings.worktree.cacheDirectory') }}: {{ settings.worktreeCacheDirectory }}
           </li>
         </ul>
+      </div>
+
+      <!-- The file's AI endpoints, above the instance list and before the import
+           button, because importing is what points this machine's content at an
+           address the file chose. An id already configured is a decision here
+           rather than a silent overwrite; a plain http:// address is named here
+           rather than only when a request is finally attempted. -->
+      <div v-if="aiConfig && aiProviders.length > 0" class="ai-summary">
+        <h3 class="settings-summary-title">{{ t('settings.importPreview.ai.title') }}</h3>
+        <p class="ai-note">{{ t('settings.importPreview.ai.policyNote') }}</p>
+        <p v-if="aiConfig.secretsIncluded" class="ai-note">
+          {{ t('settings.importPreview.ai.secretsIncluded', { count: aiProviders.length }) }}
+        </p>
+        <p v-else class="ai-note ai-note-warning">
+          <vscode-icon name="warning" />
+          <span>{{ t('settings.importPreview.ai.noSecrets', { count: aiProviders.length }) }}</span>
+        </p>
+        <p v-if="aiInsecureCount > 0" class="ai-note ai-note-warning">
+          <vscode-icon name="warning" />
+          <span>{{ t('settings.importPreview.ai.insecure', { count: aiInsecureCount }) }}</span>
+        </p>
+        <ul class="ai-list">
+          <li v-for="provider in aiProviders" :key="provider.id" class="ai-item">
+            <div class="ai-header">
+              <span class="ai-name">{{ provider.name }}</span>
+              <span class="ai-id">{{ provider.id }}</span>
+              <span class="instance-status" :class="provider.existing ? 'existing' : 'new'">
+                {{ provider.existing ? t('settings.importPreview.existing') : t('settings.importPreview.new') }}
+              </span>
+            </div>
+            <div class="ai-url">{{ provider.baseUrl }}</div>
+            <div class="ai-meta">
+              <span>{{ t('settings.importPreview.ai.modelCount', { count: provider.models.length }) }}</span>
+              <span v-if="provider.headers.length > 0">{{
+                t('settings.importPreview.ai.headerNames', { names: provider.headers.join(', ') })
+              }}</span>
+              <span v-if="provider.localOnly">{{ t('settings.importPreview.ai.localOnly') }}</span>
+            </div>
+            <div v-if="provider.unusable" class="ai-unusable">
+              {{ t('settings.importPreview.ai.unusable', { reason: provider.unusable }) }}
+            </div>
+            <div v-else-if="provider.existing" class="ai-conflict">
+              <label :for="`ai-conflict-${provider.id}`">{{ t('settings.importPreview.ai.conflict') }}</label>
+              <select
+                :id="`ai-conflict-${provider.id}`"
+                :value="aiChoice(provider)"
+                @change="setAiChoice(provider, $event)"
+              >
+                <option value="keep">{{ t('settings.importPreview.ai.keep') }}</option>
+                <option value="rename">{{ t('settings.importPreview.ai.rename') }}</option>
+                <option value="replace">{{ t('settings.importPreview.ai.replace') }}</option>
+              </select>
+            </div>
+          </li>
+        </ul>
+        <p v-if="aiConfig.bindings.length > 0" class="ai-note">
+          {{ t('settings.importPreview.ai.bindings', { count: aiConfig.bindings.length }) }}
+        </p>
       </div>
 
       <div class="instance-list">
@@ -400,6 +488,84 @@ watch(
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.ai-summary {
+  padding: 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.ai-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.ai-note-warning {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
+}
+
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-item {
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+}
+
+.ai-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-name {
+  font-weight: 600;
+}
+
+.ai-id {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.ai-url {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  word-break: break-all;
+}
+
+.ai-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.ai-conflict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.85em;
+}
+
+.ai-unusable {
+  margin-top: 4px;
+  font-size: 0.8em;
+  color: var(--vscode-errorForeground, var(--vscode-foreground));
 }
 
 .settings-summary-title {

@@ -192,7 +192,31 @@ import { removeTempDirSync } from '../../__tests__/tempDir';
 
 type MessageListener = (message: unknown) => void;
 
-function createFakeContext() {
+/**
+ * The fake context's secret storage as the tests drive it: the same three methods
+ * production calls, plus the map behind them so a case can seed a stored credential
+ * and read back what an import wrote.
+ */
+type FakeSecretStore = {
+  get: (key: string) => Promise<string | undefined>;
+  store: (key: string, value: string) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+  clear: () => void;
+  set: (key: string, value: string) => Map<string, string>;
+  /** The stored values themselves, for a synchronous assertion. */
+  values: Map<string, string>;
+};
+
+function createFakeContext(): {
+  subscriptions: Array<{ dispose(): void }>;
+  globalState: {
+    get: (key: string, fallback?: unknown) => unknown;
+    update: (key: string, value: unknown) => Promise<void>;
+  };
+  secrets: FakeSecretStore;
+  globalStorageUri: { fsPath: string };
+  extensionUri: { fsPath: string };
+} {
   const store = new Map<string, unknown>();
   const secretStore = new Map<string, string>();
   return {
@@ -211,6 +235,11 @@ function createFakeContext() {
       delete: async (key: string) => {
         secretStore.delete(key);
       },
+      // Seeding and resetting are what the AI export/import cases need: they drive
+      // a stored credential through the export and check which key an import wrote.
+      set: (key: string, value: string) => secretStore.set(key, value),
+      clear: () => secretStore.clear(),
+      values: secretStore,
     },
     globalStorageUri: { fsPath: '/global-storage' },
     extensionUri: { fsPath: '/ext' },
@@ -2571,6 +2600,435 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // The tokens are gone with the stash: nothing can rehydrate them any more.
       // (After disposal `_reply` has no view to post to, so the stash itself is
       // the observable state — the confirm path cannot reach the file's tokens.)
+    });
+  });
+
+  /**
+   * The AI endpoint half of export/import, end to end through the provider
+   * (`docs/design/ai-model-transport.md` §10).
+   *
+   * These are the cases that need both halves of the feature in one place: the
+   * export writer decides what the file carries, the preview decides what the user
+   * is shown and asked, and the confirmation decides what is written. The three
+   * §11.4 proofs live here — a lossless non-secret round trip, no credential in a
+   * plaintext export, and an import that leaves egress disabled — plus the
+   * version-2 payload that has to stay importable.
+   */
+  describe('AI endpoint export/import', () => {
+    /** Synthetic credentials: shaped like real ones and belonging to nothing. */
+    const AI_KEY = 'sk-ai-round-trip-export-key-0001';
+    const AI_HEADER_VALUE = 'ai-header-value-for-the-round-trip';
+    const IMPORTED_AI_KEY = 'sk-ai-round-trip-file-key-0002';
+    const IMPORTED_AI_HEADER_VALUE = 'ai-header-value-from-the-file';
+    const SYNTHETIC_AI_VALUES = [AI_KEY, AI_HEADER_VALUE, IMPORTED_AI_KEY, IMPORTED_AI_HEADER_VALUE];
+
+    const AI_PROVIDER = {
+      id: 'ollama-local',
+      name: 'Ollama (this machine)',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
+      auth: 'bearer' as const,
+      headers: [{ name: 'api-version', valueSecret: true as const }],
+      localOnly: false,
+    };
+
+    /** The instance every fixture carries, matching the seeded one. */
+    const FILE_INSTANCE = {
+      id: testInstance.id,
+      url: testInstance.url,
+      token: 'file-token-1',
+      name: testInstance.name,
+      username: testInstance.username,
+    };
+
+    /** The settings the mocked `getConfiguration` serves and records. */
+    let settings: Record<string, unknown>;
+    /** The values the fake context's secret store holds, read by key. */
+    let secrets: FakeSecretStore;
+
+    beforeEach(() => {
+      settings = {};
+      secrets = context.secrets as unknown as FakeSecretStore;
+      secrets.clear();
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () =>
+          ({
+            get: (key: string, fallback?: unknown) => (key in settings ? settings[key] : fallback),
+            update: async (key: string, value: unknown) => {
+              settings[key] = value;
+            },
+          }) as never,
+      );
+    });
+
+    /** What the secret store holds under one key, read without awaiting. */
+    function storedSecret(key: string): string | undefined {
+      return secrets.values.get(key);
+    }
+
+    /** Everything the extension wrote to its output channel. */
+    function loggedText(): string {
+      const channel = vi.mocked(vscode.window.createOutputChannel).mock.results.at(-1)?.value as
+        | { appendLine: { mock: { calls: Array<[string]> } } }
+        | undefined;
+      return (channel?.appendLine.mock.calls ?? []).map(([line]) => line).join('\n');
+    }
+
+    function writeInstancesFile(sections: Record<string, unknown>): string {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-import-')), 'export.json');
+      fs.writeFileSync(file, JSON.stringify({ version: 3, instances: [FILE_INSTANCE], ...sections }));
+      return file;
+    }
+
+    /** A hand-written file that carries the AI section, encrypted like the exporter writes it. */
+    function writeEncryptedFile(sections: Record<string, unknown>, password = 'pw'): string {
+      const iterations = 1000;
+      const salt = crypto.randomBytes(16);
+      const iv = crypto.randomBytes(16);
+      const key = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      const payload = { version: 3, instances: [FILE_INSTANCE], ...sections };
+      const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-import-enc-')), 'export.json');
+      fs.writeFileSync(
+        file,
+        JSON.stringify({
+          version: 3,
+          encrypted: true,
+          iterations,
+          salt: salt.toString('base64'),
+          iv: iv.toString('base64'),
+          authTag: cipher.getAuthTag().toString('base64'),
+          data: encrypted.toString('base64'),
+        }),
+      );
+      return file;
+    }
+
+    /** The `ai` section a version-3 file carries, for the hand-written fixtures. */
+    function aiSection(extra: Record<string, unknown> = {}): Record<string, unknown> {
+      return {
+        providers: [AI_PROVIDER],
+        bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
+        transport: 'openai-compatible',
+        localOnly: false,
+        ...extra,
+      };
+    }
+
+    /** Runs one export through the provider and returns the file it wrote. */
+    async function exportToFile(options: { encrypt: boolean } = { encrypt: false }): Promise<string> {
+      const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-export-')), 'export.json');
+      // Answer the "how to export" dialog explicitly (the shared mock would answer
+      // the first button, i.e. encrypt) and then the save dialog.
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(
+        (options.encrypt ? 'Encrypt with password' : 'Plain text') as never,
+      );
+      if (options.encrypt) {
+        vi.mocked(vscode.window.showInputBox)
+          .mockResolvedValueOnce('pw' as never)
+          .mockResolvedValueOnce('pw' as never);
+      }
+      vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce({ fsPath: target } as never);
+
+      fake.send({ command: 'exportInstances' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesExported'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
+      expect(reply?.success).toBe(true);
+      return target;
+    }
+
+    /** The decrypted payload of an encrypted export file. */
+    function decryptFile(file: string, password = 'pw'): { ai?: Record<string, unknown> } {
+      const envelope = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+        encrypted: boolean;
+        salt: string;
+        iv: string;
+        authTag: string;
+        data: string;
+        iterations: number;
+      };
+      const key = crypto.pbkdf2Sync(password, Buffer.from(envelope.salt, 'base64'), envelope.iterations, 32, 'sha256');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'));
+      const plaintext = Buffer.concat([decipher.update(Buffer.from(envelope.data, 'base64')), decipher.final()]);
+      return JSON.parse(plaintext.toString('utf8')) as { ai?: Record<string, unknown> };
+    }
+
+    /** Reads one file through the preview and returns the reply's AI section. */
+    async function previewAi(file: string, password?: string) {
+      if (password !== undefined) {
+        vi.mocked(vscode.window.showInputBox).mockResolvedValueOnce(password as never);
+      }
+      vi.mocked(vscode.window.showOpenDialog).mockResolvedValueOnce([vscode.Uri.file(file)] as never);
+      // Start from an empty message log: earlier replies from the same test (an
+      // export, an earlier preview) are still in `fake.posted`, and `find` would
+      // otherwise return one of those instead of this request's answer.
+      fake.posted.length = 0;
+      fake.send({ command: 'previewImportInstances' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+      return postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    }
+
+    async function confirm(aiConflicts?: Record<string, string>, instanceId: string = FILE_INSTANCE.id) {
+      fake.posted.length = 0;
+      fake.send({
+        command: 'importInstances',
+        ids: [instanceId],
+        ...(aiConflicts === undefined ? {} : { aiConflicts }),
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+      return postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    }
+
+    it('round-trips the non-secret configuration, and carries the credentials when encrypted', async () => {
+      settings['aiProviders'] = [AI_PROVIDER];
+      settings['aiModelBindings'] = [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }];
+      settings['aiTransport'] = 'openai-compatible';
+      settings['aiLocalOnly'] = true;
+      secrets.set('forgejoToolkit.aiProviderKey.ollama-local', AI_KEY);
+      secrets.set('forgejoToolkit.aiProviderHeader.ollama-local.api-version', AI_HEADER_VALUE);
+
+      const exported = await exportToFile({ encrypt: true });
+      expect(postedMessages(fake.posted).find((m) => m.command === 'instancesExported')?.aiSecretsIncluded).toBe(true);
+      // The encrypted file really does carry the credentials — the half that makes
+      // "only the encrypted export has them" a statement about a working feature
+      // rather than about one that never wrote them anywhere.
+      const exportedPayload = decryptFile(exported);
+      expect(exportedPayload.ai?.providers).toEqual([AI_PROVIDER]);
+      expect(exportedPayload.ai?.secrets).toEqual({
+        keys: { 'ollama-local': AI_KEY },
+        headerValues: { 'ollama-local': { 'api-version': AI_HEADER_VALUE } },
+      });
+
+      // The file the import reads is written by hand so that it carries the
+      // instance this window has configured (what the exporter wrote is asserted
+      // above, and in the plaintext case where its content is the point).
+      const file = writeEncryptedFile({
+        ai: aiSection({
+          localOnly: true,
+          secrets: {
+            keys: { 'ollama-local': IMPORTED_AI_KEY },
+            headerValues: { 'ollama-local': { 'api-version': IMPORTED_AI_HEADER_VALUE } },
+          },
+        }),
+      });
+
+      // Back to a window that only has the seed instance: what the import does
+      // with the file is now a clean question.
+      settings = {};
+      secrets.clear();
+
+      const preview = await previewAi(file, 'pw');
+      expect(preview?.ai).toMatchObject({
+        secretsIncluded: true,
+        transport: 'openai-compatible',
+        localOnly: true,
+        providers: [
+          {
+            id: 'ollama-local',
+            name: 'Ollama (this machine)',
+            baseUrl: 'http://127.0.0.1:11434/v1',
+            auth: 'bearer',
+            models: ['qwen3:8b'],
+            headers: ['api-version'],
+            localOnly: false,
+            existing: false,
+            insecure: true,
+          },
+        ],
+      });
+      // No credential reaches the webview, not even inside the preview payload.
+      expect(JSON.stringify(preview)).not.toContain(IMPORTED_AI_KEY);
+      expect(JSON.stringify(preview)).not.toContain(IMPORTED_AI_HEADER_VALUE);
+      expect(provider.hasPendingImportAiForTest()).toBe(true);
+
+      const reply = await confirm();
+      expect(reply).toMatchObject({ success: true, count: 1 });
+
+      // Lossless for the non-secret fields, including the transport value the
+      // preview showed. The local-only policy is applied because the file asked for
+      // it (and it can only ever be applied as the restricting value).
+      expect(settings['aiProviders']).toEqual([AI_PROVIDER]);
+      expect(settings['aiModelBindings']).toEqual([
+        { feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' },
+      ]);
+      expect(settings['aiLocalOnly']).toBe(true);
+      // The credentials landed in the editor's secret storage, not in settings.
+      expect(storedSecret('forgejoToolkit.aiProviderKey.ollama-local')).toBe(IMPORTED_AI_KEY);
+      expect(storedSecret('forgejoToolkit.aiProviderHeader.ollama-local.api-version')).toBe(IMPORTED_AI_HEADER_VALUE);
+      expect(JSON.stringify(settings)).not.toContain(IMPORTED_AI_KEY);
+      expect(JSON.stringify(settings)).not.toContain(IMPORTED_AI_HEADER_VALUE);
+      // The stash is consumed, credentials and all.
+      expect(provider.hasPendingImportAiForTest()).toBe(false);
+
+      for (const value of SYNTHETIC_AI_VALUES) {
+        expect(loggedText(), value).not.toContain(value);
+      }
+    });
+
+    it('writes no key and no header value into a plaintext export, and says so on import', async () => {
+      settings['aiProviders'] = [AI_PROVIDER];
+      secrets.set('forgejoToolkit.aiProviderKey.ollama-local', AI_KEY);
+      secrets.set('forgejoToolkit.aiProviderHeader.ollama-local.api-version', AI_HEADER_VALUE);
+
+      const file = await exportToFile({ encrypt: false });
+
+      const text = fs.readFileSync(file, 'utf8');
+      const payload = JSON.parse(text) as { version: number; ai: Record<string, unknown> };
+      expect(payload.version).toBe(3);
+      // The non-secret half is there, and the marker that says "a value exists" is
+      // kept for the receiver (§10.2).
+      expect(payload.ai.providers).toEqual([AI_PROVIDER]);
+      expect('secrets' in payload.ai).toBe(false);
+      for (const value of [AI_KEY, AI_HEADER_VALUE]) {
+        expect(text, value).not.toContain(value);
+      }
+      // The reply and the log never quote a credential either.
+      expect(loggedText()).not.toContain(AI_KEY);
+      const exportReply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
+      expect(exportReply?.aiSecretsIncluded).toBe(false);
+
+      // Importing that very file: a receiving machine that already has a credential
+      // for the endpoint keeps it, because a plaintext file neither carries one nor
+      // may erase one.
+      settings = { aiProviders: [{ ...AI_PROVIDER, name: 'already here' }] };
+      secrets.set('forgejoToolkit.aiProviderKey.ollama-local', 'sk-existing-local-key');
+
+      const preview = await previewAi(file);
+      expect(preview?.ai).toMatchObject({ secretsIncluded: false });
+      const ai = preview?.ai as { providers: Array<Record<string, unknown>> } | undefined;
+      const aiProviders = ai?.providers ?? [];
+      // The collision is the preview's to resolve, and it is what the user sees.
+      expect(aiProviders[0]).toMatchObject({ id: 'ollama-local', existing: true });
+      expect(aiProviders[0].unusable).toBeUndefined();
+
+      const reply = await confirm({ 'ollama-local': 'keep' });
+      expect(reply).toMatchObject({ success: true, count: 1 });
+      expect(storedSecret('forgejoToolkit.aiProviderKey.ollama-local')).toBe('sk-existing-local-key');
+    });
+
+    it('does not enable egress: the import leaves the switches and the transport alone', async () => {
+      // The receiving machine has an endpoint of its choosing under the same id,
+      // its own transport (the working setup a file must not walk back) and the
+      // three switches off. The file names all of them as enabled.
+      settings = {
+        aiProviders: [{ ...AI_PROVIDER, name: 'already here', baseUrl: 'https://models.example.com/v1' }],
+        aiTransport: 'openai-compatible',
+        aiProvidersEnabled: false,
+        aiPreReview: false,
+        aiPreReviewPromptScope: 'ask',
+      };
+      secrets.clear();
+      const file = writeEncryptedFile({
+        ai: aiSection({
+          transport: 'openai-compatible',
+          aiProvidersEnabled: true,
+          aiPreReview: true,
+          aiPreReviewPromptScope: 'full-diff',
+        }),
+      });
+
+      await previewAi(file, 'pw');
+      const reply = await confirm({ 'ollama-local': 'replace' });
+      expect(reply).toMatchObject({ success: true, count: 1 });
+
+      // The file's endpoint really was written — otherwise "the switches are off"
+      // would prove nothing about the import. The stored entry is replaced by the
+      // file's own declaration, name included.
+      expect(settings['aiProviders']).toEqual([AI_PROVIDER]);
+      expect(settings['aiProvidersEnabled']).toBe(false);
+      expect(settings['aiPreReview']).toBe(false);
+      expect(settings['aiPreReviewPromptScope']).toBe('ask');
+      // Not written at all, so the receiving machine's choice survives verbatim.
+      expect(settings['aiTransport']).toBe('openai-compatible');
+      expect(loggedText()).not.toContain('aiTransport');
+    });
+
+    it('never writes the transport or the egress switches, whatever the file carries', async () => {
+      // The strictest form of the rule: a file that names all of them, applied by
+      // the narrowest path (no collision, so the entry is added as it stands).
+      const file = writeInstancesFile({
+        ai: aiSection({
+          transport: 'openai-compatible',
+          aiProvidersEnabled: true,
+          aiPreReview: true,
+          aiPreReviewPromptScope: 'full-diff',
+        }),
+      });
+
+      const preview = await previewAi(file);
+      const previewIds = ((preview?.instances ?? []) as Array<Record<string, unknown>>).map((i) => i.id);
+      expect(previewIds).toEqual([FILE_INSTANCE.id]);
+      const reply = await confirm({}, FILE_INSTANCE.id);
+      expect(reply).toMatchObject({ success: true, count: 1 });
+
+      expect(Object.keys(settings).sort()).toEqual(['aiModelBindings', 'aiProviders']);
+      expect(settings['aiProvidersEnabled']).toBeUndefined();
+      expect(settings['aiPreReview']).toBeUndefined();
+      expect(settings['aiPreReviewPromptScope']).toBeUndefined();
+      expect(settings['aiTransport']).toBeUndefined();
+      // And the AI section really was applied, so the assertion above has a
+      // subject: the endpoint and its binding are there.
+      expect((settings['aiProviders'] as Array<{ id: string }>).map((entry) => entry.id)).toEqual(['ollama-local']);
+    });
+
+    it('still imports a version 2 payload, which carries no AI section', async () => {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-import-v2-')), 'export.json');
+      fs.writeFileSync(file, JSON.stringify({ version: 2, instances: [FILE_INSTANCE], settings: { debug: false } }));
+
+      const preview = await previewAi(file);
+
+      // Absent, not an empty section: an older file has no AI configuration to
+      // show, which is a different statement from "it has none configured".
+      expect(preview?.ai).toBeUndefined();
+      expect(preview?.instances).toHaveLength(1);
+      const reply = await confirm({}, FILE_INSTANCE.id);
+      expect(reply).toMatchObject({ success: true, count: 1 });
+      expect(settings['aiProviders']).toBeUndefined();
+      // Only the instance list was imported: the settings block of a version 2 file
+      // is applied through ConfigManager, not through this test's settings mock, so
+      // what the assertion pins is that no AI key was written.
+      expect(Object.keys(settings)).toEqual([]);
+    });
+
+    it('shows an unusable entry in the preview and never writes it', async () => {
+      const file = writeInstancesFile({
+        ai: aiSection({
+          providers: [AI_PROVIDER, { ...AI_PROVIDER, id: 'file-endpoint', baseUrl: 'file:///tmp/v1' }],
+        }),
+      });
+
+      const preview = await previewAi(file);
+      const ai = preview?.ai as { providers: Array<Record<string, unknown>> } | undefined;
+      const aiProviders = ai?.providers ?? [];
+      expect(aiProviders.map((provider) => provider.id)).toEqual(['ollama-local', 'file-endpoint']);
+      expect(aiProviders[1].unusable).toContain('its scheme is "file:"');
+
+      await confirm({}, FILE_INSTANCE.id);
+      expect((settings['aiProviders'] as Array<{ id: string }>).map((entry) => entry.id)).toEqual(['ollama-local']);
+    });
+
+    it('drops the parsed AI stash on cancel, so a later confirm cannot apply it', async () => {
+      const file = writeInstancesFile({ ai: aiSection() });
+      await previewAi(file);
+      expect(provider.hasPendingImportAiForTest()).toBe(true);
+
+      fake.send({ command: 'cancelImportInstances' });
+
+      expect(provider.hasPendingImportAiForTest()).toBe(false);
+      expect(provider.hasPendingImportInstancesForTest()).toBe(false);
+    });
+
+    it('drops the parsed AI stash when the view is disposed', async () => {
+      const file = writeInstancesFile({ ai: aiSection() });
+      await previewAi(file);
+      expect(provider.hasPendingImportAiForTest()).toBe(true);
+
+      fake.dispose();
+
+      expect(provider.hasPendingImportAiForTest()).toBe(false);
     });
   });
 

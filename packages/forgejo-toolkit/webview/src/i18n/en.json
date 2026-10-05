@@ -848,7 +848,23 @@
       "settingsTitle": "Included settings",
       "tokenUpdated": "Token will be updated",
       "tokenConflict": "Token already exists",
-      "dropped": "{count} entry(ies) in this file could not be used and were skipped."
+      "dropped": "{count} entry(ies) in this file could not be used and were skipped.",
+      "ai": {
+        "title": "AI endpoints in this file",
+        "policyNote": "Importing stores these endpoints as configuration only. It does not allow requests to configured endpoints and it does not turn any AI feature on: those are switches only you can set, and a feature still asks what may leave your machine before it sends anything.",
+        "secretsIncluded": "This encrypted file carries the credentials for its {count} endpoint(s), and they will be stored in the editor's secret storage, not in settings.",
+        "noSecrets": "This file was not encrypted, so it carries no API key and no header value for its {count} endpoint(s). Import them as configuration; add each credential afterwards in the AI endpoints settings, or no request to them can be authenticated.",
+        "insecure": "{count} of these addresses is plain http://, so the request and the answer would not be encrypted in transit.",
+        "modelCount": "{count} declared model(s)",
+        "headerNames": "Headers: {names}",
+        "localOnly": "Local endpoints only",
+        "unusable": "This entry cannot be imported: {reason}",
+        "conflict": "This id is already configured:",
+        "keep": "Keep the configured endpoint",
+        "rename": "Import alongside it under a new id",
+        "replace": "Replace the configured endpoint",
+        "bindings": "{count} feature binding(s) in this file will be applied for the endpoints it imports."
+      }
     },
     "worktree": {
       "title": "Pull Request Worktree",

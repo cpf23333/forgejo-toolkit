@@ -91,6 +91,18 @@ import {
 import { readSettingsSurface, writeSettingsSurfaceValue } from './settingsSurface';
 import { aiProviderDraftTestReport } from '../ai/testProvider';
 import { aiProviderSettingsReading } from '../ai/modelSettings';
+import {
+  applyAiImport,
+  buildAiImportPreview,
+  configuredAiProviderIds,
+  EXPORT_PAYLOAD_VERSION,
+  parsedAiProviderConfigs,
+  readAiConfigForExport,
+  type AiExportReading,
+  type AiImportConflictChoices,
+  type AiImportPlan,
+  type ParsedAiSection,
+} from './aiConfigImport';
 
 /**
  * The refusal a save/edit gets for a declared server version that does not
@@ -109,6 +121,30 @@ function declaredVersionRejection(): string {
     'Enter a Forgejo version such as {0}, or leave the field empty to use the automatic version probe.',
     MIN_SUPPORTED_VERSION_TEXT,
   );
+}
+
+/**
+ * The AI collision strategies an `importInstances` message may carry, coerced from
+ * the webview's untrusted payload.
+ *
+ * Anything that is not one of the three answers is dropped rather than passed on,
+ * which leaves the absent-strategy reading in place (`keep`, the direction that
+ * changes nothing on the receiving machine). The ids themselves are keys here, not
+ * instructions: which providers exist and what they contain comes from the
+ * host-side stash, so a forged key can name only an id that already reached the
+ * preview.
+ */
+function sanitizeAiConflictChoices(value: unknown): AiImportConflictChoices {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {};
+  }
+  const choices: AiImportConflictChoices = {};
+  for (const [id, strategy] of Object.entries(value as Record<string, unknown>)) {
+    if (strategy === 'rename' || strategy === 'replace' || strategy === 'keep') {
+      choices[id] = strategy;
+    }
+  }
+  return choices;
 }
 
 /**
@@ -521,6 +557,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    */
   private _pendingImportInstances: ForgejoInstance[] | undefined;
   /**
+   * The parsed `ai` section (credentials included) of the file the latest import
+   * preview read. It is held for the same reason the instance stash is: an
+   * encrypted file's API keys and header values must not cross into the webview
+   * even to be confirmed, so the preview sends only the non-secret reading and the
+   * confirmation rehydrates this. Cleared on confirm, cancel and disposal, together
+   * with the instance stash.
+   */
+  private _pendingImportAi: ParsedAiSection | undefined;
+  /**
    * The AI pre-review run, handed over by `registerAiPreReviewCommand` rather
    * than imported.
    *
@@ -647,8 +692,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // The import preview's stash holds the file's tokens in plaintext, and the
       // webview that could still confirm it is gone: without this it would
       // outlive the panel until the next preview overwrote it or the window
-      // closed.
+      // closed. The AI stash (which can hold the file's decrypted credentials)
+      // goes with it, for the same reason.
       this._pendingImportInstances = undefined;
+      this._pendingImportAi = undefined;
     });
 
     webviewView.webview.onDidReceiveMessage(
@@ -1202,6 +1249,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'importInstances': {
         const rawIds = (message as { ids?: unknown }).ids;
         const settings = (message as { settings?: ExportSettings }).settings;
+        const aiConflicts = sanitizeAiConflictChoices((message as { aiConflicts?: unknown }).aiConflicts);
         if (Array.isArray(rawIds)) {
           // Preview confirmation: rehydrate the selected entries from the
           // host-side stash. Instance data sent by the webview (tokens in
@@ -1209,6 +1257,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const pending = this._pendingImportInstances;
           this._pendingImportInstances = undefined;
           if (!pending) {
+            this._pendingImportAi = undefined;
             this._reply('instancesImported', {
               success: false,
               error: vscode.l10n.t('The import preview is no longer available; please pick the file again'),
@@ -1218,20 +1267,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const wanted = new Set(rawIds.filter((id): id is string => typeof id === 'string'));
           const selected = pending.filter((instance) => wanted.has(instance.id));
           if (selected.length === 0) {
+            this._pendingImportAi = undefined;
             this._reply('instancesImported', {
               success: false,
               error: vscode.l10n.t('No valid instances found in the import data'),
             });
             return;
           }
-          await this._importInstances(selected, settings);
+          await this._importInstances(selected, settings, aiConflicts);
           return;
         }
+        // No ids: the picker form, which has no preview to confirm the AI
+        // configuration in. The stash (if any) is not applied and is dropped.
+        this._pendingImportAi = undefined;
         await this._importInstances(undefined, settings);
         return;
       }
       case 'cancelImportInstances': {
         this._pendingImportInstances = undefined;
+        this._pendingImportAi = undefined;
         return;
       }
       case 'setLocale': {
@@ -4922,6 +4976,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Whether the parsed AI section of the previewed import file is still held.
+   *
+   * Exported for tests so a case can assert what the stash does *not* keep: the
+   * credentials it carries are exactly the value that must not outlive a confirmed,
+   * cancelled or disposed preview.
+   */
+  public hasPendingImportAiForTest(): boolean {
+    return this._pendingImportAi !== undefined;
+  }
+
+  /**
    * Hands the provider the function that runs an AI pre-review, so the
    * `aiPreReviewPullRequest` message starts exactly the flow
    * `COMMAND_AI_PRE_REVIEW` starts (see `_aiPreReviewRunner` for why it is a
@@ -5236,12 +5301,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     if (!this._view) {
       return;
     }
+    // Read before the question is asked, and always: what the file will carry
+    // decides which warning the user has to see, and an endpoint list is what makes
+    // the AI keys and header values a thing the plaintext answer is missing.
+    const ai = await this._readAiExportReading();
     const encryptLabel = vscode.l10n.t('Encrypt with password');
     const plainTextLabel = vscode.l10n.t('Plain text');
     const choice = await vscode.window.showWarningMessage(
-      vscode.l10n.t(
-        'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
-      ),
+      ai.ai.providers.length > 0
+        ? vscode.l10n.t(
+            'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted, and an unencrypted export contains no AI endpoint key and no header value.',
+          )
+        : vscode.l10n.t(
+            'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
+          ),
       { modal: true },
       encryptLabel,
       plainTextLabel,
@@ -5267,14 +5340,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      let data: object = this._buildExportData(ids);
+      // The secrets are attached only on the encrypting branch: a plaintext export
+      // writes the `ai` section without them, which is the structural reason no key
+      // and no header value can reach an unencrypted file (§10.2).
+      let data: object = this._buildExportData(ids, ai);
       if (password) {
-        data = this._encryptExportData(data, password);
+        data = this._encryptExportData({ ...(data as object), ai: { ...ai.ai, secrets: ai.secrets } }, password);
       }
       // Atomic write: an export interrupted halfway (a full disk, a crash) must
       // not destroy the export file that is already at that path.
       await writeFileAtomically(uri.fsPath, JSON.stringify(data, null, 2));
-      this._reply('instancesExported', { success: true, path: uri.fsPath });
+      this._reply('instancesExported', { success: true, path: uri.fsPath, aiSecretsIncluded: password !== undefined });
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`exportInstances failed: ${err}`);
@@ -5282,7 +5358,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _buildExportData(ids?: string[]): object {
+  /**
+   * The AI configuration an export will write, plus the credentials that only its
+   * encrypted wrapper may carry.
+   *
+   * A settings or secret-store read that throws must not fail the export — the
+   * instance list is the primary payload and is unaffected — so a failure reads as
+   * "no AI configuration", the same fail-closed direction every other AI reader
+   * takes. Nothing is logged with a value in it: only the counts.
+   */
+  private async _readAiExportReading(): Promise<AiExportReading> {
+    try {
+      return await readAiConfigForExport(this._context.secrets);
+    } catch (error) {
+      logger.error(`exportInstances could not read the AI configuration: ${userFacingErrorMessage(error)}`);
+      return {
+        ai: { providers: [], bindings: [], transport: 'auto', localOnly: false },
+        secrets: { keys: {}, headerValues: {} },
+      };
+    }
+  }
+
+  private _buildExportData(ids: string[] | undefined, ai: AiExportReading): object {
     const allInstances = this._config.getInstances();
     const instances = ids ? allInstances.filter((instance) => ids.includes(instance.id)) : allInstances;
     const configuration = vscode.workspace.getConfiguration('forgejoToolkit');
@@ -5292,19 +5389,27 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       worktreeOpenMode: this._config.getWorktreeOpenMode(),
       worktreeCacheDirectory: this._config.getWorktreeCacheDirectory() ?? undefined,
     };
-    return { version: 2, instances, settings };
+    return { version: EXPORT_PAYLOAD_VERSION, instances, settings, ai: ai.ai };
   }
 
   private async _copyInstancesToClipboard(ids?: string[]) {
     if (!this._view) {
       return;
     }
+    // Same reading, same warning and same "secrets only on the encrypting branch"
+    // rule as the file export: the clipboard is a file that goes wherever it is
+    // pasted.
+    const ai = await this._readAiExportReading();
     const encryptLabel = vscode.l10n.t('Encrypt with password');
     const plainTextLabel = vscode.l10n.t('Plain text');
     const choice = await vscode.window.showWarningMessage(
-      vscode.l10n.t(
-        'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
-      ),
+      ai.ai.providers.length > 0
+        ? vscode.l10n.t(
+            'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted, and an unencrypted export contains no AI endpoint key and no header value.',
+          )
+        : vscode.l10n.t(
+            'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
+          ),
       { modal: true },
       encryptLabel,
       plainTextLabel,
@@ -5322,12 +5427,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }
     }
     try {
-      let data: object = this._buildExportData(ids);
+      let data: object = this._buildExportData(ids, ai);
       if (password) {
-        data = this._encryptExportData(data, password);
+        data = this._encryptExportData({ ...(data as object), ai: { ...ai.ai, secrets: ai.secrets } }, password);
       }
       await vscode.env.clipboard.writeText(JSON.stringify(data, null, 2));
-      this._reply('instancesExported', { success: true });
+      this._reply('instancesExported', { success: true, aiSecretsIncluded: password !== undefined });
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`copyInstancesToClipboard failed: ${err}`);
@@ -5366,7 +5471,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const authTag = cipher.getAuthTag();
     return {
-      version: 2,
+      version: EXPORT_PAYLOAD_VERSION,
       encrypted: true,
       iterations,
       salt: salt.toString('base64'),
@@ -5399,21 +5504,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      const { instances, settings, dropped } = await readExportDataFromUri(uris[0]);
+      const { instances, settings, dropped, ai } = await readExportDataFromUri(uris[0]);
       // Stash the full entries host-side; the webview only receives a
       // token-less copy and later confirms by id, so token values never
-      // cross into the webview process in either direction.
+      // cross into the webview process in either direction. The AI half is
+      // stashed the same way and for the same reason: an encrypted file's
+      // credentials must not reach the webview even to be confirmed.
       this._pendingImportInstances = instances;
+      this._pendingImportAi = ai;
       const existingInstances = this._config.getInstances();
       const existingIds = existingInstances.map((instance) => instance.id);
       // Conflict flags (stored-token collisions and in-file duplicates) are
       // computed host-side (parallel to `instances`) — see the message type.
       const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
+      // The AI section is previewed with the ids that are already configured —
+      // including entries this build cannot read, which still own their ids.
+      const aiPreview = ai === undefined ? undefined : buildAiImportPreview(ai, configuredAiProviderIds());
       const payload: Omit<Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>, 'command'> = {
         instances: stripInstanceTokens(instances),
         existingIds,
         tokenConflicts,
         settings,
+        ...(aiPreview === undefined ? {} : { ai: aiPreview.ai }),
         // The dropped entries never appear in `instances`, so without the count
         // the preview looks complete. Only when something was dropped: an
         // absent field is what a host build without the count sends, and the
@@ -5423,6 +5535,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       this._reply('importInstancesPreview', payload);
     } catch (error) {
       this._pendingImportInstances = undefined;
+      this._pendingImportAi = undefined;
       if (error instanceof ImportCancelledError) {
         // The user dismissed the password prompt: answer like the file-picker
         // cancel above so the preview slot frees without an error banner.
@@ -5447,7 +5560,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async _importInstances(instancesToImport?: ForgejoInstance[], settings?: ExportSettings) {
+  /**
+   * Imports instances, and — in the preview flow — the AI configuration that
+   * travelled with them.
+   *
+   * `aiChoices` is the preview's per-provider collision decision, already reduced
+   * to the three answers (`rename`/`replace`/`keep`). It is meaningful only for the
+   * preview confirmation, which is the path that actually shows the AI section: the
+   * picker flow (`ids` absent) has no preview, so it imports instances and settings
+   * only, and the AI section of a file that reaches it is left alone rather than
+   * imported without being reviewed. No UI path sends the picker form (the
+   * webview's import button goes through `previewImportInstances`), so this is the
+   * disposition for a message a compromised webview could send.
+   */
+  private async _importInstances(
+    instancesToImport?: ForgejoInstance[],
+    settings?: ExportSettings,
+    aiChoices?: AiImportConflictChoices,
+  ) {
     if (!this._view) {
       return;
     }
@@ -5502,6 +5632,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
       }
       await this._applyImportSettings(settings);
+      if (instancesToImport !== undefined) {
+        await this._applyImportedAiConfig(aiChoices);
+      }
       this._sendInstances();
       this._detectAndSendLinkedRepository();
       this._reply('instancesImported', { success: true, count: instances.length });
@@ -5509,6 +5642,54 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const err = userFacingErrorMessage(error);
       logger.error(`importInstances failed: ${err}`);
       this._reply('instancesImported', { success: false, error: err });
+    }
+  }
+
+  /**
+   * Writes the AI configuration the preview confirmed, from the host-side stash.
+   *
+   * The stash is cleared first, whatever the outcome: a config that has been
+   * applied once — or whose write failed — must not be applied again by a second
+   * confirmation message.
+   *
+   * A failure here is logged and reported, never thrown at the instance import that
+   * already succeeded: the endpoints are a second half of the file, and losing them
+   * must not turn a completed instance import into a failure. Nothing is logged with
+   * a value in it — only the failure and the counts.
+   */
+  private async _applyImportedAiConfig(choices: AiImportConflictChoices | undefined) {
+    const parsed: ParsedAiSection | undefined = this._pendingImportAi;
+    this._pendingImportAi = undefined;
+    if (parsed === undefined || this._view === undefined) {
+      return;
+    }
+    const plan: AiImportPlan = {
+      config: parsed.config,
+      secretsIncluded: parsed.secretsIncluded,
+      secrets: parsed.secrets,
+      providers: parsedAiProviderConfigs(parsed),
+    };
+    try {
+      const { applied, skippedBindings } = await applyAiImport(plan, choices ?? {}, this._context.secrets);
+      logger.info(
+        `AI endpoints: the import wrote ${applied} endpoint(s)` +
+          (skippedBindings.length > 0 ? ` and dropped ${skippedBindings.length} binding(s)` : ''),
+      );
+      if (skippedBindings.length > 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Imported {0} AI endpoint(s). {1} feature binding(s) named an endpoint this import did not write, so they were not applied.',
+            applied,
+            skippedBindings.length,
+          ),
+        );
+      }
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      logger.error(`the imported AI configuration could not be applied: ${err}`);
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('Could not apply the AI configuration from the import file: {0}', err),
+      );
     }
   }
 
