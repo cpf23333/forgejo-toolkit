@@ -19,12 +19,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Configure your own AI endpoint.** The AI features no longer depend on the
+  language models your editor happens to offer: the settings page has an AI
+  Endpoints section where you add an OpenAI-compatible endpoint — a server on your
+  own machine or a hosted gateway — with its display name and id, its address, its
+  authentication style (`Bearer`, an `api-key` header, or none), the models it
+  declares (id and display name), custom request headers, and a local-only switch.
+  The API key and **every** header value live in the editor's secret storage and
+  are never written into settings — a gateway usually carries its token in a
+  header — so the page says only whether a value is set, and clearing one is an
+  explicit action. Everything here is machine-scoped, so a workspace cannot point
+  your requests at an address of its own choosing, and an endpoint id or display
+  name you leave blank is generated from the address (collisions get a suffix, and
+  the page warns while you create one that its id cannot change afterwards, because
+  the stored secrets are keyed by it). **Test connection** runs against one endpoint
+  and reports the address it used without the query string that can carry a
+  secret. The AI pre-review can run on such an endpoint instead of on your editor's
+  models.
+- **Decide whether the extension may send, and to where.** Saving an endpoint and a
+  key is not permission: a separate switch has to allow requests to configured
+  endpoints, and each feature still asks its own question about what may leave your
+  machine, so a configured endpoint and a stored key send nothing by themselves. A
+  local-only rule — global, and once more per endpoint — refuses any endpoint whose
+  host is not this machine or a private network; the configured address is what is
+  checked, no name lookup is made, and an address that cannot be read counts as not
+  local. A per-feature binding names the endpoint and the model a feature uses, and
+  every run states in its confirmation panel, its diagnostics and the log which
+  transport, endpoint, address and model served it, so you can see where your
+  content went. The two ways of reaching a model never substitute for each other:
+  an endpoint that fails is reported as a failure and never quietly falls back to
+  your editor's models, or the other way round.
+- **The endpoint's model list is detected for you.** The endpoint editor asks the
+  endpoint for its model list once you have typed an address and a credential (or
+  changed the authentication style) and stopped for about 800 milliseconds, and
+  fills in only the model rows you have not written yourself — anything you typed
+  stays as it is. One request is sent per combination of address, authentication
+  style and credential, further typing cancels the pending one, only the model
+  listing is ever requested (never a completion), and nothing is written to your
+  settings before you save. An address the local-only rule refuses is refused
+  before a byte leaves the machine, a probe that gets no answer says so on the
+  model rows and in the report card below them, and an endpoint that has no model
+  list at all is not a failure: the report says the models have to be filled in by
+  hand.
+- **Your settings page now covers the settings.** Nine settings that used to be
+  reachable only through the editor's own settings user interface are now presented
+  where they belong: the notification polling switch, the multi-window polling
+  lease, the MCP server switch with its three write-tool gates and the write-audit
+  switch, and the AI pre-review switch with its prompt scope — the consent value
+  that decides how much an AI pre-review may send, which until now could neither be
+  seen nor changed from the page that owns the feature. Each one states its default
+  in words instead of prefilling it, and changing one writes only that setting; when
+  the editor refuses a write, the control goes back to the stored value and says
+  what the host answered. The two settings that stay in the editor's own settings
+  interface — the polling interval, because it is a bounded number, and the model
+  transport, because it is a three-value choice — are named in place in their
+  sections, with an entry point that opens the editor's settings filtered to this
+  extension so the rest are one click away.
+
 ### Changed
 
 - The release guide now opens the next `## [Unreleased]` section before the
   release runs, in the same commit that names the released section for its
   version, so the changelog always carries a place for the next cycle and nothing
   depends on a step remembered after the release.
+
+### Fixed
+
+- An AI pre-review against an endpoint that stopped at the endpoint's own output
+  limit now says that, instead of only that the answer was not JSON. The message
+  names the endpoint the way the consent question does, says the answer hit the
+  endpoint's output limit and could not be read because of it, and offers the two
+  ways out — raise the limit configured on the endpoint, or choose a model that
+  follows the instruction — and it is said at most once per run, even when both
+  attempts were truncated. The diagnostics file records the same fact. Your
+  editor's own model API reports no such reason, so this message never appears on
+  that path.
 
 ## [0.1.1] - 2026-10-02
 
