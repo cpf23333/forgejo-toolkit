@@ -197,6 +197,21 @@ export interface ConfiguredInstance {
 }
 
 /**
+ * Where the extension keeps its instance registry: `mcp-instances.json` in this
+ * profile's `globalStorage`.
+ *
+ * **It is a mirror, not the configuration.** The configured instances live in the
+ * editor's `globalState` (a SQLite store this harness cannot read), and a window
+ * rewrites this file from them at activation — eagerly, when the MCP server
+ * provider registers. So a reader of this file learns what a window *last*
+ * published, which is why the launcher's `instances:` line says when it was read
+ * rather than what the run will poll (see `apiMode.ts` and the README).
+ */
+export function mcpInstancesPath(profileDir: string): string {
+  return path.join(profileDir, 'User', 'globalStorage', EXTENSION_ID, 'mcp-instances.json');
+}
+
+/**
  * The instances the profile has configured, read from the extension's own
  * `mcp-instances.json` (the same stable-path file the MCP shim consumes).
  *
@@ -206,7 +221,7 @@ export interface ConfiguredInstance {
  * become load-bearing).
  */
 export function readConfiguredInstances(profileDir: string): ConfiguredInstance[] {
-  const file = path.join(profileDir, 'User', 'globalStorage', EXTENSION_ID, 'mcp-instances.json');
+  const file = mcpInstancesPath(profileDir);
   let parsed: unknown;
   try {
     parsed = JSON.parse(fs.readFileSync(file, 'utf8'));

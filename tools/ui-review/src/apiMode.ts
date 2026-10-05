@@ -49,7 +49,7 @@
 // silently again.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ConfiguredInstance } from './config';
+import { mcpInstancesPath, type ConfiguredInstance } from './config';
 
 /** Literals that survive only when `src/test/mocks/` was compiled in (see above). */
 export const MOCK_BUILD_MARKERS: readonly string[] = [
@@ -427,17 +427,33 @@ export function apiModeReport(decision: ApiModeDecision, context: ApiModeContext
       ],
     };
   }
+  // What this line can honestly say: the registry is a mirror a window rewrites at
+  // activation from the editor's own instance store, and this gate reads it *before*
+  // the window starts. So "none recorded yet" is not "nothing to poll" — measured
+  // 2026-10-05: an `--ai-mock` launch printed the empty-registry note and the window
+  // then polled the profile's seeded mock instance, which it wrote into that file
+  // during activation. The wording says which read this is and what has not been
+  // checked, instead of letting a reader conclude the run polls nothing.
+  const registryPath = mcpInstancesPath(context.profileDir);
+  const recordedInstances =
+    context.instances.length === 0
+      ? `  instances: none recorded in the profile's registry yet (${registryPath}) —`
+      : `  instances: ${context.instances.length} recorded in the profile's registry (${registryPath})` +
+        (context.handledApiPath === undefined
+          ? ':'
+          : `, every one of them covered by the handlers (<any scheme>://<any host>${context.handledApiPath}…):`);
   return {
     fatal: false,
     lines: [
       `Mock-backed run: ${matched}, and forgejoToolkit.useMockApi is on in this profile.`,
-      ...(context.handledApiPath === undefined
-        ? []
-        : [
-            `  instances: every configured instance is one the handlers cover (<any scheme>://<any host>${context.handledApiPath}…)`,
-          ]),
+      recordedInstances,
+      ...context.instances.map((instance) => `             ${describeInstance(instance)}`),
       ...(context.instances.length === 0
-        ? ['             (none recorded yet — a window that runs has nothing to poll until one is added)']
+        ? [
+            '             that file is a mirror the window rewrites at activation, so "none recorded yet" is not',
+            '             "nothing to poll": the window polls the instances its own store holds and writes them there,',
+            '             and an instance the file does not name yet has not been checked against the handlers.',
+          ]
         : []),
     ],
   };

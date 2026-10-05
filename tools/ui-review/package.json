@@ -11,7 +11,7 @@
     "ui": "tsx src/ui.ts",
     "kill": "tsx src/kill.ts",
     "ai-mock": "tsx src/aiMock.ts",
-    "test": "tsx --test src/windows.test.ts src/logs.test.ts src/winProc.test.ts src/cliArgs.test.ts src/driver.test.ts src/pixelUnits.test.ts src/state.test.ts src/apiMode.test.ts src/mockInterception.test.ts src/aiMockServer.test.ts src/aiMockRun.test.ts src/config.test.ts",
+    "test": "tsx --test src/windows.test.ts src/logs.test.ts src/winProc.test.ts src/cliArgs.test.ts src/driver.test.ts src/pixelUnits.test.ts src/geometry.test.ts src/state.test.ts src/apiMode.test.ts src/mockInterception.test.ts src/aiMockServer.test.ts src/aiMockRun.test.ts src/config.test.ts",
     "check": "tsc --noEmit"
   },
   "devDependencies": {

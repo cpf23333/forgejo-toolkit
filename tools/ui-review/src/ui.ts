@@ -13,9 +13,10 @@
 //   node src/ui.ts eval <js> [name]            (one already-quoted argument; see below)
 //
 // Coordinates are relative to the last CDP screenshot (viewport size, e.g.
-// 1440x900). Every command ends with a screenshot saved under shots/.
+// 1440x900, one image pixel per CSS pixel at devicePixelRatio 1). Every command
+// ends with a screenshot saved under shots/.
 //
-// Two traps, both measured:
+// Three traps, all measured:
 //
 //   * **A script argument is at the shell's mercy.** This CLI is reached through
 //     `pnpm run`, which hands the command line to a shell; quotes come back
@@ -26,6 +27,13 @@
 //     after which coordinates read off an older screenshot landed somewhere else
 //     and the clicks missed. Every pointer command checks the scale against the
 //     last reading (driver.ts's PIXEL_UNITS_FILE) and refuses when it moved.
+//   * **A webview is a separate frame.** The extension's sidebar view and an
+//     editor-area webview panel are two `iframe.webview` frames with different
+//     rects, and `document.querySelector('iframe.webview')` silently answers with
+//     the first one (the sidebar's) — measured 2026-10-05: sidebar (49,68) 233x794
+//     beside an editor panel (289,69) 425x502. `ui frames` lists them, every pointer
+//     command names the frame its coordinate lands in, and it refuses when the frame
+//     that held the coordinate at capture time has moved, closed or been resized.
 //
 // With two windows open (the dual-window mode) one has to be named:
 //   node src/ui.ts --window 2 shot w2-home
@@ -38,9 +46,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   connectOne,
+  describeRect,
+  placeCoordinate,
+  pointerGeometryGuard,
   pointerScaleGuard,
   readPixelReport,
   readPixelUnits,
+  readWebviewFrames,
+  refreshPixelUnits,
+  screenshotSize,
   shot,
   waitWorkbench,
   writePixelUnits,
@@ -111,7 +125,8 @@ function selectorToIndex(raw: string): number {
 const [cmd, ...rest] = args;
 if (!cmd) {
   console.error(
-    'usage: ui.ts [--window N | --target ID] <shot|click|scroll|drag|hover|type|key|eval> ...\n' +
+    'usage: ui.ts [--window N | --target ID] <shot|frames|click|scroll|drag|hover|type|key|eval> ...\n' +
+      '       ui.ts frames [x y] [name]        (the coordinate space and every open webview frame)\n' +
       '       ui.ts eval --script-file <path.js> [name]',
   );
   process.exit(1);
@@ -130,9 +145,33 @@ await waitWorkbench(page, 1000);
 // moved, because a coordinate read off an older screenshot would land elsewhere.
 const pixels = await readPixelReport(page);
 
-/** Every command that puts a pointer at a coordinate goes through this first. */
-function guardPointer(command: string): void {
+/** The commands that put a pointer at a coordinate; each is guarded before it acts. */
+const POINTER_COMMANDS = ['click', 'rclick', 'scroll', 'drag', 'hover'];
+
+// Read once per invocation: the frames on screen are what a coordinate is resolved
+// against, and what the frames the last capture recorded are compared with.
+const liveFrames = POINTER_COMMANDS.includes(cmd) || cmd === 'frames' ? await readWebviewFrames(page) : [];
+
+/**
+ * Every command that puts a pointer at a coordinate goes through this first.
+ *
+ * Two honest refusals rather than a rescaled click: the page's pixel scale must not
+ * have moved since the last reading (driver.ts's pointerScaleGuard), and the
+ * coordinate must still be one the browser will deliver to the element it was read
+ * for (pointerGeometryGuard — inside the viewport, in a capture whose image scale
+ * matches the page's, and inside a webview frame that has not moved since). The
+ * returned note names the frame it lands in, so the operator can tell the sidebar
+ * view from an editor-area panel.
+ */
+function guardPointer(command: string, point: { x: number; y: number }): string {
   pointerScaleGuard(HARNESS_DIR, pixels, command);
+  return pointerGeometryGuard({
+    command,
+    point,
+    recorded: readPixelUnits(HARNESS_DIR),
+    current: pixels,
+    liveFrames,
+  });
 }
 
 let name = cmd;
@@ -156,50 +195,92 @@ switch (cmd) {
     break;
   case 'shot':
     // A screenshot is the reading a coordinate comes from, so it also (re)sets
-    // the recorded scale: after it, the coordinates match this capture by
-    // construction.
+    // the recorded capture: after it, the coordinates match this image by
+    // construction — its pixel size and the frames on screen included.
     name = rest[0] || 'shot';
     break;
+  case 'frames': {
+    // What the coordinate space is and which webview frames are in it. Reports
+    // only, exactly like `scale`: it must not become the "last reading" the guards
+    // compare against, or asking the question would change the answer.
+    const [fx, fy, frameName] = rest;
+    const capture = readPixelUnits(HARNESS_DIR);
+    const point =
+      fx === undefined || fy === undefined
+        ? null
+        : { x: Number(fx), y: Number(fy), ...placeCoordinate({ x: Number(fx), y: Number(fy) }, liveFrames) };
+    console.log(
+      JSON.stringify(
+        {
+          page: { viewport: pixels.viewport, devicePixelRatio: pixels.scale },
+          capture:
+            capture === null
+              ? null
+              : {
+                  shot: capture.shot ?? null,
+                  at: capture.at,
+                  viewport: capture.viewport,
+                  image: capture.image ?? null,
+                  imageScale: capture.imageScale ?? null,
+                  frames: capture.frames ?? null,
+                },
+          webviews: liveFrames,
+          point,
+        },
+        null,
+        2,
+      ),
+    );
+    name = frameName || 'frames';
+    break;
+  }
   case 'click': {
-    guardPointer('click');
     const [x, y, n, waitMs] = rest;
-    await page.mouse.click(Number(x), Number(y));
+    const point = { x: Number(x), y: Number(y) };
+    console.log(guardPointer('click', point));
+    await page.mouse.click(point.x, point.y);
     await page.waitForTimeout(Number(waitMs || 2000));
     name = n || name;
     break;
   }
   case 'rclick': {
-    guardPointer('rclick');
     const [x, y, n] = rest;
-    await page.mouse.click(Number(x), Number(y), { button: 'right' });
+    const point = { x: Number(x), y: Number(y) };
+    console.log(guardPointer('rclick', point));
+    await page.mouse.click(point.x, point.y, { button: 'right' });
     await page.waitForTimeout(1200);
     name = n || name;
     break;
   }
   case 'scroll': {
-    guardPointer('scroll');
     const [x, y, dy, n] = rest;
-    await page.mouse.move(Number(x), Number(y));
+    const point = { x: Number(x), y: Number(y) };
+    console.log(guardPointer('scroll', point));
+    await page.mouse.move(point.x, point.y);
     await page.mouse.wheel(0, Number(dy));
     await page.waitForTimeout(1200);
     name = n || name;
     break;
   }
   case 'drag': {
-    guardPointer('drag');
     const [x1, y1, x2, y2, n] = rest;
-    await page.mouse.move(Number(x1), Number(y1));
+    const from = { x: Number(x1), y: Number(y1) };
+    const to = { x: Number(x2), y: Number(y2) };
+    console.log(guardPointer('drag', from));
+    console.log(guardPointer('drag', to));
+    await page.mouse.move(from.x, from.y);
     await page.mouse.down();
-    await page.mouse.move(Number(x2), Number(y2), { steps: 12 });
+    await page.mouse.move(to.x, to.y, { steps: 12 });
     await page.mouse.up();
     await page.waitForTimeout(1500);
     name = n || name;
     break;
   }
   case 'hover': {
-    guardPointer('hover');
     const [x, y, n] = rest;
-    await page.mouse.move(Number(x), Number(y));
+    const point = { x: Number(x), y: Number(y) };
+    console.log(guardPointer('hover', point));
+    await page.mouse.move(point.x, point.y);
     await page.waitForTimeout(800);
     name = n || name;
     break;
@@ -279,10 +360,31 @@ switch (cmd) {
     process.exit(1);
 }
 
-// `scale` reports; it does not re-record, so what the operator sees is the same
-// reading the guard compares against.
-if (cmd !== 'scale') {
-  writePixelUnits(HARNESS_DIR, cmd === 'shot' ? await readPixelReport(page) : pixels, page.url());
+// `scale` and `frames` report; they do not re-record, so what the operator sees is
+// the same reading the guard compares against.
+const file = await shot(page, name);
+if (cmd === 'shot') {
+  // Re-read after the capture: the recorded geometry has to be the one this image
+  // was taken at, not the one the invocation started with.
+  const current = await readPixelReport(page);
+  const image = screenshotSize(file);
+  const frames = await readWebviewFrames(page);
+  const imageScale = image === null ? null : image.width / current.viewport.width;
+  writePixelUnits(HARNESS_DIR, current, page.url(), {
+    ...(image === null ? {} : { image, imageScale: imageScale ?? undefined }),
+    frames,
+    shot: name,
+  });
+  const frameText =
+    frames.length === 0
+      ? 'no webview frame is open'
+      : frames.map((frame) => `${frame.where} ${describeRect(frame.rect)}`).join(', ');
+  console.log(
+    `  ${image === null ? 'capture size unreadable' : `${image.width}x${image.height} image px`} at devicePixelRatio ` +
+      `${current.scale}${imageScale === null ? '' : ` (${imageScale.toFixed(2)} image px per CSS px)`}; ` +
+      `webview frames: ${frameText}`,
+  );
+} else if (cmd !== 'scale' && cmd !== 'frames') {
+  refreshPixelUnits(HARNESS_DIR, pixels, page.url());
 }
-await shot(page, name);
 await browser.close();

@@ -69,6 +69,7 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock stop           # stop 
 
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scale [name]  # devicePixelRatio + viewport, against the last reading
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui frames [x y] [name]  # the coordinate space, every open webview frame, and which one holds (x, y)
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui click <x> <y> [name] [waitMs]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui rclick <x> <y> [name] [waitMs]
 pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scroll <x> <y> <deltaY> [name]
@@ -100,7 +101,44 @@ A throwaway git repo under `workspace/` (gitignored) with its `origin` set to
 `https://forgejo.example.com/demo-user/demo-repo.git` gives the linked-repo
 card clean, mock-backed data for screenshots.
 
-Coordinates are read off the previous CDP screenshot (viewport, e.g. 1440x900).
+Coordinates are read off the previous CDP screenshot: one image pixel is one CSS
+pixel, which is the space CDP input uses. Measured 2026-10-05 in the isolated dev
+host: viewport 1440x900, `devicePixelRatio` 1, `visualViewport.scale` 1, no `zoom`
+or `transform` on `html`, `body` or `.monaco-workbench`, and a `shot` that came back
+at exactly 1440x900 image px. `shot` prints that reading back
+(`1440x900 image px at devicePixelRatio 1 (1.00 image px per CSS px); webview
+frames: …`), so the space is a measurement rather than an assumption.
+
+**A webview is a separate frame, and several can be open at once.** The extension's
+sidebar view (the dashboard and the settings page) and an editor-area webview panel
+(the first-run setup guide, a pull-request panel, …) are two `iframe.webview` frames
+with their own rects — and **`document.querySelector('iframe.webview')` answers with
+the first one only**, the sidebar's. Measured 2026-10-05 with both open: sidebar
+`(49,68) 233x794`, editor panel `(289,69) 425x502`. An earlier run measured the
+sidebar frame (`297x794` in its wider window), compared it with an ~890 px wide
+editor-area panel, read the two as a 3× mismatch of "the frame", and scaled its
+coordinates to match: the clicks then landed on the wrong element. There was no
+scale mismatch at all — the two numbers were two different frames, and 890/297 ≈ 3
+was a coincidence of the sidebar's width and the editor area's.
+
+A coordinate therefore belongs to whichever frame's rect contains it, and the
+procedure is only complete with the frame named:
+
+- `ui frames` prints the coordinate space (`viewport`, `devicePixelRatio`), the
+  capture the coordinates are meant to come from (its image size, its image px per
+  CSS px, the frames it recorded), the frames open **now**, and — given `x y` —
+  which frame contains that point.
+- Every pointer command prints the frame its coordinate lands in before it acts:
+  `click: (110, 381) is inside the sidebar webview (49,68) 233x794, webview ad61c2c5`,
+  or `click: (242, 48) is over workbench chrome (no webview frame contains it)`.
+- A control inside a webview is addressed as the host frame's offset plus the
+  control's position inside the guest (`pageOffset` above), and a control the guest
+  has scrolled out of view is not clickable at all: scroll it first (`ui scroll`
+  with the pointer over the frame), then take a fresh screenshot.
+- The guest DOM is reachable from a script that connects over CDP itself (measured;
+  see **Known blind spots**), which is how a click is _proved_ to have reached the
+  intended control instead of a neighbour — click the coordinate, then read the
+  guest's own state.
 
 **The pixel scale can move under you, and a coordinate read off an older
 screenshot then points somewhere else.** Measured 2026-10-05: `devicePixelRatio`
@@ -110,14 +148,28 @@ landed elsewhere and the clicks missed — silently, since a click that hits not
 still exits 0. Two things answer it:
 
 - **Automatic guard.** Every pointer command (`click`, `rclick`, `scroll`, `drag`,
-  `hover`) compares the page's `devicePixelRatio` with the last reading (recorded
-  in the gitignored `pixel-units.json` by `shot` and by every command) and
-  **refuses** when it moved, naming both scales and telling you to take a fresh
-  screenshot. It does not rescale: only a new capture gives coordinates that are
-  truthful again.
+  `hover`) refuses on the recorded numbers — naming both sides of the disagreement —
+  when the coordinate cannot be trusted:
+  - the page's `devicePixelRatio` moved since the last reading (the message below);
+  - the coordinate is **outside the page's CSS viewport**: measured, the settings
+    page's `AI 端点` section sat at inner y≈1460 of the 794-high sidebar frame, so a
+    coordinate taken from that element resolved to y≈1528 of a 900-high page, where
+    the click reached nothing and still exited 0;
+  - **the capture and the page disagree about what a pixel is**: the capture's
+    `image.width / viewport.width` is not the page's `devicePixelRatio` (a stale
+    capture from another window size, a build that captures at device scale, an
+    unexpected zoom). This is the honest form of a "the frame is 3× bigger than the
+    screenshot says" report: it names the capture's image size, its image px per CSS
+    px and the page's device px per CSS px;
+  - **the frame that contained the coordinate at capture time** has moved, resized
+    or closed since — the element the coordinate was read for may not be there any
+    more.
 - **On demand.** `ui scale` prints the current `devicePixelRatio`, the viewport and
   the scale the last reading recorded, so a screenshot that looks "zoomed" can be
-  confirmed rather than guessed at.
+  confirmed rather than guessed at; `ui frames` adds the frames on both sides.
+
+The guard never rescales and never guesses: only a fresh `shot` makes coordinates
+truthful again.
 
 ```
 ui click: the page's pixel scale changed from 1 to 1.5 since the last reading (2026-10-05T…).
@@ -272,6 +324,37 @@ what the gate accepts. Three rules complete the picture:
   that keeps the module keeps them; `src/apiMode.test.ts` additionally asserts
   every marker still exists in the mock sources, so rewording a fixture fails a
   test instead of silently reporting every build as production.
+
+### The instances line: what it means and when it is printed
+
+A mock-backed run prints one `instances:` line. It is printed **before anything is
+created or spawned** (that is what makes the refusal free), and the only instance
+source that exists at that moment is `mcp-instances.json` — the registry a _window_
+rewrites at activation, eagerly, from the editor's own instance store
+(`globalState`, a SQLite store this harness does not read). The line therefore
+describes the last published registry, not necessarily what the run will poll:
+
+```
+  instances: 1 recorded in the profile's registry (…\mcp-instances.json), every one of them
+             covered by the handlers (<any scheme>://<any host>/api/v1/…):
+             demo-user@forgejo.example.com <https://forgejo.example.com>
+```
+
+- Every instance the gate checked is named, so "covered" is a statement about a
+  list the reader can see rather than about the profile in general.
+- With an **empty or absent registry** the line says
+  `none recorded in the profile's registry yet` and spells out that this is "not
+  seen yet", not "nothing to poll": the window polls the instances its own store
+  holds and writes them into that file, and an instance the file does not name yet
+  has not been checked against the handlers' path rule.
+- Measured 2026-10-05: an `--ai-mock` launch printed the empty-registry form — the
+  old wording claimed "a window that runs has nothing to poll until one is added" —
+  and the window then polled the profile's seeded mock instance, which it wrote into
+  the registry during activation. A reader of that line concluded the opposite of
+  what the run did; that sentence is gone.
+- The two other reports that name instances (`--real-api`'s warning and the
+  refusals) use the same source and print it as "none recorded in this profile
+  yet", which is a statement about the file rather than about the run.
 
 ## The local AI endpoint: a real socket, deliberately not MSW
 
@@ -849,8 +932,17 @@ the session as soon as window1 exists, so a failure never leaves orphans.
 
 ## Known blind spots
 
-- **Webviews are OOPIFs**: their DOM is unreachable via CDP frames. Use
-  coordinate clicks + screenshots only.
+- **Webviews are out-of-process iframes, and their DOM is reachable anyway.**
+  Measured 2026-10-05 (VS Code 1.140 / Electron 43): the host is an
+  `iframe.webview` in the workbench document, Playwright's frame list contains the
+  guest document (`vscode-webview://…/index.html`) and `frame.evaluate` runs inside
+  it, and the extension's own UI is that shell's nested `#active-frame`, whose
+  `contentDocument` is same-origin and readable from the shell's frame. What the
+  harness's own commands address is still the workbench page — `ui eval` always
+  evaluates there — so a walkthrough is driven with coordinate clicks and
+  screenshots. A DOM read of the guest is available to a script that connects over
+  CDP itself, and it is how a click is proved to have reached the intended control
+  rather than its neighbour.
 - **Native OS dialogs** (VS Code modal messages such as the dirty-form confirm)
   are separate Win32 windows and never appear in CDP screenshots:
 

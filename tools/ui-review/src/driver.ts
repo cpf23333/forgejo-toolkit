@@ -18,16 +18,28 @@ export const DIRS = {
 fs.mkdirSync(DIRS.shots, { recursive: true });
 
 /**
- * Where the page's pixel scale is remembered between `ui` invocations.
+ * Where the page's pixel scale **and the last capture's geometry** are remembered
+ * between `ui` invocations.
  *
  * Every `ui` call is its own CDP connection, so nothing in memory can notice that
  * `devicePixelRatio` changed since the screenshot the coordinates were read off.
  * This file is that memory: the pointer commands refuse to click when the scale
  * moved, because CDP input is in CSS pixels while a screenshot is in device
  * pixels — the two agree only while the ratio holds.
+ *
+ * Since 2026-10-05 it also remembers two more things about the capture the
+ * coordinates are supposed to come from, because the scale alone was not enough
+ * (see {@link pointerGeometryGuard}):
+ *
+ * - its **pixel size**, so a capture that came back at a different number of image
+ *   pixels per CSS pixel than the page reports is caught instead of trusted;
+ * - the **webview frames** that were on screen, because a webview is a separate
+ *   frame with its own rect: with the sidebar view and an editor-area panel open at
+ *   once, one coordinate belongs to one of them, and the frame it belonged to must
+ *   still be there, unchanged, when the click runs.
  */
 export const PIXEL_UNITS_FILE = 'pixel-units.json';
-export const PIXEL_UNITS_VERSION = 1;
+export const PIXEL_UNITS_VERSION = 2;
 
 /** What the workbench page reports about its own pixel geometry. */
 export interface PixelReport {
@@ -37,14 +49,60 @@ export interface PixelReport {
   viewport: { width: number; height: number };
 }
 
-/** The remembered scale, or `null` when there is no usable record. */
+/** A rectangle in the workbench page's CSS pixels. */
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One webview frame the page hosts, in the page's CSS pixels.
+ *
+ * Measured 2026-10-05 (VS Code 1.140 / Electron 43): a webview is an
+ * `iframe.webview` inside a `div.webview-overlay-content` whose own rect equals the
+ * iframe's, so the iframe's rect **is** the frame on screen. `webview` elements are
+ * still matched for builds that render webviews that way instead.
+ *
+ * `webviewId` is the id out of the iframe's `src` (`…/index.html?id=<uuid>`), which
+ * is what makes a frame nameable across `ui` invocations — position and DOM order
+ * are not stable enough (the sidebar frame is simply the first one in the document).
+ */
+export interface WebviewFrame {
+  webviewId: string | null;
+  /** The workbench part the frame sits in: `sidebar`, `editor`, `panel`, … */
+  where: string;
+  rect: Rect;
+}
+
+/** The remembered reading: the page's scale plus the last capture's geometry. */
 export interface PixelUnitsState {
   version: number;
   scale: number;
   viewport: { width: number; height: number };
+  /**
+   * The last capture's pixel size, and the image-pixels-per-CSS-pixel it worked out
+   * to. Only `shot` writes these: a screenshot is what a coordinate is read off, so
+   * a command that is not a capture must not replace it.
+   */
+  image?: { width: number; height: number };
+  imageScale?: number;
+  /** The webview frames the last capture could place a coordinate in. */
+  frames?: WebviewFrame[];
+  /** The name of the capture those coordinates are meant to come from. */
+  shot?: string;
   /** ISO timestamp of the last reading, and the page it came from. */
   at: string;
   url: string;
+}
+
+/** The capture-specific half of a reading; absent for commands that are not `shot`. */
+export interface CaptureGeometry {
+  image?: { width: number; height: number };
+  imageScale?: number;
+  frames?: WebviewFrame[];
+  shot?: string;
 }
 
 export function pixelUnitsPath(harnessDir: string): string {
@@ -63,16 +121,44 @@ export function readPixelUnits(harnessDir: string): PixelUnitsState | null {
   }
 }
 
-export function writePixelUnits(harnessDir: string, report: PixelReport, url: string): PixelUnitsState {
+export function writePixelUnits(
+  harnessDir: string,
+  report: PixelReport,
+  url: string,
+  capture: CaptureGeometry = {},
+): PixelUnitsState {
   const state: PixelUnitsState = {
     version: PIXEL_UNITS_VERSION,
     scale: report.scale,
     viewport: report.viewport,
+    ...(capture.image === undefined ? {} : { image: capture.image }),
+    ...(capture.imageScale === undefined ? {} : { imageScale: capture.imageScale }),
+    ...(capture.frames === undefined ? {} : { frames: capture.frames }),
+    ...(capture.shot === undefined ? {} : { shot: capture.shot }),
     at: new Date().toISOString(),
     url,
   };
   fs.writeFileSync(pixelUnitsPath(harnessDir), `${JSON.stringify(state, null, 2)}\n`);
   return state;
+}
+
+/**
+ * Re-records the reading after a command that is **not** a capture.
+ *
+ * The page's scale is refreshed — the next command compares against what this one
+ * saw — while the capture's own geometry (`viewport`, `image`, `frames`, `shot`) is
+ * carried over: it still describes the screenshot the operator is reading
+ * coordinates off, and a resize between a capture and a click has to stay visible
+ * as a mismatch rather than being overwritten by an unrelated command.
+ */
+export function refreshPixelUnits(harnessDir: string, report: PixelReport, url: string): PixelUnitsState {
+  const previous = readPixelUnits(harnessDir);
+  return writePixelUnits(harnessDir, { scale: report.scale, viewport: previous?.viewport ?? report.viewport }, url, {
+    ...(previous?.image === undefined ? {} : { image: previous.image }),
+    ...(previous?.imageScale === undefined ? {} : { imageScale: previous.imageScale }),
+    ...(previous?.frames === undefined ? {} : { frames: previous.frames }),
+    ...(previous?.shot === undefined ? {} : { shot: previous.shot }),
+  });
 }
 
 /** Reads the page's pixel geometry — the same reading the screenshot is taken in. */
@@ -91,6 +177,257 @@ export async function readPixelReport(page: Page): Promise<PixelReport> {
       viewport: { width: win.innerWidth, height: win.innerHeight },
     };
   });
+}
+
+/** The subset of the page DOM {@link readWebviewFrames} walks, structurally typed. */
+interface DomElementLike {
+  getBoundingClientRect(): { x: number; y: number; width: number; height: number };
+  classList: { contains(name: string): boolean };
+  parentElement: DomElementLike | null;
+  getAttribute(name: string): string | null;
+  src?: string;
+}
+
+/**
+ * Every visible webview frame of the page, in document order, in CSS pixels.
+ *
+ * This is the measurement the pointer commands work in and the one an operator has
+ * to reason about: with more than one webview open, a coordinate read off the
+ * screenshot belongs to whichever frame's rect contains it — and
+ * `document.querySelector('iframe.webview')` silently answers with the **first**
+ * one (the sidebar's), which is how a run concluded the settings page was 3× the
+ * size of "the frame" while it was really looking at two different frames.
+ *
+ * The workbench part names are spelled out **inside** the evaluated function, and it
+ * declares no inner named function: its source is serialized into the page, where a
+ * module-scope constant is a `ReferenceError` and esbuild's `keepNames` wrapper for a
+ * named inner function (`__name`) is one too — measured 2026-10-05, from a
+ * `page.evaluate: ReferenceError: __name is not defined`.
+ *
+ * Which part a frame is in is decided **geometrically**, by the part whose rect
+ * contains the frame's centre, not by DOM ancestry: a webview sits in a top-level
+ * `position: fixed` overlay (CSS anchor positioning) beside the workbench, not inside
+ * the sidebar or editor element, so walking parents reports every frame as
+ * `workbench`.
+ */
+export async function readWebviewFrames(page: Page): Promise<WebviewFrame[]> {
+  return page.evaluate((): WebviewFrame[] => {
+    const parts = ['sidebar', 'editor', 'panel', 'auxiliarybar', 'activitybar', 'statusbar', 'titlebar'];
+    const doc = (
+      globalThis as unknown as { document: { querySelectorAll(selector: string): ArrayLike<DomElementLike> } }
+    ).document;
+    const partRects: Array<{ where: string; rect: { x: number; y: number; width: number; height: number } }> = [];
+    for (const name of parts) {
+      const element = Array.from(doc.querySelectorAll(`.part.${name}`))[0];
+      if (element === undefined) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      partRects.push({ where: name, rect });
+    }
+    const frames: WebviewFrame[] = [];
+    for (const element of Array.from(doc.querySelectorAll('iframe.webview, webview'))) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const src = String(element.src ?? element.getAttribute('src') ?? '');
+      const id = /[?&]id=([^&]+)/.exec(src);
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      let where = 'workbench';
+      let node: DomElementLike | null = element;
+      while (node) {
+        if (node.classList.contains('part')) {
+          where = 'part';
+          break;
+        }
+        node = node.parentElement;
+      }
+      for (const part of partRects) {
+        if (
+          cx >= part.rect.x &&
+          cy >= part.rect.y &&
+          cx <= part.rect.x + part.rect.width &&
+          cy <= part.rect.y + part.rect.height
+        ) {
+          where = part.where;
+          break;
+        }
+      }
+      frames.push({
+        webviewId: id ? id[1] : null,
+        where,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      });
+    }
+    return frames;
+  });
+}
+
+/**
+ * The pixel size of a PNG capture, read from its IHDR chunk.
+ *
+ * Deliberately not an image library: the only question is how many image pixels the
+ * capture has, and a PNG answers it in bytes 16–23. `null` for anything that is not
+ * a PNG this can read — an unknown size must never be treated as agreement.
+ */
+export function parsePngSize(bytes: Uint8Array): { width: number; height: number } | null {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24) return null;
+  for (const [index, byte] of signature.entries()) {
+    if (bytes[index] !== byte) return null;
+  }
+  if (String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]) !== 'IHDR') return null;
+  const width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+  const height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+  if (width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+/** {@link parsePngSize} for a capture on disk; `null` when it cannot be read. */
+export function screenshotSize(file: string): { width: number; height: number } | null {
+  try {
+    return parsePngSize(fs.readFileSync(file));
+  } catch {
+    return null;
+  }
+}
+
+function containsPoint(rect: Rect, point: { x: number; y: number }): boolean {
+  return point.x >= rect.x && point.y >= rect.y && point.x <= rect.x + rect.width && point.y <= rect.y + rect.height;
+}
+
+export function rectEquals(a: Rect, b: Rect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+export function describeRect(rect: Rect): string {
+  return `(${rect.x},${rect.y}) ${rect.width}x${rect.height}`;
+}
+
+/** Where a page coordinate lands: in one webview frame, or on the workbench chrome. */
+export interface CoordinatePlacement {
+  kind: 'webview' | 'chrome';
+  frame?: WebviewFrame;
+  /** One line naming what the coordinate lands in — printed before the command acts. */
+  note: string;
+}
+
+/** Which webview frame (if any) owns a page coordinate. Pure; see {@link readWebviewFrames}. */
+export function placeCoordinate(point: { x: number; y: number }, frames: readonly WebviewFrame[]): CoordinatePlacement {
+  const frame = frames.find((candidate) => containsPoint(candidate.rect, point));
+  if (!frame) {
+    return { kind: 'chrome', note: 'over workbench chrome (no webview frame contains it)' };
+  }
+  const which = frame.where === 'workbench' ? 'webview frame' : `${frame.where} webview`;
+  const id = frame.webviewId === null ? '' : `, webview ${frame.webviewId.slice(0, 8)}`;
+  return { kind: 'webview', frame, note: `inside the ${which} ${describeRect(frame.rect)}${id}` };
+}
+
+export interface PointerGeometryInput {
+  command: string;
+  point: { x: number; y: number };
+  /** The last reading, i.e. what the coordinates were read off. */
+  recorded: PixelUnitsState | null;
+  /** The page's geometry now. */
+  current: PixelReport;
+  /** The frames on screen now, from {@link readWebviewFrames}. */
+  liveFrames: readonly WebviewFrame[];
+}
+
+/**
+ * The coordinate contract of every pointer command.
+ *
+ * Returns the one-line note naming what the coordinate lands in, or throws with the
+ * measured numbers when the coordinate cannot be trusted. Four ways it cannot:
+ *
+ * 1. **It is not a number** — `ui click a b` would otherwise forward `NaN`.
+ * 2. **It is outside the page's CSS viewport.** Measured 2026-10-05: the settings
+ *    page's `AI 端点` section sat at inner y≈1460 of a 794-high sidebar frame, so a
+ *    coordinate taken from that element resolved to y≈1528 of a 900-high page. CDP
+ *    accepted it, nothing was clicked, and the command still exited 0 — the silent
+ *    miss the README warns about, now a refusal.
+ * 3. **The capture and the page disagree about what a pixel is.** A screenshot is in
+ *    image pixels; CDP input is in CSS pixels. They agree only while the capture's
+ *    `image.width / viewport.width` equals the page's `devicePixelRatio`, and a
+ *    capture that came back at a different ratio (a stale capture from another
+ *    window size, a build that captures at device scale, an unexpected zoom) makes
+ *    every coordinate read off it point somewhere else. The pixel-scale guard covers
+ *    `devicePixelRatio` *moving*; this covers the capture never having matched it.
+ * 4. **The frame the coordinate was read for has moved or gone.** A webview is a
+ *    separate frame; if the sidebar frame or an editor-area panel that contained the
+ *    point at capture time is not there any more, or is not the same size, the
+ *    element the coordinate was read for is not there either.
+ *
+ * The point of refusing rather than rescaling is the same as the scale guard's: only
+ * a fresh capture gives coordinates that are truthful again.
+ */
+export function pointerGeometryGuard(input: PointerGeometryInput): string {
+  const { command, point, recorded, current, liveFrames } = input;
+  const viewport = current.viewport;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new Error(
+      `${command}: (${point.x}, ${point.y}) is not a coordinate. Pass two numbers in CSS pixels ` +
+        `(the viewport is ${viewport.width}x${viewport.height}). Nothing was clicked.`,
+    );
+  }
+  if (point.x < 0 || point.y < 0 || point.x > viewport.width || point.y > viewport.height) {
+    throw new Error(
+      `${command}: (${point.x}, ${point.y}) is outside the page's CSS viewport ${viewport.width}x${viewport.height}.\n` +
+        '  A pointer event there cannot reach the document: the command would exit 0 having clicked nothing.\n' +
+        '  A coordinate usually ends up here because it was read off the DOM rather than a capture, or off a ' +
+        'control a webview has scrolled out of view — scroll it first (ui scroll), then take a fresh screenshot.\n' +
+        '  Nothing was clicked.',
+    );
+  }
+  if (recorded?.image !== undefined && recorded.viewport.width > 0) {
+    const imageScale = recorded.image.width / recorded.viewport.width;
+    if (Math.abs(imageScale - current.scale) > 0.01) {
+      throw new Error(
+        `${command}: the last capture (${recorded.shot ?? 'screenshot'}) is ${recorded.image.width}x${recorded.image.height} ` +
+          `image px for a ${recorded.viewport.width}x${recorded.viewport.height} CSS viewport, i.e. ${imageScale.toFixed(2)} ` +
+          `image px per CSS px, while the page reports ${current.scale} device px per CSS px now.\n` +
+          '  The two spaces disagree, so one coordinate read off that capture points somewhere else in the page.\n' +
+          `  Take a fresh screenshot (viewport ${viewport.width}x${viewport.height}) and read the coordinates off that. ` +
+          'Nothing was clicked.',
+      );
+    }
+  }
+  if (
+    recorded !== null &&
+    (recorded.viewport.width !== viewport.width || recorded.viewport.height !== viewport.height)
+  ) {
+    throw new Error(
+      `${command}: the page is ${viewport.width}x${viewport.height} now, but the last capture ` +
+        `(${recorded.shot ?? 'screenshot'}) was taken at ${recorded.viewport.width}x${recorded.viewport.height}.\n` +
+        '  The window was resized, so the layout the coordinate was read off is gone and the same numbers land on ' +
+        'a different element.\n' +
+        `  Take a fresh screenshot (viewport ${viewport.width}x${viewport.height}) and read the coordinates off that. ` +
+        'Nothing was clicked.',
+    );
+  }
+  const live = placeCoordinate(point, liveFrames);
+  const before = recorded?.frames === undefined ? null : placeCoordinate(point, recorded.frames);
+  if (before?.kind === 'webview' && before.frame !== undefined) {
+    const was = before.frame;
+    const now = live.kind === 'webview' ? live.frame : undefined;
+    const sameFrame =
+      now !== undefined &&
+      (was.webviewId !== null && now.webviewId !== null ? was.webviewId === now.webviewId : was.where === now.where);
+    if (!sameFrame || now === undefined || !rectEquals(was.rect, now.rect)) {
+      const nowText =
+        now === undefined
+          ? 'no webview frame contains it now'
+          : `the frame there now is the ${now.where} webview ${describeRect(now.rect)}` +
+            (now.webviewId === null ? '' : `, webview ${now.webviewId.slice(0, 8)}`);
+      throw new Error(
+        `${command}: (${point.x}, ${point.y}) was inside the ${was.where} webview ${describeRect(was.rect)} when the last ` +
+          `capture (${recorded?.shot ?? 'screenshot'}) was taken, and ${nowText}.\n` +
+          '  The frame moved, resized or closed, so the element the coordinate was read for may not be there any more.\n' +
+          `  Take a fresh screenshot (viewport ${viewport.width}x${viewport.height}) and read the coordinates off that. ` +
+          'Nothing was clicked.',
+      );
+    }
+  }
+  return `${command}: (${point.x}, ${point.y}) is ${live.note}`;
 }
 
 /**

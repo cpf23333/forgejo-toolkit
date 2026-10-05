@@ -370,23 +370,36 @@ test('the refusal names the instance, the reason and both ways forward', () => {
   assert.match(text, /no path prefix/);
 });
 
-test('a mock-backed run says the instances it checked are all served', () => {
+test('a mock-backed run names the instances it checked, and where it read them', () => {
   const report = apiModeReport(
     { action: 'launch', mode: 'mock' },
     { ...CONTEXT, marker: 'A demo repository for offline development.', handledApiPath: HANDLED_PATH },
   );
   const text = report.lines.join('\n');
   assert.match(text, /Mock-backed run:/);
-  assert.match(text, /every configured instance is one the handlers cover/);
+  assert.match(text, /1 recorded in the profile's registry/);
+  assert.match(text, /every one of them covered by the handlers \(<any scheme>:\/\/<any host>\/api\/v1\/…\)/);
+  // Naming the instance is the point: the line has to say what the gate checked.
+  assert.match(text, /Demo Forgejo <https:\/\/forgejo\.example\.com>/);
+  assert.match(text, /mcp-instances\.json/);
   assert.doesNotMatch(text, /none recorded yet/, 'the profile has an instance, so that note is wrong here');
 });
 
-test('a mock-backed run with no configured instance is still honest about it', () => {
+test('an empty registry reads as "not seen yet", never as "nothing to poll"', () => {
   const report = apiModeReport(
     { action: 'launch', mode: 'mock' },
     { ...CONTEXT, instances: [], handledApiPath: HANDLED_PATH },
   );
   const text = report.lines.join('\n');
   assert.match(text, /Mock-backed run:/);
-  assert.match(text, /none recorded yet/);
+  assert.match(text, /none recorded in the profile's registry yet/);
+  assert.match(text, /mcp-instances\.json/);
+  // Measured 2026-10-05: an `--ai-mock` launch printed the empty-registry note and
+  // the window then polled the profile's seeded mock instance, which it wrote into
+  // that file at activation. The line must not claim the run polls nothing.
+  assert.match(text, /the window polls the instances its own store holds/);
+  assert.doesNotMatch(text, /has nothing to poll/);
+  // Nor may it print the "every configured instance is covered" claim over an empty
+  // list: that is what read as "all clear" next to the note.
+  assert.doesNotMatch(text, /every configured instance is one the handlers cover/);
 });
