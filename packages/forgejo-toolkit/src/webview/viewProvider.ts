@@ -93,6 +93,8 @@ import {
   writeAiProviderSecret,
 } from './aiProviderSettings';
 import { readSettingsSurface, writeSettingsSurfaceValue } from './settingsSurface';
+import { SettingsWebviewPanel, settingsLocale, type WebviewReplySink } from './settingsPanel';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { aiProviderDraftTestReport } from '../ai/testProvider';
 import { aiProviderSettingsReading } from '../ai/modelSettings';
 import {
@@ -541,6 +543,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private _pendingMessages: HostToWebviewMessage[] = [];
   /** Request ids currently being handled; a reply removes the id (see `_reply`). */
   private readonly _unansweredRequests = new Set<string>();
+  /**
+   * The same bookkeeping for the settings tab, kept apart from the sidebar's.
+   *
+   * The two surfaces generate their request ids from the same composable, so
+   * `list-repos-1` can be in flight in both at once. One shared set would let a
+   * reply to one surface cancel the other's fallback, and the surface whose
+   * handler bailed out silently would then spin forever (see `_dispatchMessage`).
+   */
+  private readonly _unansweredSettingsRequests = new Set<string>();
+  /**
+   * Which webview the message being handled came from, for the duration of that
+   * handler.
+   *
+   * A handler's replies are deep inside the shared dispatcher (`_handleMessage`
+   * and everything it calls) and cannot be told which surface asked, so the
+   * surface travels with the call instead: the settings panel runs its dispatch
+   * inside `AsyncLocalStorage.run`, `_reply` reads the channel here, and every
+   * reply — including the ones posted after an `await` — lands in the webview
+   * that asked. Messages that are not a reply at all (a poller toast, a
+   * configuration-change push) have no channel and keep going to the sidebar,
+   * exactly as before.
+   */
+  private readonly _replySink = new AsyncLocalStorage<WebviewReplySink>();
   private readonly _worktreeManager: WorktreeManager;
   /** Guards against concurrent openPrWorktree runs for the same PR (double-click). */
   private readonly _worktreeInFlight = new InFlightTasks();
@@ -687,6 +712,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           event.affectsConfiguration('forgejoToolkit.aiModelRequestTimeoutMs')
         ) {
           void this._pushAiProviderSettings();
+          // The settings tab renders the same five keys and reads them from the
+          // host; the push above goes to the sidebar, which no longer renders
+          // them, so the open tab is told to re-read rather than being left on the
+          // snapshot it mounted with.
+          SettingsWebviewPanel.notifySettingsChanged();
         }
         if (!event.affectsConfiguration('forgejoToolkit.locale')) {
           return;
@@ -700,6 +730,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // was created with unless the host pushes the change into it too.
         OnboardingWebviewPanel.notifyLocaleChanged(locale);
         PullReviewCommentPanel.notifyLocaleChanged(locale);
+        // And the settings tab, which is the surface where the language is
+        // actually chosen: its own picker writes the setting and gets the echo
+        // through the reply channel, but a change made in VS Code's settings
+        // editor has to be pushed the same way the wizard's is.
+        SettingsWebviewPanel.notifyLocaleChanged(locale);
       }),
       {
         dispose: () => {
@@ -878,8 +913,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const requestId = typeof message._requestId === 'string' ? (message._requestId as string) : undefined;
+    const unanswered = this._unansweredForCurrentSurface();
     if (requestId) {
-      this._unansweredRequests.add(requestId);
+      unanswered.add(requestId);
     }
     try {
       await this._handleMessage(message);
@@ -887,8 +923,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const err = userFacingErrorMessage(error);
       logger.error(`Error handling webview message "${message.command}": ${err}`);
     } finally {
-      if (requestId && this._unansweredRequests.has(requestId)) {
-        this._unansweredRequests.delete(requestId);
+      if (requestId && unanswered.has(requestId)) {
+        unanswered.delete(requestId);
         logger.error(`Handler for "${message.command}" ended without replying to request ${requestId}`);
         this._reply('requestError', {
           _requestId: requestId,
@@ -896,6 +932,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         });
       }
     }
+  }
+
+  /**
+   * The pending-request set of the surface whose message is being handled: the
+   * settings tab while its own dispatch is on the stack, the sidebar otherwise
+   * (see `_replySink`).
+   */
+  private _unansweredForCurrentSurface(): Set<string> {
+    return this._replySink.getStore() ? this._unansweredSettingsRequests : this._unansweredRequests;
   }
 
   /**
@@ -989,7 +1034,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           worktreeCacheDirectoryDefault: defaultDirectory,
         });
         this._detectAndSendLinkedRepository();
-        if (this._pendingMessages.length > 0) {
+        // The queue holds messages for the **sidebar**, which could not be
+        // delivered because its webview had never been resolved, so only the
+        // sidebar's own `getInitialState` may drain it. The settings tab asks the
+        // same question on every mount and on every showing, and draining the
+        // queue there would drop the sidebar's pending messages into a `_view`
+        // that does not exist yet — losing them for good.
+        if (!this._replySink.getStore() && this._pendingMessages.length > 0) {
           const pending = this._pendingMessages.splice(0);
           for (const message of pending) {
             this._view?.webview.postMessage(message);
@@ -5143,9 +5194,36 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._prDescriptionRunner = runner;
   }
 
+  /**
+   * Opens the settings page (`docs/design/settings-page.md` §9.3).
+   *
+   * It is an **editor-area tab** now, not a route inside this sidebar: the page
+   * is a wide form and the sidebar is a column for lists, so the command (and
+   * the view-title action that runs it) opens the tab, and opening it again
+   * reveals the one already open rather than stacking a second. The sidebar is
+   * deliberately **not** revealed or focused here — the page no longer lives in
+   * it, and a settings command that replaced what the user was reading in the
+   * sidebar would be the disturbance this move removes.
+   */
   public openSettings() {
-    this._revealView();
-    this._postOrQueue({ command: 'openSettings' });
+    SettingsWebviewPanel.createOrShow(this._extensionUri, {
+      dispatchSettingsMessage: (message, reply) => this.dispatchSettingsMessage(message, reply),
+      instanceUrls: () => this._config.getInstances().map((instance) => instance.url),
+      locale: () => settingsLocale(),
+    });
+  }
+
+  /**
+   * Handles one message from the settings tab with replies routed back to it.
+   *
+   * It is the *same* dispatcher the sidebar uses, deliberately: the page sends
+   * the messages the sidebar version sent, and a second switch statement for the
+   * panel would be a second implementation of every one of them. What this adds
+   * is the channel (`_replySink`), so a reply lands in the webview that asked
+   * even when both are open.
+   */
+  public async dispatchSettingsMessage(message: unknown, reply: WebviewReplySink): Promise<void> {
+    await this._replySink.run(reply, () => this._dispatchMessage(message));
   }
 
   public openDashboard() {
@@ -5985,9 +6063,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // duplicate requestError reply.
     const requestId = (data as { _requestId?: unknown })._requestId;
     if (typeof requestId === 'string') {
-      this._unansweredRequests.delete(requestId);
+      this._unansweredForCurrentSurface().delete(requestId);
     }
-    this._view?.webview.postMessage({ command, ...data } as HostToWebviewMessage);
+    const message = { command, ...data } as HostToWebviewMessage;
+    // The surface that asked, when a handler is running; the sidebar otherwise.
+    const sink = this._replySink.getStore();
+    if (sink) {
+      sink(message);
+      return;
+    }
+    this._view?.webview.postMessage(message);
   }
 
   /**

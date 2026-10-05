@@ -64,11 +64,27 @@ describe('Settings editor identity layout', () => {
     expect(background).not.toMatch(/transparent|rgba\(/);
   });
 
-  it('does not introduce a second sticky strip to repeat the identity', () => {
-    // The heading block is the sticky element. A second sticky element would be
-    // the "repeated name" shape the accessibility rule rules out — either a
-    // second heading, or name text announced twice.
-    expect(settingsSource.match(/position: sticky/g)).toHaveLength(1);
+  it('keeps the identity block of an editor the only sticky strip it has', () => {
+    // The heading block is the sticky element **of an editor**: a second one there
+    // would be the "repeated name" shape the accessibility rule rules out — either
+    // a second heading, or name text announced twice. The list state has since
+    // grown sticky blocks of its own — the narrow shape's group bar and the wide
+    // shape's navigation column (`docs/design/settings-page.md` §9.3) — and they
+    // are the page's chrome rather than a record's identity: both are inside the
+    // list state's branch, which is not on screen while an editor is open. So the
+    // set is pinned as a whole, which is what keeps a *new* sticky strip from
+    // joining them unnoticed.
+    const stickyVehicles = [...settingsSource.matchAll(/([^{}]+)\{([^{}]*position:\s*sticky[^{}]*)\}/g)].map(
+      (match) =>
+        // The selector is the last line of the match's prefix that is not part of
+        // the comment block above the rule.
+        match[1]
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line !== '' && !line.startsWith('*') && !line.startsWith('/*'))
+          .pop() ?? '',
+    );
+    expect(stickyVehicles.sort()).toEqual(['.editor-heading', '.settings-nav', '.settings-pane-bar']);
   });
 
   it('reserves the sticky block’s height above a field scrolled into view', () => {
@@ -175,13 +191,15 @@ describe('Settings state-root focus', () => {
   it('leaves the interactive controls their own focus rings', () => {
     // A `vscode-button` outlines its inner element and `vscode-textfield` turns
     // its wrapper's border to the focus colour — both inside their own components,
-    // which this view must not suppress. The only `outline` declaration here is
-    // the `none` on the two non-interactive roots.
+    // which this view must not suppress. Two `outline` declarations are this
+    // view's own: the `none` on the two non-interactive state roots, and the ring
+    // the navigation items draw — they are plain `<button>`s of the page's own
+    // making, so nothing else draws one for them (§9.3).
     const declarations = settingsSource.match(/^\s*outline:\s*[^;]+;/gm) ?? [];
-    expect(declarations).toHaveLength(1);
-    expect(declarations[0]).toContain('none');
+    const suppressions = declarations.filter((declaration) => declaration.includes('none'));
+    expect(suppressions).toHaveLength(1);
     // Checked rule by rule rather than on the raw text: no rule in this view
-    // addresses a control's outline at all.
+    // addresses a `vscode-*` control's outline at all.
     const css = settingsSource.slice(settingsSource.indexOf('<style scoped>')).replace(/\/\*[\s\S]*?\*\//g, '');
     const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
       selectors: match[1].trim(),
@@ -189,9 +207,13 @@ describe('Settings state-root focus', () => {
     }));
     expect(rules.length).toBeGreaterThan(10);
     const outlineRules = rules.filter((rule) => /(^|[;\s])outline\s*:/.test(rule.body));
-    expect(outlineRules).toHaveLength(1);
-    expect(outlineRules[0].selectors).toContain('.instance-editor');
-    expect(outlineRules[0].selectors).toContain('.settings-list');
+    expect(outlineRules).toHaveLength(2);
+    const rootRule = outlineRules.find((rule) => rule.body.includes('none'));
+    expect(rootRule?.selectors).toContain('.instance-editor');
+    expect(rootRule?.selectors).toContain('.settings-list');
+    const navigationRule = outlineRules.find((rule) => rule !== rootRule);
+    expect(navigationRule?.selectors).toContain('.settings-nav-item');
+    expect(navigationRule?.body).toContain('var(--vscode-focusBorder)');
     for (const rule of rules) {
       if (/vscode-(button|textfield|single-select|checkbox)/.test(rule.selectors)) {
         expect(rule.body, rule.selectors).not.toMatch(/outline\s*:/);

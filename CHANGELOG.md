@@ -151,6 +151,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The settings page is an editor tab of its own now, divided into six groups.**
+  It used to be a route inside the sidebar — which meant opening settings replaced
+  whatever you were reading there, in a column about 300 px wide, as eleven
+  sections in one scroll with no navigation at all. It opens as an editor-area tab
+  instead: the same **Open Settings** command and the same gear in the sidebar
+  view's title bar both open it, opening it again focuses the tab that is already
+  open rather than stacking a second one, closing it and opening it again gives you
+  a page that reads everything fresh, and opening it no longer touches the sidebar
+  (the sidebar's own copy of the page is gone, so there is exactly one place to
+  change these settings from). A tab that was hidden and becomes visible again
+  re-reads what it shows instead of returning with the snapshot it was holding.
+- The page is divided into **General / Instances / Notifications / MCP / AI /
+  Git / Worktree**, and opens on General. In a wide tab the groups are a vertical
+  list beside the content, with the group's name as the heading above it; drag the
+  tab narrow — or drop it into one pane of a split editor — and the same choice
+  moves into a selector in the sticky bar at the top, so the page always keeps a
+  single content column at that width. Neither shape is a setting: there is nothing
+  new to configure, the width decides. Switching groups only changes which group is
+  on screen — every control stays in the page, and the instance and AI-endpoint
+  editors still return you to the group you opened them from, with focus back on
+  the row's own Edit button.
 - The release guide now opens the next `## [Unreleased]` section before the
   release runs, in the same commit that names the released section for its
   version, so the changelog always carries a place for the next cycle and nothing

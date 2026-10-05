@@ -11,6 +11,15 @@ import { postMessage } from '../composables/vscode';
 import '../types/config';
 
 const { t } = useI18n();
+/**
+ * Only the wizard's own panel installs no router, and this view only ever runs
+ * inside it (`OnboardingPanel.vue` is its only mount — there is no route for it),
+ * so `router` is `undefined` at runtime and the two guards below say which of the
+ * two modes a run is in. The `importPreview` half of it is gone: the import
+ * preview is rendered **in place** now (`v-if` in the template) and the sidebar
+ * route it used to push to retired with the settings page
+ * (`docs/design/settings-page.md` §9.3).
+ */
 const router = useAppRouter();
 const state = useAppState();
 
@@ -355,15 +364,6 @@ watch(
       } else {
         setConnectionStatus(t('settings.status.errorSaved'), 'error');
       }
-    }
-  },
-);
-
-watch(
-  () => state.importPreview.value,
-  (preview) => {
-    if (preview && !isPanelMode && router && router.currentRoute.value.name !== 'importPreview') {
-      router.replace({ name: 'importPreview' });
     }
   },
 );

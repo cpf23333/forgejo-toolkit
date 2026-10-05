@@ -90,6 +90,7 @@
   "No git repository found in the current workspace. Open a folder containing a git repository to publish it.": "当前工作区中没有 git 仓库。请打开包含 git 仓库的文件夹后再发布。",
   "Select a folder to publish": "选择要发布的文件夹",
   "Open Settings": "打开设置",
+  "Settings": "设置",
   "View Log": "查看日志",
   "The request timed out. The instance is not responding.": "请求超时，实例无响应。",
   "The request was cancelled.": "请求已取消。",

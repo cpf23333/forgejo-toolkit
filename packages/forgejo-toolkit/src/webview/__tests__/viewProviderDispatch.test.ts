@@ -4569,26 +4569,193 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(reply?.notifications).toBeUndefined();
   });
 
-  it('openSettings reveals the resolved view and posts the openSettings message', async () => {
-    provider.openSettings();
+  /**
+   * A fake editor-area webview panel, for the settings tab.
+   *
+   * `dispose` is only recorded: the tab's own `onDidDispose` handler calls
+   * `panel.dispose()`, so a fake that fired its listener from there would recurse.
+   * A test that means "the user closed the tab" calls `fireDispose()`.
+   */
+  function createFakeWebviewPanel() {
+    const posted: unknown[] = [];
+    let listener: MessageListener | undefined;
+    let disposeListener: (() => void) | undefined;
+    let stateListener: (() => void) | undefined;
+    const panel = {
+      visible: true,
+      title: '' as string | undefined,
+      reveal: vi.fn(),
+      dispose: vi.fn(),
+      onDidDispose: (l: () => void) => {
+        disposeListener = l;
+        return { dispose: vi.fn() };
+      },
+      onDidChangeViewState: (l: () => void) => {
+        stateListener = l;
+        return { dispose: vi.fn() };
+      },
+      webview: {
+        options: undefined as unknown,
+        html: '',
+        cspSource: '',
+        postMessage: (message: unknown) => {
+          posted.push(message);
+          return Promise.resolve(true);
+        },
+        onDidReceiveMessage: (l: MessageListener) => {
+          listener = l;
+          return { dispose: vi.fn() };
+        },
+        asWebviewUri: (uri: unknown) => uri,
+      },
+    };
+    return {
+      panel,
+      posted,
+      send: (message: unknown) => listener?.(message),
+      /** What VS Code does when the tab is switched to or away from. */
+      changeViewState: () => stateListener?.(),
+      /** The user closed the tab. */
+      fireDispose: () => disposeListener?.(),
+    };
+  }
 
-    expect(fake.view.show).toHaveBeenCalledWith(false);
-    expect(postedMessages(fake.posted).some((m) => m.command === 'openSettings')).toBe(true);
-  });
+  /**
+   * The settings tab (`docs/design/settings-page.md` §9.3).
+   *
+   * What the page used to be — a route inside the sidebar — is what these pin
+   * against: the command opens an **editor-area tab**, opening it again reveals
+   * the one already open instead of stacking a second, the sidebar is not
+   * touched, a shown-again tab is told to re-read, and a closed tab is gone for
+   * good (the next open is a new page).
+   */
+  describe('the settings tab', () => {
+    let tabs: Array<ReturnType<typeof createFakeWebviewPanel>> = [];
 
-  it('openSettings focuses the view id when the view has never been resolved', async () => {
-    const freshProvider = new ForgejoToolkitViewProvider(
-      context as never,
-      context.extensionUri as never,
-      config,
-      new ReadmeContentProvider(),
-    );
-    const executeCommand = vi.mocked(vscode.commands.executeCommand);
-    executeCommand.mockClear();
+    function openTab(instance: ForgejoToolkitViewProvider = provider) {
+      const tab = createFakeWebviewPanel();
+      tabs.push(tab);
+      vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(tab.panel as unknown as vscode.WebviewPanel);
+      instance.openSettings();
+      return tab;
+    }
 
-    freshProvider.openSettings();
+    afterEach(() => {
+      for (const tab of tabs) {
+        tab.fireDispose();
+      }
+      tabs = [];
+      vi.mocked(vscode.window.createWebviewPanel).mockReset();
+    });
 
-    expect(executeCommand).toHaveBeenCalledWith('forgejoToolkitView.focus');
+    it('opens an editor-area tab with the host’s own title, and leaves the sidebar alone', () => {
+      const tab = openTab();
+      const createPanel = vi.mocked(vscode.window.createWebviewPanel);
+
+      expect(createPanel).toHaveBeenCalledTimes(1);
+      expect(createPanel.mock.calls[0][0]).toBe('forgejoToolkitSettings');
+      // Host-side l10n: the mock returns the message it was given.
+      expect(createPanel.mock.calls[0][1]).toBe('Settings');
+      // The sidebar is not revealed, focused or messaged: the page is not in it
+      // any more, and a settings command must not replace what the user reads.
+      expect(fake.view.show).not.toHaveBeenCalled();
+      expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('forgejoToolkitView.focus');
+      expect(postedMessages(fake.posted).some((m) => m.command === 'openSettings')).toBe(false);
+      expect(tab.posted).toEqual([]);
+    });
+
+    it('reveals the open tab instead of stacking a second, and tells it to re-read', () => {
+      const first = openTab();
+      first.posted.length = 0;
+
+      // The second invocation's fake is deliberately never handed back: the host
+      // must not ask for a panel at all, it reveals the one it already has.
+      openTab();
+
+      expect(vi.mocked(vscode.window.createWebviewPanel)).toHaveBeenCalledTimes(1);
+      expect(first.panel.reveal).toHaveBeenCalledTimes(1);
+      // "Shown again" means a fresh reading (`refreshSettings`), not the snapshot
+      // the page was holding.
+      expect(postedMessages(first.posted).map((m) => m.command)).toContain('refreshSettings');
+    });
+
+    it('tells a tab that becomes visible again to re-read, and only then', () => {
+      const tab = openTab();
+      tab.posted.length = 0;
+
+      tab.panel.visible = false;
+      tab.changeViewState();
+      expect(tab.posted).toEqual([]);
+
+      tab.panel.visible = true;
+      tab.changeViewState();
+      expect(postedMessages(tab.posted).map((m) => m.command)).toEqual(['refreshSettings']);
+    });
+
+    it('forgets a closed tab, so the next open is a new page', () => {
+      const first = openTab();
+      first.fireDispose();
+      expect(first.panel.dispose).toHaveBeenCalledTimes(1);
+
+      const second = openTab();
+
+      expect(second).not.toBe(first);
+      expect(vi.mocked(vscode.window.createWebviewPanel)).toHaveBeenCalledTimes(2);
+      // Nothing is carried over: the new document is built again from scratch.
+      expect(second.panel.webview.html).toBe(first.panel.webview.html);
+    });
+
+    it('answers the tab’s request in the tab, not in the sidebar', async () => {
+      const tab = openTab();
+      tab.posted.length = 0;
+      fake.posted.length = 0;
+
+      tab.send({ command: 'getSettingsSurface', _requestId: 'req-from-tab' });
+      await flushDispatches();
+
+      const reply = postedMessages(tab.posted).find((m) => m.command === 'settingsSurface');
+      expect(reply, 'the tab is answered').toBeDefined();
+      expect(reply?._requestId).toBe('req-from-tab');
+      // The sidebar is a different webview with its own page: a reply for the tab
+      // that landed there would be a reply the requester never gets.
+      expect(postedMessages(fake.posted).some((m) => m.command === 'settingsSurface')).toBe(false);
+    });
+
+    it('keeps answering the sidebar’s own requests in the sidebar', async () => {
+      const tab = openTab();
+      tab.posted.length = 0;
+      fake.posted.length = 0;
+
+      fake.send({ command: 'getSettingsSurface', _requestId: 'req-from-sidebar' });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted).some((m) => m.command === 'settingsSurface')).toBe(true);
+      expect(tab.posted).toEqual([]);
+    });
+
+    it('does not let the tab drain the sidebar’s queued messages', async () => {
+      // The queue holds messages for a sidebar whose webview has never been
+      // resolved. The tab asks the same `getInitialState` question on every
+      // mount, and draining the queue there would post them into a `_view` that
+      // does not exist — losing them for good.
+      const freshProvider = new ForgejoToolkitViewProvider(
+        context as never,
+        context.extensionUri as never,
+        config,
+        new ReadmeContentProvider(),
+      );
+      freshProvider.openDashboard();
+      const tab = openTab(freshProvider);
+      tab.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      const sidebar = createFakeView();
+      freshProvider.resolveWebviewView(sidebar.view as never, {} as never, {} as never);
+      sidebar.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      expect(postedMessages(sidebar.posted).some((m) => m.command === 'openDashboard')).toBe(true);
+    });
   });
 
   describe('startWorkOnIssue', () => {

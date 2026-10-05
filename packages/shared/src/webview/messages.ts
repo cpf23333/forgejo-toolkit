@@ -829,9 +829,15 @@ export type HostToWebviewMessage =
       worktreeCacheDirectory: string;
       worktreeCacheDirectoryDefault: string;
     }
-  | { command: 'openSettings' }
   | { command: 'openDashboard' }
   | { command: 'openNotifications' }
+  // The settings tab was shown again: re-read everything the page renders
+  // (`docs/design/settings-page.md` §9.3, "a shown-again tab gets a fresh
+  // reading"). The host pushes the **instruction** rather than a synthesized
+  // snapshot, and the page answers it by issuing the requests it already has —
+  // the initial-state request plus the settings/AI-endpoint/model-list reads — so
+  // there is exactly one implementation of each of those readings.
+  | { command: 'refreshSettings' }
   // Fallback reply for any request/response message whose handler finished
   // (or threw) without sending its specific reply.
   | { command: 'requestError'; _requestId: string; error: string }

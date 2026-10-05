@@ -44,10 +44,25 @@ const SURFACES = [
     entry: 'src/entries/aiPreReview.ts',
     root: 'AiPreReviewPanel.vue',
   },
+  {
+    // The settings page: an editor-area tab of its own since §9.3, with its own
+    // document so the sidebar shell is not in its graph. It carries the import
+    // preview as well (`Settings.vue` renders `ImportPreview.vue` inline), which
+    // is why that view stopped using a router.
+    kind: 'panel',
+    html: 'settings.html',
+    entry: 'src/entries/settings.ts',
+    root: 'SettingsPanel.vue',
+  },
 ] as const;
 
 /** The standalone panels' root components, each its own surface. */
-const PANEL_ROOTS = ['OnboardingPanel.vue', 'PullReviewCommentPanel.vue', 'AiPreReviewPanel.vue'] as const;
+const PANEL_ROOTS = [
+  'OnboardingPanel.vue',
+  'PullReviewCommentPanel.vue',
+  'AiPreReviewPanel.vue',
+  'SettingsPanel.vue',
+] as const;
 
 /** The `@vscode-elements/elements` component directory a module id/specifier names. */
 const ELEMENT_MODULE = /@vscode-elements\/elements\/dist\/(vscode-[a-z0-9-]+)\//;

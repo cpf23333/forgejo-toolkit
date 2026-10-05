@@ -547,6 +547,15 @@
     "forgejoToolkit.aiDefaultModel": "settings.aiProviders.defaultModel.model",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
     "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
+    "groups": {
+      "label": "Settings group",
+      "general": "General",
+      "instances": "Instances",
+      "notifications": "Notifications",
+      "mcp": "MCP",
+      "ai": "AI",
+      "worktree": "Git / Worktree"
+    },
     "language": "Language",
     "languageDescription": "Select display language for the Forgejo Toolkit panel.",
     "header": {

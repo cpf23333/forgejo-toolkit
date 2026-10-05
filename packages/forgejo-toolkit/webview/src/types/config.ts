@@ -27,7 +27,7 @@ export type { AiPreReviewPanelCandidate, AiPreReviewPanelPayload };
 export type AiPreReviewPanelConfig = AiPreReviewPanelPayload & { canOpenPullRequest?: boolean };
 
 export interface ForgejoToolkitWebviewConfig {
-  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview';
+  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
   locale?: 'en' | 'zh';
   vscodeVersion?: string;
   pullReviewComment?: PullReviewCommentContext;

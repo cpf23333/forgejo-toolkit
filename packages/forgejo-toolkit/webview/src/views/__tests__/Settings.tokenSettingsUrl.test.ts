@@ -6,6 +6,7 @@ const { stateMock } = vi.hoisted(() => ({
   stateMock: {
     instances: { value: [] },
     importPreview: { value: undefined },
+    settingsRefreshTick: { value: 0 },
     locale: { value: 'en' },
     changeLocale: vi.fn(),
     debug: { value: false },

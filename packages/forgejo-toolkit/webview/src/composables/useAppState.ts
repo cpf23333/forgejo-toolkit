@@ -771,6 +771,17 @@ function createAppState() {
 
   const debug = ref<boolean>(false);
   /**
+   * How many times the host has said "this tab is on screen again"
+   * (`refreshSettings`, `docs/design/settings-page.md` §9.3).
+   *
+   * A counter rather than a boolean because the page has to re-read on **every**
+   * showing, including the second and the third: a flag that went back to `false`
+   * would need a second message to clear it, and a flag that stayed `true` would
+   * fire once. The settings page watches it and re-issues its reads — the page is
+   * the only surface that knows which of them it renders.
+   */
+  const settingsRefreshTick = ref<number>(0);
+  /**
    * Whether `forgejoToolkit.aiPreReview` is on, as the host last reported it.
    *
    * It exists for exactly one affordance: the pull request detail page's
@@ -1320,8 +1331,15 @@ function createAppState() {
         }
         break;
       }
-      case 'openSettings':
-        router.push({ name: 'settings' });
+      // The settings tab was shown again. Two things happen, and both belong to
+      // this layer rather than to the page: the shared initial state is asked for
+      // again (instances, locale, debug, worktrees — everything `Settings.vue`
+      // mirrors from `state`), and the tick tells the page to re-issue the three
+      // reads only it knows about (its own settings surface, the AI endpoint
+      // snapshot and the chat-model list).
+      case 'refreshSettings':
+        postMessage({ command: 'getInitialState' });
+        settingsRefreshTick.value += 1;
         break;
       case 'openDashboard':
         router.push({ name: 'dashboard' });
@@ -7226,6 +7244,7 @@ function createAppState() {
     loading,
     errors,
     debug,
+    settingsRefreshTick,
     aiPreReview,
     prDescription,
     minSupportedServerVersion,

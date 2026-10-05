@@ -109,10 +109,32 @@ const SURFACES: Surface[] = [
     root: 'src/AiPreReviewPanel.vue',
     elements: ['vscode-button', 'vscode-checkbox'],
   },
+  {
+    // The settings page, which is an editor-area tab of its own since §9.3. It
+    // renders the page plus the import preview it shows in place, so it registers
+    // the page's controls and the icon `ModalDialog` draws over them.
+    name: 'settings panel',
+    html: 'settings.html',
+    entry: 'src/entries/settings.ts',
+    root: 'src/SettingsPanel.vue',
+    elements: [
+      'vscode-button',
+      'vscode-checkbox',
+      'vscode-icon',
+      'vscode-option',
+      'vscode-single-select',
+      'vscode-textfield',
+    ],
+  },
 ];
 
 /** The standalone panels' root components, each its own surface. */
-const PANEL_ROOTS = ['src/OnboardingPanel.vue', 'src/PullReviewCommentPanel.vue', 'src/AiPreReviewPanel.vue'];
+const PANEL_ROOTS = [
+  'src/OnboardingPanel.vue',
+  'src/PullReviewCommentPanel.vue',
+  'src/AiPreReviewPanel.vue',
+  'src/SettingsPanel.vue',
+];
 
 /** The dashboard shell a standalone panel must not reach. */
 const DASHBOARD_SHELL: { label: string; pattern: RegExp }[] = [

@@ -46,6 +46,7 @@ const { stateMock, surface } = vi.hoisted(() => {
   const mock = {
     instances: { value: [] as unknown[] },
     importPreview: { value: undefined },
+    settingsRefreshTick: { value: 0 },
     locale: { value: 'en' },
     changeLocale: vi.fn(),
     debug: { value: false },

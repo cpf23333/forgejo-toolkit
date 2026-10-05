@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppRouter } from '../composables/useAppRouter';
 import { useAppState } from '../composables/useAppState';
 import type {
   AiImportPreviewProvider,
@@ -12,7 +11,6 @@ import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instanc
 
 const { t } = useI18n();
 const state = useAppState();
-const router = useAppRouter();
 
 const preview = computed(() => state.importPreview.value);
 const selectedIds = ref<Set<string>>(new Set());
@@ -170,6 +168,15 @@ function deselectAll() {
   selectedIds.value = new Set();
 }
 
+/**
+ * The preview is rendered **in place** now, by whichever surface asked for it
+ * (`Settings.vue` inside the settings tab, `Onboarding.vue` inside the wizard
+ * panel), and clearing `state.importPreview` is what closes it: there is no route
+ * to go back to. The sidebar's `importPreview` route retired with the settings
+ * route it was reached from (`docs/design/settings-page.md` §9.3), which is also
+ * why this component no longer reaches for a router at all — it is now in a
+ * panel bundle, where `vue-router` must not appear (`webview/vite.config.mts`).
+ */
 function handleImport() {
   const selected = instances.value.filter((instance) => selectedIds.value.has(instance.id)).map((i) => i.id);
   if (selected.length === 0) {
@@ -177,17 +184,11 @@ function handleImport() {
   }
   state.confirmImportInstances(selected, settings.value, aiChoices.value);
   state.importPreview.value = undefined;
-  if (router) {
-    router.replace({ name: 'settings' });
-  }
 }
 
 function cancel() {
   state.cancelImportInstances();
   state.importPreview.value = undefined;
-  if (router) {
-    router.replace({ name: 'settings' });
-  }
 }
 
 watch(

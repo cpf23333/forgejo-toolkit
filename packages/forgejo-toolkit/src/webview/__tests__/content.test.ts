@@ -118,16 +118,19 @@ describe('getWebviewContent', () => {
   });
 
   it('loads each surface its own entry document', () => {
-    // The four surfaces are separate Vite entries (see webview/vite.config.mts),
+    // The five surfaces are separate Vite entries (see webview/vite.config.mts),
     // so a panel document must never be the dashboard's: loading index.html from
     // a panel is exactly the regression that made a panel download the whole
-    // dashboard shell.
+    // dashboard shell. The settings page's own document is the newest of them —
+    // it moved out of the sidebar's router into an editor-area tab
+    // (`docs/design/settings-page.md` §9.3).
     const expected: [WebviewContentOptions | undefined, string][] = [
       [undefined, 'index.html'],
       [{ instanceUrls: ['https://forgejo.example.com'] }, 'index.html'],
       [{ panelMode: 'onboarding' }, 'onboarding.html'],
       [{ panelMode: 'pullReviewComment' }, 'pullReviewComment.html'],
       [{ panelMode: 'aiPreReview' }, 'aiPreReview.html'],
+      [{ panelMode: 'settings' }, 'settings.html'],
     ];
     for (const [options, file] of expected) {
       vi.mocked(fs.readFileSync).mockClear();

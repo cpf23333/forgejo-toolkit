@@ -547,6 +547,15 @@
     "forgejoToolkit.aiDefaultModel": "settings.aiProviders.defaultModel.model",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
     "forgejoToolkit.aiModelRequestTimeoutMs": "settings.aiProviders.policy.timeout",
+    "groups": {
+      "label": "设置分组",
+      "general": "通用",
+      "instances": "实例",
+      "notifications": "通知",
+      "mcp": "MCP",
+      "ai": "AI",
+      "worktree": "Git / Worktree"
+    },
     "language": "语言",
     "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
     "header": {

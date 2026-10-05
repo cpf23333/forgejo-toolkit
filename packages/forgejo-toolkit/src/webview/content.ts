@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import type { AiPreReviewPanelPayload } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export interface WebviewContentOptions {
-  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview';
+  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
   locale?: 'en' | 'zh';
   /** URLs of the configured Forgejo instances; their origins are added to CSP img-src. */
   instanceUrls?: string[];
@@ -73,18 +73,23 @@ export function buildContentSecurityPolicy(
 /**
  * The document each webview surface loads.
  *
- * The four surfaces are separate Vite entries (see `webview/vite.config.mts`),
+ * The five surfaces are separate Vite entries (see `webview/vite.config.mts`),
  * so the sidebar dashboard's shell (`App.vue`, the router, the elements only it
  * renders) is not in a panel's entry graph and a panel is not in the sidebar's
  * or another panel's. Before the split every surface loaded `index.html`, which
  * is how opening the setup wizard or the review comment editor downloaded the
  * whole dashboard.
+ *
+ * `settings` is the newest of them: the settings page moved out of the sidebar's
+ * router and into an editor-area tab, so it needs a document of its own rather
+ * than a route (`docs/design/settings-page.md` §9.3).
  */
 export const WEBVIEW_HTML_FILES = {
   dashboard: 'index.html',
   onboarding: 'onboarding.html',
   pullReviewComment: 'pullReviewComment.html',
   aiPreReview: 'aiPreReview.html',
+  settings: 'settings.html',
 } as const;
 
 /** The HTML document `getWebviewContent` renders for a surface. */
@@ -115,7 +120,7 @@ export function getWebviewContent(
   let html = fs.readFileSync(htmlPath, 'utf8');
 
   const config: {
-    panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview';
+    panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
     locale?: 'en' | 'zh';
     vscodeVersion: string;
     pullReviewComment?: WebviewContentOptions['pullReviewComment'];

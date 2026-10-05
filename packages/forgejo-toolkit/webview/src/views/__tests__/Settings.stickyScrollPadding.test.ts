@@ -29,6 +29,7 @@ const { stateMock } = vi.hoisted(() => ({
   stateMock: {
     instances: { value: [] as unknown[] },
     importPreview: { value: undefined },
+    settingsRefreshTick: { value: 0 },
     locale: { value: 'en' },
     changeLocale: vi.fn(),
     debug: { value: false },
@@ -218,10 +219,17 @@ describe('Settings sticky block scroll padding', () => {
     expect(publishedHeight(wrapper)).toBe('118px');
     const observer = FakeResizeObserver.instances.at(-1);
     expect(observer, 'a ResizeObserver watching the block').toBeTruthy();
+    // One observer, two readings (`docs/design/settings-page.md` §9.3): the
+    // height is what the scroll container reserves, and the page's own width is
+    // what decides which of its two navigation shapes it uses. Both boxes are
+    // watched by the *same* reader; a second ResizeObserver over the same page is
+    // what this pins against, because two readers of one page is the "two sources
+    // for one fact" this page avoids everywhere else.
+    expect(observer!.observed).toHaveLength(2);
+    expect(observer!.observed.map((entry) => entry.box)).toEqual(['border-box', 'border-box']);
+    expect((observer!.observed[0].target as HTMLElement).classList.contains('settings')).toBe(true);
     // The sticky offset is the block's border box, so that is the box measured.
-    expect(observer!.observed).toHaveLength(1);
-    expect(observer!.observed[0].box).toBe('border-box');
-    expect((observer!.observed[0].target as HTMLElement).classList.contains('editor-heading')).toBe(true);
+    expect((observer!.observed[1].target as HTMLElement).classList.contains('editor-heading')).toBe(true);
     wrapper.unmount();
   });
 

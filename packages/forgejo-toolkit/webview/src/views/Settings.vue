@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted, onUnmounted, useTemplateRef, type Ref } from 'vue';
+import { ref, computed, reactive, watch, onMounted, onUnmounted, nextTick, useTemplateRef, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import { useAppState, saveInstanceTargetKey, type SaveInstanceTarget } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
 import AiTestReport from '../components/AiTestReport.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
+import ImportPreview from './ImportPreview.vue';
+import { DEFAULT_SETTINGS_GROUP, SETTINGS_GROUPS, WIDE_NAV_MIN_WIDTH, type SettingsGroupId } from './settingsGroups';
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
 import type {
@@ -46,16 +47,24 @@ const POLLING_INTERVAL_SETTING = 'forgejoToolkit.notificationPollingInterval';
 
 const { t } = useI18n();
 const state = useAppState();
-const router = useRouter();
 
-watch(
-  () => state.importPreview.value,
-  (preview) => {
-    if (preview && router.currentRoute.value.name !== 'importPreview') {
-      router.replace({ name: 'importPreview' });
-    }
-  },
-);
+// ---------------------------------------------------------------------------
+// Where the page lives, and what that costs it.
+//
+// The page is an editor-area tab now (`docs/design/settings-page.md` §9.3), not
+// one of the sidebar router's views: the sidebar's settings route was retired
+// with it, so this component installs no router and reaches none — which is what
+// makes it mountable from a panel bundle, where `vue-router` must not appear
+// (`webview/vite.config.mts`, `src/__tests__/entryGraph.test.ts`).
+//
+// The one thing the route used to do for this page was show the **import
+// preview** (the sidebar's `importPreview` view), which is why this page watched
+// `state.importPreview` and pushed a route. The tab has nowhere to push to, so
+// the preview is rendered **in place**, exactly as the setup wizard's panel does
+// with its own (`views/Onboarding.vue`): the template picks one of the two, and
+// the preview clears `state.importPreview` when it is done, which brings the
+// settings page back. One copy of the preview, in the surface that asked for it.
+// ---------------------------------------------------------------------------
 
 const url = ref('');
 const token = ref('');
@@ -286,6 +295,38 @@ onUnmounted(() => {
 // re-measure.
 const editorStickyHeight = ref(0);
 
+/**
+ * The page's own measured width, and the shape it decides
+ * (`docs/design/settings-page.md` §9.3).
+ *
+ * The page carries two navigation shapes: a vertical list beside the content
+ * when there is room for two columns, and a group selector in the sticky bar at
+ * the top when there is not. The measurement is the same one the sticky height
+ * comes from — **one** `ResizeObserver`, two readings (§9.3's "复用页面已经有的
+ * 那次尺寸观察，不新开第二个观察者"); a second observer watching the same box
+ * twice is exactly the "two sources for one fact" this page avoids everywhere
+ * else.
+ *
+ * The width is read from the page's scroll root, which exists in **all three**
+ * states — that is what keeps the shape from flipping back and forth when an
+ * editor opens or closes, and what makes it readable while the endpoint editor
+ * is open.
+ */
+const pageWidth = ref(0);
+
+/** Which shape the page is in: the two-column one, or the one-column fallback. */
+const wideNav = computed(() => pageWidth.value >= WIDE_NAV_MIN_WIDTH);
+
+/** The page's scroll root: the box the width is read from, and the scrollport. */
+const settingsRoot = useTemplateRef<HTMLElement | null>('settingsRoot');
+/**
+ * The narrow shape's sticky bar: the group selector. In the wide shape there is
+ * no sticky block in the list state at all — the navigation is a column *beside*
+ * the content, so nothing can cover a field — and while an editor is open the
+ * editor's own heading is the sticky block.
+ */
+const paneBar = useTemplateRef<HTMLElement | null>('paneBar');
+
 let stickyHeightObserver: ResizeObserver | null = null;
 
 function stopObservingStickyHeight(): void {
@@ -294,42 +335,167 @@ function stopObservingStickyHeight(): void {
 }
 
 /**
- * Re-reads the block's height, and (when there is a block) keeps the reader
- * attached to it. One function for both callers: the watcher that follows the
- * block in and out of the DOM, and the observer that follows a size change
- * within one mount. Re-observing the element the reader already holds is
- * harmless — a fresh observation of an unchanged box delivers nothing — so both
- * paths leave the same state behind and neither has to know which one it is.
+ * Re-reads both numbers, and keeps the one reader attached to both boxes. One
+ * function for every caller: the watcher that follows the sticky block and the
+ * scroll root in and out of the DOM, and the observer that follows a size change
+ * within one mount. Re-observing a box the reader already holds is harmless — a
+ * fresh observation of an unchanged box delivers nothing — so both paths leave
+ * the same state behind and neither has to know which one it is.
  */
-function syncEditorStickyHeight(): void {
-  const heading = editorHeading.value;
-  if (!heading) {
-    stopObservingStickyHeight();
-    editorStickyHeight.value = 0;
-    return;
-  }
+function syncStickyMetrics(): void {
+  const root = settingsRoot.value;
+  // The page's width, not the content column's: the threshold is about whether
+  // a second column fits inside the page at all.
+  pageWidth.value = root ? root.getBoundingClientRect().width : 0;
+  // The block that sticks: the editor's identity block while one of the two
+  // editors is open, the group bar in the narrow list state, and nothing in the
+  // wide list state. Its border box is the sticky offset, which is the box the
+  // observer is asked for, so what is measured here is what the browser will
+  // offset by. `getBoundingClientRect` is read first: the container's padding has
+  // to be right for the first paint, which cannot wait for the observer's own
+  // first delivery.
+  const block = editorHeading.value ?? paneBar.value;
+  editorStickyHeight.value = block ? block.getBoundingClientRect().height : 0;
+
   stickyHeightObserver?.disconnect();
-  // The sticky offset is the block's border box, which is the box the observer
-  // is asked for, so what is measured here is what the browser will offset by.
-  // `getBoundingClientRect` is read first: the container's padding has to be
-  // right for the first paint, which cannot wait for the observer's own first
-  // delivery.
-  editorStickyHeight.value = heading.getBoundingClientRect().height;
+  stickyHeightObserver = null;
   if (typeof ResizeObserver !== 'function') {
     return;
   }
-  stickyHeightObserver = new ResizeObserver(syncEditorStickyHeight);
-  stickyHeightObserver.observe(heading, { box: 'border-box' });
+  stickyHeightObserver = new ResizeObserver(syncStickyMetrics);
+  if (root) {
+    stickyHeightObserver.observe(root, { box: 'border-box' });
+  }
+  if (block) {
+    stickyHeightObserver.observe(block, { box: 'border-box' });
+  }
 }
 
-// The block belongs to the render that opened the editor, which is what a
-// post-flush watcher runs after: a pre-flush one would read a block the same
-// render is still creating.
-watch(editorHeading, syncEditorStickyHeight, { flush: 'post' });
+// The block belongs to the render that created it, which is what a post-flush
+// watcher runs after: a pre-flush one would read a block the same render is
+// still creating. The scroll root is watched for the same reason and because it
+// is the only one of the three that exists in **every** state: without it, the
+// list state would never read the width at all.
+watch([settingsRoot, editorHeading, paneBar], syncStickyMetrics, { flush: 'post' });
 
 onUnmounted(() => {
   stopObservingStickyHeight();
 });
+
+// ---------------------------------------------------------------------------
+// The group navigation (`docs/design/settings-page.md` §9.2, §9.3, §9.4).
+//
+// The page's eleven blocks are divided into six groups, and the group is a
+// **view** of the list state, not a page state: all six panes stay mounted and
+// the inactive ones carry `hidden` + `inert`. That is deliberate and it is the
+// one thing §9.4 rule 1 insists on — `hidden` takes a pane out of the tab order
+// as well as off the screen, so nothing inside an inactive group is reachable,
+// while the controls themselves stay in the document. The page's own suites
+// mount it once and query controls across groups (they have to: the whole point
+// of the drift guard and of `Settings.settingsSurface.test.ts` is that every
+// setting is rendered), and a design that unmounted the inactive groups would
+// turn those checks into no-ops rather than failures.
+//
+// The two editors are page states, not groups. They keep their own single sticky
+// heading and carry **no** navigation: an editor is opened from one group and
+// holds fields the user may have typed into, so a group control inside it would
+// have to either throw those fields away or sit there doing nothing. What the
+// page owes instead is the return: the group is not touched while an editor is
+// open, so closing one lands back in the group it was opened from, and the
+// existing focus handoff then puts focus on the row's own Edit button — the two
+// halves of §9.4 rule 3, and both of them structural rather than an extra
+// mechanism.
+//
+// No group is remembered across a close (§9.4 rule 5): the tab is a new page
+// when it is reopened, so this ref starts at the default every time.
+// ---------------------------------------------------------------------------
+
+/** The group the page is showing. Session state of this tab, and nothing more. */
+const currentGroup = ref<SettingsGroupId>(DEFAULT_SETTINGS_GROUP);
+
+/** The ids that join a group's navigation control to the pane it controls. */
+function groupTabId(group: SettingsGroupId): string {
+  return `settings-group-tab-${group}`;
+}
+
+function groupPanelId(group: SettingsGroupId): string {
+  return `settings-group-panel-${group}`;
+}
+
+/** Whether one group is the one on screen. Used for `hidden` / `inert` and `aria-selected`. */
+function isCurrentGroup(group: SettingsGroupId): boolean {
+  return currentGroup.value === group;
+}
+
+/**
+ * The vertical tab list's own elements, for the roving tabindex.
+ *
+ * Only the selected tab is a Tab stop (`tabindex="0"`), the rest are `-1`, which
+ * is what the pattern asks for on a tablist: Tab enters the list once, and the
+ * arrow keys move within it. Filled through a `:ref` callback, which Vue also
+ * calls with `null` when the tab leaves the DOM (the wide shape is left).
+ */
+const groupTabs = new Map<SettingsGroupId, HTMLElement>();
+
+function setGroupTab(group: SettingsGroupId, element: unknown): void {
+  if (element instanceof HTMLElement) {
+    groupTabs.set(group, element);
+    return;
+  }
+  groupTabs.delete(group);
+}
+
+/** Shows one group. The only writer of `currentGroup`. */
+function selectGroup(group: SettingsGroupId): void {
+  currentGroup.value = group;
+}
+
+/** The narrow shape's selector, inside the sticky bar. */
+function handleGroupSelect(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as SettingsGroupId;
+  if (SETTINGS_GROUPS.some((group) => group.id === value)) {
+    selectGroup(value);
+  }
+}
+
+/**
+ * The vertical tab list's keyboard model: `↑` / `↓` / `Home` / `End` move, and
+ * the group follows immediately (the "automatic activation" half of the tab
+ * pattern, which is what VS Code's own settings navigation does — arrowing
+ * through the list shows each group as it is reached). `Enter` and `Space` need
+ * no case here: they are a real `<button>`'s own activation, so the click
+ * handler runs for them without this function being involved.
+ */
+function handleGroupKeydown(event: KeyboardEvent, group: SettingsGroupId): void {
+  const index = SETTINGS_GROUPS.findIndex((entry) => entry.id === group);
+  if (index < 0) {
+    return;
+  }
+  const last = SETTINGS_GROUPS.length - 1;
+  let next: number;
+  switch (event.key) {
+    case 'ArrowDown':
+      next = index === last ? 0 : index + 1;
+      break;
+    case 'ArrowUp':
+      next = index === 0 ? last : index - 1;
+      break;
+    case 'Home':
+      next = 0;
+      break;
+    case 'End':
+      next = last;
+      break;
+    default:
+      return;
+  }
+  event.preventDefault();
+  const target = SETTINGS_GROUPS[next];
+  selectGroup(target.id);
+  // Focus follows activation, so the tab the user reached is the one a screen
+  // reader reads — and the next arrow key starts from there.
+  void nextTick(() => groupTabs.get(target.id)?.focus());
+}
 
 /**
  * One transition, stated once. Opening an editor moves focus to it, so the heading
@@ -1225,11 +1391,33 @@ function openNativeSettings(): void {
   state.openNativeSettings();
 }
 
-onMounted(() => {
+/**
+ * Reads everything this page renders, from the host.
+ *
+ * One function because there are two occasions for it: the mount, and the tab
+ * being shown again (`docs/design/settings-page.md` §9.3 — a tab that is still
+ * alive must not come back holding the snapshot it read before it was hidden).
+ * The host pushes `refreshSettings` when it becomes visible again, and what the
+ * page does with it is exactly what it does on mount: ask. The reply to each
+ * request is the host's reading, so the page never keeps a value of its own
+ * across the gap.
+ */
+function reloadSettingsPage(): void {
   void loadAiPreReviewModels();
   void loadProviderSettings();
   void loadSettingsSurface();
+}
+
+onMounted(() => {
+  reloadSettingsPage();
 });
+
+watch(
+  () => state.settingsRefreshTick.value,
+  () => {
+    reloadSettingsPage();
+  },
+);
 
 // ---------------------------------------------------------------------------
 // The AI endpoints: the list (master) and the endpoint editor (detail).
@@ -2578,7 +2766,12 @@ watch(
         message: t('settings.importSuccess', { count: result.count ?? 0 }),
         type: 'success',
       };
-      router.replace({ name: 'dashboard' });
+      // No navigation: this page *is* the surface the import was started from,
+      // and the tab has nowhere else to go. The sidebar version replaced the
+      // route with the dashboard, which was how the user got back to a page that
+      // existed somewhere in the same router — the tab reports the count in its
+      // own status line and stays where it is (`docs/design/settings-page.md`
+      // §9.3).
     } else {
       importStatus.value = {
         message: result.error ?? t('settings.importError'),
@@ -2622,10 +2815,23 @@ defineExpose({
   <!--
     The sticky height the scroll container reserves above a focused field is
     measured from the block that sticks (see the observer in the script), so the
-    inline custom property is what `scroll-padding-top` reads.
+    inline custom property is what `scroll-padding-top` reads. The scroll root is
+    also what the page's own width is read from (see `pageWidth`), which is why it
+    carries a template ref.
   -->
-  <div class="settings" :style="{ '--editor-sticky-height': `${editorStickyHeight}px` }">
+  <div ref="settingsRoot" class="settings" :style="{ '--editor-sticky-height': `${editorStickyHeight}px` }">
     <!--
+      The import preview replaces the page while it is open, and this page is the
+      only surface that can open one now: the sidebar's `importPreview` route was
+      retired with its settings route, so the preview is rendered here instead of
+      being navigated to (`docs/design/settings-page.md` §9.3). `ImportPreview`
+      clears `state.importPreview` when the user confirms or cancels, which is
+      what brings the page back — the same inline-preview arrangement the setup
+      wizard's panel uses.
+    -->
+    <ImportPreview v-if="state.importPreview.value" />
+    <template v-else>
+      <!--
       The page header. It is visible in all three states — the instance list and
       both editors — because it is a property of the page and not of a section
       (`docs/design/settings-page.md` §2.1): it answers "where are the rest of
@@ -2634,97 +2840,97 @@ defineExpose({
       own settings editor **filtered to this extension** — the unfiltered editor
       is exactly the place the user could not find these settings in.
     -->
-    <header class="settings-header">
-      <vscode-button secondary icon="settings-gear" @click="openNativeSettings">
-        {{ t('settings.header.openNativeSettings') }}
-      </vscode-button>
-      <p class="field-description">{{ t('settings.header.openNativeSettingsDescription') }}</p>
-      <div v-if="settingsSurfaceLoadError" class="status error" role="status" aria-live="polite">
-        {{ settingsSurfaceLoadError }}
-      </div>
-    </header>
+      <header class="settings-header">
+        <vscode-button secondary icon="settings-gear" @click="openNativeSettings">
+          {{ t('settings.header.openNativeSettings') }}
+        </vscode-button>
+        <p class="field-description">{{ t('settings.header.openNativeSettingsDescription') }}</p>
+        <div v-if="settingsSurfaceLoadError" class="status error" role="status" aria-live="polite">
+          {{ settingsSurfaceLoadError }}
+        </div>
+      </header>
 
-    <div v-if="editorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
-      <!--
+      <div v-if="editorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
+        <!--
         The editor's subject: the heading names the instance (name and URL), so
         the fields below it cannot be mistaken for another record's. The visible
         heading is not its own live region: opening the editor moves focus here,
         and a live region would announce the subject a second time on top of
         that.
       -->
-      <div ref="editorHeading" class="editor-heading">
-        <h2 class="editor-title">{{ editorTitle }}</h2>
-        <div v-if="editingInstance" class="editor-subject">
-          <span class="editor-subject-name">{{ editorSubjectName }}</span>
-          <span class="editor-subject-url-group">
-            <span class="editor-subject-url">{{ editorSubjectUrl }}</span>
-            <vscode-button
-              class="editor-copy-url"
-              icon="copy"
-              icon-only
-              secondary
-              :title="t('settings.instanceEditor.copyUrl')"
-              :aria-label="t('settings.instanceEditor.copyUrl')"
-              @click="state.copyToClipboard(editorSubjectUrl)"
-            />
-          </span>
-        </div>
-        <!-- The return path is stated first, before the fields: it is where a
+        <div ref="editorHeading" class="editor-heading">
+          <h2 class="editor-title">{{ editorTitle }}</h2>
+          <div v-if="editingInstance" class="editor-subject">
+            <span class="editor-subject-name">{{ editorSubjectName }}</span>
+            <span class="editor-subject-url-group">
+              <span class="editor-subject-url">{{ editorSubjectUrl }}</span>
+              <vscode-button
+                class="editor-copy-url"
+                icon="copy"
+                icon-only
+                secondary
+                :title="t('settings.instanceEditor.copyUrl')"
+                :aria-label="t('settings.instanceEditor.copyUrl')"
+                @click="state.copyToClipboard(editorSubjectUrl)"
+              />
+            </span>
+          </div>
+          <!-- The return path is stated first, before the fields: it is where a
              user who opened the wrong row looks. -->
-        <button type="button" class="link-button editor-back" @click="requestCloseEditor">
-          {{ t('settings.instanceEditor.backToList') }}
-        </button>
-      </div>
-
-      <div class="editor-fields">
-        <div class="form-row">
-          <label for="forgejo-url">{{ t('settings.instanceUrl') }}</label>
-          <vscode-textfield
-            id="forgejo-url"
-            :value="url"
-            :label="t('settings.instanceUrl')"
-            :placeholder="t('settings.instanceUrlPlaceholder')"
-            type="url"
-            @input="url = ($event.target as HTMLInputElement).value"
-          />
-        </div>
-
-        <div class="form-row">
-          <label for="forgejo-token">{{ t('settings.accessToken') }}</label>
-          <vscode-textfield
-            id="forgejo-token"
-            :value="token"
-            :label="t('settings.accessToken')"
-            :placeholder="
-              editingInstance ? t('settings.accessTokenKeepPlaceholder') : t('settings.accessTokenPlaceholder')
-            "
-            type="password"
-            @input="token = ($event.target as HTMLInputElement).value"
-          />
-          <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
-          <button
-            v-if="tokenSettingsUrl"
-            type="button"
-            class="link-button token-create-link"
-            @click="state.openExternal(tokenSettingsUrl)"
-          >
-            {{ t('onboarding.createTokenLink') }}
+          <button type="button" class="link-button editor-back" @click="requestCloseEditor">
+            {{ t('settings.instanceEditor.backToList') }}
           </button>
-          <TokenScopeList />
         </div>
 
-        <div class="form-row">
-          <vscode-checkbox
-            id="forgejo-sync-urls"
-            :checked="syncApiUrlsToInstanceUrl"
-            @change="syncApiUrlsToInstanceUrl = ($event.target as HTMLInputElement).checked"
-          >
-            {{ t('settings.syncApiUrlsToInstanceUrl.label') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.syncApiUrlsToInstanceUrl.description') }}</p>
-        </div>
+        <div class="editor-fields">
+          <div class="form-row">
+            <label for="forgejo-url">{{ t('settings.instanceUrl') }}</label>
+            <vscode-textfield
+              id="forgejo-url"
+              :value="url"
+              :label="t('settings.instanceUrl')"
+              :placeholder="t('settings.instanceUrlPlaceholder')"
+              type="url"
+              @input="url = ($event.target as HTMLInputElement).value"
+            />
+          </div>
 
-        <!--
+          <div class="form-row">
+            <label for="forgejo-token">{{ t('settings.accessToken') }}</label>
+            <vscode-textfield
+              id="forgejo-token"
+              :value="token"
+              :label="t('settings.accessToken')"
+              :placeholder="
+                editingInstance ? t('settings.accessTokenKeepPlaceholder') : t('settings.accessTokenPlaceholder')
+              "
+              type="password"
+              @input="token = ($event.target as HTMLInputElement).value"
+            />
+            <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
+            <button
+              v-if="tokenSettingsUrl"
+              type="button"
+              class="link-button token-create-link"
+              @click="state.openExternal(tokenSettingsUrl)"
+            >
+              {{ t('onboarding.createTokenLink') }}
+            </button>
+            <TokenScopeList />
+          </div>
+
+          <div class="form-row">
+            <vscode-checkbox
+              id="forgejo-sync-urls"
+              :checked="syncApiUrlsToInstanceUrl"
+              @change="syncApiUrlsToInstanceUrl = ($event.target as HTMLInputElement).checked"
+            >
+              {{ t('settings.syncApiUrlsToInstanceUrl.label') }}
+            </vscode-checkbox>
+            <p class="field-description">{{ t('settings.syncApiUrlsToInstanceUrl.description') }}</p>
+          </div>
+
+          <!--
           The declared server version: the escape hatch for the automatic probe
           (a reverse proxy that blocks /api/v1/version, a fork or version string
           the probe cannot read, an unreachable instance). Left empty it keeps the
@@ -2739,228 +2945,230 @@ defineExpose({
           so it does not read as "type exactly this" on an instance that is far
           newer.
         -->
-        <div class="form-row">
-          <label for="forgejo-declared-version">{{ t('settings.declaredServerVersion.label') }}</label>
-          <vscode-textfield
-            id="forgejo-declared-version"
-            :value="declaredServerVersion"
-            :label="t('settings.declaredServerVersion.label')"
-            :placeholder="t('settings.declaredServerVersion.placeholder')"
-            type="text"
-            @input="declaredServerVersion = ($event.target as HTMLInputElement).value"
-          />
-          <p class="field-description">
-            {{ t('settings.declaredServerVersion.description', { version: state.minSupportedServerVersion.value }) }}
-          </p>
-        </div>
+          <div class="form-row">
+            <label for="forgejo-declared-version">{{ t('settings.declaredServerVersion.label') }}</label>
+            <vscode-textfield
+              id="forgejo-declared-version"
+              :value="declaredServerVersion"
+              :label="t('settings.declaredServerVersion.label')"
+              :placeholder="t('settings.declaredServerVersion.placeholder')"
+              type="text"
+              @input="declaredServerVersion = ($event.target as HTMLInputElement).value"
+            />
+            <p class="field-description">
+              {{ t('settings.declaredServerVersion.description', { version: state.minSupportedServerVersion.value }) }}
+            </p>
+          </div>
 
-        <div class="actions">
-          <vscode-button :disabled="!canSubmit || testing" @click="handleTest" secondary>
-            {{ testing ? t('settings.testing') : t('settings.testConnection') }}
-          </vscode-button>
-          <vscode-button :disabled="!canSubmit || saving" @click="handleSubmit">
-            <template v-if="editingInstance">{{
-              saving ? t('settings.saving') : t('settings.updateInstance')
-            }}</template>
-            <template v-else>{{ saving ? t('settings.saving') : t('settings.addInstance') }}</template>
-          </vscode-button>
-          <vscode-button @click="requestCloseEditor" secondary>{{ t('settings.instanceEditor.cancel') }}</vscode-button>
-        </div>
+          <div class="actions">
+            <vscode-button :disabled="!canSubmit || testing" @click="handleTest" secondary>
+              {{ testing ? t('settings.testing') : t('settings.testConnection') }}
+            </vscode-button>
+            <vscode-button :disabled="!canSubmit || saving" @click="handleSubmit">
+              <template v-if="editingInstance">{{
+                saving ? t('settings.saving') : t('settings.updateInstance')
+              }}</template>
+              <template v-else>{{ saving ? t('settings.saving') : t('settings.addInstance') }}</template>
+            </vscode-button>
+            <vscode-button @click="requestCloseEditor" secondary>{{
+              t('settings.instanceEditor.cancel')
+            }}</vscode-button>
+          </div>
 
-        <!-- The Test/Save outcome is a polite live region that is always in the
+          <!-- The Test/Save outcome is a polite live region that is always in the
              document, empty until there is something to say. Rendered together
              with its text (the old `v-if="status"`), a region that appears at the
              same moment its content does is one assistive technology is allowed
              to miss, so an async "saved" or "wrong token" was never announced. -->
-        <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
+          <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
+        </div>
       </div>
-    </div>
 
-    <!--
+      <!--
       The endpoint editor: the same detail half as the instance editor, for the
       other master. The heading follows the same rules — the mode, the record's
       identity, then the way back — so the two editors read as one pattern rather
       than two.
     -->
-    <div v-else-if="providerEditorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
-      <div ref="editorHeading" class="editor-heading">
-        <h2 class="editor-title">
-          {{ editingProviderId ? t('settings.aiProviders.editTitle') : t('settings.aiProviders.addTitle') }}
-        </h2>
-        <div v-if="editingProviderId" class="editor-subject">
-          <span class="editor-subject-name">{{ providerDraft.name }}</span>
-          <span class="editor-subject-url-group">
-            <span class="editor-subject-url">{{ openedProviderAddress }}</span>
-            <vscode-button
-              v-if="openedProviderAddress"
-              class="editor-copy-url"
-              icon="copy"
-              icon-only
-              secondary
-              :title="t('settings.aiProviders.testReport.address')"
-              :aria-label="t('settings.aiProviders.testReport.address')"
-              @click="state.copyToClipboard(openedProviderAddress)"
-            />
-          </span>
+      <div v-else-if="providerEditorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
+        <div ref="editorHeading" class="editor-heading">
+          <h2 class="editor-title">
+            {{ editingProviderId ? t('settings.aiProviders.editTitle') : t('settings.aiProviders.addTitle') }}
+          </h2>
+          <div v-if="editingProviderId" class="editor-subject">
+            <span class="editor-subject-name">{{ providerDraft.name }}</span>
+            <span class="editor-subject-url-group">
+              <span class="editor-subject-url">{{ openedProviderAddress }}</span>
+              <vscode-button
+                v-if="openedProviderAddress"
+                class="editor-copy-url"
+                icon="copy"
+                icon-only
+                secondary
+                :title="t('settings.aiProviders.testReport.address')"
+                :aria-label="t('settings.aiProviders.testReport.address')"
+                @click="state.copyToClipboard(openedProviderAddress)"
+              />
+            </span>
+          </div>
+          <button type="button" class="link-button editor-back" @click="requestCloseProviderEditor">
+            {{ t('settings.aiProviders.backToList') }}
+          </button>
         </div>
-        <button type="button" class="link-button editor-back" @click="requestCloseProviderEditor">
-          {{ t('settings.aiProviders.backToList') }}
-        </button>
-      </div>
 
-      <div class="editor-fields">
-        <div class="form-row">
-          <label for="ai-provider-id">{{ t('settings.aiProviders.editor.id') }}</label>
-          <vscode-textfield
-            id="ai-provider-id"
-            :value="providerDraft.id"
-            :label="t('settings.aiProviders.editor.id')"
-            :disabled="editingProviderId !== null"
-            @input="handleProviderIdInput"
-          />
-          <!--
+        <div class="editor-fields">
+          <div class="form-row">
+            <label for="ai-provider-id">{{ t('settings.aiProviders.editor.id') }}</label>
+            <vscode-textfield
+              id="ai-provider-id"
+              :value="providerDraft.id"
+              :label="t('settings.aiProviders.editor.id')"
+              :disabled="editingProviderId !== null"
+              @input="handleProviderIdInput"
+            />
+            <!--
             The price of the id is stated where it is created, not only where it is
             locked (§5.3): the secret keys derive from it, so a later change loses
             the stored credentials. Shown in the add mode, right under the field —
             the moment the user can still choose.
           -->
-          <p v-if="editingProviderId === null" class="field-description">
-            {{ t('settings.aiProviders.editor.idCreateWarning') }}
-          </p>
-          <p class="field-description">{{ t('settings.aiProviders.editor.idDescription') }}</p>
-          <p v-if="editingProviderId" class="field-description">{{ t('settings.aiProviders.editor.idLocked') }}</p>
-        </div>
+            <p v-if="editingProviderId === null" class="field-description">
+              {{ t('settings.aiProviders.editor.idCreateWarning') }}
+            </p>
+            <p class="field-description">{{ t('settings.aiProviders.editor.idDescription') }}</p>
+            <p v-if="editingProviderId" class="field-description">{{ t('settings.aiProviders.editor.idLocked') }}</p>
+          </div>
 
-        <div class="form-row">
-          <label for="ai-provider-name">{{ t('settings.aiProviders.editor.name') }}</label>
-          <vscode-textfield
-            id="ai-provider-name"
-            :value="providerDraft.name"
-            :label="t('settings.aiProviders.editor.name')"
-            @input="handleProviderNameInput"
-          />
-          <p class="field-description">{{ t('settings.aiProviders.editor.nameDescription') }}</p>
-        </div>
+          <div class="form-row">
+            <label for="ai-provider-name">{{ t('settings.aiProviders.editor.name') }}</label>
+            <vscode-textfield
+              id="ai-provider-name"
+              :value="providerDraft.name"
+              :label="t('settings.aiProviders.editor.name')"
+              @input="handleProviderNameInput"
+            />
+            <p class="field-description">{{ t('settings.aiProviders.editor.nameDescription') }}</p>
+          </div>
 
-        <div class="form-row">
-          <label for="ai-provider-base-url">{{ t('settings.aiProviders.editor.baseUrl') }}</label>
-          <vscode-textfield
-            id="ai-provider-base-url"
-            :value="providerDraft.baseUrl"
-            :label="t('settings.aiProviders.editor.baseUrl')"
-            type="url"
-            @input="handleProviderBaseUrlInput"
-            @change="providerAddressCommitted = true"
-          />
-          <p class="field-description">{{ t('settings.aiProviders.editor.baseUrlDescription') }}</p>
-          <!--
+          <div class="form-row">
+            <label for="ai-provider-base-url">{{ t('settings.aiProviders.editor.baseUrl') }}</label>
+            <vscode-textfield
+              id="ai-provider-base-url"
+              :value="providerDraft.baseUrl"
+              :label="t('settings.aiProviders.editor.baseUrl')"
+              type="url"
+              @input="handleProviderBaseUrlInput"
+              @change="providerAddressCommitted = true"
+            />
+            <p class="field-description">{{ t('settings.aiProviders.editor.baseUrlDescription') }}</p>
+            <!--
             What is wrong locally, said on the row and with the field left as the
             user typed it (§3.3 rule 1). The reason is the shared verdict's own
             sentence, and it appears once the user has left the field rather than
             on every keystroke of an address being typed.
           -->
-          <p v-if="providerDraftAddressReason" class="field-description warn">
-            {{ t('settings.aiProviders.editor.addressInvalid', { reason: providerDraftAddressReason }) }}
-          </p>
-        </div>
+            <p v-if="providerDraftAddressReason" class="field-description warn">
+              {{ t('settings.aiProviders.editor.addressInvalid', { reason: providerDraftAddressReason }) }}
+            </p>
+          </div>
 
-        <div class="form-row">
-          <label for="ai-provider-auth">{{ t('settings.aiProviders.editor.auth') }}</label>
-          <vscode-single-select
-            id="ai-provider-auth"
-            :value="providerDraft.auth"
-            :label="t('settings.aiProviders.editor.auth')"
-            @change="handleProviderAuthChange"
-          >
-            <vscode-option value="bearer">{{ t('settings.aiProviders.editor.authBearer') }}</vscode-option>
-            <vscode-option value="api-key-header">{{
-              t('settings.aiProviders.editor.authApiKeyHeader')
-            }}</vscode-option>
-            <vscode-option value="none">{{ t('settings.aiProviders.editor.authNone') }}</vscode-option>
-          </vscode-single-select>
-        </div>
+          <div class="form-row">
+            <label for="ai-provider-auth">{{ t('settings.aiProviders.editor.auth') }}</label>
+            <vscode-single-select
+              id="ai-provider-auth"
+              :value="providerDraft.auth"
+              :label="t('settings.aiProviders.editor.auth')"
+              @change="handleProviderAuthChange"
+            >
+              <vscode-option value="bearer">{{ t('settings.aiProviders.editor.authBearer') }}</vscode-option>
+              <vscode-option value="api-key-header">{{
+                t('settings.aiProviders.editor.authApiKeyHeader')
+              }}</vscode-option>
+              <vscode-option value="none">{{ t('settings.aiProviders.editor.authNone') }}</vscode-option>
+            </vscode-single-select>
+          </div>
 
-        <!--
+          <!--
           The credential itself. The stored value is never read back into the
           webview, so the field is always empty and the two states it can be in are
           said in words beside it; clearing is its own control because the only way
           to unset a secret is to submit an empty one.
         -->
-        <div class="form-row">
-          <label for="ai-provider-key">{{ t('settings.aiProviders.editor.key') }}</label>
-          <vscode-textfield
-            id="ai-provider-key"
-            :value="providerDraft.key"
-            :label="t('settings.aiProviders.editor.key')"
-            type="password"
-            :disabled="providerDraft.auth === 'none'"
-            @input="handleProviderKeyInput"
-          />
-          <p class="field-description">{{ t('settings.aiProviders.editor.keyDescription') }}</p>
-          <p v-if="providerDraft.auth === 'none'" class="field-description">
-            {{ t('settings.aiProviders.editor.keyNotNeeded') }}
-          </p>
-          <template v-else>
-            <p class="field-description">
-              {{ storedKeySet ? t('settings.aiProviders.editor.keySet') : t('settings.aiProviders.editor.keyUnset') }}
+          <div class="form-row">
+            <label for="ai-provider-key">{{ t('settings.aiProviders.editor.key') }}</label>
+            <vscode-textfield
+              id="ai-provider-key"
+              :value="providerDraft.key"
+              :label="t('settings.aiProviders.editor.key')"
+              type="password"
+              :disabled="providerDraft.auth === 'none'"
+              @input="handleProviderKeyInput"
+            />
+            <p class="field-description">{{ t('settings.aiProviders.editor.keyDescription') }}</p>
+            <p v-if="providerDraft.auth === 'none'" class="field-description">
+              {{ t('settings.aiProviders.editor.keyNotNeeded') }}
             </p>
-            <div v-if="storedKeySet" class="cache-directory-actions">
-              <vscode-button secondary @click="clearProviderSecret()">
-                {{ t('settings.aiProviders.editor.clearKey') }}
+            <template v-else>
+              <p class="field-description">
+                {{ storedKeySet ? t('settings.aiProviders.editor.keySet') : t('settings.aiProviders.editor.keyUnset') }}
+              </p>
+              <div v-if="storedKeySet" class="cache-directory-actions">
+                <vscode-button secondary @click="clearProviderSecret()">
+                  {{ t('settings.aiProviders.editor.clearKey') }}
+                </vscode-button>
+              </div>
+            </template>
+          </div>
+
+          <div class="form-row">
+            <label>{{ t('settings.aiProviders.editor.models') }}</label>
+            <div
+              v-for="(model, index) in providerDraft.models"
+              :key="`model-${index}`"
+              class="repeatable-row"
+              :class="{ invalid: duplicateModelIds().has(model.id.trim()) }"
+            >
+              <vscode-textfield
+                class="repeatable-id"
+                :value="model.id"
+                :label="t('settings.aiProviders.editor.modelId')"
+                :placeholder="t('settings.aiProviders.editor.modelId')"
+                @input="model.id = ($event.target as HTMLInputElement).value"
+              />
+              <vscode-textfield
+                class="repeatable-name"
+                :value="model.name"
+                :label="t('settings.aiProviders.editor.modelName')"
+                :placeholder="t('settings.aiProviders.editor.modelName')"
+                @input="model.name = ($event.target as HTMLInputElement).value"
+              />
+              <vscode-button
+                secondary
+                icon="trash"
+                icon-only
+                :title="t('settings.aiProviders.editor.removeModel')"
+                :aria-label="t('settings.aiProviders.editor.removeModel')"
+                @click="removeProviderModel(index)"
+              />
+              <p v-if="duplicateModelIds().has(model.id.trim())" class="field-description">
+                {{ t('settings.aiProviders.editor.modelDuplicate') }}
+              </p>
+            </div>
+            <p class="field-description">{{ t('settings.aiProviders.editor.modelsDescription') }}</p>
+            <div class="cache-directory-actions">
+              <vscode-button secondary icon="add" @click="addProviderModel">
+                {{ t('settings.aiProviders.editor.addModel') }}
               </vscode-button>
             </div>
-          </template>
-        </div>
-
-        <div class="form-row">
-          <label>{{ t('settings.aiProviders.editor.models') }}</label>
-          <div
-            v-for="(model, index) in providerDraft.models"
-            :key="`model-${index}`"
-            class="repeatable-row"
-            :class="{ invalid: duplicateModelIds().has(model.id.trim()) }"
-          >
-            <vscode-textfield
-              class="repeatable-id"
-              :value="model.id"
-              :label="t('settings.aiProviders.editor.modelId')"
-              :placeholder="t('settings.aiProviders.editor.modelId')"
-              @input="model.id = ($event.target as HTMLInputElement).value"
-            />
-            <vscode-textfield
-              class="repeatable-name"
-              :value="model.name"
-              :label="t('settings.aiProviders.editor.modelName')"
-              :placeholder="t('settings.aiProviders.editor.modelName')"
-              @input="model.name = ($event.target as HTMLInputElement).value"
-            />
-            <vscode-button
-              secondary
-              icon="trash"
-              icon-only
-              :title="t('settings.aiProviders.editor.removeModel')"
-              :aria-label="t('settings.aiProviders.editor.removeModel')"
-              @click="removeProviderModel(index)"
-            />
-            <p v-if="duplicateModelIds().has(model.id.trim())" class="field-description">
-              {{ t('settings.aiProviders.editor.modelDuplicate') }}
-            </p>
-          </div>
-          <p class="field-description">{{ t('settings.aiProviders.editor.modelsDescription') }}</p>
-          <div class="cache-directory-actions">
-            <vscode-button secondary icon="add" @click="addProviderModel">
-              {{ t('settings.aiProviders.editor.addModel') }}
-            </vscode-button>
-          </div>
-          <!--
+            <!--
             The automatic model probe (§4.5): one line saying what the list is
             doing or where its new rows came from, so "these rows appeared by
             themselves" always has an answer. The report below it is the host's own
             wording, and the control after it is the one the record keeps there for
             good — the retry after a failure is exactly this button.
           -->
-          <p class="field-description probe-status" role="status" aria-live="polite">{{ draftProbeStatus }}</p>
-          <!--
+            <p class="field-description probe-status" role="status" aria-live="polite">{{ draftProbeStatus }}</p>
+            <!--
             What a successful probe must not be read as (`docs/design/settings-page.md`
             §8 question 2): the endpoint answering with a model list says only that
             this address and credential reach it, not that content may be sent to it.
@@ -2969,290 +3177,407 @@ defineExpose({
             sentence is off topic, and because this is where the rows the probe just
             filled in are explained.
           -->
-          <p v-if="draftProbeSucceeded" class="field-description probe-consent">
-            {{ t('settings.aiProviders.probe.notConsent') }}
-          </p>
-          <AiTestReport v-if="draftProbeReport" source="automatic" :report="draftProbeReport" />
-          <div class="cache-directory-actions">
-            <vscode-button
-              secondary
-              icon="refresh"
-              :disabled="draftProbeState === 'probing' || providerDraft.baseUrl.trim() === ''"
-              @click="probeDraftModels"
-            >
-              {{
-                draftProbeState === 'probing'
-                  ? t('settings.aiProviders.probe.probingAction')
-                  : t('settings.aiProviders.probe.action')
-              }}
-            </vscode-button>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <label>{{ t('settings.aiProviders.editor.headers') }}</label>
-          <div
-            v-for="(header, index) in providerDraft.headers"
-            :key="`header-${index}`"
-            class="repeatable-row"
-            :class="{ invalid: duplicateHeaderNames().has(header.name.trim()) || headerIsAuthOwned(header.name) }"
-          >
-            <vscode-textfield
-              class="repeatable-id"
-              :value="header.name"
-              :label="t('settings.aiProviders.editor.headerName')"
-              :placeholder="t('settings.aiProviders.editor.headerName')"
-              @input="header.name = ($event.target as HTMLInputElement).value"
-            />
-            <vscode-textfield
-              class="repeatable-name"
-              :value="header.value"
-              :label="t('settings.aiProviders.editor.headerValue')"
-              :placeholder="
-                header.set ? t('settings.aiProviders.editor.headerSet') : t('settings.aiProviders.editor.headerUnset')
-              "
-              type="password"
-              @input="header.value = ($event.target as HTMLInputElement).value"
-            />
-            <vscode-button
-              secondary
-              icon="trash"
-              icon-only
-              :title="t('settings.aiProviders.editor.removeHeader')"
-              :aria-label="t('settings.aiProviders.editor.removeHeader')"
-              @click="removeProviderHeader(index)"
-            />
-            <p v-if="duplicateHeaderNames().has(header.name.trim())" class="field-description">
-              {{ t('settings.aiProviders.editor.headerDuplicate') }}
+            <p v-if="draftProbeSucceeded" class="field-description probe-consent">
+              {{ t('settings.aiProviders.probe.notConsent') }}
             </p>
-            <p v-else-if="headerIsAuthOwned(header.name)" class="field-description">
-              {{ t('settings.aiProviders.editor.headerShadowed') }}
-            </p>
-            <p v-else-if="headerQueryCarried(header.name)" class="field-description">
-              {{ t('settings.aiProviders.editor.headerQueryCarried') }}
-            </p>
-            <div v-if="header.set && header.name.trim() !== ''" class="cache-directory-actions">
-              <vscode-button secondary @click="clearProviderSecret(header.name.trim())">
-                {{ t('settings.aiProviders.editor.clearHeader') }}
+            <AiTestReport v-if="draftProbeReport" source="automatic" :report="draftProbeReport" />
+            <div class="cache-directory-actions">
+              <vscode-button
+                secondary
+                icon="refresh"
+                :disabled="draftProbeState === 'probing' || providerDraft.baseUrl.trim() === ''"
+                @click="probeDraftModels"
+              >
+                {{
+                  draftProbeState === 'probing'
+                    ? t('settings.aiProviders.probe.probingAction')
+                    : t('settings.aiProviders.probe.action')
+                }}
               </vscode-button>
             </div>
           </div>
-          <p class="field-description">{{ t('settings.aiProviders.editor.headersDescription') }}</p>
-          <div class="cache-directory-actions">
-            <vscode-button secondary icon="add" @click="addProviderHeader">
-              {{ t('settings.aiProviders.editor.addHeader') }}
+
+          <div class="form-row">
+            <label>{{ t('settings.aiProviders.editor.headers') }}</label>
+            <div
+              v-for="(header, index) in providerDraft.headers"
+              :key="`header-${index}`"
+              class="repeatable-row"
+              :class="{ invalid: duplicateHeaderNames().has(header.name.trim()) || headerIsAuthOwned(header.name) }"
+            >
+              <vscode-textfield
+                class="repeatable-id"
+                :value="header.name"
+                :label="t('settings.aiProviders.editor.headerName')"
+                :placeholder="t('settings.aiProviders.editor.headerName')"
+                @input="header.name = ($event.target as HTMLInputElement).value"
+              />
+              <vscode-textfield
+                class="repeatable-name"
+                :value="header.value"
+                :label="t('settings.aiProviders.editor.headerValue')"
+                :placeholder="
+                  header.set ? t('settings.aiProviders.editor.headerSet') : t('settings.aiProviders.editor.headerUnset')
+                "
+                type="password"
+                @input="header.value = ($event.target as HTMLInputElement).value"
+              />
+              <vscode-button
+                secondary
+                icon="trash"
+                icon-only
+                :title="t('settings.aiProviders.editor.removeHeader')"
+                :aria-label="t('settings.aiProviders.editor.removeHeader')"
+                @click="removeProviderHeader(index)"
+              />
+              <p v-if="duplicateHeaderNames().has(header.name.trim())" class="field-description">
+                {{ t('settings.aiProviders.editor.headerDuplicate') }}
+              </p>
+              <p v-else-if="headerIsAuthOwned(header.name)" class="field-description">
+                {{ t('settings.aiProviders.editor.headerShadowed') }}
+              </p>
+              <p v-else-if="headerQueryCarried(header.name)" class="field-description">
+                {{ t('settings.aiProviders.editor.headerQueryCarried') }}
+              </p>
+              <div v-if="header.set && header.name.trim() !== ''" class="cache-directory-actions">
+                <vscode-button secondary @click="clearProviderSecret(header.name.trim())">
+                  {{ t('settings.aiProviders.editor.clearHeader') }}
+                </vscode-button>
+              </div>
+            </div>
+            <p class="field-description">{{ t('settings.aiProviders.editor.headersDescription') }}</p>
+            <div class="cache-directory-actions">
+              <vscode-button secondary icon="add" @click="addProviderHeader">
+                {{ t('settings.aiProviders.editor.addHeader') }}
+              </vscode-button>
+            </div>
+          </div>
+
+          <div class="actions">
+            <vscode-button
+              secondary
+              :disabled="editingProviderId === null || providerTestingId !== null"
+              @click="editingProviderId && runProviderTest(editingProviderId)"
+            >
+              {{ providerTestingId ? t('settings.aiProviders.testing') : t('settings.aiProviders.test') }}
+            </vscode-button>
+            <vscode-button :disabled="providerSaving" @click="saveProvider">
+              {{ providerSaving ? t('settings.aiProviders.editor.saving') : t('settings.aiProviders.editor.save') }}
+            </vscode-button>
+            <vscode-button secondary @click="requestCloseProviderEditor">
+              {{ t('settings.aiProviders.editor.cancel') }}
             </vscode-button>
           </div>
-        </div>
 
-        <div class="actions">
-          <vscode-button
-            secondary
-            :disabled="editingProviderId === null || providerTestingId !== null"
-            @click="editingProviderId && runProviderTest(editingProviderId)"
-          >
-            {{ providerTestingId ? t('settings.aiProviders.testing') : t('settings.aiProviders.test') }}
-          </vscode-button>
-          <vscode-button :disabled="providerSaving" @click="saveProvider">
-            {{ providerSaving ? t('settings.aiProviders.editor.saving') : t('settings.aiProviders.editor.save') }}
-          </vscode-button>
-          <vscode-button secondary @click="requestCloseProviderEditor">
-            {{ t('settings.aiProviders.editor.cancel') }}
-          </vscode-button>
-        </div>
-
-        <!-- The test report the editor's own Test button produced. -->
-        <AiTestReport v-if="reportForCurrentView()" source="explicit" :report="reportForCurrentView()!" />
-        <!--
+          <!-- The test report the editor's own Test button produced. -->
+          <AiTestReport v-if="reportForCurrentView()" source="explicit" :report="reportForCurrentView()!" />
+          <!--
           The report's own next step when the endpoint answered with a model list:
           prefill the declaration from it. A control rather than an automatic write,
           because the list is the endpoint's claim about itself and the declaration
           is the user's.
         -->
-        <div v-if="reportedModelsToAdd().length > 0" class="cache-directory-actions">
-          <vscode-button secondary @click="addReportedModels">
-            {{ t('settings.aiProviders.editor.addReportedModels', { count: reportedModelsToAdd().length }) }}
-          </vscode-button>
-        </div>
+          <div v-if="reportedModelsToAdd().length > 0" class="cache-directory-actions">
+            <vscode-button secondary @click="addReportedModels">
+              {{ t('settings.aiProviders.editor.addReportedModels', { count: reportedModelsToAdd().length }) }}
+            </vscode-button>
+          </div>
 
-        <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
-          {{ providerStatus.message }}
+          <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
+            {{ providerStatus.message }}
+          </div>
         </div>
       </div>
-    </div>
 
-    <div v-else ref="listRoot" class="settings-list" tabindex="-1">
-      <section class="setting-section">
-        <h2>{{ t('settings.language') }}</h2>
-        <p class="description">{{ t('settings.languageDescription') }}</p>
-        <div class="form-row">
-          <vscode-single-select :value="selectedLocale" :label="t('settings.language')" @change="handleLocaleChange">
-            <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
-            <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
+      <div v-else ref="listRoot" class="settings-list" :class="{ 'wide-nav': wideNav }" tabindex="-1">
+        <!--
+        The group navigation, in the two shapes §9.3 decides. Both are driven by
+        the width the page measures for itself (`pageWidth`, read by the same
+        ResizeObserver that feeds `--editor-sticky-height`), and neither is a user
+        setting: there is no "layout" switch anywhere (§9.4 rule 5, §9.5 rule 4).
+      -->
+        <!--
+        The narrow shape: one content column, and the group selector in a sticky
+        bar. It is the same `vscode-single-select` this page already renders its
+        enumerations with, so the narrow shape adds a control rather than a second
+        navigation idiom — and it adds no column, which is the whole reason the
+        wide shape can be given up.
+      -->
+        <div v-if="!wideNav" ref="paneBar" class="settings-pane-bar">
+          <vscode-single-select
+            id="settings-group-select"
+            :value="currentGroup"
+            :label="t('settings.groups.label')"
+            @change="handleGroupSelect"
+          >
+            <vscode-option v-for="group in SETTINGS_GROUPS" :key="group.id" :value="group.id">
+              {{ t(group.labelKey) }}
+            </vscode-option>
           </vscode-single-select>
         </div>
-      </section>
 
-      <section class="setting-section">
-        <h2>{{ t('settings.debug.title') }}</h2>
-        <p class="description">{{ t('settings.debug.description') }}</p>
-        <div class="form-row checkbox-row">
-          <vscode-checkbox :checked="debugEnabled" @change="handleDebugChange">
-            {{ t('settings.debug.enable') }}
-          </vscode-checkbox>
+        <!--
+        The wide shape: the six group names in a vertical list beside the content,
+        which is the shape VS Code's own settings page uses. It is a first-party
+        list rather than a component-library one — `vscode-tabs` is a *horizontal*
+        strip with no vertical presentation, `vscode-radio-group` means "pick one
+        value" and draws radio dots, and a tree would claim the six groups are a
+        hierarchy when they are siblings (§9.3's implementation note). Its
+        `role="tablist"` + `aria-orientation="vertical"` states exactly what it is:
+        a vertical set of tabs, one selected, controlling the pane below. No icons
+        (§9.6 question 5, as the maintainer decided): the group names are the whole
+        navigation.
+      -->
+        <div v-if="wideNav" class="settings-nav">
+          <div
+            class="settings-nav-list"
+            role="tablist"
+            aria-orientation="vertical"
+            :aria-label="t('settings.groups.label')"
+          >
+            <button
+              v-for="group in SETTINGS_GROUPS"
+              :key="group.id"
+              :id="groupTabId(group.id)"
+              :ref="(element) => setGroupTab(group.id, element)"
+              class="settings-nav-item"
+              type="button"
+              role="tab"
+              :aria-selected="isCurrentGroup(group.id) ? 'true' : 'false'"
+              :aria-controls="groupPanelId(group.id)"
+              :tabindex="isCurrentGroup(group.id) ? 0 : -1"
+              @click="selectGroup(group.id)"
+              @keydown="handleGroupKeydown($event, group.id)"
+            >
+              {{ t(group.labelKey) }}
+            </button>
+          </div>
         </div>
-      </section>
 
-      <!--
+        <div class="settings-panes">
+          <!--
+          The six panes, all mounted, the inactive ones hidden — see the group
+          comment in the script for why unmounting them is the one thing this
+          design must not do (`hidden` also removes them from the tab order, which
+          is the property the two editor states keep by rendering only one of
+          themselves). `[hidden]` needs its own `display: none` in the stylesheet,
+          because a `display` declaration on the element beats the user agent's
+          rule for the attribute and a flex pane would otherwise stay visible.
+        -->
+          <section
+            :id="groupPanelId('general')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('general')"
+            :hidden="!isCurrentGroup('general')"
+            :inert="isCurrentGroup('general') ? undefined : true"
+          >
+            <h2 class="settings-pane-title">{{ t('settings.groups.general') }}</h2>
+            <section class="setting-section">
+              <h2>{{ t('settings.language') }}</h2>
+              <p class="description">{{ t('settings.languageDescription') }}</p>
+              <div class="form-row">
+                <vscode-single-select
+                  :value="selectedLocale"
+                  :label="t('settings.language')"
+                  @change="handleLocaleChange"
+                >
+                  <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
+                  <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
+                </vscode-single-select>
+              </div>
+            </section>
+
+            <section class="setting-section">
+              <h2>{{ t('settings.debug.title') }}</h2>
+              <p class="description">{{ t('settings.debug.description') }}</p>
+              <div class="form-row checkbox-row">
+                <vscode-checkbox :checked="debugEnabled" @change="handleDebugChange">
+                  {{ t('settings.debug.enable') }}
+                </vscode-checkbox>
+              </div>
+            </section>
+          </section>
+
+          <section
+            :id="groupPanelId('notifications')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('notifications')"
+            :hidden="!isCurrentGroup('notifications')"
+            :inert="isCurrentGroup('notifications') ? undefined : true"
+          >
+            <h2 class="settings-pane-title">{{ t('settings.groups.notifications') }}</h2>
+            <!--
         Notifications. The polling switch is one of the settings the record moves
         onto this page: the dashboard explains the unread badge with it, and until
         now the only place to change it was VS Code's settings editor
         (`docs/design/settings-page.md` §1.3). The interval stays native — it is a
         plain bounded number — and is named by a pointer row instead.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.notifications.title') }}</h2>
-        <p class="description">{{ t('settings.notifications.description') }}</p>
-        <div class="form-row">
-          <vscode-checkbox
-            id="notification-polling-enabled"
-            :checked="pollingEnabled"
-            :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
-            @change="handlePollingEnabledChange"
-          >
-            {{ t('settings.notifications.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.notifications.enabledDefault') }}</p>
-          <p v-if="!pollingEnabled" class="field-description">{{ t('settings.notifications.disabledHint') }}</p>
-          <!--
+            <section class="setting-section">
+              <h2>{{ t('settings.notifications.title') }}</h2>
+              <p class="description">{{ t('settings.notifications.description') }}</p>
+              <div class="form-row">
+                <vscode-checkbox
+                  id="notification-polling-enabled"
+                  :checked="pollingEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+                  @change="handlePollingEnabledChange"
+                >
+                  {{ t('settings.notifications.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.notifications.enabledDefault') }}</p>
+                <p v-if="!pollingEnabled" class="field-description">{{ t('settings.notifications.disabledHint') }}</p>
+                <!--
             The pointer row (§2.2) is clickable as a whole and carries all three
             parts: the setting's full id in monospace, one sentence about what it
             controls, and the action. The id is the literal the guard holds against
             NATIVE_ONLY_SETTINGS; the sentence around it is translated.
           -->
-          <button type="button" class="link-button pointer-row" @click="openNativeSettings">
-            <span>{{ t('settings.nativePointer.label') }}</span>
-            <code class="pointer-id">{{ POLLING_INTERVAL_SETTING }}</code>
-            <span class="pointer-note">{{ t('settings.nativePointer.interval') }}</span>
-            <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
-          </button>
-        </div>
+                <button type="button" class="link-button pointer-row" @click="openNativeSettings">
+                  <span>{{ t('settings.nativePointer.label') }}</span>
+                  <code class="pointer-id">{{ POLLING_INTERVAL_SETTING }}</code>
+                  <span class="pointer-note">{{ t('settings.nativePointer.interval') }}</span>
+                  <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
+                </button>
+              </div>
 
-        <div class="settings-group">
-          <h3>{{ t('settings.multiWindow.title') }}</h3>
-          <div class="form-row">
-            <vscode-checkbox
-              id="multi-window-lease"
-              :checked="leaseEnabled"
-              :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
-              @change="handleLeaseChange"
-            >
-              {{ t('settings.multiWindow.lease') }}
-            </vscode-checkbox>
-            <p class="field-description">{{ t('settings.multiWindow.default') }}</p>
-            <!--
+              <div class="settings-group">
+                <h3>{{ t('settings.multiWindow.title') }}</h3>
+                <div class="form-row">
+                  <vscode-checkbox
+                    id="multi-window-lease"
+                    :checked="leaseEnabled"
+                    :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+                    @change="handleLeaseChange"
+                  >
+                    {{ t('settings.multiWindow.lease') }}
+                  </vscode-checkbox>
+                  <p class="field-description">{{ t('settings.multiWindow.default') }}</p>
+                  <!--
               The degraded case `leaseDegradedNotice` reports once in a toast has
               its readable home here: the setting is what decides whether the
               mechanism runs at all, so this is where "what happens when the
               editor cannot tell which window is focused" belongs.
             -->
-            <p class="field-description">{{ t('settings.multiWindow.description') }}</p>
-            <p v-if="!leaseEnabled" class="field-description">{{ t('settings.multiWindow.offHint') }}</p>
-          </div>
-        </div>
+                  <p class="field-description">{{ t('settings.multiWindow.description') }}</p>
+                  <p v-if="!leaseEnabled" class="field-description">{{ t('settings.multiWindow.offHint') }}</p>
+                </div>
+              </div>
 
-        <div
-          v-if="notificationsSurfaceStatus"
-          :class="['status', notificationsSurfaceStatus.type]"
-          role="status"
-          aria-live="polite"
-        >
-          {{ notificationsSurfaceStatus.message }}
-        </div>
-      </section>
+              <div
+                v-if="notificationsSurfaceStatus"
+                :class="['status', notificationsSurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ notificationsSurfaceStatus.message }}
+              </div>
+            </section>
+          </section>
 
-      <!--
+          <section
+            :id="groupPanelId('mcp')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('mcp')"
+            :hidden="!isCurrentGroup('mcp')"
+            :inert="isCurrentGroup('mcp') ? undefined : true"
+          >
+            <h2 class="settings-pane-title">{{ t('settings.groups.mcp') }}</h2>
+            <!--
         The MCP surface: the master switch, the three per-tool write gates and the
         audit's destination. They belong on one screen because they are one
         confirmation model — the gates are only understandable together
         (`docs/design/mcp-write-tools-confirmation.md` §3.3), and the audit is
         where the answer to "what did the agent change" is written.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.mcp.title') }}</h2>
-        <p class="description">{{ t('settings.mcp.description') }}</p>
-        <div class="form-row">
-          <vscode-checkbox
-            id="mcp-enabled"
-            :checked="mcpEnabledValue"
-            :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
-            @change="handleMcpEnabledChange"
+            <section class="setting-section">
+              <h2>{{ t('settings.mcp.title') }}</h2>
+              <p class="description">{{ t('settings.mcp.description') }}</p>
+              <div class="form-row">
+                <vscode-checkbox
+                  id="mcp-enabled"
+                  :checked="mcpEnabledValue"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+                  @change="handleMcpEnabledChange"
+                >
+                  {{ t('settings.mcp.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.mcp.enabledDefault') }}</p>
+                <p v-if="!mcpEnabledValue" class="field-description">{{ t('settings.mcp.disabledHint') }}</p>
+              </div>
+
+              <div class="settings-group">
+                <h3>{{ t('settings.mcp.writeTools.title') }}</h3>
+                <p class="description">{{ t('settings.mcp.writeTools.description') }}</p>
+                <div class="form-row checkbox-row">
+                  <vscode-checkbox
+                    id="mcp-write-create-issue-comment"
+                    :checked="writeToolCreateIssueComment"
+                    :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+                    @change="handleWriteToolChange('createIssueComment', $event)"
+                  >
+                    {{ t('settings.mcp.writeTools.createIssueComment') }}
+                  </vscode-checkbox>
+                </div>
+                <div class="form-row checkbox-row">
+                  <vscode-checkbox
+                    id="mcp-write-submit-pull-review"
+                    :checked="writeToolSubmitPullReview"
+                    :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+                    @change="handleWriteToolChange('submitPullReview', $event)"
+                  >
+                    {{ t('settings.mcp.writeTools.submitPullReview') }}
+                  </vscode-checkbox>
+                </div>
+                <div class="form-row checkbox-row">
+                  <vscode-checkbox
+                    id="mcp-write-cancel-action-run"
+                    :checked="writeToolCancelActionRun"
+                    :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+                    @change="handleWriteToolChange('cancelActionRun', $event)"
+                  >
+                    {{ t('settings.mcp.writeTools.cancelActionRun') }}
+                  </vscode-checkbox>
+                </div>
+                <!-- One line for all three: the model is "off by default, one gate per tool". -->
+                <p class="field-description">{{ t('settings.mcp.writeTools.default') }}</p>
+              </div>
+
+              <div class="settings-group">
+                <h3>{{ t('settings.mcp.audit.title') }}</h3>
+                <div class="form-row">
+                  <vscode-checkbox
+                    id="mcp-write-audit-to-file"
+                    :checked="mcpAuditToFile"
+                    :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
+                    @change="handleMcpAuditChange"
+                  >
+                    {{ t('settings.mcp.audit.enabled') }}
+                  </vscode-checkbox>
+                  <p class="field-description">{{ t('settings.mcp.audit.default') }}</p>
+                  <p v-if="mcpAuditToFile" class="field-description">{{ t('settings.mcp.audit.file') }}</p>
+                </div>
+              </div>
+
+              <div v-if="mcpSurfaceStatus" :class="['status', mcpSurfaceStatus.type]" role="status" aria-live="polite">
+                {{ mcpSurfaceStatus.message }}
+              </div>
+            </section>
+          </section>
+
+          <section
+            :id="groupPanelId('ai')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('ai')"
+            :hidden="!isCurrentGroup('ai')"
+            :inert="isCurrentGroup('ai') ? undefined : true"
           >
-            {{ t('settings.mcp.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.mcp.enabledDefault') }}</p>
-          <p v-if="!mcpEnabledValue" class="field-description">{{ t('settings.mcp.disabledHint') }}</p>
-        </div>
-
-        <div class="settings-group">
-          <h3>{{ t('settings.mcp.writeTools.title') }}</h3>
-          <p class="description">{{ t('settings.mcp.writeTools.description') }}</p>
-          <div class="form-row checkbox-row">
-            <vscode-checkbox
-              id="mcp-write-create-issue-comment"
-              :checked="writeToolCreateIssueComment"
-              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
-              @change="handleWriteToolChange('createIssueComment', $event)"
-            >
-              {{ t('settings.mcp.writeTools.createIssueComment') }}
-            </vscode-checkbox>
-          </div>
-          <div class="form-row checkbox-row">
-            <vscode-checkbox
-              id="mcp-write-submit-pull-review"
-              :checked="writeToolSubmitPullReview"
-              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
-              @change="handleWriteToolChange('submitPullReview', $event)"
-            >
-              {{ t('settings.mcp.writeTools.submitPullReview') }}
-            </vscode-checkbox>
-          </div>
-          <div class="form-row checkbox-row">
-            <vscode-checkbox
-              id="mcp-write-cancel-action-run"
-              :checked="writeToolCancelActionRun"
-              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
-              @change="handleWriteToolChange('cancelActionRun', $event)"
-            >
-              {{ t('settings.mcp.writeTools.cancelActionRun') }}
-            </vscode-checkbox>
-          </div>
-          <!-- One line for all three: the model is "off by default, one gate per tool". -->
-          <p class="field-description">{{ t('settings.mcp.writeTools.default') }}</p>
-        </div>
-
-        <div class="settings-group">
-          <h3>{{ t('settings.mcp.audit.title') }}</h3>
-          <div class="form-row">
-            <vscode-checkbox
-              id="mcp-write-audit-to-file"
-              :checked="mcpAuditToFile"
-              :disabled="!settingsSurfaceReady || surfaceBusy(MCP_SURFACE_KEYS)"
-              @change="handleMcpAuditChange"
-            >
-              {{ t('settings.mcp.audit.enabled') }}
-            </vscode-checkbox>
-            <p class="field-description">{{ t('settings.mcp.audit.default') }}</p>
-            <p v-if="mcpAuditToFile" class="field-description">{{ t('settings.mcp.audit.file') }}</p>
-          </div>
-        </div>
-
-        <div v-if="mcpSurfaceStatus" :class="['status', mcpSurfaceStatus.type]" role="status" aria-live="polite">
-          {{ mcpSurfaceStatus.message }}
-        </div>
-      </section>
-
-      <!--
+            <h2 class="settings-pane-title">{{ t('settings.groups.ai') }}</h2>
+            <!--
         The whole AI area's own switch, and the only control this section has.
         It sits above the per-feature sections on purpose: this one says "do not
         use AI at all", the feature switches below say "this feature is on", and
@@ -3264,29 +3589,29 @@ defineExpose({
         control on this page stays visible and editable, because this page is their
         only writable source.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.ai.title') }}</h2>
-        <p class="description">{{ t('settings.ai.description') }}</p>
+            <section class="setting-section">
+              <h2>{{ t('settings.ai.title') }}</h2>
+              <p class="description">{{ t('settings.ai.description') }}</p>
 
-        <div class="form-row">
-          <vscode-checkbox
-            id="ai-enabled"
-            :checked="aiEnabled"
-            :disabled="!settingsSurfaceReady || surfaceBusy(AI_SURFACE_KEYS)"
-            @change="handleAiEnabledChange"
-          >
-            {{ t('settings.ai.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.ai.enabledDefault') }}</p>
-          <p v-if="!aiEnabled" class="field-description warn">{{ t('settings.ai.disabledHint') }}</p>
-        </div>
+              <div class="form-row">
+                <vscode-checkbox
+                  id="ai-enabled"
+                  :checked="aiEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(AI_SURFACE_KEYS)"
+                  @change="handleAiEnabledChange"
+                >
+                  {{ t('settings.ai.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.ai.enabledDefault') }}</p>
+                <p v-if="!aiEnabled" class="field-description warn">{{ t('settings.ai.disabledHint') }}</p>
+              </div>
 
-        <div v-if="aiSurfaceStatus" :class="['status', aiSurfaceStatus.type]" role="status" aria-live="polite">
-          {{ aiSurfaceStatus.message }}
-        </div>
-      </section>
+              <div v-if="aiSurfaceStatus" :class="['status', aiSurfaceStatus.type]" role="status" aria-live="polite">
+                {{ aiSurfaceStatus.message }}
+              </div>
+            </section>
 
-      <!--
+            <!--
         The AI pre-review: the feature switch, the prompt scope and the chat
         model, in that order — first what turns the feature on, then what it may
         send, then which model sends it (`docs/design/settings-page.md` §3.2).
@@ -3294,54 +3619,54 @@ defineExpose({
         (`vscode.lm.selectChatModels()`), so it cannot be a contributed setting's
         dropdown; picking here writes the same value the QuickPick command does.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.aiPreReview.title') }}</h2>
-        <p class="description">{{ t('settings.aiPreReview.description') }}</p>
+            <section class="setting-section">
+              <h2>{{ t('settings.aiPreReview.title') }}</h2>
+              <p class="description">{{ t('settings.aiPreReview.description') }}</p>
 
-        <div class="form-row">
-          <vscode-checkbox
-            id="ai-pre-review-enabled"
-            :checked="preReviewEnabled"
-            :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
-            @change="handlePreReviewEnabledChange"
-          >
-            {{ t('settings.aiPreReview.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.aiPreReview.enabledDefault') }}</p>
-          <!--
+              <div class="form-row">
+                <vscode-checkbox
+                  id="ai-pre-review-enabled"
+                  :checked="preReviewEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
+                  @change="handlePreReviewEnabledChange"
+                >
+                  {{ t('settings.aiPreReview.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.aiPreReview.enabledDefault') }}</p>
+                <!--
             The two rows below stay usable while the feature is off: choosing a
             scope or a model is configuration, not use, and the consent question
             the scope exists for is asked by the run itself. The hint says what
             being off means for them instead of disabling them.
           -->
-          <p v-if="!preReviewEnabled" class="field-description">{{ t('settings.aiPreReview.disabledHint') }}</p>
-        </div>
+                <p v-if="!preReviewEnabled" class="field-description">{{ t('settings.aiPreReview.disabledHint') }}</p>
+              </div>
 
-        <!--
+              <!--
           The egress scope. It is the single source of the answer — the modal asks
           once and writes here — so the page renders the host's reading and offers
           exactly the values the host accepts, from the shared enumeration. It
           never corrects a value it cannot read: the host reads such a value as
           `ask`, and that is what the select then shows.
         -->
-        <div class="form-row">
-          <label for="ai-pre-review-scope">{{ t('settings.aiPreReview.scope') }}</label>
-          <vscode-single-select
-            id="ai-pre-review-scope"
-            :value="promptScope"
-            :label="t('settings.aiPreReview.scope')"
-            :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
-            @change="handlePromptScopeChange"
-          >
-            <vscode-option v-for="scope in AI_PRE_REVIEW_PROMPT_SCOPES" :key="scope" :value="scope">
-              {{ promptScopeLabel(scope) }}
-            </vscode-option>
-          </vscode-single-select>
-          <p class="field-description">{{ t('settings.aiPreReview.scopeDescription') }}</p>
-          <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
-        </div>
+              <div class="form-row">
+                <label for="ai-pre-review-scope">{{ t('settings.aiPreReview.scope') }}</label>
+                <vscode-single-select
+                  id="ai-pre-review-scope"
+                  :value="promptScope"
+                  :label="t('settings.aiPreReview.scope')"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(PRE_REVIEW_SURFACE_KEYS)"
+                  @change="handlePromptScopeChange"
+                >
+                  <vscode-option v-for="scope in AI_PRE_REVIEW_PROMPT_SCOPES" :key="scope" :value="scope">
+                    {{ promptScopeLabel(scope) }}
+                  </vscode-option>
+                </vscode-single-select>
+                <p class="field-description">{{ t('settings.aiPreReview.scopeDescription') }}</p>
+                <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
+              </div>
 
-        <!--
+              <!--
           The editor's own chat-model row. It is shown exactly when the editor's
           models can serve a run (`vscode-lm`, and `auto` while it prefers them):
           under an explicit `openai-compatible` choice nothing here consults them, so
@@ -3349,134 +3674,141 @@ defineExpose({
           and the setting itself stays reachable in VS Code's own settings editor
           meanwhile, so it is hidden rather than removed.
         -->
-        <div v-if="usesEditorModels" class="form-row">
-          <label for="ai-pre-review-model">{{ t('settings.aiPreReviewModel.selectLabel') }}</label>
-          <vscode-single-select
-            id="ai-pre-review-model"
-            :value="aiPreReviewModelValue"
-            :label="t('settings.aiPreReviewModel.selectLabel')"
-            :disabled="aiPreReviewModelSaving"
-            @change="handleAiPreReviewModelChange"
-          >
-            <vscode-option value="">{{ t('settings.aiPreReviewModel.askEachRun') }}</vscode-option>
-            <vscode-option
-              v-for="model in aiPreReviewModels"
-              :key="model.value ?? `${model.vendor}/${model.family}/${model.id}`"
-              :value="model.value"
-              :disabled="!model.value"
-              :description="aiPreReviewModelOptionDescription(model)"
-            >
-              {{ aiPreReviewModelOptionLabel(model) }}
-            </vscode-option>
-          </vscode-single-select>
-          <div class="ai-pre-review-model-actions">
-            <vscode-button secondary icon="refresh" :disabled="aiPreReviewModelsLoading" @click="loadAiPreReviewModels">
-              {{ t('settings.aiPreReviewModel.refresh') }}
-            </vscode-button>
-          </div>
-          <p class="field-description">{{ t('settings.aiPreReviewModel.description') }}</p>
-          <p v-if="selectedAiPreReviewModelDescription" class="field-description">
-            {{ selectedAiPreReviewModelDescription }}
-          </p>
-          <p v-if="aiPreReviewModelNotOffered" class="field-description">
-            {{ t('settings.aiPreReviewModel.configuredNotOffered', { value: aiPreReviewModelConfigured }) }}
-          </p>
-          <p class="field-description">{{ t('settings.aiPreReviewModel.note') }}</p>
-        </div>
-        <p v-else class="field-description">
-          {{ t('settings.aiProviders.policy.precedenceEndpoint') }}
-        </p>
-        <template v-if="usesEditorModels">
-          <div v-if="aiPreReviewModelsLoading" class="empty-list">{{ t('settings.aiPreReviewModel.loading') }}</div>
-          <div v-else-if="aiPreReviewModelReason" class="empty-list">{{ aiPreReviewModelReason }}</div>
-          <div
-            v-if="aiPreReviewModelStatus"
-            :class="['status', aiPreReviewModelStatus.type]"
-            role="status"
-            aria-live="polite"
-          >
-            {{ aiPreReviewModelStatus.message }}
-          </div>
-        </template>
-        <div
-          v-if="preReviewSurfaceStatus"
-          :class="['status', preReviewSurfaceStatus.type]"
-          role="status"
-          aria-live="polite"
-        >
-          {{ preReviewSurfaceStatus.message }}
-        </div>
-      </section>
+              <div v-if="usesEditorModels" class="form-row">
+                <label for="ai-pre-review-model">{{ t('settings.aiPreReviewModel.selectLabel') }}</label>
+                <vscode-single-select
+                  id="ai-pre-review-model"
+                  :value="aiPreReviewModelValue"
+                  :label="t('settings.aiPreReviewModel.selectLabel')"
+                  :disabled="aiPreReviewModelSaving"
+                  @change="handleAiPreReviewModelChange"
+                >
+                  <vscode-option value="">{{ t('settings.aiPreReviewModel.askEachRun') }}</vscode-option>
+                  <vscode-option
+                    v-for="model in aiPreReviewModels"
+                    :key="model.value ?? `${model.vendor}/${model.family}/${model.id}`"
+                    :value="model.value"
+                    :disabled="!model.value"
+                    :description="aiPreReviewModelOptionDescription(model)"
+                  >
+                    {{ aiPreReviewModelOptionLabel(model) }}
+                  </vscode-option>
+                </vscode-single-select>
+                <div class="ai-pre-review-model-actions">
+                  <vscode-button
+                    secondary
+                    icon="refresh"
+                    :disabled="aiPreReviewModelsLoading"
+                    @click="loadAiPreReviewModels"
+                  >
+                    {{ t('settings.aiPreReviewModel.refresh') }}
+                  </vscode-button>
+                </div>
+                <p class="field-description">{{ t('settings.aiPreReviewModel.description') }}</p>
+                <p v-if="selectedAiPreReviewModelDescription" class="field-description">
+                  {{ selectedAiPreReviewModelDescription }}
+                </p>
+                <p v-if="aiPreReviewModelNotOffered" class="field-description">
+                  {{ t('settings.aiPreReviewModel.configuredNotOffered', { value: aiPreReviewModelConfigured }) }}
+                </p>
+                <p class="field-description">{{ t('settings.aiPreReviewModel.note') }}</p>
+              </div>
+              <p v-else class="field-description">
+                {{ t('settings.aiProviders.policy.precedenceEndpoint') }}
+              </p>
+              <template v-if="usesEditorModels">
+                <div v-if="aiPreReviewModelsLoading" class="empty-list">
+                  {{ t('settings.aiPreReviewModel.loading') }}
+                </div>
+                <div v-else-if="aiPreReviewModelReason" class="empty-list">{{ aiPreReviewModelReason }}</div>
+                <div
+                  v-if="aiPreReviewModelStatus"
+                  :class="['status', aiPreReviewModelStatus.type]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {{ aiPreReviewModelStatus.message }}
+                </div>
+              </template>
+              <div
+                v-if="preReviewSurfaceStatus"
+                :class="['status', preReviewSurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ preReviewSurfaceStatus.message }}
+              </div>
+            </section>
 
-      <!--
+            <!--
         The PR-description draft. A section of its own rather than a row under the
         pre-review: the two features have separate switches and separate scopes
         (`docs/design/ai-model-transport.md` §7.6), so the page has to show two
         pairs, and the scope dropdown is where a user who declined the modal finds
         the answer they gave.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.prDescription.title') }}</h2>
-        <p class="description">{{ t('settings.prDescription.description') }}</p>
+            <section class="setting-section">
+              <h2>{{ t('settings.prDescription.title') }}</h2>
+              <p class="description">{{ t('settings.prDescription.description') }}</p>
 
-        <div class="form-row">
-          <vscode-checkbox
-            id="pr-description-enabled"
-            :checked="prDescriptionEnabled"
-            :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
-            @change="handlePrDescriptionEnabledChange"
-          >
-            {{ t('settings.prDescription.enabled') }}
-          </vscode-checkbox>
-          <p class="field-description">{{ t('settings.prDescription.enabledDefault') }}</p>
-          <!--
+              <div class="form-row">
+                <vscode-checkbox
+                  id="pr-description-enabled"
+                  :checked="prDescriptionEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
+                  @change="handlePrDescriptionEnabledChange"
+                >
+                  {{ t('settings.prDescription.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.prDescription.enabledDefault') }}</p>
+                <!--
             The scope row stays usable while the feature is off, for the same reason
             the pre-review's does: choosing a scope is configuration, not use.
           -->
-          <p v-if="!prDescriptionEnabled" class="field-description">
-            {{ t('settings.prDescription.disabledHint') }}
-          </p>
-        </div>
+                <p v-if="!prDescriptionEnabled" class="field-description">
+                  {{ t('settings.prDescription.disabledHint') }}
+                </p>
+              </div>
 
-        <div class="form-row">
-          <label for="pr-description-scope">{{ t('settings.prDescription.scope') }}</label>
-          <vscode-single-select
-            id="pr-description-scope"
-            :value="prDescriptionPromptScope"
-            :label="t('settings.prDescription.scope')"
-            :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
-            @change="handlePrDescriptionScopeChange"
-          >
-            <vscode-option v-for="scope in PR_DESCRIPTION_PROMPT_SCOPES" :key="scope" :value="scope">
-              {{ prDescriptionScopeLabel(scope) }}
-            </vscode-option>
-          </vscode-single-select>
-          <p class="field-description">{{ t('settings.prDescription.scopeDescription') }}</p>
-          <p class="field-description">{{ t('settings.prDescription.scopeDefault') }}</p>
-        </div>
+              <div class="form-row">
+                <label for="pr-description-scope">{{ t('settings.prDescription.scope') }}</label>
+                <vscode-single-select
+                  id="pr-description-scope"
+                  :value="prDescriptionPromptScope"
+                  :label="t('settings.prDescription.scope')"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
+                  @change="handlePrDescriptionScopeChange"
+                >
+                  <vscode-option v-for="scope in PR_DESCRIPTION_PROMPT_SCOPES" :key="scope" :value="scope">
+                    {{ prDescriptionScopeLabel(scope) }}
+                  </vscode-option>
+                </vscode-single-select>
+                <p class="field-description">{{ t('settings.prDescription.scopeDescription') }}</p>
+                <p class="field-description">{{ t('settings.prDescription.scopeDefault') }}</p>
+              </div>
 
-        <div
-          v-if="prDescriptionSurfaceStatus"
-          :class="['status', prDescriptionSurfaceStatus.type]"
-          role="status"
-          aria-live="polite"
-        >
-          {{ prDescriptionSurfaceStatus.message }}
-        </div>
-      </section>
+              <div
+                v-if="prDescriptionSurfaceStatus"
+                :class="['status', prDescriptionSurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ prDescriptionSurfaceStatus.message }}
+              </div>
+            </section>
 
-      <!--
+            <!--
         The AI endpoints. This is the master half of the second master–detail pair;
         the editor is a state of the page, exactly as the instance editor is, and
         adding opens the same editor editing does.
       -->
-      <section class="setting-section">
-        <div class="section-header">
-          <h2>{{ t('settings.aiProviders.title') }}</h2>
-        </div>
-        <p class="description">{{ t('settings.aiProviders.description') }}</p>
+            <section class="setting-section">
+              <div class="section-header">
+                <h2>{{ t('settings.aiProviders.title') }}</h2>
+              </div>
+              <p class="description">{{ t('settings.aiProviders.description') }}</p>
 
-        <!--
+              <!--
           The transport choice (§3.2). It is a control here rather than a pointer to
           VS Code's own settings editor, because it is what decides which half of
           this area the page presents: the editor's own chat-model row, the endpoint
@@ -3484,32 +3816,34 @@ defineExpose({
           select goes through the same policy write the timeout below uses, and the
           host writes only the value that differs.
         -->
-        <div class="form-row">
-          <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
-          <vscode-single-select
-            id="ai-transport"
-            :value="policyTransport"
-            :label="t('settings.aiProviders.policy.transport')"
-            :disabled="policySaving"
-            @change="handlePolicyTransportChange"
-          >
-            <vscode-option value="auto">{{ t('settings.aiProviders.policy.transportAuto') }}</vscode-option>
-            <vscode-option value="vscode-lm">{{ t('settings.aiProviders.policy.transportVscodeLm') }}</vscode-option>
-            <vscode-option value="openai-compatible">
-              {{ t('settings.aiProviders.policy.transportOpenAiCompatible') }}
-            </vscode-option>
-          </vscode-single-select>
-          <p class="field-description">{{ t('settings.aiProviders.policy.transportDescription') }}</p>
-          <p v-if="policyTransport === 'auto'" class="field-description">
-            {{ t('settings.aiProviders.policy.precedenceAuto') }}
-          </p>
-          <p v-else-if="policyTransport === 'vscode-lm'" class="field-description">
-            {{ t('settings.aiProviders.policy.precedenceEditor') }}
-          </p>
-          <p v-else class="field-description">{{ t('settings.aiProviders.policy.precedenceEndpoint') }}</p>
-        </div>
+              <div class="form-row">
+                <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
+                <vscode-single-select
+                  id="ai-transport"
+                  :value="policyTransport"
+                  :label="t('settings.aiProviders.policy.transport')"
+                  :disabled="policySaving"
+                  @change="handlePolicyTransportChange"
+                >
+                  <vscode-option value="auto">{{ t('settings.aiProviders.policy.transportAuto') }}</vscode-option>
+                  <vscode-option value="vscode-lm">{{
+                    t('settings.aiProviders.policy.transportVscodeLm')
+                  }}</vscode-option>
+                  <vscode-option value="openai-compatible">
+                    {{ t('settings.aiProviders.policy.transportOpenAiCompatible') }}
+                  </vscode-option>
+                </vscode-single-select>
+                <p class="field-description">{{ t('settings.aiProviders.policy.transportDescription') }}</p>
+                <p v-if="policyTransport === 'auto'" class="field-description">
+                  {{ t('settings.aiProviders.policy.precedenceAuto') }}
+                </p>
+                <p v-else-if="policyTransport === 'vscode-lm'" class="field-description">
+                  {{ t('settings.aiProviders.policy.precedenceEditor') }}
+                </p>
+                <p v-else class="field-description">{{ t('settings.aiProviders.policy.precedenceEndpoint') }}</p>
+              </div>
 
-        <!--
+              <!--
           The capability block is about the route the transport actually takes, so it
           belongs to the transport choice rather than to the endpoint list: an
           explicit openai-compatible run never asks this editor's models, and the
@@ -3517,43 +3851,43 @@ defineExpose({
           choice that does not use one. It keeps both routes for every choice that
           does consult them, whatever the host's reason code is.
         -->
-        <div
-          v-if="usesEditorModels && capability && !capability.available"
-          class="capability-block"
-          role="status"
-          aria-live="polite"
-        >
-          <p class="capability-title">{{ t('settings.aiProviders.notUsable.title') }}</p>
-          <p class="field-description">{{ capabilityReason }}</p>
-          <div class="capability-route" :class="{ first: !capabilityEndpointFirst }">
-            <p class="field-description">{{ t('settings.aiProviders.notUsable.installRoute') }}</p>
-            <div class="cache-directory-actions">
-              <vscode-button
-                :secondary="!capabilityEndpointFirst"
-                :disabled="providerRechecking"
-                icon="refresh"
-                @click="recheckOfferedModels"
+              <div
+                v-if="usesEditorModels && capability && !capability.available"
+                class="capability-block"
+                role="status"
+                aria-live="polite"
               >
-                {{
-                  providerRechecking
-                    ? t('settings.aiProviders.notUsable.rechecking')
-                    : t('settings.aiProviders.notUsable.installAction')
-                }}
-              </vscode-button>
-            </div>
-          </div>
-          <div class="capability-route" :class="{ first: capabilityEndpointFirst }">
-            <p class="field-description">{{ t('settings.aiProviders.notUsable.endpointRoute') }}</p>
-            <div class="cache-directory-actions">
-              <vscode-button :secondary="capabilityEndpointFirst" @click="openNewProviderEditor">
-                {{ t('settings.aiProviders.notUsable.endpointAction') }}
-              </vscode-button>
-            </div>
-          </div>
-          <p v-if="capabilityCode === 'bind'" class="field-description">
-            {{ t('settings.aiProviders.notUsable.bindHint') }}
-          </p>
-          <!--
+                <p class="capability-title">{{ t('settings.aiProviders.notUsable.title') }}</p>
+                <p class="field-description">{{ capabilityReason }}</p>
+                <div class="capability-route" :class="{ first: !capabilityEndpointFirst }">
+                  <p class="field-description">{{ t('settings.aiProviders.notUsable.installRoute') }}</p>
+                  <div class="cache-directory-actions">
+                    <vscode-button
+                      :secondary="!capabilityEndpointFirst"
+                      :disabled="providerRechecking"
+                      icon="refresh"
+                      @click="recheckOfferedModels"
+                    >
+                      {{
+                        providerRechecking
+                          ? t('settings.aiProviders.notUsable.rechecking')
+                          : t('settings.aiProviders.notUsable.installAction')
+                      }}
+                    </vscode-button>
+                  </div>
+                </div>
+                <div class="capability-route" :class="{ first: capabilityEndpointFirst }">
+                  <p class="field-description">{{ t('settings.aiProviders.notUsable.endpointRoute') }}</p>
+                  <div class="cache-directory-actions">
+                    <vscode-button :secondary="capabilityEndpointFirst" @click="openNewProviderEditor">
+                      {{ t('settings.aiProviders.notUsable.endpointAction') }}
+                    </vscode-button>
+                  </div>
+                </div>
+                <p v-if="capabilityCode === 'bind'" class="field-description">
+                  {{ t('settings.aiProviders.notUsable.bindHint') }}
+                </p>
+                <!--
             Belt and braces for the global switch: the page renders this block from
             the endpoint snapshot and the switch from the settings surface, and the
             two are read at different moments. With AI off the two routes above do
@@ -3561,31 +3895,33 @@ defineExpose({
             repeated here rather than leaving the reader with advice about the wrong
             problem.
           -->
-          <p v-if="capabilityCode === 'ai-off'" class="field-description">
-            {{ t('settings.ai.disabledHint') }}
-          </p>
-        </div>
+                <p v-if="capabilityCode === 'ai-off'" class="field-description">
+                  {{ t('settings.ai.disabledHint') }}
+                </p>
+              </div>
 
-        <div class="form-row">
-          <label for="ai-request-timeout">{{ t('settings.aiProviders.policy.timeout') }}</label>
-          <vscode-textfield
-            id="ai-request-timeout"
-            :value="policyTimeoutField"
-            :label="t('settings.aiProviders.policy.timeout')"
-            type="number"
-            @input="policyTimeoutField = ($event.target as HTMLInputElement).value"
-          />
-          <div class="cache-directory-actions">
-            <vscode-button secondary :disabled="policySaving" @click="savePolicyTimeout">
-              {{
-                policySaving ? t('settings.aiProviders.policy.saving') : t('settings.aiProviders.policy.timeoutSave')
-              }}
-            </vscode-button>
-          </div>
-          <p class="field-description">{{ t('settings.aiProviders.policy.timeoutDescription') }}</p>
-        </div>
+              <div class="form-row">
+                <label for="ai-request-timeout">{{ t('settings.aiProviders.policy.timeout') }}</label>
+                <vscode-textfield
+                  id="ai-request-timeout"
+                  :value="policyTimeoutField"
+                  :label="t('settings.aiProviders.policy.timeout')"
+                  type="number"
+                  @input="policyTimeoutField = ($event.target as HTMLInputElement).value"
+                />
+                <div class="cache-directory-actions">
+                  <vscode-button secondary :disabled="policySaving" @click="savePolicyTimeout">
+                    {{
+                      policySaving
+                        ? t('settings.aiProviders.policy.saving')
+                        : t('settings.aiProviders.policy.timeoutSave')
+                    }}
+                  </vscode-button>
+                </div>
+                <p class="field-description">{{ t('settings.aiProviders.policy.timeoutDescription') }}</p>
+              </div>
 
-        <!--
+              <!--
           The endpoint surface: the list, its editor and the default destination.
           All three are configuration of the **direct** route, so the transport
           choice decides whether they are on screen — an explicit vscode-lm run
@@ -3593,14 +3929,14 @@ defineExpose({
           says so and how to bring it back (the transport select above owns it), so
           nothing becomes unreachable.
         -->
-        <div v-if="usesConfiguredEndpoint">
-          <div class="section-actions">
-            <vscode-button :ref="addProviderButtonRef" icon="add" @click="openNewProviderEditor">
-              {{ t('settings.aiProviders.add') }}
-            </vscode-button>
-          </div>
+              <div v-if="usesConfiguredEndpoint">
+                <div class="section-actions">
+                  <vscode-button :ref="addProviderButtonRef" icon="add" @click="openNewProviderEditor">
+                    {{ t('settings.aiProviders.add') }}
+                  </vscode-button>
+                </div>
 
-          <!--
+                <!--
             The default destination, and the primary path: it is the one statement
             that makes the direct route usable for every feature at once, while the
             overrides below are opt-in. The endpoint select lists what is configured
@@ -3608,360 +3944,402 @@ defineExpose({
             model is free text for the reason §8.1 gives — an endpoint's model list
             is a declaration, not a whitelist.
           -->
-          <div class="form-row">
-            <label for="ai-default-provider">{{ t('settings.aiProviders.defaultModel.provider') }}</label>
-            <vscode-single-select
-              id="ai-default-provider"
-              :value="defaultProvider"
-              :label="t('settings.aiProviders.defaultModel.provider')"
-              :disabled="defaultSaving"
-              @change="defaultProvider = ($event.target as HTMLSelectElement).value"
-            >
-              <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
-              <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
-                {{ entry.name }}
-              </vscode-option>
-              <vscode-option
-                v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
-                :value="defaultProvider"
-              >
-                {{ defaultProvider }}
-              </vscode-option>
-            </vscode-single-select>
-            <vscode-textfield
-              id="ai-default-model"
-              :value="defaultModel"
-              :label="t('settings.aiProviders.defaultModel.model')"
-              :placeholder="t('settings.aiProviders.defaultModel.modelPlaceholder')"
-              :disabled="defaultSaving"
-              @input="defaultModel = ($event.target as HTMLInputElement).value"
-            />
-            <div class="cache-directory-actions">
-              <vscode-button :disabled="defaultSaving" @click="saveDefaultModel()">
-                {{
-                  defaultSaving
-                    ? t('settings.aiProviders.defaultModel.saving')
-                    : t('settings.aiProviders.defaultModel.save')
-                }}
-              </vscode-button>
-              <vscode-button secondary :disabled="defaultSaving" @click="saveDefaultModel(true)">
-                {{ t('settings.aiProviders.defaultModel.clear') }}
-              </vscode-button>
-            </div>
-            <p class="field-description">{{ t('settings.aiProviders.defaultModel.description') }}</p>
-            <p
-              v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
-              class="field-description warn"
-            >
-              {{ t('settings.aiProviders.defaultModel.missingProvider', { id: defaultProvider }) }}
-            </p>
-            <p v-if="defaultProvider !== '' && defaultModel !== ''" class="field-description">
-              {{
-                t('settings.aiProviders.defaultModel.statusSet', {
-                  provider: defaultProvider,
-                  model: defaultModel,
-                })
-              }}
-            </p>
-            <p v-else-if="defaultProvider === '' && defaultModel === ''" class="field-description">
-              {{ t('settings.aiProviders.defaultModel.statusUnset') }}
-            </p>
-            <div
-              v-if="defaultModelStatus.message"
-              :class="['status', defaultModelStatus.type]"
-              role="status"
-              aria-live="polite"
-            >
-              {{ defaultModelStatus.message }}
-            </div>
-          </div>
-
-          <ul v-if="providerEntries.length > 0" class="saved-list">
-            <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
-              <div class="saved-info">
-                <div class="saved-name">{{ entry.name }}</div>
-                <div class="saved-url">{{ entry.address }}</div>
-                <div class="provider-facts">
-                  <span class="provider-fact">{{ providerKeyFact(entry) }}</span>
-                  <span v-if="entry.headers.length > 0" class="provider-fact">
+                <div class="form-row">
+                  <label for="ai-default-provider">{{ t('settings.aiProviders.defaultModel.provider') }}</label>
+                  <vscode-single-select
+                    id="ai-default-provider"
+                    :value="defaultProvider"
+                    :label="t('settings.aiProviders.defaultModel.provider')"
+                    :disabled="defaultSaving"
+                    @change="defaultProvider = ($event.target as HTMLSelectElement).value"
+                  >
+                    <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
+                    <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
+                      {{ entry.name }}
+                    </vscode-option>
+                    <vscode-option
+                      v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
+                      :value="defaultProvider"
+                    >
+                      {{ defaultProvider }}
+                    </vscode-option>
+                  </vscode-single-select>
+                  <vscode-textfield
+                    id="ai-default-model"
+                    :value="defaultModel"
+                    :label="t('settings.aiProviders.defaultModel.model')"
+                    :placeholder="t('settings.aiProviders.defaultModel.modelPlaceholder')"
+                    :disabled="defaultSaving"
+                    @input="defaultModel = ($event.target as HTMLInputElement).value"
+                  />
+                  <div class="cache-directory-actions">
+                    <vscode-button :disabled="defaultSaving" @click="saveDefaultModel()">
+                      {{
+                        defaultSaving
+                          ? t('settings.aiProviders.defaultModel.saving')
+                          : t('settings.aiProviders.defaultModel.save')
+                      }}
+                    </vscode-button>
+                    <vscode-button secondary :disabled="defaultSaving" @click="saveDefaultModel(true)">
+                      {{ t('settings.aiProviders.defaultModel.clear') }}
+                    </vscode-button>
+                  </div>
+                  <p class="field-description">{{ t('settings.aiProviders.defaultModel.description') }}</p>
+                  <p
+                    v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
+                    class="field-description warn"
+                  >
+                    {{ t('settings.aiProviders.defaultModel.missingProvider', { id: defaultProvider }) }}
+                  </p>
+                  <p v-if="defaultProvider !== '' && defaultModel !== ''" class="field-description">
                     {{
-                      t('settings.aiProviders.row.headersSet', {
-                        set: storedHeaderCount(entry),
-                        total: entry.headers.length,
+                      t('settings.aiProviders.defaultModel.statusSet', {
+                        provider: defaultProvider,
+                        model: defaultModel,
                       })
                     }}
-                  </span>
-                  <span v-if="providerSecretNames(entry).length > 0" class="provider-fact warn">
-                    {{ t('settings.aiProviders.row.shadowed', { names: providerSecretNames(entry).join(', ') }) }}
-                  </span>
-                  <span v-if="entry.addressError" class="provider-fact warn">
-                    {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
-                  </span>
-                  <span v-if="entry.insecure" class="provider-fact warn">
-                    {{ t('settings.aiProviders.row.insecure') }}
-                  </span>
-                  <span v-if="entry.models.length === 0" class="provider-fact">
-                    {{ t('settings.aiProviders.row.noModels') }}
-                  </span>
+                  </p>
+                  <p v-else-if="defaultProvider === '' && defaultModel === ''" class="field-description">
+                    {{ t('settings.aiProviders.defaultModel.statusUnset') }}
+                  </p>
+                  <div
+                    v-if="defaultModelStatus.message"
+                    :class="['status', defaultModelStatus.type]"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {{ defaultModelStatus.message }}
+                  </div>
                 </div>
-              </div>
-              <div class="saved-actions">
-                <vscode-button secondary :disabled="providerTestingId !== null" @click="runProviderTest(entry.id)">
-                  {{
-                    providerTestingId === entry.id ? t('settings.aiProviders.testing') : t('settings.aiProviders.test')
-                  }}
-                </vscode-button>
-                <vscode-button :ref="providerEditButtonRef(entry.id)" secondary @click="openProviderEditor(entry)">
-                  {{ t('settings.aiProviders.edit') }}
-                </vscode-button>
-                <vscode-button :disabled="providerRemovingId !== null" @click="removeProvider(entry.id)">
-                  {{
-                    providerRemovingId === entry.id
-                      ? t('settings.aiProviders.removePending')
-                      : t('settings.aiProviders.remove')
-                  }}
-                </vscode-button>
-              </div>
-              <!-- The report for this row, when its own Test button produced one. -->
-              <AiTestReport
-                v-if="providerTestReportId === entry.id && providerTestReport"
-                source="explicit"
-                :report="providerTestReport"
-              />
-            </li>
-          </ul>
-          <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>
 
-          <!--
+                <ul v-if="providerEntries.length > 0" class="saved-list">
+                  <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
+                    <div class="saved-info">
+                      <div class="saved-name">{{ entry.name }}</div>
+                      <div class="saved-url">{{ entry.address }}</div>
+                      <div class="provider-facts">
+                        <span class="provider-fact">{{ providerKeyFact(entry) }}</span>
+                        <span v-if="entry.headers.length > 0" class="provider-fact">
+                          {{
+                            t('settings.aiProviders.row.headersSet', {
+                              set: storedHeaderCount(entry),
+                              total: entry.headers.length,
+                            })
+                          }}
+                        </span>
+                        <span v-if="providerSecretNames(entry).length > 0" class="provider-fact warn">
+                          {{ t('settings.aiProviders.row.shadowed', { names: providerSecretNames(entry).join(', ') }) }}
+                        </span>
+                        <span v-if="entry.addressError" class="provider-fact warn">
+                          {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
+                        </span>
+                        <span v-if="entry.insecure" class="provider-fact warn">
+                          {{ t('settings.aiProviders.row.insecure') }}
+                        </span>
+                        <span v-if="entry.models.length === 0" class="provider-fact">
+                          {{ t('settings.aiProviders.row.noModels') }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="saved-actions">
+                      <vscode-button
+                        secondary
+                        :disabled="providerTestingId !== null"
+                        @click="runProviderTest(entry.id)"
+                      >
+                        {{
+                          providerTestingId === entry.id
+                            ? t('settings.aiProviders.testing')
+                            : t('settings.aiProviders.test')
+                        }}
+                      </vscode-button>
+                      <vscode-button
+                        :ref="providerEditButtonRef(entry.id)"
+                        secondary
+                        @click="openProviderEditor(entry)"
+                      >
+                        {{ t('settings.aiProviders.edit') }}
+                      </vscode-button>
+                      <vscode-button :disabled="providerRemovingId !== null" @click="removeProvider(entry.id)">
+                        {{
+                          providerRemovingId === entry.id
+                            ? t('settings.aiProviders.removePending')
+                            : t('settings.aiProviders.remove')
+                        }}
+                      </vscode-button>
+                    </div>
+                    <!-- The report for this row, when its own Test button produced one. -->
+                    <AiTestReport
+                      v-if="providerTestReportId === entry.id && providerTestReport"
+                      source="explicit"
+                      :report="providerTestReport"
+                    />
+                  </li>
+                </ul>
+                <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>
+
+                <!--
             The entries the settings reader refused. They are named rather than hidden:
             a provider silently vanishing from the list is exactly the undiagnosable
             state this page exists to prevent, and the reason is the reader's own.
           -->
-          <div v-if="providerRejections.length > 0" class="rejected-block">
-            <h3>{{ t('settings.aiProviders.rejected.title') }}</h3>
-            <p class="field-description">{{ t('settings.aiProviders.rejected.intro') }}</p>
-            <ul class="rejected-list">
-              <li v-for="entry in providerRejections" :key="`rejected-${entry.index}`">
-                {{
-                  entry.id
-                    ? t('settings.aiProviders.rejected.entryNamed', {
-                        index: entry.index + 1,
-                        id: entry.id,
-                        reason: entry.reason,
-                      })
-                    : t('settings.aiProviders.rejected.entryUnnamed', { index: entry.index + 1, reason: entry.reason })
-                }}
-              </li>
-            </ul>
-          </div>
-        </div>
+                <div v-if="providerRejections.length > 0" class="rejected-block">
+                  <h3>{{ t('settings.aiProviders.rejected.title') }}</h3>
+                  <p class="field-description">{{ t('settings.aiProviders.rejected.intro') }}</p>
+                  <ul class="rejected-list">
+                    <li v-for="entry in providerRejections" :key="`rejected-${entry.index}`">
+                      {{
+                        entry.id
+                          ? t('settings.aiProviders.rejected.entryNamed', {
+                              index: entry.index + 1,
+                              id: entry.id,
+                              reason: entry.reason,
+                            })
+                          : t('settings.aiProviders.rejected.entryUnnamed', {
+                              index: entry.index + 1,
+                              reason: entry.reason,
+                            })
+                      }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
 
-        <p v-else class="field-description">{{ t('settings.aiProviders.policy.hiddenForEditor') }}</p>
+              <p v-else class="field-description">{{ t('settings.aiProviders.policy.hiddenForEditor') }}</p>
 
-        <div v-if="policyStatus.message" :class="['status', policyStatus.type]" role="status" aria-live="polite">
-          {{ policyStatus.message }}
-        </div>
+              <div v-if="policyStatus.message" :class="['status', policyStatus.type]" role="status" aria-live="polite">
+                {{ policyStatus.message }}
+              </div>
 
-        <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
-          {{ providerStatus.message }}
-        </div>
-      </section>
+              <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
+                {{ providerStatus.message }}
+              </div>
+            </section>
 
-      <!--
+            <!--
         The per-feature overrides. They are their own section because they answer a
         different question from the default above — which **one** feature departs
         from it, and why — and because the record keeps them a separate setting. The
         empty option on every row is the answer most features give: follow the
         default, which is what a user who configures nothing gets.
       -->
-      <section class="setting-section">
-        <h2>{{ t('settings.aiProviders.bindings.title') }}</h2>
-        <p class="description">{{ t('settings.aiProviders.bindings.description') }}</p>
-        <div v-if="bindingFeatures.length === 0" class="empty-list">
-          {{ t('settings.aiProviders.bindings.empty') }}
-        </div>
-        <div v-for="feature in bindingFeatures" :key="`binding-${feature}`" class="form-row binding-row">
-          <label :for="`ai-binding-${feature}`">{{ featureLabel(feature) }}</label>
-          <vscode-single-select
-            :id="`ai-binding-${feature}`"
-            :value="bindingProvider[feature] ?? ''"
-            :label="featureLabel(feature)"
-            :disabled="bindingSaving[feature] === true"
-            @change="bindingProvider[feature] = ($event.target as HTMLSelectElement).value"
-          >
-            <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
-            <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
-              {{ entry.name }}
-            </vscode-option>
-          </vscode-single-select>
-          <vscode-textfield
-            :value="bindingModel[feature] ?? ''"
-            :label="t('settings.aiProviders.bindings.model')"
-            :placeholder="t('settings.aiProviders.bindings.modelPlaceholder')"
-            :disabled="bindingSaving[feature] === true"
-            @input="bindingModel[feature] = ($event.target as HTMLInputElement).value"
-          />
-          <p
-            v-if="
-              (bindingProvider[feature] ?? '') !== '' &&
-              !providerEntries.some((entry) => entry.id === bindingProvider[feature])
-            "
-            class="field-description warn"
-          >
-            {{ t('settings.aiProviders.bindings.missingProvider', { id: bindingProvider[feature] }) }}
-          </p>
-          <div class="cache-directory-actions">
-            <vscode-button :disabled="bindingSaving[feature] === true" @click="saveBinding(feature)">
-              {{
-                bindingSaving[feature] === true
-                  ? t('settings.aiProviders.bindings.saving')
-                  : t('settings.aiProviders.bindings.save')
-              }}
-            </vscode-button>
-            <vscode-button secondary :disabled="bindingSaving[feature] === true" @click="saveBinding(feature, true)">
-              {{ t('settings.aiProviders.bindings.clear') }}
-            </vscode-button>
-          </div>
-        </div>
-      </section>
-
-      <section class="setting-section">
-        <h2>{{ t('settings.worktree.title') }}</h2>
-        <p class="description">{{ t('settings.worktree.description') }}</p>
-        <div class="form-row">
-          <label for="worktree-open-mode">{{ t('settings.worktree.openMode') }}</label>
-          <vscode-single-select
-            id="worktree-open-mode"
-            :value="selectedWorktreeOpenMode"
-            :label="t('settings.worktree.openMode')"
-            @change="handleWorktreeOpenModeChange"
-          >
-            <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
-            <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
-            <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
-          </vscode-single-select>
-        </div>
-
-        <div class="form-row">
-          <label for="worktree-cache-directory">{{ t('settings.worktree.cacheDirectory') }}</label>
-          <vscode-textfield
-            id="worktree-cache-directory"
-            :value="worktreeCacheDirectory"
-            :label="t('settings.worktree.cacheDirectory')"
-            :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
-            @input="handleWorktreeCacheDirectoryChange"
-            @change="applyWorktreeCacheDirectory"
-          />
-          <div class="cache-directory-actions">
-            <vscode-button @click="browseWorktreeCacheDirectory" secondary>
-              {{ t('settings.worktree.browse') }}
-            </vscode-button>
-            <vscode-button @click="restoreDefaultCacheDirectory" secondary>{{
-              t('settings.worktree.restoreDefault')
-            }}</vscode-button>
-          </div>
-        </div>
-
-        <div v-if="state.worktrees.value.length > 0" class="worktree-list">
-          <h3>{{ t('settings.worktree.savedWorktrees') }}</h3>
-          <ul class="saved-list">
-            <li v-for="worktree in state.worktrees.value" :key="worktree.id" class="saved-item worktree-item">
-              <div class="saved-info">
-                <div class="saved-name">
-                  {{ worktree.owner }}/{{ worktree.repo }}#{{ worktree.prIndex }} {{ worktree.prTitle }}
+            <section class="setting-section">
+              <h2>{{ t('settings.aiProviders.bindings.title') }}</h2>
+              <p class="description">{{ t('settings.aiProviders.bindings.description') }}</p>
+              <div v-if="bindingFeatures.length === 0" class="empty-list">
+                {{ t('settings.aiProviders.bindings.empty') }}
+              </div>
+              <div v-for="feature in bindingFeatures" :key="`binding-${feature}`" class="form-row binding-row">
+                <label :for="`ai-binding-${feature}`">{{ featureLabel(feature) }}</label>
+                <vscode-single-select
+                  :id="`ai-binding-${feature}`"
+                  :value="bindingProvider[feature] ?? ''"
+                  :label="featureLabel(feature)"
+                  :disabled="bindingSaving[feature] === true"
+                  @change="bindingProvider[feature] = ($event.target as HTMLSelectElement).value"
+                >
+                  <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
+                  <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
+                    {{ entry.name }}
+                  </vscode-option>
+                </vscode-single-select>
+                <vscode-textfield
+                  :value="bindingModel[feature] ?? ''"
+                  :label="t('settings.aiProviders.bindings.model')"
+                  :placeholder="t('settings.aiProviders.bindings.modelPlaceholder')"
+                  :disabled="bindingSaving[feature] === true"
+                  @input="bindingModel[feature] = ($event.target as HTMLInputElement).value"
+                />
+                <p
+                  v-if="
+                    (bindingProvider[feature] ?? '') !== '' &&
+                    !providerEntries.some((entry) => entry.id === bindingProvider[feature])
+                  "
+                  class="field-description warn"
+                >
+                  {{ t('settings.aiProviders.bindings.missingProvider', { id: bindingProvider[feature] }) }}
+                </p>
+                <div class="cache-directory-actions">
+                  <vscode-button :disabled="bindingSaving[feature] === true" @click="saveBinding(feature)">
+                    {{
+                      bindingSaving[feature] === true
+                        ? t('settings.aiProviders.bindings.saving')
+                        : t('settings.aiProviders.bindings.save')
+                    }}
+                  </vscode-button>
+                  <vscode-button
+                    secondary
+                    :disabled="bindingSaving[feature] === true"
+                    @click="saveBinding(feature, true)"
+                  >
+                    {{ t('settings.aiProviders.bindings.clear') }}
+                  </vscode-button>
                 </div>
-                <div class="saved-url">{{ worktree.headBranch }} → {{ worktree.baseBranch }}</div>
-                <div class="saved-path">{{ worktree.worktreePath }}</div>
               </div>
-              <div class="worktree-actions">
-                <vscode-button @click="openWorktree(worktree.worktreePath)" secondary>{{
-                  t('settings.worktree.open')
-                }}</vscode-button>
-                <vscode-button @click="deleteWorktree(worktree.id)">{{ t('settings.worktree.delete') }}</vscode-button>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <div v-else class="empty-list">{{ t('settings.worktree.noWorktrees') }}</div>
-        <div v-if="worktreeError" class="status error">{{ worktreeError }}</div>
-      </section>
+            </section>
+          </section>
 
-      <section class="setting-section">
-        <div class="section-header">
-          <h2>{{ t('settings.savedInstances') }}</h2>
-          <div class="section-actions">
-            <!--
+          <section
+            :id="groupPanelId('worktree')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('worktree')"
+            :hidden="!isCurrentGroup('worktree')"
+            :inert="isCurrentGroup('worktree') ? undefined : true"
+          >
+            <h2 class="settings-pane-title">{{ t('settings.groups.worktree') }}</h2>
+            <section class="setting-section">
+              <h2>{{ t('settings.worktree.title') }}</h2>
+              <p class="description">{{ t('settings.worktree.description') }}</p>
+              <div class="form-row">
+                <label for="worktree-open-mode">{{ t('settings.worktree.openMode') }}</label>
+                <vscode-single-select
+                  id="worktree-open-mode"
+                  :value="selectedWorktreeOpenMode"
+                  :label="t('settings.worktree.openMode')"
+                  @change="handleWorktreeOpenModeChange"
+                >
+                  <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
+                  <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
+                  <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
+                </vscode-single-select>
+              </div>
+
+              <div class="form-row">
+                <label for="worktree-cache-directory">{{ t('settings.worktree.cacheDirectory') }}</label>
+                <vscode-textfield
+                  id="worktree-cache-directory"
+                  :value="worktreeCacheDirectory"
+                  :label="t('settings.worktree.cacheDirectory')"
+                  :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
+                  @input="handleWorktreeCacheDirectoryChange"
+                  @change="applyWorktreeCacheDirectory"
+                />
+                <div class="cache-directory-actions">
+                  <vscode-button @click="browseWorktreeCacheDirectory" secondary>
+                    {{ t('settings.worktree.browse') }}
+                  </vscode-button>
+                  <vscode-button @click="restoreDefaultCacheDirectory" secondary>{{
+                    t('settings.worktree.restoreDefault')
+                  }}</vscode-button>
+                </div>
+              </div>
+
+              <div v-if="state.worktrees.value.length > 0" class="worktree-list">
+                <h3>{{ t('settings.worktree.savedWorktrees') }}</h3>
+                <ul class="saved-list">
+                  <li v-for="worktree in state.worktrees.value" :key="worktree.id" class="saved-item worktree-item">
+                    <div class="saved-info">
+                      <div class="saved-name">
+                        {{ worktree.owner }}/{{ worktree.repo }}#{{ worktree.prIndex }} {{ worktree.prTitle }}
+                      </div>
+                      <div class="saved-url">{{ worktree.headBranch }} → {{ worktree.baseBranch }}</div>
+                      <div class="saved-path">{{ worktree.worktreePath }}</div>
+                    </div>
+                    <div class="worktree-actions">
+                      <vscode-button @click="openWorktree(worktree.worktreePath)" secondary>{{
+                        t('settings.worktree.open')
+                      }}</vscode-button>
+                      <vscode-button @click="deleteWorktree(worktree.id)">{{
+                        t('settings.worktree.delete')
+                      }}</vscode-button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+              <div v-else class="empty-list">{{ t('settings.worktree.noWorktrees') }}</div>
+              <div v-if="worktreeError" class="status error">{{ worktreeError }}</div>
+            </section>
+          </section>
+
+          <section
+            :id="groupPanelId('instances')"
+            class="settings-pane"
+            role="tabpanel"
+            :aria-labelledby="groupTabId('instances')"
+            :hidden="!isCurrentGroup('instances')"
+            :inert="isCurrentGroup('instances') ? undefined : true"
+          >
+            <h2 class="settings-pane-title">{{ t('settings.groups.instances') }}</h2>
+            <section class="setting-section">
+              <div class="section-header">
+                <h2>{{ t('settings.savedInstances') }}</h2>
+                <div class="section-actions">
+                  <!--
               Adding opens the same editor editing does; it is not a form at the
               end of the list. The button is the list's own way in, and the focus
               target the editor returns to when there is no row to return to.
             -->
-            <vscode-button :ref="addInstanceButtonRef" icon="add" @click="openNewEditor">
-              {{ t('settings.addInstance') }}
+                  <vscode-button :ref="addInstanceButtonRef" icon="add" @click="openNewEditor">
+                    {{ t('settings.addInstance') }}
+                  </vscode-button>
+                  <vscode-button
+                    v-if="state.instances.value.length > 0"
+                    secondary
+                    icon="desktop-download"
+                    @click="handleExportInstances"
+                  >
+                    {{ t('settings.exportInstances') }}
+                  </vscode-button>
+                  <vscode-button icon="file-directory" @click="handleImportInstances" secondary>
+                    {{ t('settings.importInstances') }}
+                  </vscode-button>
+                </div>
+              </div>
+              <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
+              <div v-if="importStatus" :class="['status', importStatus.type]">{{ importStatus.message }}</div>
+              <!-- The Save outcome lands here, where the editor closed back to. -->
+              <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
+              <ul v-if="state.instances.value.length > 0" class="saved-list">
+                <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
+                  <div class="saved-info">
+                    <div class="saved-name">{{ instance.name }}</div>
+                    <div class="saved-url">{{ instance.url }}</div>
+                  </div>
+                  <div class="saved-actions">
+                    <vscode-button :ref="instanceEditButtonRef(instance.id)" @click="openEditor(instance)" secondary>
+                      {{ t('settings.editInstance') }}
+                    </vscode-button>
+                    <vscode-button @click="removeInstance(instance.id)">{{ t('settings.remove') }}</vscode-button>
+                  </div>
+                </li>
+              </ul>
+              <div v-else class="empty-list">{{ t('settings.noSavedInstances') }}</div>
+            </section>
+          </section>
+        </div>
+      </div>
+
+      <ModalDialog :open="exportDialogOpen" :title="t('settings.exportDialogTitle')" @close="cancelExport">
+        <div class="export-dialog-content">
+          <p class="description">{{ t('settings.exportDialogDescription') }}</p>
+          <ul class="saved-list">
+            <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
+              <vscode-checkbox
+                :checked="selectedExportIds.has(instance.id)"
+                @change="toggleExportSelection(instance, $event)"
+              >
+                <div class="saved-info">
+                  <div class="saved-name">{{ instance.name }}</div>
+                  <div class="saved-url">{{ instance.url }}</div>
+                </div>
+              </vscode-checkbox>
+            </li>
+          </ul>
+          <div class="export-dialog-actions">
+            <vscode-button @click="cancelExport" secondary>
+              {{ t('settings.exportDialogCancel') }}
             </vscode-button>
-            <vscode-button
-              v-if="state.instances.value.length > 0"
-              secondary
-              icon="desktop-download"
-              @click="handleExportInstances"
-            >
-              {{ t('settings.exportInstances') }}
+            <vscode-button :disabled="selectedExportIds.size === 0" @click="copyExportToClipboard" secondary>
+              {{ t('settings.copyToClipboard') }}
             </vscode-button>
-            <vscode-button icon="file-directory" @click="handleImportInstances" secondary>
-              {{ t('settings.importInstances') }}
+            <vscode-button :disabled="selectedExportIds.size === 0" @click="confirmExport">
+              {{ t('settings.exportSelected', { count: selectedExportIds.size }) }}
             </vscode-button>
           </div>
         </div>
-        <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
-        <div v-if="importStatus" :class="['status', importStatus.type]">{{ importStatus.message }}</div>
-        <!-- The Save outcome lands here, where the editor closed back to. -->
-        <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
-        <ul v-if="state.instances.value.length > 0" class="saved-list">
-          <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
-            <div class="saved-info">
-              <div class="saved-name">{{ instance.name }}</div>
-              <div class="saved-url">{{ instance.url }}</div>
-            </div>
-            <div class="saved-actions">
-              <vscode-button :ref="instanceEditButtonRef(instance.id)" @click="openEditor(instance)" secondary>
-                {{ t('settings.editInstance') }}
-              </vscode-button>
-              <vscode-button @click="removeInstance(instance.id)">{{ t('settings.remove') }}</vscode-button>
-            </div>
-          </li>
-        </ul>
-        <div v-else class="empty-list">{{ t('settings.noSavedInstances') }}</div>
-      </section>
-    </div>
-
-    <ModalDialog :open="exportDialogOpen" :title="t('settings.exportDialogTitle')" @close="cancelExport">
-      <div class="export-dialog-content">
-        <p class="description">{{ t('settings.exportDialogDescription') }}</p>
-        <ul class="saved-list">
-          <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
-            <vscode-checkbox
-              :checked="selectedExportIds.has(instance.id)"
-              @change="toggleExportSelection(instance, $event)"
-            >
-              <div class="saved-info">
-                <div class="saved-name">{{ instance.name }}</div>
-                <div class="saved-url">{{ instance.url }}</div>
-              </div>
-            </vscode-checkbox>
-          </li>
-        </ul>
-        <div class="export-dialog-actions">
-          <vscode-button @click="cancelExport" secondary>
-            {{ t('settings.exportDialogCancel') }}
-          </vscode-button>
-          <vscode-button :disabled="selectedExportIds.size === 0" @click="copyExportToClipboard" secondary>
-            {{ t('settings.copyToClipboard') }}
-          </vscode-button>
-          <vscode-button :disabled="selectedExportIds.size === 0" @click="confirmExport">
-            {{ t('settings.exportSelected', { count: selectedExportIds.size }) }}
-          </vscode-button>
-        </div>
-      </div>
-    </ModalDialog>
+      </ModalDialog>
+    </template>
   </div>
 </template>
 
@@ -4172,6 +4550,135 @@ vscode-single-select {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/*
+ * The group navigation (`docs/design/settings-page.md` §9.3).
+ *
+ * Two shapes, one current group. The wide one is a vertical list beside the
+ * content — the shape the editor's own settings page uses — and the narrow one is
+ * the group selector in a sticky bar, which adds no column. The switch is the
+ * page's own measured width, so nothing here is a user setting.
+ */
+.settings-list.wide-nav {
+  /* Two columns: the navigation, then the content. `flex-start` is what lets the
+     sticky navigation stay at the top of the scrollport instead of stretching to
+     the full height of a long content column. */
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.settings-nav {
+  /* 150 px is the width the threshold's arithmetic reserves for it (§9.3): the
+     six names are short, and the column is a name list rather than a control
+     column. `flex: 0 0` keeps it from being squeezed by a long content value. */
+  flex: 0 0 150px;
+  position: sticky;
+  top: 0;
+  min-width: 0;
+}
+
+.settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+ * One group in the vertical list. It borrows the editor's own list variables —
+ * selection, hover and the focus ring — so it reads as part of the editor rather
+ * than as a control of ours, which is what §9.3 asks for ("只用编辑器列表那几个
+ * 主题变量"). No icons: the group name is the whole item.
+ */
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.settings-nav-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.settings-nav-item[aria-selected='true'] {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* The list is entered with Tab and navigated with the arrow keys (roving
+   tabindex), so the ring is what says which item the arrow keys are on. */
+.settings-nav-item:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/*
+ * The narrow shape's sticky bar. It is the block the scroll container reserves
+ * space for in that shape — its height is published as `--editor-sticky-height`
+ * by the same observer that measures the editors' heading, so a focused field
+ * stops below it instead of under it. The opaque background is what makes that
+ * safe: without it the content would scroll through the text.
+ */
+.settings-pane-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 8px;
+  background-color: var(--vscode-editor-background);
+}
+
+/*
+ * The content column: the panes, one per group. It is a plain column like
+ * `.settings-list` itself; the separation between groups is structural (only one
+ * pane is on screen), so it needs no frame.
+ */
+.settings-panes {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * One group's pane. `[hidden]` is restated because the pane is a flex container
+ * and an author `display` declaration beats the user agent's rule for the
+ * attribute: without this line a hidden group would still be laid out, which is
+ * exactly the failure the design's "mount everything, hide the inactive ones"
+ * arrangement must not have. `hidden` is also what takes the inactive groups out
+ * of the tab order — the property the two editor states keep by rendering only
+ * one of themselves.
+ */
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.settings-pane[hidden] {
+  display: none;
+}
+
+/*
+ * The group's own name, at the top of its pane. It is the same text the
+ * navigation shows (§9.6 question 5, as the maintainer decided: the name appears
+ * as a heading in the content as well), and the rule under it is what separates
+ * the group from the blocks inside it without turning either into a card.
+ */
+.settings-pane-title {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  font-size: 1.05rem;
 }
 
 /*

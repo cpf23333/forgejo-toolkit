@@ -90,6 +90,7 @@
   "No git repository found in the current workspace. Open a folder containing a git repository to publish it.": "No git repository found in the current workspace. Open a folder containing a git repository to publish it.",
   "Select a folder to publish": "Select a folder to publish",
   "Open Settings": "Open Settings",
+  "Settings": "Settings",
   "View Log": "View Log",
   "The request timed out. The instance is not responding.": "The request timed out. The instance is not responding.",
   "The request was cancelled.": "The request was cancelled.",
