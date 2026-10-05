@@ -10,7 +10,7 @@ import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiP
 import { enabledMcpWriteTools, isMcpWriteAuditToFileEnabled, MCP_WRITE_TOOLS_KEY } from '../mcpWriteSettings';
 import { isMcpServerEnabled } from '../mcpServerProvider';
 import { isMultiWindowLeaseEnabled } from '../lease/leaseSupervisor';
-import { MCP_WRITE_TOOL_SETTING_KEYS } from '../../mcp/writeTools';
+import { MCP_WRITE_TOOL_SETTING_KEYS, type McpWriteTool } from '../../mcp/writeTools';
 import { logger } from '../logger';
 
 /**
@@ -129,49 +129,43 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
 /** The result of one write: nothing to say, or the host's own sentence. */
 export type SettingsSurfaceWriteResult = { ok: true } | { ok: false; error: string };
 
-/** Reads one setting, answering `undefined` for anything that throws. */
-function readSettingValue(key: string): unknown {
-  try {
-    return vscode.workspace.getConfiguration(SETTINGS_SECTION).get<unknown>(key);
-  } catch {
-    // A read that throws is "not configured", never a failed command: the write
-    // still lands, and the reply carries whatever the next read reports.
-    return undefined;
-  }
-}
-
 /** Writes one setting at global scope. */
 async function writeSettingValue(key: string, value: unknown): Promise<void> {
   await vscode.workspace.getConfiguration(SETTINGS_SECTION).update(key, value, vscode.ConfigurationTarget.Global);
 }
 
-/** The three per-tool switches, by their key inside the `mcpWriteTools` container. */
-const WRITE_TOOL_CONTAINER_KEYS: Readonly<Record<string, string>> = {
-  'forgejoToolkit.mcpWriteTools.createIssueComment': MCP_WRITE_TOOL_SETTING_KEYS.create_issue_comment,
-  'forgejoToolkit.mcpWriteTools.submitPullReview': MCP_WRITE_TOOL_SETTING_KEYS.submit_pull_review,
-  'forgejoToolkit.mcpWriteTools.cancelActionRun': MCP_WRITE_TOOL_SETTING_KEYS.cancel_action_run,
+/** The three per-tool switches, by the write tool each one gates. */
+const WRITE_TOOL_BY_SETTING: Readonly<Record<string, McpWriteTool>> = {
+  'forgejoToolkit.mcpWriteTools.createIssueComment': 'create_issue_comment',
+  'forgejoToolkit.mcpWriteTools.submitPullReview': 'submit_pull_review',
+  'forgejoToolkit.mcpWriteTools.cancelActionRun': 'cancel_action_run',
 };
 
 /**
- * Stores one per-tool write switch **inside** the `mcpWriteTools` container.
+ * Stores one per-tool write switch as **its own dotted key**.
  *
- * The container is rewritten as a whole rather than a dotted key being written,
- * because `WorkspaceConfiguration.update` addresses one key per call and the
- * manifest contributes the three tools as three keys under one object. Reading
- * and merging keeps every other tool — and any key a newer build added, which
- * this one cannot read — exactly as it was: the alternative, writing a container
- * with only the three known keys, would delete the unknown ones on the first
- * click.
+ * The manifest contributes the three tools as three dotted keys
+ * (`forgejoToolkit.mcpWriteTools.createIssueComment`, …) and **no**
+ * `forgejoToolkit.mcpWriteTools` property — the settings section §1.3 states that
+ * outright. A write to the container is therefore refused by the editor as an
+ * unregistered setting, which is what a live walkthrough hit on all three
+ * switches; the write has to address the same key the manifest declares.
+ *
+ * Writing the one dotted key is also what makes "a tool nobody here knows about
+ * survives" true by construction: `update` merges into the object, and this page
+ * never writes the neighbour keys at all. The current value is read the way the
+ * feature readers read it (`enabledMcpWriteTools`: only an explicit `true` is
+ * on), and a switch that already holds the requested value is not written again.
  */
 async function writeMcpWriteTool(key: string, value: boolean): Promise<void> {
-  const containerKey = WRITE_TOOL_CONTAINER_KEYS[key];
-  if (containerKey === undefined) {
+  const tool = WRITE_TOOL_BY_SETTING[key];
+  if (tool === undefined) {
     throw new Error(`"${key}" is not a write-tool setting`);
   }
-  const raw = readSettingValue(MCP_WRITE_TOOLS_KEY);
-  const container = typeof raw === 'object' && raw !== null ? { ...(raw as Record<string, unknown>) } : {};
-  container[containerKey] = value;
-  await writeSettingValue(MCP_WRITE_TOOLS_KEY, container);
+  if (enabledMcpWriteTools().includes(tool) === value) {
+    return;
+  }
+  await writeSettingValue(`${MCP_WRITE_TOOLS_KEY}.${MCP_WRITE_TOOL_SETTING_KEYS[tool]}`, value);
 }
 
 /**
@@ -219,7 +213,7 @@ export async function writeSettingsSurfaceValue(
         error: vscode.l10n.t('The setting "{0}" was not written: it takes on or off.', key),
       };
     }
-    if (WRITE_TOOL_CONTAINER_KEYS[key] !== undefined) {
+    if (WRITE_TOOL_BY_SETTING[key] !== undefined) {
       await writeMcpWriteTool(key, rawValue);
     } else {
       await writeSettingValue(key.slice(`${SETTINGS_SECTION}.`.length), rawValue);

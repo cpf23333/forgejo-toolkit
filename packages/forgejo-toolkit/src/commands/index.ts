@@ -128,8 +128,14 @@ export function registerCommands(
     // situation this page exists to answer; and it is a **separate** command from
     // `forgejoToolkit.openSettings` (which opens this page) on purpose, so the
     // palette does not hold two entries whose titles both read "Open Settings".
+    //
+    // The filter is the extension's **own id**, taken from the running extension
+    // rather than typed a second time: `@ext:forgejo-toolkit` — the package name
+    // without its publisher — matches nothing, and the editor then opens saying no
+    // settings were found. `context.extension.id` is `<publisher>.<name>` as the
+    // manifest declares them.
     vscode.commands.registerCommand('forgejoToolkit.openNativeSettings', () => {
-      void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:forgejo-toolkit');
+      void vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${context.extension.id}`);
     }),
 
     vscode.commands.registerCommand('forgejoToolkit.openOnboarding', () => {

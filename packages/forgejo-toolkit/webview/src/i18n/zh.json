@@ -697,6 +697,8 @@
         "okTitle": "端点 \"{name}\" 有应答。",
         "failTitle": "端点 \"{name}\" 测试失败。",
         "notRunTitle": "端点 \"{name}\" 没有测试：一个字都没发出去。",
+        "sourceAutomatic": "来自本页自动跑的模型列表探测：地址、认证方式或凭据改过之后才会跑。",
+        "sourceExplicit": "来自你按下的「测试连接」。",
         "address": "地址",
         "status": "HTTP 状态",
         "elapsed": "耗时",
@@ -804,7 +806,9 @@
         "probing": "正在探测该端点的模型列表……",
         "probingAction": "探测中……",
         "added": "已从端点的 /models 补入 {count} 个模型；它们就是普通行，可改可删。",
-        "unchanged": "端点的 /models 没有报出这份列表里还没有的模型。"
+        "unchanged": "端点的 /models 没有报出这份列表里还没有的模型。",
+        "failed": "探测没有得到应答：端点自己给的原因是下方那张报告卡。",
+        "refused": "探测一个字都没发出去：原因在下方那张报告卡里。"
       }
     },
     "status": {

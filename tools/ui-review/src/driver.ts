@@ -625,8 +625,18 @@ export async function waitWorkbench(page: Page, ms = 8000): Promise<void> {
   await page.waitForTimeout(ms);
 }
 
-// NOTE: VS Code webviews are out-of-process iframes; their DOM is not reachable
-// through CDP frames. Drive them with coordinate input (page.mouse / page.keyboard)
-// and verify with screenshots. Native OS dialogs (showConfirm etc.) are not part
-// of the renderer at all — use src/win/dialog.ps1 + system screenshots instead.
+// NOTE: VS Code webviews are out-of-process iframes, and their guest document **is**
+// reachable through CDP frames — measured 2026-10-05 (the README's "Known blind
+// spots" is where that measurement lives): `frame.evaluate` runs inside the guest
+// and reaches the extension's own UI in that shell's same-origin nested
+// `#active-frame`. One wrinkle measured the same day: the guest frame's `url()`
+// came back **empty** (the frame list held the workbench and the shell and nothing
+// else, both with the shell unnamed), so identify the guest as "the frame that is
+// not the main frame" and confirm it by its `#active-frame`, not by its URL. What
+// this driver's own commands still address is the workbench page — `ui eval`
+// always evaluates there — so a walkthrough is driven with coordinate input
+// (page.mouse / page.keyboard) and verified with screenshots; a guest read needs a
+// script that connects over CDP itself.
+// Native OS dialogs (showConfirm etc.) are not part of the renderer at all — use
+// src/win/dialog.ps1 + system screenshots instead.
 export type { WindowLabel };

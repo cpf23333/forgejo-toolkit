@@ -41,7 +41,9 @@ function registerHandlers() {
     deleteComment: mocks.deleteComment,
     getCommentContext: mocks.getCommentContext,
   };
-  const context = { subscriptions: [] as Array<{ dispose(): void }> };
+  // The extension's own identity, as the real extension host fills it in: the
+  // publisher and the package name from the manifest, joined by a dot.
+  const context = { subscriptions: [] as Array<{ dispose(): void }>, extension: { id: 'cpf23333.forgejo-toolkit' } };
   // Registering the commands is also what hands the view provider the AI
   // pre-review run that the pull request detail page's button reaches
   // (`setAiPreReviewRunner`), so even this suite — which never dispatches a
@@ -462,11 +464,29 @@ describe('package.json contributions', () => {
   const manifest = JSON.parse(
     readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json'), 'utf8'),
   ) as {
+    name: string;
+    publisher: string;
     contributes: { menus: Record<string, Array<{ command: string; when?: string }>> };
   };
 
   const menuItem = (menu: string, command: string) =>
     (manifest.contributes.menus[menu] ?? []).find((item) => item.command === command);
+
+  it('filters the native settings editor to the extension id the manifest declares', () => {
+    // A live walkthrough found the filtered settings editor empty: the command was
+    // handing `@ext:forgejo-toolkit` to `workbench.action.openSettings`, and the
+    // extension id is `<publisher>.<name>` — the package name alone matches no
+    // extension, so the editor opened saying no settings were found. The filter is
+    // derived from the extension the host is running (`context.extension.id`),
+    // which is exactly the identity this reads out of the manifest.
+    const id = `${manifest.publisher}.${manifest.name}`;
+    expect(id).toBe('cpf23333.forgejo-toolkit');
+
+    const handlers = registerHandlers();
+    handlers.get('forgejoToolkit.openNativeSettings')!();
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.action.openSettings', `@ext:${id}`);
+  });
 
   it('contributes deletePullReviewComment to the single-comment context menu', () => {
     // The reachable menu id is `comments/comment/context`; the previously used

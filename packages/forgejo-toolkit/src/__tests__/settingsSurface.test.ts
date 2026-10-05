@@ -190,22 +190,62 @@ describe('the settings page surface: writing', () => {
     expect(update).toHaveBeenCalledWith('notificationPollingEnabled', true, vscode.ConfigurationTarget.Global);
   });
 
-  it('writes one write tool inside its container without dropping its neighbours', async () => {
-    // The container is rewritten whole (one `update` call can address one key),
-    // so a key a newer build added must survive the click.
-    get.mockImplementation((key: string) =>
-      key === 'mcpWriteTools' ? { cancelActionRun: true, futureTool: true } : undefined,
-    );
+  it('writes one write tool as its own dotted key, and never as the container', async () => {
+    // A live walkthrough hit the editor's own refusal on all three switches: the
+    // page wrote the **container** `forgejoToolkit.mcpWriteTools`, which the
+    // manifest does not contribute (it contributes only the three dotted keys), so
+    // the write was refused as an unregistered setting. The write has to address
+    // the same key the manifest declares — and because it writes one dotted key,
+    // a tool a newer build added is simply a key nothing here writes.
+    expect(manifestKeys).toContain('forgejoToolkit.mcpWriteTools.createIssueComment');
+    expect(manifestKeys).not.toContain('forgejoToolkit.mcpWriteTools');
+    get.mockImplementation((key: string) => (key === 'mcpWriteTools' ? { futureTool: true } : undefined));
     useConfiguration();
 
     expect(await writeSettingsSurfaceValue('forgejoToolkit.mcpWriteTools.createIssueComment', true)).toEqual({
       ok: true,
     });
-    expect(update).toHaveBeenCalledWith(
-      'mcpWriteTools',
-      { cancelActionRun: true, futureTool: true, createIssueComment: true },
-      vscode.ConfigurationTarget.Global,
-    );
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith('mcpWriteTools.createIssueComment', true, vscode.ConfigurationTarget.Global);
+    // The unknown neighbour is not part of the write at all.
+    expect(update).not.toHaveBeenCalledWith('mcpWriteTools', expect.anything(), expect.anything());
+  });
+
+  it('turns a write tool off through its own dotted key', async () => {
+    get.mockImplementation((key: string) => (key === 'mcpWriteTools' ? { cancelActionRun: true } : undefined));
+    useConfiguration();
+
+    expect(await writeSettingsSurfaceValue('forgejoToolkit.mcpWriteTools.cancelActionRun', false)).toEqual({
+      ok: true,
+    });
+    expect(update).toHaveBeenCalledWith('mcpWriteTools.cancelActionRun', false, vscode.ConfigurationTarget.Global);
+  });
+
+  it('leaves a write tool alone when the reader already reports that value', async () => {
+    // The current value is read through the reader the behaviour itself uses
+    // (`enabledMcpWriteTools`): an explicit `true` is on, everything else is off.
+    get.mockImplementation((key: string) => (key === 'mcpWriteTools' ? { submitPullReview: true } : undefined));
+    useConfiguration();
+
+    expect(await writeSettingsSurfaceValue('forgejoToolkit.mcpWriteTools.submitPullReview', true)).toEqual({
+      ok: true,
+    });
+    expect(await writeSettingsSurfaceValue('forgejoToolkit.mcpWriteTools.createIssueComment', false)).toEqual({
+      ok: true,
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('writes a switch whose stored value is not a boolean, rather than trusting it', async () => {
+    // `"true"` is not `true`: the reader calls that tool off, so clicking the
+    // switch on has to reach the setting.
+    get.mockImplementation((key: string) => (key === 'mcpWriteTools' ? { createIssueComment: 'true' } : undefined));
+    useConfiguration();
+
+    expect(await writeSettingsSurfaceValue('forgejoToolkit.mcpWriteTools.createIssueComment', true)).toEqual({
+      ok: true,
+    });
+    expect(update).toHaveBeenCalledWith('mcpWriteTools.createIssueComment', true, vscode.ConfigurationTarget.Global);
   });
 
   it('accepts every value of the prompt scope and nothing else', async () => {

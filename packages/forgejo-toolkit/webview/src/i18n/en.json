@@ -697,6 +697,8 @@
         "okTitle": "The endpoint \"{name}\" answered.",
         "failTitle": "The endpoint \"{name}\" failed the test.",
         "notRunTitle": "The endpoint \"{name}\" was not tested: nothing was sent.",
+        "sourceAutomatic": "From the automatic model-list probe this page ran after the address, the authentication style or the credential changed.",
+        "sourceExplicit": "From the Test connection button you pressed.",
         "address": "Address",
         "status": "HTTP status",
         "elapsed": "Elapsed",
@@ -804,7 +806,9 @@
         "probing": "Probing this endpoint's model list...",
         "probingAction": "Probing...",
         "added": "Added {count} model(s) from the endpoint's /models; they are ordinary rows you can edit or remove.",
-        "unchanged": "The endpoint's /models reported no model this list does not already declare."
+        "unchanged": "The endpoint's /models reported no model this list does not already declare.",
+        "failed": "The probe did not get an answer: the endpoint's own reason is in the report below.",
+        "refused": "The probe sent nothing: the reason is in the report below."
       }
     },
     "status": {

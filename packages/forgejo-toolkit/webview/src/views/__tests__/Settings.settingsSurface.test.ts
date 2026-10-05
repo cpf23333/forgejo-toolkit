@@ -361,7 +361,7 @@ describe('the settings the page presents', () => {
     wrapper.unmount();
   });
 
-  it('opens the filtered native settings editor from the header and from a pointer row', async () => {
+  it('opens the filtered native settings editor from the header and from both pointer rows', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf();
 
     const wrapper = mountView();
@@ -374,8 +374,16 @@ describe('the settings the page presents', () => {
     await header!.trigger('click');
     expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(1);
 
-    await wrapper.findAll('.pointer-row')[0]!.trigger('click');
+    // Every entry point goes through the one action, which posts the one command
+    // the host implements with the extension's own id as the filter (§2.1, §2.2):
+    // a second, hand-written filter is how the two rows and the header could drift
+    // apart, and one of them opening an unfiltered editor is the defect this pins.
+    const pointers = wrapper.findAll('.pointer-row');
+    expect(pointers).toHaveLength(2);
+    await pointers[0]!.trigger('click');
     expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(2);
+    await pointers[1]!.trigger('click');
+    expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(3);
     wrapper.unmount();
   });
 });

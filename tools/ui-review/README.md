@@ -140,6 +140,41 @@ procedure is only complete with the frame named:
   intended control instead of a neighbour — click the coordinate, then read the
   guest's own state.
 
+**A panel can be painted over a webview frame, and the frame guard cannot see it.**
+Measured 2026-10-05 in the isolated dev host: the settings editor that
+`forgejoToolkit.openNativeSettings` opens is an editor-area panel whose
+`document.querySelector('.settings-editor')` rect was `(145,138) 1150x657` while the
+sidebar frame was `(49,64) 297x794` — the panel is drawn over the sidebar's own rect
+from x 145 rightwards, and it is **not** a webview frame, so `placeCoordinate` still
+answers "inside the sidebar webview". The click is then delivered to the panel and
+the sidebar control underneath never sees it, silently: `ui click` exits 0, and the
+frame guard has nothing to refuse on because its question ("which webview frame
+contains this point?") is answered correctly. Measured in the same session: the
+coordinate `(300,193)`, aimed at the `ai-local-only` checkbox label, left the
+checkbox `false` with the panel open and set it to `true` at the very same
+coordinate once `Escape` had closed the panel. Two habits answer it:
+
+- **Know what is on top before aiming at the sidebar.** Close the panel you opened
+  (`Escape` closes the settings editor) or take a fresh `shot` and check that nothing
+  floats over the frame you are aiming into; the overlay is visible in the capture
+  and invisible to every guard the harness has.
+- **Do not read an early DOM query as "the click did nothing".** The same panel
+  answered `.settings-editor` count `0` in a read taken right after the click and
+  `1` two seconds later: a panel that has not painted yet looks exactly like a click
+  that missed, so confirm a _negative_ result by re-reading, not once.
+
+**A `vscode-textfield` is cleared through the same one-step-per-invocation recipe,
+read back from the guest.** An earlier run saw one `Ctrl+A`+`Delete` leave a stale
+character in such a field (the screenshot then disagrees with the value the page
+would submit), which a screenshot cannot settle either way; it did not reproduce on
+2026-10-05, and the recipe that did hold is the one the `ui eval` section already
+gives — `click` → `key Control+a` → `key Delete` → `type`, one command per
+invocation — followed by a **readback inside the guest** rather than a look at the
+capture: the field's own `value` property and, because the component is a custom
+element, `field.shadowRoot.querySelector('input').value`. Measured with that
+sequence: both read `""` after the `Delete` and the full new text after the `type`.
+Treat a stale character the moment the two disagree.
+
 **The pixel scale can move under you, and a coordinate read off an older
 screenshot then points somewhere else.** Measured 2026-10-05: `devicePixelRatio`
 in the dev host went 1 → 1.5 mid-session; a screenshot is in device pixels while
@@ -942,7 +977,12 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   evaluates there — so a walkthrough is driven with coordinate clicks and
   screenshots. A DOM read of the guest is available to a script that connects over
   CDP itself, and it is how a click is proved to have reached the intended control
-  rather than its neighbour.
+  rather than its neighbour. **A second measurement the same day adds one wrinkle**:
+  the guest frame's `url()` came back **empty** — Playwright listed exactly two
+  frames, the workbench and the shell, and the shell is the one with no URL — so a
+  script that looks for `url().startsWith('vscode-webview://')` finds nothing. Take
+  the frame that is not the main frame and confirm it by its `#active-frame`, whose
+  `contentDocument` is where the extension's UI lives.
 - **Native OS dialogs** (VS Code modal messages such as the dirty-form confirm)
   are separate Win32 windows and never appear in CDP screenshots:
 

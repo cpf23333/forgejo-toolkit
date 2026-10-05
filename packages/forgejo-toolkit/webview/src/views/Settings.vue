@@ -1794,6 +1794,21 @@ let lastProbedSignature: string | null = null;
 /** Whether the address field has been left once, so its local refusal can be shown. */
 const providerAddressCommitted = ref(false);
 /**
+ * Whether the user has changed the address, the authentication style or the
+ * credential since this editor opened (§4.3, §8.1).
+ *
+ * The probe exists for "I just finished typing an address and a credential", so
+ * **only an edit may arm it**. Opening an existing endpoint — or switching from
+ * one endpoint to another — fills these fields too, and a watcher over their
+ * values cannot tell that apart from typing: with `auth: none` the credential is
+ * not needed, so an existing credential-less endpoint armed the probe the moment
+ * its editor was opened and sent a `GET /models` about a second later, before any
+ * input. This flag is what the watched signature is missing: it is set by the
+ * three input handlers and by nothing else, and cleared on every transition in or
+ * out of the editor.
+ */
+const providerDraftEdited = ref(false);
+/**
  * The values this page generated, while the field still holds them untouched. A
  * generated value follows the address; the moment the user edits the field, the
  * field is theirs and generation stops for it (§5.1).
@@ -1833,9 +1848,9 @@ const providerDraftAddressReason = computed(() => {
 
 /**
  * The input combination the automatic probe would run for, or `null` when it must
- * not run at all: no editor, a save in flight, no freshly typed credential, an
- * address that is not a URL yet, an address the local-only rule refuses, or a
- * policy the host has not reported yet.
+ * not run at all: no editor, a save in flight, **nothing edited yet**, no freshly
+ * typed credential, an address that is not a URL yet, an address the local-only
+ * rule refuses, or a policy the host has not reported yet.
  *
  * The signature holds the typed key so that typing a different one counts as a
  * new combination. It is a value in this component's memory only: it is never
@@ -1844,6 +1859,13 @@ const providerDraftAddressReason = computed(() => {
  */
 const draftProbeSignature = computed<string | null>(() => {
   if (!providerEditorOpen.value || providerSaving.value || providerRemovingId.value !== null) {
+    return null;
+  }
+  if (!providerDraftEdited.value) {
+    // Field values are not input: an editor that was just opened (or switched to
+    // another endpoint) has a valid address and, under `auth: none`, needs no
+    // credential — so without this the opening itself armed a probe (§4.3). An
+    // edit is required in every case, `auth: none` included.
     return null;
   }
   if (!providerSnapshot.value) {
@@ -1941,16 +1963,27 @@ function applyDraftProbeReport(report: AiProviderTestReport): void {
 }
 
 /**
- * What the line under the model list says: the probe in progress, or how many
- * rows it filled in. A failed probe says nothing here — its report card carries
- * the host's own sentence, which is the answer to "why".
+ * What the line under the model list says: the probe in progress, how many rows it
+ * filled in, or — for a failure or a local refusal — that it did not answer and
+ * where the host's own reason is.
+ *
+ * The failed case has to be said **here** as well as in the report card: the card
+ * sits below the model rows and is routinely below the fold, so an empty status
+ * line left a failed probe looking like nothing had happened.
  */
 const draftProbeStatus = computed(() => {
   if (draftProbeState.value === 'probing') {
     return t('settings.aiProviders.probe.probing');
   }
-  if (draftProbeState.value !== 'done' || !draftProbeReport.value?.ok) {
+  if (draftProbeState.value !== 'done') {
     return '';
+  }
+  const report = draftProbeReport.value;
+  if (!report) {
+    return '';
+  }
+  if (!report.ok) {
+    return report.ran ? t('settings.aiProviders.probe.failed') : t('settings.aiProviders.probe.refused');
   }
   return draftProbeAddedCount.value > 0
     ? t('settings.aiProviders.probe.added', { count: draftProbeAddedCount.value })
@@ -1960,7 +1993,24 @@ const draftProbeStatus = computed(() => {
 function handleProviderBaseUrlInput(event: Event): void {
   providerDraft.value.baseUrl = (event.target as HTMLInputElement).value;
   providerAddressCommitted.value = false;
+  providerDraftEdited.value = true;
   syncGeneratedProviderIdentity();
+}
+
+/**
+ * The authentication style is one of the three fields an edit may arm the probe
+ * with (§4.3): switching to `auth: none` is what makes an address enough on its
+ * own, so it is an input event in its own right.
+ */
+function handleProviderAuthChange(event: Event): void {
+  providerDraft.value.auth = (event.target as HTMLSelectElement).value as typeof providerDraft.value.auth;
+  providerDraftEdited.value = true;
+}
+
+/** The credential the user typed. A stored key is never read back, so a value here is always new. */
+function handleProviderKeyInput(event: Event): void {
+  providerDraft.value.key = (event.target as HTMLInputElement).value;
+  providerDraftEdited.value = true;
 }
 
 function handleProviderIdInput(event: Event): void {
@@ -2019,6 +2069,7 @@ function resetDraftProbe(): void {
   draftProbeAddedCount.value = 0;
   lastProbedSignature = null;
   providerAddressCommitted.value = false;
+  providerDraftEdited.value = false;
   generatedProviderId = null;
   generatedProviderName = null;
 }
@@ -2667,7 +2718,7 @@ defineExpose({
             id="ai-provider-auth"
             :value="providerDraft.auth"
             :label="t('settings.aiProviders.editor.auth')"
-            @change="providerDraft.auth = ($event.target as HTMLSelectElement).value as typeof providerDraft.auth"
+            @change="handleProviderAuthChange"
           >
             <vscode-option value="bearer">{{ t('settings.aiProviders.editor.authBearer') }}</vscode-option>
             <vscode-option value="api-key-header">{{
@@ -2691,7 +2742,7 @@ defineExpose({
             :label="t('settings.aiProviders.editor.key')"
             type="password"
             :disabled="providerDraft.auth === 'none'"
-            @input="providerDraft.key = ($event.target as HTMLInputElement).value"
+            @input="handleProviderKeyInput"
           />
           <p class="field-description">{{ t('settings.aiProviders.editor.keyDescription') }}</p>
           <p v-if="providerDraft.auth === 'none'" class="field-description">
@@ -2757,7 +2808,7 @@ defineExpose({
             good — the retry after a failure is exactly this button.
           -->
           <p class="field-description probe-status" role="status" aria-live="polite">{{ draftProbeStatus }}</p>
-          <AiTestReport v-if="draftProbeReport" :report="draftProbeReport" />
+          <AiTestReport v-if="draftProbeReport" source="automatic" :report="draftProbeReport" />
           <div class="cache-directory-actions">
             <vscode-button
               secondary
@@ -2858,7 +2909,7 @@ defineExpose({
         </div>
 
         <!-- The test report the editor's own Test button produced. -->
-        <AiTestReport v-if="reportForCurrentView()" :report="reportForCurrentView()!" />
+        <AiTestReport v-if="reportForCurrentView()" source="explicit" :report="reportForCurrentView()!" />
         <!--
           The report's own next step when the endpoint answered with a model list:
           prefill the declaration from it. A control rather than an automatic write,
@@ -3324,7 +3375,11 @@ defineExpose({
               </vscode-button>
             </div>
             <!-- The report for this row, when its own Test button produced one. -->
-            <AiTestReport v-if="providerTestReportId === entry.id && providerTestReport" :report="providerTestReport" />
+            <AiTestReport
+              v-if="providerTestReportId === entry.id && providerTestReport"
+              source="explicit"
+              :report="providerTestReport"
+            />
           </li>
         </ul>
         <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>

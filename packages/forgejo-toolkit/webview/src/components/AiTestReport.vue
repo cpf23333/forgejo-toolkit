@@ -24,8 +24,16 @@ import type { AiProviderTestReport } from '@cpf23333-forgejo-toolkit/shared/webv
  * asynchronous round trip: it is empty until the answer arrives, and a region that
  * appears at the same moment as its first text is one assistive technology is
  * allowed to miss. The caller renders it only when there is a report.
+ *
+ * The `source` is not decoration. Since the settings page probes a draft by itself
+ * (`docs/design/settings-page.md` §4), one editor can hold **two** reports at once
+ * — the one an automatic probe produced and the one the pressed "Test connection"
+ * produced — and their titles are built from the same outcome and the same display
+ * name. Without this line the two cards are indistinguishable, which is what a live
+ * walkthrough found: an automatic "was not tested" card stacked under an explicit
+ * "answered" card, looking like the same card twice.
  */
-const props = defineProps<{ report: AiProviderTestReport }>();
+const props = defineProps<{ report: AiProviderTestReport; source: 'automatic' | 'explicit' }>();
 
 const { t } = useI18n();
 
@@ -42,6 +50,13 @@ const title = computed(() =>
       : t('settings.aiProviders.testReport.notRunTitle', { name: props.report.providerName }),
 );
 
+/** Which of the two places this card came from, so two cards cannot be read as one. */
+const source = computed(() =>
+  props.source === 'automatic'
+    ? t('settings.aiProviders.testReport.sourceAutomatic')
+    : t('settings.aiProviders.testReport.sourceExplicit'),
+);
+
 /** The transport's own sentence: the answer summary, or the reason there is none. */
 const outcome = computed(() => (props.report.ok ? (props.report.summary ?? '') : (props.report.reason ?? '')));
 </script>
@@ -49,6 +64,7 @@ const outcome = computed(() => (props.report.ok ? (props.report.summary ?? '') :
 <template>
   <div class="test-report" role="status" aria-live="polite">
     <p class="test-report-title">{{ title }}</p>
+    <p class="test-report-source">{{ source }}</p>
     <dl class="test-report-facts">
       <div class="test-report-fact">
         <dt>{{ t('settings.aiProviders.testReport.address') }}</dt>
@@ -92,6 +108,17 @@ const outcome = computed(() => (props.report.ok ? (props.report.summary ?? '') :
   margin: 0;
   font-size: 0.9em;
   font-weight: 600;
+}
+
+/*
+ * Which of the two sources produced this card. Description-coloured rather than
+ * emphasised: it is the label that tells two similar cards apart, not a second
+ * outcome.
+ */
+.test-report-source {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .test-report-facts {

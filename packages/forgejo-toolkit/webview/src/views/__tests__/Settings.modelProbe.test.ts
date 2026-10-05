@@ -18,15 +18,19 @@ import type {
  *
  * 1. **800 ms of idle**, on a complete address plus a credential the user just
  *    typed — not on a load, a render, a save or a stored key.
- * 2. **Cancelled by further typing**, and re-armed for the new value.
- * 3. **One shot per input combination**: the same address, auth style and
+ * 2. **Only an edit may arm it**: opening an existing endpoint, or switching to
+ *    another one, fills the same fields and is not an input event — `auth: none`
+ *    included, where no credential is needed but an edit still is.
+ * 3. **Cancelled by further typing**, and re-armed for the new value.
+ * 4. **One shot per input combination**: the same address, auth style and
  *    credential do not probe twice; a different one does.
- * 4. **Refused locally before anything is armed** when the local-only policy
+ * 5. **Refused locally before anything is armed** when the local-only policy
  *    rejects the address — and the row says so.
- * 5. **A prefill, never a write**: the reported models are added to the draft as
+ * 6. **A prefill, never a write**: the reported models are added to the draft as
  *    ordinary rows, and nothing is saved to settings or to secret storage.
- * 6. **A failure is a report**, not a dialog and not a blocked form: the host's
- *    own sentence is rendered and the editor stays usable.
+ * 7. **A failure is a report**, not a dialog and not a blocked form: the host's
+ *    own sentence is rendered, the line above the model rows says the probe got no
+ *    answer and where the reason is, and the card names its own source.
  */
 
 const { stateMock } = vi.hoisted(() => {
@@ -351,6 +355,85 @@ describe('when the automatic probe runs', () => {
     editing.unmount();
   });
 
+  it('sends nothing when an existing endpoint that needs no credential is opened, and probes once it is edited', async () => {
+    // The defect a live walkthrough found: `auth: none` needs no credential, so the
+    // editor's own prefill satisfied the probe's condition the moment the editor
+    // opened and a `GET /models` left the machine about a second later — before any
+    // typing. An edit is required in every case, `auth: none` included.
+    stateMock.aiProviderSettings.value = providerSnapshotOf({
+      providers: [
+        {
+          id: 'local-endpoint',
+          name: 'Local (this machine)',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          models: [],
+          auth: 'none',
+          headers: [],
+          localOnly: false,
+          keySet: false,
+          address: 'http://127.0.0.1:11434/v1',
+          insecure: false,
+          localOnlyBlocked: false,
+        },
+      ],
+    });
+    vi.useFakeTimers();
+    const wrapper = mountView();
+    await vi.advanceTimersByTimeAsync(0);
+    await button(wrapper, 'Edit').trigger('click');
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    // Opening the editor — and switching to another endpoint, which fills the same
+    // fields — is not an input event.
+    expect(stateMock.testAiProviderDraft).not.toHaveBeenCalled();
+
+    await typeInto(wrapper, '#ai-provider-base-url', 'http://127.0.0.1:11434/v1/');
+    await vi.advanceTimersByTimeAsync(800);
+
+    expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
+    expect(probedDraft()['auth']).toBe('none');
+    expect(probedDraft()['key']).toBe('');
+    wrapper.unmount();
+  });
+
+  it('arms the probe when only the authentication style is edited', async () => {
+    // §4.3 names the authentication style as one of the three fields whose edit is
+    // the input: switching a stored endpoint to `auth: none` is what makes the
+    // address enough on its own, so that click alone has to arm the probe.
+    stateMock.aiProviderSettings.value = providerSnapshotOf({
+      providers: [
+        {
+          id: 'api-example-com',
+          name: 'api.example.com',
+          baseUrl: BASE_URL,
+          models: [],
+          auth: 'bearer',
+          headers: [],
+          localOnly: false,
+          keySet: true,
+          address: BASE_URL,
+          insecure: false,
+          localOnlyBlocked: false,
+        },
+      ],
+    });
+    vi.useFakeTimers();
+    const wrapper = mountView();
+    await vi.advanceTimersByTimeAsync(0);
+    await button(wrapper, 'Edit').trigger('click');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stateMock.testAiProviderDraft).not.toHaveBeenCalled();
+
+    const auth = wrapper.find('#ai-provider-auth');
+    (auth.element as unknown as { value: string }).value = 'none';
+    await auth.trigger('change');
+    await vi.advanceTimersByTimeAsync(800);
+
+    expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
+    expect(probedDraft()['auth']).toBe('none');
+    wrapper.unmount();
+  });
+
   it('sends nothing at all when the local-only policy refuses the address', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf({ localOnly: true });
     vi.useFakeTimers();
@@ -397,6 +480,42 @@ describe('when the automatic probe runs', () => {
 
     expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
     expect(probedDraft()['key']).toBe('');
+    wrapper.unmount();
+  });
+
+  it('still lets the probe control send for an opened endpoint that was never edited', async () => {
+    // The edit rule guards the **automatic** path only. The control is a click, so
+    // it must keep working on an endpoint the user just opened: tightening the
+    // automatic rule into "nothing may be sent until an edit" would leave the page
+    // unable to probe a stored endpoint at all.
+    stateMock.aiProviderSettings.value = providerSnapshotOf({
+      providers: [
+        {
+          id: 'api-example-com',
+          name: 'api.example.com',
+          baseUrl: BASE_URL,
+          models: [],
+          auth: 'bearer',
+          headers: [],
+          localOnly: false,
+          keySet: true,
+          address: BASE_URL,
+          insecure: false,
+          localOnlyBlocked: false,
+        },
+      ],
+    });
+    vi.useFakeTimers();
+    const wrapper = mountView();
+    await vi.advanceTimersByTimeAsync(0);
+    await button(wrapper, 'Edit').trigger('click');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stateMock.testAiProviderDraft).not.toHaveBeenCalled();
+
+    await button(wrapper, 'Probe model list').trigger('click');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(stateMock.testAiProviderDraft).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });
@@ -476,6 +595,14 @@ describe('what the probe does with its answer', () => {
     expect(report.exists()).toBe(true);
     expect(report.text()).toContain('failed the test');
     expect(report.text()).toContain('rejected the credential (HTTP 401)');
+    // The line above the model rows says what happened and where the reason is: the
+    // card is below the rows and routinely below the fold, so a failed probe used to
+    // leave that line empty and read as "nothing happened".
+    const status = wrapper.find('.probe-status');
+    expect(status.text()).toContain('did not get an answer');
+    expect(status.text()).toContain('report below');
+    // The card also says it came from the automatic probe, not from a pressed test.
+    expect(report.text()).toContain('automatic model-list probe');
     // No native dialog: the page has never raised one for a setting, and a probe
     // the user did not click must not start one.
     expect(stateMock.showConfirm).not.toHaveBeenCalled();
@@ -484,6 +611,80 @@ describe('what the probe does with its answer', () => {
     await button(wrapper, 'Save endpoint').trigger('click');
     await vi.advanceTimersByTimeAsync(0);
     expect(stateMock.saveAiProvider).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it('says nothing was sent when the probe was refused, and points at the card', async () => {
+    stateMock.testAiProviderDraft.mockImplementation(async () =>
+      reportOf({
+        ok: false,
+        ran: false,
+        status: undefined,
+        elapsedMs: undefined,
+        summary: undefined,
+        models: undefined,
+        reason: 'The AI endpoint "api.example.com" needs a stored credential and none is.',
+      }),
+    );
+    vi.useFakeTimers();
+    const wrapper = mountView();
+    await openAddEditor(wrapper);
+
+    await typeInto(wrapper, '#ai-provider-base-url', BASE_URL);
+    await typeInto(wrapper, '#ai-provider-key', API_KEY);
+    await vi.advanceTimersByTimeAsync(800);
+
+    expect(wrapper.find('.probe-status').text()).toContain('sent nothing');
+    expect(wrapper.find('.test-report').text()).toContain('was not tested: nothing was sent');
+    wrapper.unmount();
+  });
+
+  it('tells the automatic probe card apart from the card a pressed test produced', async () => {
+    // One editor can hold two reports at once — the automatic probe's and the
+    // pressed "Test connection"'s — and both titles are built from the same outcome
+    // wording and the same display name. A live walkthrough found an automatic "was
+    // not tested" card stacking under an explicit "answered" card and the two
+    // reading as the same card twice; each card now names its own source.
+    stateMock.aiProviderSettings.value = providerSnapshotOf({
+      providers: [
+        {
+          id: 'api-example-com',
+          name: 'api.example.com',
+          baseUrl: BASE_URL,
+          models: [],
+          auth: 'bearer',
+          headers: [],
+          localOnly: false,
+          keySet: true,
+          address: BASE_URL,
+          insecure: false,
+          localOnlyBlocked: false,
+        },
+      ],
+    });
+    vi.useFakeTimers();
+    const wrapper = mountView();
+    await vi.advanceTimersByTimeAsync(0);
+    await button(wrapper, 'Edit').trigger('click');
+    await vi.advanceTimersByTimeAsync(0);
+
+    await button(wrapper, 'Test connection').trigger('click');
+    await vi.advanceTimersByTimeAsync(0);
+    const pressed = wrapper.findAll('.test-report');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]!.text()).toContain('From the Test connection button you pressed.');
+
+    stateMock.testAiProviderDraft.mockImplementation(async () =>
+      reportOf({ ok: false, ran: false, reason: 'Nothing was sent: no credential is stored.' }),
+    );
+    await typeInto(wrapper, '#ai-provider-key', API_KEY);
+    await vi.advanceTimersByTimeAsync(800);
+
+    const cards = wrapper.findAll('.test-report');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]!.text()).toContain('automatic model-list probe');
+    expect(cards[1]!.text()).toContain('Test connection button you pressed');
+    expect(cards[0]!.text()).not.toBe(cards[1]!.text());
     wrapper.unmount();
   });
 
