@@ -87,6 +87,7 @@ import {
   removeAiProvider,
   saveAiProvider,
   testAiProvider,
+  writeAiDefaultModel,
   writeAiModelBinding,
   writeAiModelPolicy,
   writeAiProviderSecret,
@@ -1617,6 +1618,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         const result = await writeAiModelBinding({ secrets: this._context.secrets }, message);
         this._reply('aiModelBindingSaved', {
           feature: message.feature,
+          providerId: message.providerId,
+          modelId: message.modelId,
+          ...(result.ok ? {} : { error: result.error }),
+          _requestId: message._requestId,
+        });
+        await this._pushAiProviderSettings();
+        return;
+      }
+      // The default destination the per-feature bindings override (§8.4): its own
+      // message rather than a binding for a pseudo-feature, because it is its own
+      // pair of settings and the page has to be able to say which of the two it
+      // just wrote.
+      case 'setAiDefaultModel': {
+        const result = await writeAiDefaultModel({ secrets: this._context.secrets }, message);
+        this._reply('aiDefaultModelSaved', {
           providerId: message.providerId,
           modelId: message.modelId,
           ...(result.ok ? {} : { error: result.error }),

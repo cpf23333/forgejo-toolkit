@@ -328,6 +328,20 @@
           "title": "%config.aiTransport.title%",
           "description": "%config.aiTransport.description%"
         },
+        "forgejoToolkit.aiDefaultProvider": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "title": "%config.aiDefaultProvider.title%",
+          "description": "%config.aiDefaultProvider.description%"
+        },
+        "forgejoToolkit.aiDefaultModel": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "title": "%config.aiDefaultModel.title%",
+          "description": "%config.aiDefaultModel.description%"
+        },
         "forgejoToolkit.aiModelBindings": {
           "type": "array",
           "default": [],

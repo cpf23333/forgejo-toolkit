@@ -18,6 +18,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
+  AI_TRANSPORT_CHOICES,
   PR_DESCRIPTION_PROMPT_SCOPES,
   stripUserinfo,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -25,19 +26,23 @@ import { inspectAiProviderBaseUrl, isLocalAiEndpointHost } from '@cpf23333-forge
 import { generateAiProviderId, generateAiProviderName, uniqueAiProviderId } from '../utils/providerIdentity';
 
 /**
- * The two settings that stay in VS Code's own settings editor and are **named**
+ * The one setting that stays in VS Code's own settings editor and is **named**
  * here with a pointer row (`docs/design/settings-page.md` §2.2, §2.3).
  *
- * They are written as full setting ids and never translated: the user needs the
+ * It is written as the full setting id and never translated: the user needs the
  * exact string to search for in the settings editor, and a translated name finds
- * nothing. They are identifiers rather than interface text, which is why they are
- * literals here and not entries in the i18n catalogues; the sentence around them
- * is translated. `src/__tests__/settingsSurface.test.ts` holds these two against
- * `NATIVE_ONLY_SETTINGS` — and holds `forgejoToolkit.useMockApi`, the third
+ * nothing. It is an identifier rather than interface text, which is why it is a
+ * literal here and not an entry in the i18n catalogues; the sentence around it is
+ * translated. `src/__tests__/settingsSurface.test.ts` holds it against
+ * `NATIVE_ONLY_SETTINGS` — and holds `forgejoToolkit.useMockApi`, the second
  * native-only setting, out of this file entirely.
+ *
+ * `forgejoToolkit.aiTransport` used to be a second constant here. It is a control
+ * of this page now (§1.3, §3.2), so it is spelled as the id the catalogue entry
+ * `settings["forgejoToolkit.aiTransport"]` names, like every other rendered
+ * setting, rather than as a pointer.
  */
 const POLLING_INTERVAL_SETTING = 'forgejoToolkit.notificationPollingInterval';
-const AI_TRANSPORT_SETTING = 'forgejoToolkit.aiTransport';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -1222,6 +1227,9 @@ onMounted(() => {
 /** One AI feature a binding may name, spelled as the host spells it. */
 type AiFeatureId = string;
 
+/** One value of `forgejoToolkit.aiTransport`, as the shared enumeration spells it (§8.4). */
+type AiTransportChoice = (typeof AI_TRANSPORT_CHOICES)[number];
+
 /**
  * The endpoint editor's own state. It is a draft rather than the snapshot: the
  * fields are edited while the stored configuration stays untouched, and the
@@ -1321,6 +1329,36 @@ const bindingModel = reactive<Record<AiFeatureId, string>>({});
 const bindingSaving = reactive<Record<AiFeatureId, boolean>>({});
 const appliedBindingSignatures = new Map<AiFeatureId, string>();
 
+/**
+ * The default destination drafts (§8.4) and the signature of what the host last
+ * applied — the same "only re-apply what changed" discipline the bindings use, so
+ * a snapshot push cannot overwrite a value the user is typing.
+ */
+const defaultProvider = ref('');
+const defaultModel = ref('');
+const defaultModelStatus = ref<{ message: string; type: 'idle' | 'success' | 'error' }>({
+  message: '',
+  type: 'idle',
+});
+const defaultSaving = ref(false);
+let appliedDefaultSignature: string | undefined;
+
+/** The transport choice, in the order the manifest's own dropdown shows it. */
+const transportChoices = AI_TRANSPORT_CHOICES;
+
+/**
+ * Which halves of the AI area the chosen transport can actually use (§3.2).
+ *
+ * The page presents the configuration that matches the choice rather than both at
+ * once: `auto` uses both routes and may use either, so it shows both and states
+ * the precedence; the two explicit choices each fix one route, so the one they
+ * cannot use is hidden with a sentence saying so and how to get it back. Nothing
+ * here is a write: switching the transport is the user's own control above.
+ */
+const usesEditorModels = computed(() => policyTransport.value !== 'openai-compatible');
+/** The endpoint list and its editor, the default row and the gates: the direct route's own surface. */
+const usesConfiguredEndpoint = computed(() => policyTransport.value !== 'vscode-lm');
+
 /** A feature's label, falling back to the id the host sent rather than to English prose. */
 function featureLabel(feature: AiFeatureId): string {
   const key = `settings.aiProviders.bindings.feature.${feature}`;
@@ -1377,6 +1415,31 @@ async function refreshProviderSettings(): Promise<void> {
   }
 }
 
+/**
+ * Puts the default row's two controls on one reading of the host's state.
+ *
+ * The watcher below runs this on every snapshot that changed, and the refused-write
+ * path runs it **directly** as well. That second call is not redundant: a refusal
+ * usually answers with the very value the host already reported, and an assignment
+ * of an identical value is not a change Vue reacts to — so waiting for the push
+ * would leave the field showing a default that was never stored. Applying the
+ * reading is the only way to say "this is what is actually configured".
+ */
+function applyDefaultModelReading(reading: { providerId: string; modelId: string }): void {
+  appliedDefaultSignature = `${reading.providerId}/${reading.modelId}`;
+  defaultProvider.value = reading.providerId;
+  defaultModel.value = reading.modelId;
+}
+
+/**
+ * Reads back what the host reports after a write it refused, so the control cannot
+ * keep showing a value that was not stored.
+ */
+async function resyncDefaultModel(): Promise<void> {
+  await refreshProviderSettings();
+  applyDefaultModelReading(providerSnapshot.value?.defaultModel ?? { providerId: '', modelId: '' });
+}
+
 // The snapshot is the section's single source of truth, so the mirrors follow it
 // rather than being updated by hand at every call site: a push the host makes
 // after a write the page did not request lands here too.
@@ -1404,6 +1467,9 @@ watch(
       appliedBindingSignatures.set(feature, signature);
       bindingProvider[feature] = binding?.providerId ?? '';
       bindingModel[feature] = binding?.modelId ?? '';
+    }
+    if (appliedDefaultSignature !== `${snapshot.defaultModel.providerId}/${snapshot.defaultModel.modelId}`) {
+      applyDefaultModelReading(snapshot.defaultModel);
     }
   },
   { immediate: true },
@@ -2208,17 +2274,29 @@ function handlePolicyEnabledChange(event: Event): void {
 }
 
 /**
- * The transport is not rendered here any more (§1.3 puts it in the native-only
- * list), but it is still part of the policy a write submits: `setAiModelPolicy`
- * sends all four gates, so the value comes from the host's snapshot and goes back
- * unchanged rather than being dropped or defaulted.
+ * Saves the transport. It is a control of this page now (§1.3): the choice decides
+ * which half of the AI area the page presents, so it cannot live only in the
+ * editor's own settings UI. The write goes through the same policy message the
+ * other gates use, and the host writes only the values that differ — so choosing a
+ * transport here cannot revert a gate the user changed in the settings editor
+ * between opening this page and pressing this control.
+ */
+function handlePolicyTransportChange(event: Event): void {
+  policyTransport.value = (event.target as HTMLSelectElement).value as AiTransportChoice;
+  void savePolicy();
+}
+
+/**
+ * The local-only rule, the egress switch and the timeout: the policy gates, kept
+ * as local mirrors so a control can be edited before the write lands. They stay on
+ * the page whatever the transport says, because each of them also decides what a
+ * per-feature override would do — hiding them with the transport would leave a
+ * real gate with no writable source the user can find.
  */
 function handlePolicyLocalOnlyChange(event: Event): void {
   policyLocalOnly.value = (event.target as HTMLInputElement).checked;
   void savePolicy();
-}
-
-/** Saves the idle timeout, which is typed rather than toggled. */
+} /** Saves the idle timeout, which is typed rather than toggled. */
 function savePolicyTimeout(): void {
   const value = Number(policyTimeoutField.value.trim());
   void savePolicy({ requestTimeoutMs: value });
@@ -2272,6 +2350,53 @@ async function saveBinding(feature: AiFeatureId, clear = false): Promise<void> {
     setProviderStatus(errorText(error), 'error');
   } finally {
     bindingSaving[feature] = false;
+  }
+}
+
+/**
+ * Stores or clears the **default** destination the per-feature overrides sit on
+ * top of (§8.4).
+ *
+ * The row submits its whole state, exactly as the override rows do: an empty pair
+ * clears the default, and a half-filled pair is refused by the host with its own
+ * sentence rather than completed with a guess — a model on its own names nowhere
+ * to send to. A refused write puts both controls back on the host's reading, so
+ * the row can never keep showing a default that was never stored.
+ */
+async function saveDefaultModel(clear = false): Promise<void> {
+  if (defaultSaving.value) {
+    return;
+  }
+  const providerId = clear ? '' : defaultProvider.value.trim();
+  const modelId = clear ? '' : defaultModel.value.trim();
+  // A half-filled pair is the host's refusal to make — it owns the sentence, and
+  // this page never writes its own validation. What is left here is presentation:
+  // the model field beside a chosen endpoint is not an empty default, and the row
+  // says so rather than leaving a blank line under a filled select.
+  if (!clear && providerId !== '' && modelId === '') {
+    defaultModelStatus.value = { message: t('settings.aiProviders.defaultModel.halfConfigured'), type: 'error' };
+    return;
+  }
+  defaultSaving.value = true;
+  try {
+    const result = await state.setAiDefaultModel({ providerId, modelId });
+    if (result.error) {
+      // The controls go back to what the host reports: a pair left showing values
+      // that were never stored is exactly the lie this page exists to avoid.
+      await resyncDefaultModel();
+      defaultModelStatus.value = { message: result.error, type: 'error' };
+      return;
+    }
+    defaultModelStatus.value = {
+      message: t(
+        providerId === '' ? 'settings.aiProviders.defaultModel.cleared' : 'settings.aiProviders.defaultModel.saved',
+      ),
+      type: 'success',
+    };
+  } catch (error) {
+    defaultModelStatus.value = { message: errorText(error), type: 'error' };
+  } finally {
+    defaultSaving.value = false;
   }
 }
 
@@ -3229,7 +3354,15 @@ defineExpose({
           <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
         </div>
 
-        <div class="form-row">
+        <!--
+          The editor's own chat-model row. It is shown exactly when the editor's
+          models can serve a run (`vscode-lm`, and `auto` while it prefers them):
+          under an explicit `openai-compatible` choice nothing here consults them, so
+          the row is replaced by the sentence that says why and how to get it back —
+          and the setting itself stays reachable in VS Code's own settings editor
+          meanwhile, so it is hidden rather than removed.
+        -->
+        <div v-if="usesEditorModels" class="form-row">
           <label for="ai-pre-review-model">{{ t('settings.aiPreReviewModel.selectLabel') }}</label>
           <vscode-single-select
             id="ai-pre-review-model"
@@ -3263,16 +3396,21 @@ defineExpose({
           </p>
           <p class="field-description">{{ t('settings.aiPreReviewModel.note') }}</p>
         </div>
-        <div v-if="aiPreReviewModelsLoading" class="empty-list">{{ t('settings.aiPreReviewModel.loading') }}</div>
-        <div v-else-if="aiPreReviewModelReason" class="empty-list">{{ aiPreReviewModelReason }}</div>
-        <div
-          v-if="aiPreReviewModelStatus"
-          :class="['status', aiPreReviewModelStatus.type]"
-          role="status"
-          aria-live="polite"
-        >
-          {{ aiPreReviewModelStatus.message }}
-        </div>
+        <p v-else class="field-description">
+          {{ t('settings.aiProviders.policy.precedenceEndpoint') }}
+        </p>
+        <template v-if="usesEditorModels">
+          <div v-if="aiPreReviewModelsLoading" class="empty-list">{{ t('settings.aiPreReviewModel.loading') }}</div>
+          <div v-else-if="aiPreReviewModelReason" class="empty-list">{{ aiPreReviewModelReason }}</div>
+          <div
+            v-if="aiPreReviewModelStatus"
+            :class="['status', aiPreReviewModelStatus.type]"
+            role="status"
+            aria-live="polite"
+          >
+            {{ aiPreReviewModelStatus.message }}
+          </div>
+        </template>
         <div
           v-if="preReviewSurfaceStatus"
           :class="['status', preReviewSurfaceStatus.type]"
@@ -3348,22 +3486,56 @@ defineExpose({
       <section class="setting-section">
         <div class="section-header">
           <h2>{{ t('settings.aiProviders.title') }}</h2>
-          <div class="section-actions">
-            <vscode-button :ref="addProviderButtonRef" icon="add" @click="openNewProviderEditor">
-              {{ t('settings.aiProviders.add') }}
-            </vscode-button>
-          </div>
         </div>
         <p class="description">{{ t('settings.aiProviders.description') }}</p>
 
         <!--
-          The §9.3 block: shown when the host's own capability answer says no model
-          is usable, and it branches on that answer's reason code — never on which
-          editor happens to be on screen. Both routes are always offered and the
-          code only decides which one is put first and which extra sentence applies,
-          so a user who reaches one of them cannot be told the other does not exist.
+          The transport choice (§3.2). It is a control here rather than a pointer to
+          VS Code's own settings editor, because it is what decides which half of
+          this area the page presents: the editor's own chat-model row, the endpoint
+          surface, or both with `auto`'s precedence stated in one sentence. The
+          select goes through the same policy write the gates below use, and the host
+          writes only the value that differs.
         -->
-        <div v-if="capability && !capability.available" class="capability-block" role="status" aria-live="polite">
+        <div class="form-row">
+          <label for="ai-transport">{{ t('settings.aiProviders.policy.transport') }}</label>
+          <vscode-single-select
+            id="ai-transport"
+            :value="policyTransport"
+            :label="t('settings.aiProviders.policy.transport')"
+            :disabled="policySaving"
+            @change="handlePolicyTransportChange"
+          >
+            <vscode-option value="auto">{{ t('settings.aiProviders.policy.transportAuto') }}</vscode-option>
+            <vscode-option value="vscode-lm">{{ t('settings.aiProviders.policy.transportVscodeLm') }}</vscode-option>
+            <vscode-option value="openai-compatible">
+              {{ t('settings.aiProviders.policy.transportOpenAiCompatible') }}
+            </vscode-option>
+          </vscode-single-select>
+          <p class="field-description">{{ t('settings.aiProviders.policy.transportDescription') }}</p>
+          <p v-if="policyTransport === 'auto'" class="field-description">
+            {{ t('settings.aiProviders.policy.precedenceAuto') }}
+          </p>
+          <p v-else-if="policyTransport === 'vscode-lm'" class="field-description">
+            {{ t('settings.aiProviders.policy.precedenceEditor') }}
+          </p>
+          <p v-else class="field-description">{{ t('settings.aiProviders.policy.precedenceEndpoint') }}</p>
+        </div>
+
+        <!--
+          The capability block is about the route the transport actually takes, so it
+          belongs to the transport choice rather than to the endpoint list: an
+          explicit openai-compatible run never asks this editor's models, and the
+          block would then be offering "install a chat model" as a way out of a
+          choice that does not use one. It keeps both routes for every choice that
+          does consult them, whatever the host's reason code is.
+        -->
+        <div
+          v-if="usesEditorModels && capability && !capability.available"
+          class="capability-block"
+          role="status"
+          aria-live="polite"
+        >
           <p class="capability-title">{{ t('settings.aiProviders.notUsable.title') }}</p>
           <p class="field-description">{{ capabilityReason }}</p>
           <div class="capability-route" :class="{ first: !capabilityEndpointFirst }">
@@ -3400,11 +3572,11 @@ defineExpose({
         </div>
 
         <!--
-          The policy gates. They sit beside the endpoints they act on rather than in a
-          section of their own, because every one of them changes what a request to
-          those endpoints would do — and the "allow requests" switch is the second,
-          independent fact a direct request needs, so it must not be reachable only
-          through VS Code's Settings UI.
+          The "allow requests" switch and the local-only rule stay on the page
+          whatever the transport says: each of them also decides what a per-feature
+          override would do, and a gate with no writable source on a page that is
+          about that very surface would be exactly the undiagnosable state this page
+          exists to prevent.
         -->
         <div class="form-row">
           <vscode-checkbox id="ai-providers-enabled" :checked="policyEnabled" @change="handlePolicyEnabledChange">
@@ -3440,103 +3612,183 @@ defineExpose({
         </div>
 
         <!--
-          The transport stays in VS Code's own settings editor — a three-value enum
-          it renders completely — and is named here by a pointer row (§2.2): its
-          full id, what the three values mean and that a binding wins, then the
-          action. The page reads the value with the rest of the policy only so a
-          write of the other gates can send the transport back unchanged.
+          The endpoint surface: the list, its editor and the default destination.
+          All three are configuration of the **direct** route, so the transport
+          choice decides whether they are on screen — an explicit vscode-lm run
+          reaches none of them. What is hidden here is hidden with the sentence that
+          says so and how to bring it back (the transport select above owns it), so
+          nothing becomes unreachable.
         -->
-        <button type="button" class="link-button pointer-row" @click="openNativeSettings">
-          <span>{{ t('settings.nativePointer.label') }}</span>
-          <code class="pointer-id">{{ AI_TRANSPORT_SETTING }}</code>
-          <span class="pointer-note">{{ t('settings.aiProviders.policy.transportPointer') }}</span>
-          <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
-        </button>
+        <div v-if="usesConfiguredEndpoint">
+          <div class="section-actions">
+            <vscode-button :ref="addProviderButtonRef" icon="add" @click="openNewProviderEditor">
+              {{ t('settings.aiProviders.add') }}
+            </vscode-button>
+          </div>
+
+          <!--
+            The default destination, and the primary path: it is the one statement
+            that makes the direct route usable for every feature at once, while the
+            overrides below are opt-in. The endpoint select lists what is configured
+            (plus the stored value when it names something that is not), and the
+            model is free text for the reason §8.1 gives — an endpoint's model list
+            is a declaration, not a whitelist.
+          -->
+          <div class="form-row">
+            <label for="ai-default-provider">{{ t('settings.aiProviders.defaultModel.provider') }}</label>
+            <vscode-single-select
+              id="ai-default-provider"
+              :value="defaultProvider"
+              :label="t('settings.aiProviders.defaultModel.provider')"
+              :disabled="defaultSaving"
+              @change="defaultProvider = ($event.target as HTMLSelectElement).value"
+            >
+              <vscode-option value="">{{ t('settings.aiProviders.bindings.none') }}</vscode-option>
+              <vscode-option v-for="entry in providerEntries" :key="entry.id" :value="entry.id">
+                {{ entry.name }}
+              </vscode-option>
+              <vscode-option
+                v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
+                :value="defaultProvider"
+              >
+                {{ defaultProvider }}
+              </vscode-option>
+            </vscode-single-select>
+            <vscode-textfield
+              id="ai-default-model"
+              :value="defaultModel"
+              :label="t('settings.aiProviders.defaultModel.model')"
+              :placeholder="t('settings.aiProviders.defaultModel.modelPlaceholder')"
+              :disabled="defaultSaving"
+              @input="defaultModel = ($event.target as HTMLInputElement).value"
+            />
+            <div class="cache-directory-actions">
+              <vscode-button :disabled="defaultSaving" @click="saveDefaultModel()">
+                {{
+                  defaultSaving
+                    ? t('settings.aiProviders.defaultModel.saving')
+                    : t('settings.aiProviders.defaultModel.save')
+                }}
+              </vscode-button>
+              <vscode-button secondary :disabled="defaultSaving" @click="saveDefaultModel(true)">
+                {{ t('settings.aiProviders.defaultModel.clear') }}
+              </vscode-button>
+            </div>
+            <p class="field-description">{{ t('settings.aiProviders.defaultModel.description') }}</p>
+            <p
+              v-if="defaultProvider !== '' && !providerEntries.some((entry) => entry.id === defaultProvider)"
+              class="field-description warn"
+            >
+              {{ t('settings.aiProviders.defaultModel.missingProvider', { id: defaultProvider }) }}
+            </p>
+            <p v-if="defaultProvider !== '' && defaultModel !== ''" class="field-description">
+              {{
+                t('settings.aiProviders.defaultModel.statusSet', {
+                  provider: defaultProvider,
+                  model: defaultModel,
+                })
+              }}
+            </p>
+            <p v-else-if="defaultProvider === '' && defaultModel === ''" class="field-description">
+              {{ t('settings.aiProviders.defaultModel.statusUnset') }}
+            </p>
+            <div
+              v-if="defaultModelStatus.message"
+              :class="['status', defaultModelStatus.type]"
+              role="status"
+              aria-live="polite"
+            >
+              {{ defaultModelStatus.message }}
+            </div>
+          </div>
+
+          <ul v-if="providerEntries.length > 0" class="saved-list">
+            <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
+              <div class="saved-info">
+                <div class="saved-name">{{ entry.name }}</div>
+                <div class="saved-url">{{ entry.address }}</div>
+                <div class="provider-facts">
+                  <span class="provider-fact">{{ providerKeyFact(entry) }}</span>
+                  <span v-if="entry.headers.length > 0" class="provider-fact">
+                    {{
+                      t('settings.aiProviders.row.headersSet', {
+                        set: storedHeaderCount(entry),
+                        total: entry.headers.length,
+                      })
+                    }}
+                  </span>
+                  <span v-if="providerSecretNames(entry).length > 0" class="provider-fact warn">
+                    {{ t('settings.aiProviders.row.shadowed', { names: providerSecretNames(entry).join(', ') }) }}
+                  </span>
+                  <span v-if="entry.addressError" class="provider-fact warn">
+                    {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
+                  </span>
+                  <span v-if="entry.localOnlyBlocked" class="provider-fact warn">
+                    {{ t('settings.aiProviders.row.localOnlyBlocked') }}
+                  </span>
+                  <span v-if="entry.insecure" class="provider-fact warn">
+                    {{ t('settings.aiProviders.row.insecure') }}
+                  </span>
+                  <span v-if="entry.models.length === 0" class="provider-fact">
+                    {{ t('settings.aiProviders.row.noModels') }}
+                  </span>
+                </div>
+              </div>
+              <div class="saved-actions">
+                <vscode-button secondary :disabled="providerTestingId !== null" @click="runProviderTest(entry.id)">
+                  {{
+                    providerTestingId === entry.id ? t('settings.aiProviders.testing') : t('settings.aiProviders.test')
+                  }}
+                </vscode-button>
+                <vscode-button :ref="providerEditButtonRef(entry.id)" secondary @click="openProviderEditor(entry)">
+                  {{ t('settings.aiProviders.edit') }}
+                </vscode-button>
+                <vscode-button :disabled="providerRemovingId !== null" @click="removeProvider(entry.id)">
+                  {{
+                    providerRemovingId === entry.id
+                      ? t('settings.aiProviders.removePending')
+                      : t('settings.aiProviders.remove')
+                  }}
+                </vscode-button>
+              </div>
+              <!-- The report for this row, when its own Test button produced one. -->
+              <AiTestReport
+                v-if="providerTestReportId === entry.id && providerTestReport"
+                source="explicit"
+                :report="providerTestReport"
+              />
+            </li>
+          </ul>
+          <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>
+
+          <!--
+            The entries the settings reader refused. They are named rather than hidden:
+            a provider silently vanishing from the list is exactly the undiagnosable
+            state this page exists to prevent, and the reason is the reader's own.
+          -->
+          <div v-if="providerRejections.length > 0" class="rejected-block">
+            <h3>{{ t('settings.aiProviders.rejected.title') }}</h3>
+            <p class="field-description">{{ t('settings.aiProviders.rejected.intro') }}</p>
+            <ul class="rejected-list">
+              <li v-for="entry in providerRejections" :key="`rejected-${entry.index}`">
+                {{
+                  entry.id
+                    ? t('settings.aiProviders.rejected.entryNamed', {
+                        index: entry.index + 1,
+                        id: entry.id,
+                        reason: entry.reason,
+                      })
+                    : t('settings.aiProviders.rejected.entryUnnamed', { index: entry.index + 1, reason: entry.reason })
+                }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <p v-else class="field-description">{{ t('settings.aiProviders.policy.hiddenForEditor') }}</p>
 
         <div v-if="policyStatus.message" :class="['status', policyStatus.type]" role="status" aria-live="polite">
           {{ policyStatus.message }}
-        </div>
-
-        <ul v-if="providerEntries.length > 0" class="saved-list">
-          <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
-            <div class="saved-info">
-              <div class="saved-name">{{ entry.name }}</div>
-              <div class="saved-url">{{ entry.address }}</div>
-              <div class="provider-facts">
-                <span class="provider-fact">{{ providerKeyFact(entry) }}</span>
-                <span v-if="entry.headers.length > 0" class="provider-fact">
-                  {{
-                    t('settings.aiProviders.row.headersSet', {
-                      set: storedHeaderCount(entry),
-                      total: entry.headers.length,
-                    })
-                  }}
-                </span>
-                <span v-if="providerSecretNames(entry).length > 0" class="provider-fact warn">
-                  {{ t('settings.aiProviders.row.shadowed', { names: providerSecretNames(entry).join(', ') }) }}
-                </span>
-                <span v-if="entry.addressError" class="provider-fact warn">
-                  {{ t('settings.aiProviders.row.addressError', { reason: entry.addressError }) }}
-                </span>
-                <span v-if="entry.localOnlyBlocked" class="provider-fact warn">
-                  {{ t('settings.aiProviders.row.localOnlyBlocked') }}
-                </span>
-                <span v-if="entry.insecure" class="provider-fact warn">
-                  {{ t('settings.aiProviders.row.insecure') }}
-                </span>
-                <span v-if="entry.models.length === 0" class="provider-fact">
-                  {{ t('settings.aiProviders.row.noModels') }}
-                </span>
-              </div>
-            </div>
-            <div class="saved-actions">
-              <vscode-button secondary :disabled="providerTestingId !== null" @click="runProviderTest(entry.id)">
-                {{
-                  providerTestingId === entry.id ? t('settings.aiProviders.testing') : t('settings.aiProviders.test')
-                }}
-              </vscode-button>
-              <vscode-button :ref="providerEditButtonRef(entry.id)" secondary @click="openProviderEditor(entry)">
-                {{ t('settings.aiProviders.edit') }}
-              </vscode-button>
-              <vscode-button :disabled="providerRemovingId !== null" @click="removeProvider(entry.id)">
-                {{
-                  providerRemovingId === entry.id
-                    ? t('settings.aiProviders.removePending')
-                    : t('settings.aiProviders.remove')
-                }}
-              </vscode-button>
-            </div>
-            <!-- The report for this row, when its own Test button produced one. -->
-            <AiTestReport
-              v-if="providerTestReportId === entry.id && providerTestReport"
-              source="explicit"
-              :report="providerTestReport"
-            />
-          </li>
-        </ul>
-        <div v-else class="empty-list">{{ t('settings.aiProviders.none') }}</div>
-
-        <!--
-          The entries the settings reader refused. They are named rather than hidden:
-          a provider silently vanishing from the list is exactly the undiagnosable
-          state this page exists to prevent, and the reason is the reader's own.
-        -->
-        <div v-if="providerRejections.length > 0" class="rejected-block">
-          <h3>{{ t('settings.aiProviders.rejected.title') }}</h3>
-          <p class="field-description">{{ t('settings.aiProviders.rejected.intro') }}</p>
-          <ul class="rejected-list">
-            <li v-for="entry in providerRejections" :key="`rejected-${entry.index}`">
-              {{
-                entry.id
-                  ? t('settings.aiProviders.rejected.entryNamed', {
-                      index: entry.index + 1,
-                      id: entry.id,
-                      reason: entry.reason,
-                    })
-                  : t('settings.aiProviders.rejected.entryUnnamed', { index: entry.index + 1, reason: entry.reason })
-              }}
-            </li>
-          </ul>
         </div>
 
         <div :class="['status', providerStatus.type]" role="status" aria-live="polite">
@@ -3545,9 +3797,11 @@ defineExpose({
       </section>
 
       <!--
-        The per-feature bindings. They are their own section because they answer a
-        different question from the endpoint list — which feature uses which endpoint
-        and model — and because the record keeps them a separate setting.
+        The per-feature overrides. They are their own section because they answer a
+        different question from the default above — which **one** feature departs
+        from it, and why — and because the record keeps them a separate setting. The
+        empty option on every row is the answer most features give: follow the
+        default, which is what a user who configures nothing gets.
       -->
       <section class="setting-section">
         <h2>{{ t('settings.aiProviders.bindings.title') }}</h2>

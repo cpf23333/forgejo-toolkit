@@ -95,11 +95,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seen nor changed from the page that owns the feature. Each one states its default
   in words instead of prefilling it, and changing one writes only that setting; when
   the editor refuses a write, the control goes back to the stored value and says
-  what the host answered. The two settings that stay in the editor's own settings
-  interface — the polling interval, because it is a bounded number, and the model
-  transport, because it is a three-value choice — are named in place in their
-  sections, with an entry point that opens the editor's settings filtered to this
-  extension so the rest are one click away.
+  what the host answered. The one setting that stays in the editor's own settings
+  interface — the polling interval, because it is a bounded number with a range the
+  editor's own field renders completely — is named in place in its section, with an
+  entry point that opens the editor's settings filtered to this extension so the
+  rest are one click away.
+- **The AI area now shows the configuration that matches your transport choice, and
+  leads with one default instead of per-feature bindings.** The model transport is a
+  choice on the settings page again — `auto`, `vscode-lm` or `openai-compatible` —
+  because it is what decides which half of the AI area you are configuring: with
+  `vscode-lm` the page shows the editor's own chat-model row and hides the endpoint
+  surface (with a sentence saying so and which control brings it back), with
+  `openai-compatible` it shows the endpoint surface and hides the editor's model row,
+  and with `auto` it shows both and states the precedence in one sentence — the
+  editor's model when one is available, the configured endpoint when it is not. The
+  switch that allows requests to configured endpoints, the local-only rule and the
+  request timeout stay visible in every case, because they also decide what a
+  per-feature override would do. Below them, a **default endpoint and model** is the
+  primary path: set it once and every AI feature uses it, which is what
+  `openai-compatible` and the endpoint half of `auto` mean by "the configured
+  endpoint". The former per-feature bindings are now **per-feature overrides**: each
+  row defaults to "do not override — follow the default above", and an override is
+  how one feature gets a stronger or more private model of its own. Nothing changes
+  for an existing configuration: your bindings keep working exactly as they did,
+  with no default configured the behaviour is what it was, and a default that names
+  an endpoint which is not configured fails and names it rather than choosing another
+  endpoint or inventing a model.
 - **Draft a pull request description from the comparison you are about to submit.**
   The create-pull-request form now has a **Generate description** control above its
   description field: a chat model reads the commits between the two branches — their

@@ -64,6 +64,7 @@ const { stateMock } = vi.hoisted(() => {
       requestTimeoutMs: 30_000,
     })),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
+    setAiDefaultModel: vi.fn(async () => ({ providerId: '', modelId: '' })),
     minSupportedServerVersion: { value: '16.0.0' },
     worktreeOpenMode: { value: 'ask' },
     changeWorktreeOpenMode: vi.fn(),
@@ -130,8 +131,10 @@ function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {})
     transport: 'auto',
     localOnly: false,
     requestTimeoutMs: 30_000,
+    defaultModel: { providerId: '', modelId: '' },
     bindings: [],
     features: ['aiPreReview'],
+    selection: 'none',
     capability: { available: true },
     ...overrides,
   } as AiProviderSettingsSnapshot;

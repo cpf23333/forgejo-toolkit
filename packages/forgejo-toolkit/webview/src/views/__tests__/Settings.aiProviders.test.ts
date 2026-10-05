@@ -31,8 +31,11 @@ interface SnapshotShape {
   transport: 'auto' | 'vscode-lm' | 'openai-compatible';
   localOnly: boolean;
   requestTimeoutMs: number;
+  /** The default destination every feature without an override follows (§8.4). */
+  defaultModel: { providerId: string; modelId: string };
   bindings: unknown[];
   features: string[];
+  selection: 'editor' | 'configured-endpoint' | 'none';
   capability: unknown;
 }
 
@@ -64,13 +67,26 @@ const { stateMock, snapshot } = vi.hoisted(() => {
       summary: 'The endpoint reported 2 model(s) from "/models".',
       shadowed: [],
     })),
-    setAiModelPolicy: vi.fn(async () => ({
-      enabled: false,
-      transport: 'auto' as const,
-      localOnly: false,
-      requestTimeoutMs: 30_000,
-    })),
+    /**
+     * The four policy gates. The declared return type names the full transport
+     * union rather than one call's literal, so a test can answer with another
+     * transport without a cast.
+     */
+    setAiModelPolicy: vi.fn(
+      async (): Promise<{
+        enabled: boolean;
+        transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+        localOnly: boolean;
+        requestTimeoutMs: number;
+      }> => ({
+        enabled: false,
+        transport: 'auto',
+        localOnly: false,
+        requestTimeoutMs: 30_000,
+      }),
+    ),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
+    setAiDefaultModel: vi.fn(async () => ({ providerId: '', modelId: '' })),
     minSupportedServerVersion: { value: '16.0.0' },
     worktreeOpenMode: { value: 'ask' },
     changeWorktreeOpenMode: vi.fn(),
@@ -167,8 +183,10 @@ function snapshotOf(overrides: Partial<SnapshotShape> = {}): AiProviderSettingsS
     transport: 'auto',
     localOnly: false,
     requestTimeoutMs: 30_000,
+    defaultModel: { providerId: '', modelId: '' },
     bindings: [],
     features: ['aiPreReview'],
+    selection: 'none',
     capability: { available: true },
     ...overrides,
   } as AiProviderSettingsSnapshot;
@@ -720,8 +738,8 @@ describe('Settings AI endpoint capability block', () => {
   });
 });
 
-describe('Settings AI model bindings', () => {
-  it('saves and clears one feature binding through the host', async () => {
+describe('Settings AI model overrides', () => {
+  it('saves and clears one feature override through the host', async () => {
     setSnapshot(snapshotOf({ providers: [ENTRY] }));
 
     const wrapper = mountView();
@@ -730,17 +748,14 @@ describe('Settings AI model bindings', () => {
     const select = wrapper.find('#ai-binding-aiPreReview');
     expect(select.exists()).toBe(true);
     const optionLabels = select.findAll('vscode-option').map((option) => option.text());
-    expect(optionLabels).toEqual([
-      'No binding — use the transport setting forgejoToolkit.aiTransport',
-      'Ollama (this machine)',
-    ]);
+    expect(optionLabels).toEqual(['Do not override — follow the default above', 'Ollama (this machine)']);
 
     (select.element as unknown as { value: string }).value = 'ollama-local';
     await select.trigger('change');
     const modelField = wrapper.find('.binding-row vscode-textfield');
     (modelField.element as unknown as { value: string }).value = 'qwen3:8b';
     await modelField.trigger('input');
-    await button(wrapper, 'Save binding').trigger('click');
+    await button(wrapper, 'Save override').trigger('click');
     await flushPromises();
 
     expect(stateMock.setAiModelBinding).toHaveBeenCalledWith({
@@ -750,7 +765,7 @@ describe('Settings AI model bindings', () => {
     });
     expect(wrapper.text()).toContain('The binding was saved.');
 
-    await button(wrapper, 'Remove binding').trigger('click');
+    await button(wrapper, 'Remove override').trigger('click');
     await flushPromises();
     expect(stateMock.setAiModelBinding).toHaveBeenLastCalledWith({
       feature: 'aiPreReview',
@@ -761,7 +776,7 @@ describe('Settings AI model bindings', () => {
     wrapper.unmount();
   });
 
-  it('marks a binding that names an endpoint which is not configured', async () => {
+  it('marks an override that names an endpoint which is not configured', async () => {
     setSnapshot(
       snapshotOf({
         providers: [ENTRY],
@@ -772,7 +787,194 @@ describe('Settings AI model bindings', () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('This binding names the endpoint "gone-gateway", which is not configured.');
+    expect(wrapper.text()).toContain('This override names the endpoint "gone-gateway", which is not configured.');
+    wrapper.unmount();
+  });
+});
+
+describe('Settings AI default endpoint and model', () => {
+  it('leads with the default row and states that nothing is configured yet', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY] }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    // The default is the primary path: its row is above the override section and
+    // says what "no default" means, rather than leaving an empty control.
+    const providerSelect = wrapper.find('#ai-default-provider');
+    expect(providerSelect.attributes('label')).toBe('Default endpoint');
+    expect(wrapper.find('#ai-default-model').attributes('label')).toBe('Default model id');
+    expect(wrapper.text()).toContain('No default endpoint is configured yet');
+    expect(wrapper.find('#ai-default-model').exists()).toBe(true);
+    const providerOptions = providerSelect.findAll('vscode-option').map((option) => option.text());
+    expect(providerOptions).toEqual(['Do not override — follow the default above', 'Ollama (this machine)']);
+    wrapper.unmount();
+  });
+
+  it('saves both halves as one pair, and never writes a half', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY] }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const select = wrapper.find('#ai-default-provider');
+    (select.element as unknown as { value: string }).value = 'ollama-local';
+    await select.trigger('change');
+
+    // The model is still empty: saving now is refused on the page, because the host
+    // would refuse it too and the sentence says which half is missing.
+    await button(wrapper, 'Save default').trigger('click');
+    await flushPromises();
+    expect(stateMock.setAiDefaultModel).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('The default needs both halves');
+
+    const modelField = wrapper.find('#ai-default-model');
+    (modelField.element as unknown as { value: string }).value = 'qwen3:8b';
+    await modelField.trigger('input');
+    await button(wrapper, 'Save default').trigger('click');
+    await flushPromises();
+
+    expect(stateMock.setAiDefaultModel).toHaveBeenCalledWith({ providerId: 'ollama-local', modelId: 'qwen3:8b' });
+    wrapper.unmount();
+  });
+
+  it('clears the default through the host', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], defaultModel: { providerId: 'ollama-local', modelId: 'qwen3:8b' } }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Default: ollama-local / qwen3:8b');
+
+    await button(wrapper, 'Remove default').trigger('click');
+    await flushPromises();
+
+    expect(stateMock.setAiDefaultModel).toHaveBeenCalledWith({ providerId: '', modelId: '' });
+    wrapper.unmount();
+  });
+
+  it('marks a default that names an endpoint which is not configured', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], defaultModel: { providerId: 'gone-gateway', modelId: 'qwen3:8b' } }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('The default names the endpoint "gone-gateway", which is not configured.');
+    // The select can still show it: a value the host reports is never dropped from
+    // the control, or the user could not see what is stored.
+    expect(wrapper.find('#ai-default-provider').attributes('value')).toBe('gone-gateway');
+    wrapper.unmount();
+  });
+
+  it('puts the controls back on the stored default when the host refuses the write', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], defaultModel: { providerId: 'ollama-local', modelId: 'qwen3:8b' } }));
+    stateMock.setAiDefaultModel.mockImplementation(async () => ({
+      providerId: 'ollama-local',
+      modelId: 'qwen3:8b',
+      error: 'No AI endpoint with the id "other" is configured, so it cannot be the default.',
+    }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const modelField = wrapper.find('#ai-default-model');
+    (modelField.element as unknown as { value: string }).value = 'big-model';
+    await modelField.trigger('input');
+    await button(wrapper, 'Save default').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('cannot be the default');
+    expect((wrapper.find('#ai-default-model').element as unknown as { value: string }).value).toBe('qwen3:8b');
+    wrapper.unmount();
+  });
+});
+
+describe('the AI area follows the transport choice', () => {
+  it('shows both routes and states the precedence under auto', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], transport: 'auto' }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('#ai-transport').attributes('value')).toBe('auto');
+    expect(wrapper.text()).toContain(
+      "auto prefers this editor's model when one is available, and uses the configured endpoint when it is not.",
+    );
+    // Both halves are on the page, and the endpoint surface is not hidden.
+    expect(wrapper.find('#ai-pre-review-model').exists()).toBe(true);
+    expect(wrapper.find('#ai-default-provider').exists()).toBe(true);
+    expect(wrapper.findAll('.saved-item')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('is hidden while the transport is vscode-lm');
+    wrapper.unmount();
+  });
+
+  it('hides the endpoint surface under vscode-lm and says how to get it back', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], transport: 'vscode-lm' }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    // The editor's own row is the one that stays.
+    expect(wrapper.find('#ai-pre-review-model').exists()).toBe(true);
+    // The endpoint surface — the list, its editor controls and the default row — is
+    // gone, with the sentence that says why and which control brings it back.
+    expect(wrapper.find('.saved-item').exists()).toBe(false);
+    expect(wrapper.find('#ai-default-provider').exists()).toBe(false);
+    expect(wrapper.text()).toContain('is hidden while the transport is vscode-lm');
+    // The gates that also decide what an override would do stay reachable.
+    expect(wrapper.find('#ai-providers-enabled').exists()).toBe(true);
+    expect(wrapper.find('#ai-local-only').exists()).toBe(true);
+    expect(wrapper.find('#ai-request-timeout').exists()).toBe(true);
+    // The choice that hid them is still on the page, so nothing is a dead end.
+    expect(wrapper.find('#ai-transport').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('hides the editor model row under openai-compatible and never offers it as a route', async () => {
+    setSnapshot(
+      snapshotOf({
+        providers: [ENTRY],
+        transport: 'openai-compatible',
+        capability: { available: false, code: 'no-model', reason: 'this editor provides no chat model' },
+      }),
+    );
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('#ai-pre-review-model').exists()).toBe(false);
+    expect(wrapper.text()).toContain('openai-compatible uses the configured endpoint only.');
+    // The endpoint surface is the one that stays, and the §9.3 block is gone with
+    // the route it was offering.
+    expect(wrapper.find('#ai-default-provider').exists()).toBe(true);
+    expect(wrapper.find('.saved-item').exists()).toBe(true);
+    expect(wrapper.find('.capability-block').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('writes the transport through the same policy message the gates use', async () => {
+    setSnapshot(snapshotOf({ providers: [ENTRY], transport: 'auto' }));
+    stateMock.setAiModelPolicy.mockImplementation(async () => ({
+      enabled: false,
+      transport: 'openai-compatible' as const,
+      localOnly: false,
+      requestTimeoutMs: 30_000,
+    }));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const select = wrapper.find('#ai-transport');
+    (select.element as unknown as { value: string }).value = 'openai-compatible';
+    await select.trigger('change');
+    await flushPromises();
+
+    expect(stateMock.setAiModelPolicy).toHaveBeenCalledWith({
+      enabled: false,
+      transport: 'openai-compatible',
+      localOnly: false,
+      requestTimeoutMs: 30_000,
+    });
     wrapper.unmount();
   });
 });

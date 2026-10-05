@@ -14,6 +14,7 @@ import {
   AI_MODEL_REQUEST_TIMEOUT_MIN_MS,
   AI_PROVIDERS_SETTING,
   AI_TRANSPORT_CHOICES,
+  aiDefaultModelSettingValue,
   aiLocalOnlySettingValue,
   aiModelRequestTimeoutMsSettingValue,
   aiProviderSettingsReading,
@@ -70,8 +71,9 @@ import type { AiModelTransport } from '../ai/transport';
  *    from exactly one explicit click in the page.
  *
  * The settings this module writes are the ones a plain Settings entry is not
- * enough for: the provider list, the per-feature bindings, and the three policy
- * gates the page has to present beside the endpoints they act on (`aiProviders`,
+ * enough for: the provider list, the default destination, the per-feature
+ * overrides, and the three policy gates the page has to present beside the
+ * endpoints they act on (`aiProviders`, `aiDefaultProvider`, `aiDefaultModel`,
  * `aiModelBindings`, `aiProvidersEnabled`, `aiTransport`, `aiLocalOnly`,
  * `aiModelRequestTimeoutMs`). Every write goes to **global** scope, matching the
  * manifest's own `machine` scope (§8.3): a workspace-level value could point a
@@ -91,6 +93,8 @@ const SETTINGS_SECTION = 'forgejoToolkit';
  */
 const AI_PROVIDERS_KEY = 'aiProviders';
 const AI_MODEL_BINDINGS_KEY = 'aiModelBindings';
+const AI_DEFAULT_PROVIDER_KEY = 'aiDefaultProvider';
+const AI_DEFAULT_MODEL_KEY = 'aiDefaultModel';
 const AI_PROVIDERS_ENABLED_KEY = 'aiProvidersEnabled';
 const AI_TRANSPORT_KEY = 'aiTransport';
 const AI_LOCAL_ONLY_KEY = 'aiLocalOnly';
@@ -231,8 +235,11 @@ export async function readAiProviderSettings(deps: AiProviderSettingsDeps): Prom
     transport: aiTransportSettingValue(),
     localOnly: aiLocalOnlySettingValue(),
     requestTimeoutMs: aiModelRequestTimeoutMsSettingValue(),
+    defaultModel: aiDefaultModelSettingValue() ?? { providerId: '', modelId: '' },
     bindings: readBindings(),
     features: [...AI_FEATURES],
+    selection:
+      selection.kind === 'unavailable' ? 'none' : selection.kind === 'vscode-lm' ? 'editor' : 'configured-endpoint',
     capability:
       selection.kind === 'unavailable'
         ? { available: false, code: selection.code, reason: selection.reason }
@@ -600,6 +607,60 @@ export async function writeAiModelBinding(
   logger.info(
     `AI endpoints: the settings page wrote the binding for "${feature}" as "${providerId || '(none)'}/${modelId}"`,
   );
+  return { ok: true };
+}
+
+/**
+ * Stores or clears the **default** destination a direct request falls back to
+ * (`docs/design/ai-model-transport.md` §8.4).
+ *
+ * The pair is validated the way a binding's endpoint is, and for the same reason:
+ * a default that names a provider which is not configured is a real default with a
+ * real problem, and §8.4 requires a run to fail by name rather than be resolved to
+ * a neighbour. Both fields empty clears the default — the state every
+ * configuration written before this pair existed reports — and a **half**-filled
+ * pair is refused outright: there is no sensible model to invent for a provider id
+ * on its own, and the direct path is not allowed to guess one.
+ */
+export async function writeAiDefaultModel(
+  _deps: AiProviderSettingsDeps,
+  rawDraft: unknown,
+): Promise<AiProviderWriteResult> {
+  const record = (typeof rawDraft === 'object' && rawDraft !== null ? rawDraft : {}) as Record<string, unknown>;
+  const providerId = typeof record['providerId'] === 'string' ? record['providerId'].trim() : '';
+  const modelId = typeof record['modelId'] === 'string' ? record['modelId'].trim() : '';
+  if (providerId === '' && modelId === '') {
+    try {
+      await Promise.all([writeSettingValue(AI_DEFAULT_PROVIDER_KEY, ''), writeSettingValue(AI_DEFAULT_MODEL_KEY, '')]);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    logger.info('AI endpoints: the settings page cleared the default AI endpoint and model');
+    return { ok: true };
+  }
+  if (providerId === '' || modelId === '') {
+    return {
+      ok: false,
+      error: vscode.l10n.t(
+        'The default needs both an endpoint and the model to ask it for: a model cannot be chosen on its own, and no model is guessed for an endpoint.',
+      ),
+    };
+  }
+  if (!aiProviderSettingsReading().providers.some((provider) => provider.id === providerId)) {
+    return {
+      ok: false,
+      error: vscode.l10n.t('No AI endpoint with the id "{0}" is configured, so it cannot be the default.', providerId),
+    };
+  }
+  try {
+    await Promise.all([
+      writeSettingValue(AI_DEFAULT_PROVIDER_KEY, providerId),
+      writeSettingValue(AI_DEFAULT_MODEL_KEY, modelId),
+    ]);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  logger.info(`AI endpoints: the settings page wrote the default endpoint and model as "${providerId}/${modelId}"`);
   return { ok: true };
 }
 

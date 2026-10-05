@@ -3,8 +3,8 @@ import * as vscode from 'vscode';
 /**
  * The host-side settings of the direct (OpenAI-compatible) model transport: the
  * provider list, the two switches that gate egress, the transport choice, the
- * per-feature bindings and the timeout — all read in one module so the readers
- * cannot drift apart.
+ * default destination, the per-feature overrides and the timeout — all read in
+ * one module so the readers cannot drift apart.
  *
  * `docs/design/ai-model-transport.md` §8 is the decision record for every id,
  * default and validation rule below. Three of its decisions are the reason this
@@ -60,8 +60,29 @@ export const AI_PROVIDERS_ENABLED_SETTING = `${SETTINGS_SECTION}.aiProvidersEnab
 /** Which transport serves a feature that has no binding of its own (§8.4). */
 export const AI_TRANSPORT_SETTING = `${SETTINGS_SECTION}.aiTransport`;
 
-/** The per-feature `{ feature, providerId, modelId }` bindings. */
+/**
+ * The per-feature `{ feature, providerId, modelId }` bindings — the **override**
+ * half of the default-versus-override pair below.
+ */
 export const AI_MODEL_BINDINGS_SETTING = `${SETTINGS_SECTION}.aiModelBindings`;
+
+/**
+ * The **default** endpoint a direct request goes to when the feature has no
+ * binding of its own (`docs/design/ai-model-transport.md` §8.4).
+ *
+ * A pair of plain strings rather than an entry in {@link AI_MODEL_BINDINGS_SETTING}:
+ * the bindings array is the per-feature override and a pseudo-feature inside it
+ * would make `feature` mean two things at once — the thing the override replaces
+ * is exactly the thing that must not look like one of them. Two flat keys are
+ * also the smallest honest shape: they are read and written with the same reader
+ * and validation the bindings use, `settings.json` states the default in the same
+ * words the transcript shows (the endpoint id and the model name), and neither
+ * key alone is a model the selection will use.
+ */
+export const AI_DEFAULT_PROVIDER_SETTING = `${SETTINGS_SECTION}.aiDefaultProvider`;
+
+/** The model the {@link AI_DEFAULT_PROVIDER_SETTING} endpoint is asked for. */
+export const AI_DEFAULT_MODEL_SETTING = `${SETTINGS_SECTION}.aiDefaultModel`;
 
 /** Whether a direct endpoint must resolve to the local machine or a private network. */
 export const AI_LOCAL_ONLY_SETTING = `${SETTINGS_SECTION}.aiLocalOnly`;
@@ -74,6 +95,8 @@ const AI_PROVIDERS_KEY = 'aiProviders';
 const AI_PROVIDERS_ENABLED_KEY = 'aiProvidersEnabled';
 const AI_TRANSPORT_KEY = 'aiTransport';
 const AI_MODEL_BINDINGS_KEY = 'aiModelBindings';
+const AI_DEFAULT_PROVIDER_KEY = 'aiDefaultProvider';
+const AI_DEFAULT_MODEL_KEY = 'aiDefaultModel';
 const AI_LOCAL_ONLY_KEY = 'aiLocalOnly';
 const AI_MODEL_REQUEST_TIMEOUT_KEY = 'aiModelRequestTimeoutMs';
 
@@ -115,6 +138,7 @@ import {
   isLocalAiEndpointHost,
   type AiProviderBaseUrlVerdict,
 } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
+import { AI_TRANSPORT_CHOICES } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export {
   AI_PROVIDER_SEGMENT_PATTERN,
@@ -203,9 +227,15 @@ export interface AiModelBinding {
 /** The three values of `forgejoToolkit.aiTransport` (§8.4). */
 export type AiTransportChoice = 'auto' | 'vscode-lm' | 'openai-compatible';
 
-/** The three values, in the order the manifest's dropdown shows them. */
-export const AI_TRANSPORT_CHOICES: readonly AiTransportChoice[] = ['auto', 'vscode-lm', 'openai-compatible'];
-
+/**
+ * The three values, in the order the manifest's dropdown shows them.
+ *
+ * Imported from the shared message module rather than declared here: the settings
+ * page renders the transport as a control of its own, and
+ * `docs/design/settings-page.md` §3.2 requires a page dropdown to come from the
+ * same enumeration the host reads and writes. One list, two import sites.
+ */
+export { AI_TRANSPORT_CHOICES };
 /**
  * The providers that could be read, plus the entries that could not.
  *
@@ -487,4 +517,39 @@ export function aiModelBindingsSettingValue(): AiModelBinding[] {
 /** The binding that names this feature, or `undefined` when there is none. */
 export function aiModelBindingFor(feature: AiFeature): AiModelBinding | undefined {
   return aiModelBindingsSettingValue().find((binding) => binding.feature === feature);
+}
+
+/**
+ * One default endpoint-and-model pair, as the settings page edits it and as the
+ * selection reads it (§8.4).
+ *
+ * The shape is deliberately the binding's, without its `feature`: the default is
+ * the same statement a binding makes, made once for every feature that has no
+ * binding of its own.
+ */
+export interface AiDefaultModel {
+  providerId: string;
+  modelId: string;
+}
+
+/**
+ * The configured default destination, or `undefined` when there is none.
+ *
+ * **Both** halves have to be there, which is the fail-closed direction: a
+ * provider id without a model is not a destination (the direct path cannot invent
+ * a model — §8.4 — so "the default" would otherwise have to be resolved to "some
+ * model on that endpoint", which is exactly the guessing the record forbids), and
+ * a model without a provider names nothing to send to. A hand-edited
+ * `settings.json` holding one of the two therefore reads as "no default", and the
+ * feature falls back to the transport rules it used before this setting existed.
+ */
+export function aiDefaultModelSettingValue(): AiDefaultModel | undefined {
+  const providerId = readSettingValue(AI_DEFAULT_PROVIDER_KEY);
+  const modelId = readSettingValue(AI_DEFAULT_MODEL_KEY);
+  const provider = typeof providerId === 'string' ? providerId.trim() : '';
+  const model = typeof modelId === 'string' ? modelId.trim() : '';
+  if (provider === '' || model === '') {
+    return undefined;
+  }
+  return { providerId: provider, modelId: model };
 }

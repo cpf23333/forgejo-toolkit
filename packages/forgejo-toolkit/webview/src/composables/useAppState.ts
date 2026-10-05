@@ -376,7 +376,9 @@ export type AiProviderReply =
       requestTimeoutMs: number;
       error?: string;
     }
-  | { kind: 'binding'; feature: string; providerId: string; modelId: string; error?: string };
+  | { kind: 'binding'; feature: string; providerId: string; modelId: string; error?: string }
+  /** The default destination: the pair the per-feature bindings override (§8.4). */
+  | { kind: 'default'; providerId: string; modelId: string; error?: string };
 
 /**
  * One provider as the page submits it to `saveAiProvider`.
@@ -2383,6 +2385,15 @@ function createAppState() {
         settleAiProviderRequest(message._requestId, {
           kind: 'binding',
           feature: message.feature,
+          providerId: message.providerId,
+          modelId: message.modelId,
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        });
+        break;
+      }
+      case 'aiDefaultModelSaved': {
+        settleAiProviderRequest(message._requestId, {
+          kind: 'default',
           providerId: message.providerId,
           modelId: message.modelId,
           ...(message.error !== undefined ? { error: message.error } : {}),
@@ -4931,6 +4942,18 @@ function createAppState() {
   }
 
   /**
+   * Stores or clears the default destination (§8.4). Both fields empty clears it,
+   * which puts every feature without an override back on the transport rules; one
+   * field alone is refused by the host rather than completed with a guess.
+   */
+  function setAiDefaultModel(defaultModel: {
+    providerId: string;
+    modelId: string;
+  }): Promise<{ providerId: string; modelId: string; error?: string }> {
+    return aiProviderRequest('default', 'setAiDefaultModel', { ...defaultModel });
+  }
+
+  /**
    * Reads the settings the page's own sections present. Reading sends nothing
    * anywhere and writes nothing; it is the page's only way to learn what the host
    * currently has, so every control renders this answer and never a value the
@@ -7266,6 +7289,7 @@ function createAppState() {
     openNativeSettings,
     setAiModelPolicy,
     setAiModelBinding,
+    setAiDefaultModel,
     settingsSurface,
     loadSettingsSurface,
     setSettingsSurfaceValue,

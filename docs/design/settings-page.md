@@ -1,14 +1,19 @@
 # 设置页面的归属与呈现
 
 - 状态：**设计已定稿，并已在工作树里实现**：呈现、自动探测、生成与漂移守卫都有代码与测试（2026-10-05，同一改动）。
-  实现按本文的归类落地：`contributes.configuration.properties` 的 22 条键里，19 条由本页
-  渲染、3 条留在原生界面（`src/webview/settingsSurface.ts` 的 `NATIVE_ONLY_SETTINGS` 持有各自理由），§1.3 表格里"该上
-  页面"的 9 条全部上页面，其中 `aiTransport` 的原生下拉**从页面移除**、改成 §2.2 的指针行。**真实编辑器走查已完成**
-  （2026-10-05，隔离 dev host；走查发现并修掉四处缺陷：写工具的容器写入被宿主拒绝、原生设置入口的过滤器少了
-  publisher、打开已存的 `auth: none` 端点即自动探测、探测失败静默且两张报告卡同形——§2.1、§4.3、§4.4、§4.5 按修好
-  的行为就地更新）。**§8 的六个问题至此全部裁决完毕**：问题 2 的取舍是"成功的探测要说它不是同意"，落在模型行下面
-  那条状态行旁（§4.5 第 5、6 条、§8 问题 2）；问题 5 的结论是 Dashboard 那一侧**不加**指向设置页的链接，理由见 §8 问题 5。
-  §8 问题 1 的越线设计**已由维护者明确确认**，其代价按 §8.1 原样保留。
+  实现按本文的归类落地，清单条数随基线增长到 24 条：其中 22 条由本页渲染、2 条留在原生界面
+  （`src/webview/settingsSurface.ts` 的 `NATIVE_ONLY_SETTINGS` 持有各自理由），§1.3 表格里"该上
+  页面"的 9 条全部上页面。**2026-10-06 的三处修订（维护者裁决，同一改动）**：① `aiTransport` 从原生清单
+  **移回页面**，用它原本就有的三值下拉渲染，§2.2 的指针行随之删除（§1.3、§2.2、§3.2 已就地改成现状）；
+  ② 页面按当前传输方式呈现对应的一半配置——`vscode-lm` 只留编辑器的聊天模型行、`openai-compatible`
+  只留端点面，`auto` 两者都留并用一句话说明优先级（§3.2）；③ 逐功能绑定降级为叠加在"默认端点与模型"
+  之上的**覆盖项**，默认值是主路径（§1.3、§3.2，语义见 [`ai-model-transport.md`](./ai-model-transport.md) 的
+  §8.4）。**真实编辑器走查已完成**（2026-10-05，隔离 dev host；走查发现并修掉四处缺陷：写工具的容器写入
+  被宿主拒绝、原生设置入口的过滤器少了 publisher、打开已存的 `auth: none` 端点即自动探测、探测失败静默且
+  两张报告卡同形——§2.1、§4.3、§4.4、§4.5 按修好的行为就地更新）。**§8 的六个问题至此全部裁决完毕**：
+  问题 2 的取舍是"成功的探测要说它不是同意"，落在模型行下面那条状态行旁（§4.5 第 5、6 条、§8 问题 2）；
+  问题 5 的结论是 Dashboard 那一侧**不加**指向设置页的链接，理由见 §8 问题 5。§8 问题 1 的越线设计
+  **已由维护者明确确认**，其代价按 §8.1 原样保留。
 
 - 适用范围：**扩展自己的设置面**——`packages/forgejo-toolkit/webview/src/views/Settings.vue` 这个页面，加上它为了
   自身的可发现性而要用到的宿主入口。不含 VS Code 原生设置编辑器本身，不含首次运行向导（`Onboarding.vue`，它按
@@ -64,41 +69,44 @@
 
 ### 1.3 设置清单与归类
 
-下表覆盖 `packages/forgejo-toolkit/package.json` 的 `contributes.configuration.properties` 的**全部 22 条**（manifest 把
+下表覆盖 `packages/forgejo-toolkit/package.json` 的 `contributes.configuration.properties` 的**全部 24 条**（manifest 把
 `mcpWriteTools` 的三条写工具也作为带点号的键直接挂在 `properties` 下，没有额外的容器层级）。归类只有三种：
 **已渲染**、**该上页面**、**只在原生**；"提到"一列只对**只在原生**的条目有意义。
 
-| 设置（`forgejoToolkit.` 前缀省略） | 类型   | 归类     | 理由（现状证据 / 决定理由）                                                                                                                                | 页面是否提到                                                 |
-| ---------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `locale`                           | 枚举   | 已渲染   | `Settings.vue` 的 `settings.language` 区块（`handleLocaleChange`）；见 §1.2                                                                                | —                                                            |
-| `debug`                            | 布尔   | 已渲染   | `settings.debug` 区块（`handleDebugChange`）；见 §1.2                                                                                                      | —                                                            |
-| `worktreeOpenMode`                 | 枚举   | 已渲染   | `settings.worktree.openMode` 的 `vscode-single-select`                                                                                                     | —                                                            |
-| `worktreeCacheDirectory`           | 字符串 | 已渲染   | `settings.worktree.cacheDirectory` 字段 + `browseWorktreeCacheDirectory` / `restoreDefaultCacheDirectory`                                                  | —                                                            |
-| `notificationPollingEnabled`       | 布尔   | 该上页面 | 这一条现在**完全不可达**：Dashboard 用 `forgejoToolkit.notificationPollingEnabled` 解释角标为什么不更新，用户却只能在原生界面找它                          | —                                                            |
-| `notificationPollingInterval`      | 数字   | 只在原生 | 带 `minimum` / `maximum` 的普通数字，原生界面比页面做得好（页面得自己写范围校验，那就是第二个校验源）                                                      | **要**：在通知区块说"轮询间隔"这个数字在原生界面             |
-| `useMockApi`                       | 布尔   | 只在原生 | 描述自称 "Development use only; stripped from production builds"，是开发开关；放进用户界面只会让人以为它是个功能                                           | **不要**：连提都不提，它是给改这个仓库的人看的               |
-| `mcpEnabled`                       | 布尔   | 该上页面 | 描述里那句"关掉会立刻撤回 server definitions"是一个开关的后果，不是它的值；这是整个 MCP 面的总闸，必须有可发现的地方                                       | —                                                            |
-| `mcpWriteTools.createIssueComment` | 布尔   | 该上页面 | 三条写工具开关放一起才讲得清那套"默认关闭 + 逐工具"的确认模型（`mcp-write-tools-confirmation.md` 的 §3.3）                                                 | —                                                            |
-| `mcpWriteTools.submitPullReview`   | 布尔   | 该上页面 | 同上                                                                                                                                                       | —                                                            |
-| `mcpWriteTools.cancelActionRun`    | 布尔   | 该上页面 | 同上                                                                                                                                                       | —                                                            |
-| `mcpWriteAuditToFile`              | 布尔   | 该上页面 | 它描述的是审计记录**去哪儿**（日志目录里的 `mcp-write-audit.jsonl`），而审计正是"agent 改了什么"的答案；只留原生界面等于把总闸和它的账本分开放             | —                                                            |
-| `multiWindowLease`                 | 布尔   | 该上页面 | 关掉它直接改变提醒出现在哪个窗口；`leaseDegradedNotice` 还会在降级时弹一次提示，用户需要一个能自己读完这件事的地方                                         | —                                                            |
-| `aiPreReview`                      | 布尔   | 该上页面 | 一个功能的**总开关**：关掉它命令直接报"没有可用模型"那类结果，用户会以为是模型的问题                                                                       | —                                                            |
-| `aiPreReviewPromptScope`           | 枚举   | 该上页面 | 五个取值每一条都是一次**出网范围**的同意；描述里写清了"发什么"，但它现在只在运行时的**一次性模态框**里被问过一次，用户看不到自己上次答应的是什么、也改不了 | —                                                            |
-| `aiPreReviewModel`                 | 字符串 | 已渲染   | `settings.aiPreReviewModel` 区块（`loadAiPreReviewModels` / `storeAiPreReviewModel`），运行时列表，原生界面做不成下拉                                      | —                                                            |
-| `aiProviders`                      | 数组   | 已渲染   | `settings.aiProviders` 区块的编辑器；数组 + 密钥，原生界面只能手编 JSON                                                                                    | —                                                            |
-| `aiProvidersEnabled`               | 布尔   | 已渲染   | `settings.aiProviders.policy.enabled`；§8.3 与 `aiProviderSettings.ts` 的模块注释都写明它是"三个独立事实"里的第二个，必须与端点同屏                        | —                                                            |
-| `aiTransport`                      | 枚举   | 只在原生 | 原生下拉能完整表达三个取值；页面渲染它就要处理"控件值被宿主拒绝后弹回"这类第二个校验源                                                                     | **要**：在端点区块说这条设置的名字，并说明它何时决定走哪条路 |
-| `aiModelBindings`                  | 数组   | 已渲染   | `settings.aiProviders.bindings` 区块：逐功能一行，provider 下拉的选项在运行时才存在，原生界面表达不了                                                      | —                                                            |
-| `aiLocalOnly`                      | 布尔   | 已渲染   | `settings.aiProviders.policy.localOnly`；它是一条**策略**，会拒绝请求，不是"本地不本地"这个值本身                                                          | —                                                            |
-| `aiModelRequestTimeoutMs`          | 数字   | 已渲染   | `settings.aiProviders.policy.timeout` + `savePolicyTimeout`；见 §1.2                                                                                       | —                                                            |
+| 设置（`forgejoToolkit.` 前缀省略） | 类型   | 归类     | 理由（现状证据 / 决定理由）                                                                                                                                               | 页面是否提到                                     |
+| ---------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `locale`                           | 枚举   | 已渲染   | `Settings.vue` 的 `settings.language` 区块（`handleLocaleChange`）；见 §1.2                                                                                               | —                                                |
+| `debug`                            | 布尔   | 已渲染   | `settings.debug` 区块（`handleDebugChange`）；见 §1.2                                                                                                                     | —                                                |
+| `worktreeOpenMode`                 | 枚举   | 已渲染   | `settings.worktree.openMode` 的 `vscode-single-select`                                                                                                                    | —                                                |
+| `worktreeCacheDirectory`           | 字符串 | 已渲染   | `settings.worktree.cacheDirectory` 字段 + `browseWorktreeCacheDirectory` / `restoreDefaultCacheDirectory`                                                                 | —                                                |
+| `notificationPollingEnabled`       | 布尔   | 该上页面 | 这一条现在**完全不可达**：Dashboard 用 `forgejoToolkit.notificationPollingEnabled` 解释角标为什么不更新，用户却只能在原生界面找它                                         | —                                                |
+| `notificationPollingInterval`      | 数字   | 只在原生 | 带 `minimum` / `maximum` 的普通数字，原生界面比页面做得好（页面得自己写范围校验，那就是第二个校验源）                                                                     | **要**：在通知区块说"轮询间隔"这个数字在原生界面 |
+| `useMockApi`                       | 布尔   | 只在原生 | 描述自称 "Development use only; stripped from production builds"，是开发开关；放进用户界面只会让人以为它是个功能                                                          | **不要**：连提都不提，它是给改这个仓库的人看的   |
+| `mcpEnabled`                       | 布尔   | 该上页面 | 描述里那句"关掉会立刻撤回 server definitions"是一个开关的后果，不是它的值；这是整个 MCP 面的总闸，必须有可发现的地方                                                      | —                                                |
+| `mcpWriteTools.createIssueComment` | 布尔   | 该上页面 | 三条写工具开关放一起才讲得清那套"默认关闭 + 逐工具"的确认模型（`mcp-write-tools-confirmation.md` 的 §3.3）                                                                | —                                                |
+| `mcpWriteTools.submitPullReview`   | 布尔   | 该上页面 | 同上                                                                                                                                                                      | —                                                |
+| `mcpWriteTools.cancelActionRun`    | 布尔   | 该上页面 | 同上                                                                                                                                                                      | —                                                |
+| `mcpWriteAuditToFile`              | 布尔   | 该上页面 | 它描述的是审计记录**去哪儿**（日志目录里的 `mcp-write-audit.jsonl`），而审计正是"agent 改了什么"的答案；只留原生界面等于把总闸和它的账本分开放                            | —                                                |
+| `multiWindowLease`                 | 布尔   | 该上页面 | 关掉它直接改变提醒出现在哪个窗口；`leaseDegradedNotice` 还会在降级时弹一次提示，用户需要一个能自己读完这件事的地方                                                        | —                                                |
+| `aiPreReview`                      | 布尔   | 该上页面 | 一个功能的**总开关**：关掉它命令直接报"没有可用模型"那类结果，用户会以为是模型的问题                                                                                      | —                                                |
+| `aiPreReviewPromptScope`           | 枚举   | 该上页面 | 五个取值每一条都是一次**出网范围**的同意；描述里写清了"发什么"，但它现在只在运行时的**一次性模态框**里被问过一次，用户看不到自己上次答应的是什么、也改不了                | —                                                |
+| `aiPreReviewModel`                 | 字符串 | 已渲染   | `settings.aiPreReviewModel` 区块（`loadAiPreReviewModels` / `storeAiPreReviewModel`），运行时列表，原生界面做不成下拉                                                     | —                                                |
+| `aiProviders`                      | 数组   | 已渲染   | `settings.aiProviders` 区块的编辑器；数组 + 密钥，原生界面只能手编 JSON                                                                                                   | —                                                |
+| `aiProvidersEnabled`               | 布尔   | 已渲染   | `settings.aiProviders.policy.enabled`；§8.3 与 `aiProviderSettings.ts` 的模块注释都写明它是"三个独立事实"里的第二个，必须与端点同屏                                       | —                                                |
+| `aiTransport`                      | 枚举   | 已渲染   | `settings.aiProviders.policy.transport` 的 `vscode-single-select`（`handlePolicyTransportChange`）；它的取值决定 AI 区块呈现哪一半配置，所以要能就地改（§3.2、§8 问题 7） | —                                                |
+| `aiDefaultProvider`                | 字符串 | 已渲染   | `settings.aiProviders.defaultModel.provider` 的下拉；默认端点是直连路线的主路径（§3.2）                                                                                   | —                                                |
+| `aiDefaultModel`                   | 字符串 | 已渲染   | `settings.aiProviders.defaultModel.model` 的自由文本字段，与上一行同一条默认值（§3.2、[`ai-model-transport.md`](./ai-model-transport.md) §8.4）                           | —                                                |
+| `aiModelBindings`                  | 数组   | 已渲染   | `settings.aiProviders.bindings` 区块：逐功能一行，是叠加在默认值之上的**覆盖项**；provider 下拉的选项在运行时才存在，原生界面表达不了                                     | —                                                |
+| `aiLocalOnly`                      | 布尔   | 已渲染   | `settings.aiProviders.policy.localOnly`；它是一条**策略**，会拒绝请求，不是"本地不本地"这个值本身                                                                         | —                                                |
+| `aiModelRequestTimeoutMs`          | 数字   | 已渲染   | `settings.aiProviders.policy.timeout` + `savePolicyTimeout`；见 §1.2                                                                                                      | —                                                |
 
-小结：22 条键在实现后分成 **已渲染 19 条** 与 **只在原生 3 条**（`19 + 3 = 22`；`useMockApi` 不提，
-`notificationPollingInterval` 与 `aiTransport` 提名字）。这 19 条就是上表"已渲染"的 10 条加上本次"该上页面"的 9 条；
-本次改动之前本页渲染其中 11 条（`aiTransport` 当时也在页面上，它已按 §2.2 改成原生指针行）。把归类读成一次改动：
-**该上页面的 9 条**是 `mcpEnabled`、`mcpWriteTools` 的三条写工具、`mcpWriteAuditToFile`、`notificationPollingEnabled`、
-`multiWindowLease`、`aiPreReview` 与 `aiPreReviewPromptScope`；**只在原生的 3 条**里，两条要在页面上留一行指针，
-`useMockApi` 什么都不留。§6 的漂移守卫把这个小结变成可执行的约束。
+小结：24 条键在实现后分成 **已渲染 22 条** 与 **只在原生 2 条**（`22 + 2 = 24`；`useMockApi` 不提，
+`notificationPollingInterval` 提名字）。这 22 条是上表"已渲染"的 13 条加上本次"该上页面"的 9 条。把归类读成
+两次改动：**该上页面的 9 条**是 `mcpEnabled`、`mcpWriteTools` 的三条写工具、`mcpWriteAuditToFile`、
+`notificationPollingEnabled`、`multiWindowLease`、`aiPreReview` 与 `aiPreReviewPromptScope`；**只在原生的
+2 条**里，`notificationPollingInterval` 在页面上留一行指针，`useMockApi` 什么都不留。2026-10-06 的修订
+把 `aiTransport` 从"只在原生"移进"已渲染"，并新增 `aiDefaultProvider` 与 `aiDefaultModel` 两条（它们诞生时
+就是页面控件，所以不进"该上页面"那一批）。§6 的漂移守卫把这个小结变成可执行的约束。
 
 ## 2. 可发现性
 
@@ -132,13 +140,15 @@
 用 §2.1 的同一个命令）。指针行是可点的，点它就打开筛好的原生设置；不写 id 而只写"更多设置"是不够的，因为用户
 在原生设置里搜索时需要的正是这个 id。
 
-保留在原生界面的三条与它们的落点：
+保留在原生界面的两条与它们的落点：
 
-| 留在原生的设置                | 指针落在哪个区块                                  | 一行里必须说清的                                                             |
-| ----------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `notificationPollingInterval` | 通知区块，`notificationPollingEnabled` 的开关下面 | 单位是**秒**，范围 60–3600                                                   |
-| `aiTransport`                 | AI 端点区块，策略开关之后                         | 三种取值（`auto` / `vscode-lm` / `openai-compatible`）以及"有绑定时绑定优先" |
-| `useMockApi`                  | **无**                                            | 不提。它是开发开关，提它只会让用户以为这是功能                               |
+| 留在原生的设置                | 指针落在哪个区块                                  | 一行里必须说清的                               |
+| ----------------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| `notificationPollingInterval` | 通知区块，`notificationPollingEnabled` 的开关下面 | 单位是**秒**，范围 60–3600                     |
+| `useMockApi`                  | **无**                                            | 不提。它是开发开关，提它只会让用户以为这是功能 |
+
+`aiTransport` 曾经在这张表里，2026-10-06 起它是页面自己的控件（§1.3），因此不再有指针行：一个值有两个可写
+控件正是 §1.1 第 3 条禁止的，所以它只能是二者之一。
 
 ### 2.3 页面里的设置名怎么写
 
@@ -173,20 +183,38 @@
 内部固定；**默认值**不预填进控件，而是在控件下面用一行说明写清默认是什么（`default` + 它的单位），因为预填会让
 "我没选过"和"我选了默认值"看起来一样。
 
-下表是 §1.3 里 9 条**新上页面**的设置与两条**已渲染但要改**的设置的呈现规格。
+下表是 §1.3 里 9 条**新上页面**的设置、两条**已渲染但要改**的设置，以及 2026-10-06 修订的三条 AI 设置
+（`aiTransport` 移回页面，`aiDefaultProvider` / `aiDefaultModel` 两条新增）的呈现规格。
 
-| 设置                                   | 控件            | 所在区块与顺序              | 单位 / 范围 / 默认值的写法                                                                           | 冲突与无效输入的呈现                                                                   |
-| -------------------------------------- | --------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `mcpEnabled`                           | 复选框          | MCP 区块第 1 行             | 默认**开**，写"默认开：装好即可用"                                                                   | 关掉时在下面补一句"已连接的客户端会保留它启动的进程，直到重载窗口"（描述里的原话）     |
-| `mcpWriteTools.createIssueComment`     | 复选框          | MCP 区块"写工具"组，第 1 行 | 默认**关**，每条都写"默认关"                                                                         | 三个开关共用一行说明：写工具默认关闭，每个工具各自一道闸                               |
-| `mcpWriteTools.submitPullReview`       | 复选框          | 同上，第 2 行               | 同上                                                                                                 | 同上                                                                                   |
-| `mcpWriteTools.cancelActionRun`        | 复选框          | 同上，第 3 行               | 同上                                                                                                 | 同上                                                                                   |
-| `mcpWriteAuditToFile`                  | 复选框          | MCP 区块"审计"组            | 默认**关**，写"默认关：审计留在输出通道，关窗即丢"                                                   | 打开时写清落盘位置（日志目录的 `mcp-write-audit.jsonl`）与 1 MB 上限                   |
-| `notificationPollingEnabled`           | 复选框          | 通知区块第 1 行             | 默认**开**                                                                                           | 关闭时在区块里保留"角标与提醒不再更新"这句，让用户知道角标为什么静了                   |
-| `multiWindowLease`                     | 复选框          | 通知区块"多窗口"组          | 默认**开**，写"默认开：只有一个窗口轮询与提醒"                                                       | 被 `leaseDegradedNotice` 报过的降级要在这里留一句可读的说明，而不是只弹一次就没了      |
-| `aiPreReview`                          | 复选框          | AI 预评审区块第 1 行        | 默认**关**，写"默认关：打开后才会向模型发送内容"                                                     | 关着时把提示范围与模型两行的位置保留（变灰），并说明"打开它才会用到下面两项"           |
-| `aiPreReviewPromptScope`（**新控件**） | 单选下拉        | AI 预评审区块第 2 行        | 五个取值，每个取值的中文/英文说明与原生 `enumDescriptions` **同义**，其中 `ask` 写作"每次运行前询问" | 值来自宿主的读数；写失败时选择器弹回宿主报的值（`storeAiPreReviewModel` 的同一条处置） |
-| `aiPreReviewModel`（**已渲染**）       | 单选下拉 + 刷新 | AI 预评审区块第 3 行        | 现状保留                                                                                             | 现状保留（"设置里是 X，但这里没有这个模型"那句已经在）                                 |
+| 设置                                   | 控件            | 所在区块与顺序              | 单位 / 范围 / 默认值的写法                                                                           | 冲突与无效输入的呈现                                                                              |
+| -------------------------------------- | --------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `mcpEnabled`                           | 复选框          | MCP 区块第 1 行             | 默认**开**，写"默认开：装好即可用"                                                                   | 关掉时在下面补一句"已连接的客户端会保留它启动的进程，直到重载窗口"（描述里的原话）                |
+| `mcpWriteTools.createIssueComment`     | 复选框          | MCP 区块"写工具"组，第 1 行 | 默认**关**，每条都写"默认关"                                                                         | 三个开关共用一行说明：写工具默认关闭，每个工具各自一道闸                                          |
+| `mcpWriteTools.submitPullReview`       | 复选框          | 同上，第 2 行               | 同上                                                                                                 | 同上                                                                                              |
+| `mcpWriteTools.cancelActionRun`        | 复选框          | 同上，第 3 行               | 同上                                                                                                 | 同上                                                                                              |
+| `mcpWriteAuditToFile`                  | 复选框          | MCP 区块"审计"组            | 默认**关**，写"默认关：审计留在输出通道，关窗即丢"                                                   | 打开时写清落盘位置（日志目录的 `mcp-write-audit.jsonl`）与 1 MB 上限                              |
+| `notificationPollingEnabled`           | 复选框          | 通知区块第 1 行             | 默认**开**                                                                                           | 关闭时在区块里保留"角标与提醒不再更新"这句，让用户知道角标为什么静了                              |
+| `multiWindowLease`                     | 复选框          | 通知区块"多窗口"组          | 默认**开**，写"默认开：只有一个窗口轮询与提醒"                                                       | 被 `leaseDegradedNotice` 报过的降级要在这里留一句可读的说明，而不是只弹一次就没了                 |
+| `aiPreReview`                          | 复选框          | AI 预评审区块第 1 行        | 默认**关**，写"默认关：打开后才会向模型发送内容"                                                     | 关着时把提示范围与模型两行的位置保留（变灰），并说明"打开它才会用到下面两项"                      |
+| `aiPreReviewPromptScope`（**新控件**） | 单选下拉        | AI 预评审区块第 2 行        | 五个取值，每个取值的中文/英文说明与原生 `enumDescriptions` **同义**，其中 `ask` 写作"每次运行前询问" | 值来自宿主的读数；写失败时选择器弹回宿主报的值（`storeAiPreReviewModel` 的同一条处置）            |
+| `aiPreReviewModel`（**已渲染**）       | 单选下拉 + 刷新 | AI 预评审区块第 3 行        | 现状保留                                                                                             | 现状保留（"设置里是 X，但这里没有这个模型"那句已经在）；传输方式为 `openai-compatible` 时整行隐藏 |
+
+**2026-10-06 修订后的 AI 区块呈现规格**（`ai-model-transport.md` 的 §8.4 是这些语义的住处）：
+
+| 设置 / 区块                                                | 控件                                          | 所在位置与顺序                             | 呈现规格                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aiTransport`                                              | 单选下拉（三值）                              | AI 端点区块第 1 行，描述之后               | 三个取值来自共享枚举 `AI_TRANSPORT_CHOICES`（页面不另抄一份顺序）；改选即写，走 `setAiModelPolicy` 的同一条消息，宿主只写变了的值——所以它不会顺手回退用户在原生界面改过的别的闸门。选择本身**不改变任何别处的开关**，只决定这一页呈现哪一半配置                                   |
+| `aiTransport` 为 `auto` 的优先级说明                       | 一行说明文字                                  | 传输下拉下面                               | 仅当选择是 `auto`：一句话说清"有可用的编辑器模型时优先用它，没有时才用已配置的端点"                                                                                                                                                                                               |
+| 端点面（列表、编辑器、「添加端点」）                       | 现有控件                                      | 传输下拉与策略闸门之后                     | 仅当选择**不是** `vscode-lm`；为 `vscode-lm` 时整块隐藏，位置留一行说明"这一面为什么被隐藏、选 auto 或 openai-compatible 即可重新看到"                                                                                                                                            |
+| 「允许向已配置的端点发请求」「仅允许本地端点」「请求超时」 | 现有控件                                      | AI 端点区块，端点面之前                    | **三种取值都始终可见**：它们各自也决定逐功能覆盖会怎么做（覆盖是直连路线），把闸门跟着传输方式藏起来就会留下一个用户找不到可写来源的策略                                                                                                                                          |
+| §9.3 的「没有可用模型」区块                                | 现有区块                                      | 传输下拉之后                               | 仅当选择会去问编辑器的模型（`vscode-lm`，或 `auto`）；`openai-compatible` 下不出现，因为它会把"装一个聊天模型"当作一条出路，而那条路在这个选择下不会被用到——同时端点面正在展示真正的出路                                                                                          |
+| `aiDefaultProvider` / `aiDefaultModel`                     | 端点的单选下拉 + 自由文本框                   | 端点面之内，「添加端点」之后、端点列表之前 | 默认端点的选项就是已配置端点（加上宿主报出的、当前存着的那个 id，即使它已不在列表里）；模型是自由文本，与绑定的理由相同（§8.1 的模型声明不是白名单）。两半都空 = 没有默认值，那一行写清"还没有默认端点"以及没有默认时直连路线会怎么走；只有一半时说清缺的是哪一半，**不猜**另一半 |
+| `aiModelBindings`（**改为覆盖项**）                        | 每功能一行：端点下拉 + 模型文本 + 保存 / 移除 | 自己一个区块，标题写成「逐功能覆盖」       | 每行的空选项写"不覆盖——跟随上面的默认值"；这一行的选项与默认值行同样列出已配置端点。区块说明写清"覆盖是可选的、没有覆盖的功能都跟随默认值"。它仍是**最具体的一句话**：点了名的端点与模型就是这次运行的目的地（仍受总闸约束）                                                      |
+
+**"隐藏"的边界写死在两条规则里**：① 隐藏的只能是由当前传输方式**决定用不到**的那一半配置（`vscode-lm` 下的
+端点面、`openai-compatible` 下的编辑器模型行），不能是"页面不喜欢"的东西；② 每一处隐藏都必须在它原来的位置留下
+一句可读的说明，并且**做出这个选择的控件本身永远可见**——用户要能就地改回来。§3.3 第 3 条的"什么都不隐藏"讲的是
+**值**（密钥、header value 从不回显），与这里按选择裁剪**控件**不是同一条规矩。
 
 `aiPreReviewPromptScope` 上页面的理由必须在这一节写死：它是**出网范围**的单一来源，页面不复制它的校验——下拉的
 五个取值来自同一个枚举顺序，页面把这个值写回设置，**从不自己纠正**一个页面读不懂的值（那由宿主的读取器按
@@ -348,8 +376,9 @@
 守卫失败时，用户（这里是维护者）需要知道的是"加哪个键、加到哪里"。所以同一测试里再断两条：
 
 1. **已渲染的键必须在字符串目录里按 id 出现**：`en.json` 的 `settings` 段落里该键名作为子串出现（`aiTransport`
-   这类短语会因此顺便被守住）。失败信息给出缺失的键；
-2. **已渲染的键不得出现在 `NATIVE_ONLY_SETTINGS` 里**（§6.2 的"两者都占"）。
+   这类短语会因此顺便被守住），且它的值是一个在**两种语言**里都存在的标签键。失败信息给出缺失的键；
+2. **已渲染的键不得出现在 `NATIVE_ONLY_SETTINGS` 里**（§6.2 的"两者都占"）。2026-10-06 的修订正是被这一条逼出来的：
+   `aiTransport` 回到页面，就必须同时从 `NATIVE_ONLY_SETTINGS` 移走，否则守卫会红。
 
 ## 7. 页面不该做的事
 
@@ -404,6 +433,16 @@
    已知代价（上引记录 §2.1）。本决定不改任何用户可见行为，因此不进 `FEATURES.md`，也不进两份 `CHANGELOG`。
 6. **`reason` 字段要不要中文**？`NATIVE_ONLY_SETTINGS` 的 `reason` 是给维护者读的（测试失败信息），本文定为
    **英文**，与测试面的其余注释一致；页面上的"更多设置"指针不复用它，而是走 i18n 键。
+7. **`aiTransport` 该不该在页面上有控件，以及 `auto` 下"用不到"的那一半要不要藏起来？已由维护者决定（2026-10-06）：
+   两件都做。** 原来把它留在原生界面的理由是"三值枚举原生下拉表达得更好、页面渲染就要处理控件弹回"，维护者否掉了
+   这个权衡：这个选择决定 AI 区块呈现哪一半配置（"选了编辑器模型却还看到一整块端点配置"读起来像页面没说真话），
+   而一个决定这一页长什么样的选择放在另一页上，等于要求用户在两页之间来回推理。于是 ① 它回到页面，用共享枚举
+   `AI_TRANSPORT_CHOICES` 渲染三值下拉；② 页面按选择裁剪：`vscode-lm` 只留编辑器的聊天模型行、`openai-compatible`
+   只留端点面、`auto` 两者都留并写一句优先级。**两条边界是这次裁决的一部分**：裁剪只针对这一选择**用不到**的那一半，
+   并且每一个被裁掉的位置都留一句"为什么"和"改哪个控件拿回来"，控件本身永不隐藏；三个策略闸门（`aiProvidersEnabled`、
+   `aiLocalOnly`、`aiModelRequestTimeoutMs`）与逐功能覆盖**不参与裁剪**——闸门也管覆盖，覆盖的端点下拉也要能选到
+   刚配好的端点。漂移守卫随之更新：`aiTransport` 从 `NATIVE_ONLY_SETTINGS` 移入已渲染集合，§2.2 的指针行删除
+   （一个值只能有一个可写控件，§1.1 第 3 条）。
 
 ### 8.1 自动探测的代价（写在明处的取舍）
 

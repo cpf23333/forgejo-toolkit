@@ -24,8 +24,9 @@ import {
  *    showed a default would make "I never chose" and "I chose the default" look
  *    the same.
  * 3. **The settings that stay native are named, not re-implemented** (§2.2): the
- *    transport is a pointer row with its full id, and the transport's value still
- *    travels with a policy write rather than being dropped.
+ *    polling interval is a pointer row with its full id, while the transport — which
+ *    used to be one — is a control of the page now, and its value still travels with
+ *    a policy write rather than being dropped.
  * 4. **The scope values are the host's enumeration** (§3.2), so the page cannot
  *    offer a value the host would refuse.
  */
@@ -107,6 +108,7 @@ const { stateMock, surface } = vi.hoisted(() => {
       }),
     ),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
+    setAiDefaultModel: vi.fn(async () => ({ providerId: '', modelId: '' })),
     minSupportedServerVersion: { value: '16.0.0' },
     worktreeOpenMode: { value: 'ask' },
     changeWorktreeOpenMode: vi.fn(),
@@ -183,8 +185,10 @@ function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {})
     transport: 'auto',
     localOnly: false,
     requestTimeoutMs: 30_000,
+    defaultModel: { providerId: '', modelId: '' },
     bindings: [],
     features: ['aiPreReview'],
+    selection: 'none',
     capability: { available: true },
     ...overrides,
   } as AiProviderSettingsSnapshot;
@@ -350,23 +354,29 @@ describe('the settings the page presents', () => {
     on.unmount();
   });
 
-  it('names the native-only settings instead of re-implementing them', async () => {
+  it('names the native-only setting instead of re-implementing it, and renders the transport', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf();
 
     const wrapper = mountView();
     await flushPromises();
 
-    // The two pointer rows, each with the full id the user has to search for.
+    // The one pointer row that is left, with the full id the user has to search for.
     const pointers = wrapper.findAll('.pointer-row');
-    expect(pointers).toHaveLength(2);
+    expect(pointers).toHaveLength(1);
     expect(pointers[0]!.text()).toContain('forgejoToolkit.notificationPollingInterval');
-    expect(pointers[1]!.text()).toContain('forgejoToolkit.aiTransport');
-    // The transport is no longer a control of this page (§1.3).
-    expect(wrapper.find('#ai-transport').exists()).toBe(false);
+    // The transport is a control of this page now (§1.3): the choice decides which
+    // half of the AI area the page presents, so it cannot be native-only.
+    const transport = wrapper.find('#ai-transport');
+    expect(transport.exists()).toBe(true);
+    expect(transport.findAll('vscode-option').map((option) => option.attributes('value'))).toEqual([
+      'auto',
+      'vscode-lm',
+      'openai-compatible',
+    ]);
     wrapper.unmount();
   });
 
-  it('opens the filtered native settings editor from the header and from both pointer rows', async () => {
+  it('opens the filtered native settings editor from the header and from the pointer row', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf();
 
     const wrapper = mountView();
@@ -379,16 +389,14 @@ describe('the settings the page presents', () => {
     await header!.trigger('click');
     expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(1);
 
-    // Every entry point goes through the one action, which posts the one command
+    // The one entry point goes through the one action, which posts the one command
     // the host implements with the extension's own id as the filter (§2.1, §2.2):
-    // a second, hand-written filter is how the two rows and the header could drift
+    // a second, hand-written filter is how the header and the row could drift
     // apart, and one of them opening an unfiltered editor is the defect this pins.
     const pointers = wrapper.findAll('.pointer-row');
-    expect(pointers).toHaveLength(2);
+    expect(pointers).toHaveLength(1);
     await pointers[0]!.trigger('click');
     expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(2);
-    await pointers[1]!.trigger('click');
-    expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(3);
     wrapper.unmount();
   });
 });
@@ -526,7 +534,7 @@ describe('writing one setting from the page', () => {
     }
   });
 
-  it('keeps sending the transport with a policy write although the page no longer renders it', async () => {
+  it('keeps sending the transport with every other policy write', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf({ transport: 'openai-compatible' });
     stateMock.setAiModelPolicy.mockImplementation(async () => ({
       enabled: false,
@@ -548,6 +556,37 @@ describe('writing one setting from the page', () => {
       localOnly: true,
       requestTimeoutMs: 30_000,
     });
+    wrapper.unmount();
+  });
+
+  it('writes the transport when — and only when — the select changes', async () => {
+    stateMock.aiProviderSettings.value = providerSnapshotOf({ transport: 'auto' });
+    // The host answers with the transport it actually stored, which is what the
+    // control then shows: the page never keeps a value it only hoped for.
+    stateMock.setAiModelPolicy.mockImplementation(async () => ({
+      enabled: false,
+      transport: 'vscode-lm' as const,
+      localOnly: false,
+      requestTimeoutMs: 30_000,
+    }));
+    const wrapper = mountView();
+    await flushPromises();
+
+    const select = wrapper.find('#ai-transport');
+    (select.element as unknown as { value: string }).value = 'vscode-lm';
+    await select.trigger('change');
+    await flushPromises();
+
+    expect(stateMock.setAiModelPolicy).toHaveBeenCalledWith({
+      enabled: false,
+      transport: 'vscode-lm',
+      localOnly: false,
+      requestTimeoutMs: 30_000,
+    });
+    // `vscode-single-select` is not a registered custom element under jsdom, so the
+    // value the page holds lands on the element as a **property** rather than as an
+    // attribute — the same split the `checked` helper at the top deals with.
+    expect((wrapper.find('#ai-transport').element as unknown as { value: string }).value).toBe('vscode-lm');
     wrapper.unmount();
   });
 

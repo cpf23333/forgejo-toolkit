@@ -71,6 +71,7 @@ import {
   saveAiProvider,
   testAiProvider,
   validateAiProviderDraft,
+  writeAiDefaultModel,
   writeAiModelBinding,
   writeAiModelPolicy,
   writeAiProviderSecret,
@@ -201,14 +202,18 @@ describe('the endpoint snapshot', () => {
   });
 
   it('answers the capability question with the discriminator the page branches on', async () => {
-    // The editor offers a model: available.
+    // The editor offers a model: available, and the path that answered is named so
+    // the page can say what a request would use right now.
     await expect(readAiProviderSettings(deps())).resolves.toMatchObject({
       capability: { available: true },
+      selection: 'editor',
     });
 
     // Nothing to offer and nothing configured: the two absences together.
     const emptyEditor = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
     expect(emptyEditor.capability).toMatchObject({ available: false, code: 'no-model' });
+    // An unavailable answer names no path, because none was selected.
+    expect(emptyEditor.selection).toBe('none');
 
     // A configured endpoint, but the egress switch is off.
     state.settings['aiProviders'] = [FIRST_ENTRY];
@@ -221,6 +226,43 @@ describe('the endpoint snapshot', () => {
     state.settings['aiProvidersEnabled'] = true;
     const ambiguous = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
     expect(ambiguous.capability).toMatchObject({ available: false, code: 'bind' });
+  });
+
+  it('reports the default destination, and names the direct path when it is the one that answers', async () => {
+    // No default configured: the pair is empty, which is what a fresh install and
+    // every configuration written before the pair existed report. The selection then
+    // falls back to the single-endpoint rule, which is the behaviour it had before.
+    const withoutDefault = await readAiProviderSettings(deps({ vscodeLm: editorTransport([]) }));
+    expect(withoutDefault.defaultModel).toEqual({ providerId: '', modelId: '' });
+    expect(withoutDefault.selection).toBe('none');
+
+    state.settings['aiProviders'] = [FIRST_ENTRY];
+    state.settings['aiProvidersEnabled'] = true;
+    state.settings['aiDefaultProvider'] = 'ollama-local';
+    state.settings['aiDefaultModel'] = 'qwen3:8b';
+
+    // The endpoint's key is stored, so the direct route can actually serve the run.
+    const secrets = secretStore({ [aiProviderKeySecretKey('ollama-local')]: 'sk-a-real-key' });
+    const snapshot = await readAiProviderSettings(deps({ secrets, vscodeLm: editorTransport([]) }));
+
+    expect(snapshot.defaultModel).toEqual({ providerId: 'ollama-local', modelId: 'qwen3:8b' });
+    expect(snapshot.capability).toEqual({ available: true });
+    expect(snapshot.selection).toBe('configured-endpoint');
+  });
+
+  it('reads a half-configured default as no default rather than inventing the missing half', async () => {
+    // A hand-edited `settings.json` can hold one key without the other; the direct
+    // path may not guess a model for an endpoint (§8.4), so the pair reads as absent
+    // and the feature falls back to the rules it used before the pair existed.
+    state.settings['aiDefaultProvider'] = 'ollama-local';
+    await expect(readAiProviderSettings(deps())).resolves.toMatchObject({
+      defaultModel: { providerId: '', modelId: '' },
+    });
+
+    state.settings = { aiDefaultModel: 'qwen3:8b' };
+    await expect(readAiProviderSettings(deps())).resolves.toMatchObject({
+      defaultModel: { providerId: '', modelId: '' },
+    });
   });
 });
 
@@ -484,6 +526,52 @@ describe('the per-feature bindings', () => {
     });
     expect(noModel).toMatchObject({ ok: false });
     expect(state.settings['aiModelBindings']).toBeUndefined();
+  });
+});
+
+describe('the default destination', () => {
+  beforeEach(() => {
+    state.settings['aiProviders'] = [FIRST_ENTRY];
+  });
+
+  it('stores the pair as its own two settings, and clears both', async () => {
+    expect(await writeAiDefaultModel(deps(), { providerId: 'ollama-local', modelId: 'qwen3:8b' })).toEqual({
+      ok: true,
+    });
+    // Two flat keys, not an entry in the bindings array: the default is the thing
+    // the per-feature overrides sit on top of, and a pseudo-feature inside that
+    // array would make `feature` mean two things at once (§8.4).
+    expect(state.updates).toEqual([
+      { key: 'aiDefaultProvider', value: 'ollama-local' },
+      { key: 'aiDefaultModel', value: 'qwen3:8b' },
+    ]);
+    expect(state.settings['aiModelBindings']).toBeUndefined();
+
+    state.updates = [];
+    expect(await writeAiDefaultModel(deps(), { providerId: '', modelId: '' })).toEqual({ ok: true });
+    expect(state.updates).toEqual([
+      { key: 'aiDefaultProvider', value: '' },
+      { key: 'aiDefaultModel', value: '' },
+    ]);
+  });
+
+  it('refuses a half-configured pair instead of guessing the other half', async () => {
+    const withoutModel = await writeAiDefaultModel(deps(), { providerId: 'ollama-local', modelId: '' });
+    expect(withoutModel).toMatchObject({ ok: false });
+    expect(withoutModel.ok === false && withoutModel.error).toContain('both');
+
+    const withoutProvider = await writeAiDefaultModel(deps(), { providerId: '', modelId: 'qwen3:8b' });
+    expect(withoutProvider).toMatchObject({ ok: false });
+    // Nothing was written at all: a refused default is not a half-written one.
+    expect(state.updates).toEqual([]);
+  });
+
+  it('fails by name when the default names an endpoint that is not configured', async () => {
+    const refused = await writeAiDefaultModel(deps(), { providerId: 'deleted-gateway', modelId: 'qwen3:8b' });
+
+    expect(refused).toMatchObject({ ok: false });
+    expect(refused.ok === false && refused.error).toContain('deleted-gateway');
+    expect(state.updates).toEqual([]);
   });
 });
 

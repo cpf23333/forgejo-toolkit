@@ -265,6 +265,167 @@ describe('the selection rules (§8.4)', () => {
   });
 });
 
+describe('the default destination and the per-feature override (§8.4)', () => {
+  it('uses the default when the feature has no override of its own', async () => {
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: true,
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      // `openai-compatible` says "a configured endpoint", and the default is what
+      // names which one: this is the pair that makes the direct route usable
+      // without binding each feature by hand.
+      aiTransport: 'openai-compatible',
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [EDITOR_MODEL] })));
+
+    expect(outcome.kind).toBe('openai-compatible');
+    expect(outcome.kind === 'openai-compatible' && outcome.model.id).toBe('qwen3:8b');
+    expect(loggedText().join('\n')).toContain('"forgejoToolkit.aiDefaultProvider"');
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('lets an override outrank the default, and only for the feature that wrote it', async () => {
+    state.settings = {
+      aiProviders: [
+        PROVIDER,
+        { ...PROVIDER, id: 'second-gateway', name: 'Second', models: [{ id: 'big', name: 'Big' }] },
+      ],
+      aiProvidersEnabled: true,
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiModelBindings: [{ feature: 'prDescription', providerId: 'second-gateway', modelId: 'big' }],
+      aiTransport: 'openai-compatible',
+    };
+    const secrets = secretStore();
+    // The second endpoint has a key of its own: the override is a working one, which
+    // is the case this test is about.
+    await secrets.store(aiProviderKeySecretKey('second-gateway'), API_KEY);
+
+    const overridden = await selectedModelFor('prDescription', { secrets, vscodeLm: editorTransport({ models: [] }) });
+    const following = await selectedModelFor('aiPreReview', { secrets, vscodeLm: editorTransport({ models: [] }) });
+
+    // The override names its own destination, and it applies to the one feature
+    // that wrote it: the other feature still follows the default above.
+    expect(overridden.kind).toBe('openai-compatible');
+    expect(overridden.kind === 'openai-compatible' && overridden.model).toEqual({
+      vendor: 'second-gateway',
+      id: 'big',
+      name: 'Big',
+    });
+    expect(following.kind === 'openai-compatible' && following.model.vendor).toBe('local-gateway');
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('does not quietly fall back to the default when an override cannot be honoured', async () => {
+    state.settings = {
+      aiProviders: [
+        PROVIDER,
+        { ...PROVIDER, id: 'second-gateway', name: 'Second', models: [{ id: 'big', name: 'Big' }] },
+      ],
+      aiProvidersEnabled: true,
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiModelBindings: [{ feature: 'prDescription', providerId: 'second-gateway', modelId: 'big' }],
+      aiTransport: 'openai-compatible',
+    };
+    // Only the default's endpoint has a key: the override names an endpoint that
+    // cannot be used, which §8.4 makes a failure rather than a reason to send the
+    // content to the default the user deliberately overrode.
+    const outcome = await selectedModelFor('prDescription', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('unavailable');
+    expect(outcome.kind === 'unavailable' && outcome.code).toBe('endpoint-unusable');
+    // The transport's own sentence about the override's endpoint, not the default's.
+    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('No API key is stored');
+    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('Second');
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('lets an override outrank the default even when auto would prefer the editor', async () => {
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: true,
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiModelBindings: [{ feature: 'aiPreReview', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
+      aiTransport: 'auto',
+    };
+    const editor = editorTransport({ models: [EDITOR_MODEL] });
+
+    const outcome = await selectedModelFor('aiPreReview', { secrets: secretStore(), vscodeLm: editor });
+
+    expect(outcome.kind).toBe('openai-compatible');
+    // The editor was never consulted: the most specific statement there is decided,
+    // and `auto` had no say in it.
+    expect(editor.listModels).not.toHaveBeenCalled();
+  });
+
+  it('fails by name when the default names an endpoint that is not configured', async () => {
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: true,
+      aiDefaultProvider: 'deleted-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiTransport: 'openai-compatible',
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('unavailable');
+    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('deleted-gateway');
+    // It is not resolved to the one endpoint that *is* configured.
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('keeps the egress switch between the default and the endpoint it names', async () => {
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: false,
+      aiDefaultProvider: 'local-gateway',
+      aiDefaultModel: 'qwen3:8b',
+      aiTransport: 'openai-compatible',
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('unavailable');
+    expect(outcome.kind === 'unavailable' && outcome.code).toBe('disabled');
+    expect(outcome.kind === 'unavailable' && outcome.reason).toContain('forgejoToolkit.aiProvidersEnabled');
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('behaves exactly as before when no default is configured', async () => {
+    // The compatibility guarantee, stated as a test: with no default and no
+    // override, the direct path still used the single readable endpoint and the
+    // model it declares first.
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: true,
+      aiTransport: 'openai-compatible',
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('openai-compatible');
+    expect(outcome.kind === 'openai-compatible' && outcome.model.id).toBe('qwen3:8b');
+  });
+
+  it('still refuses to guess between two endpoints when no default is configured', async () => {
+    state.settings = {
+      aiProviders: [PROVIDER, { ...PROVIDER, id: 'second-gateway', name: 'Second' }],
+      aiProvidersEnabled: true,
+      aiTransport: 'openai-compatible',
+    };
+
+    const outcome = await selectedModelFor('aiPreReview', deps(editorTransport({ models: [] })));
+
+    expect(outcome.kind).toBe('unavailable');
+    expect(outcome.kind === 'unavailable' && outcome.code).toBe('bind');
+  });
+});
+
 describe('no fallback between the two transports (§7.5)', () => {
   it('does not ask the editor models when the bound endpoint fails', async () => {
     state.settings = {

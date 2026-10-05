@@ -44,6 +44,8 @@ const { stateMock } = vi.hoisted(() => ({
       bindings: [],
       features: ['aiPreReview'],
       capability: { available: true } as const,
+      defaultModel: { providerId: '', modelId: '' },
+      selection: 'none' as const,
     })),
     saveAiProvider: vi.fn(async (provider: { id: string }) => ({ id: provider.id })),
     removeAiProvider: vi.fn(async () => ({ cancelled: false })),

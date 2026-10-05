@@ -9,6 +9,10 @@
   `selectedModelFor(feature)` 接的活还没做（它们是各自的独立功能，见 `FEATURES.md`
   的「未完成」与 §11.4）。「为常见本地服务预填地址」已决定不做，理由见 §12。（本文只写决定与理由。）阶段划分与
   每阶段的验收口径见 §11；动手前需要确认的未知见 §13；已核实的事实见 §16。
+  **2026-10-06 的设置面裁决（维护者）已就地写进 §8**：目的地分成两层——一条**默认目的地**
+  （`forgejoToolkit.aiDefaultProvider` + `forgejoToolkit.aiDefaultModel`，两个平铺字符串）是主路径，逐功能
+  `aiModelBindings` 降级为叠加在它之上的**覆盖项**；§8.2 的归属表、§8.3 的设置清单与 §8.4 的次序表都按现状更新，
+  页面的呈现规格在 [`settings-page.md`](./settings-page.md) 的 §3.2。
 
 - 适用范围：**宿主侧 AI 功能取用一个模型的那一步**。当前已交付的只有 AI 预评审（draft-only，见
   [`ai-prereview.md`](./ai-prereview.md)），本文用它的调用点来定接缝的形状。不含 MCP 工具面、不含自动提交 /
@@ -125,10 +129,12 @@ AI 预评审里与"取模型"直接有关的符号（都可在 `packages/forgejo
 （`readResponseCandidates` 产出 `{ kind: 'text' | 'reasoning' | 'text-projection', text }`），由调用方的 JSON
 契约**逐条**仲裁（`pickResponseCandidate`），两股候选**绝不拼接**。这不是实现细节，而是接缝必须保住的语义。
 
-### 3.2 逐功能绑定的先例
+### 3.2 逐功能目的地设置的先例
 
 `TODO.md` 的同一节里，"PR 描述生成 / Issue 分诊 / 通知摘要"都是 `vscode.lm` 试点。有了两条传输，"哪个功能用哪个
-provider / 模型"就必须是一个显式的、可见的设置，而不是各自模块里的隐含默认（§8.4）。
+provider / 模型"就必须是一个显式的、可见的设置，而不是各自模块里的隐含默认。这一条在 §8.4 落地成两层：**一条默认
+目的地**（`aiDefaultProvider` + `aiDefaultModel`，用户配一次、所有功能照用）加**逐功能覆盖**
+（`aiModelBindings`，某个功能要更强或更私密的模型时才写一条）。
 
 ### 3.3 「默认」这个词在本仓库的确切含义
 
@@ -592,7 +598,8 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------- |
 | provider id / 显示名 / base URL                              | settings（`forgejoToolkit.aiProviders`）                                            | 非密；要能导入导出、要被用户看见             |
 | 模型列表（id + 显示名）                                      | settings                                                                            | 非密                                         |
-| 逐功能绑定                                                   | settings（`forgejoToolkit.aiModelBindings`）                                        | 非密；必须是用户可见可改的                   |
+| **默认目的地**（端点 id + 模型名）                           | settings（`forgejoToolkit.aiDefaultProvider` 与 `forgejoToolkit.aiDefaultModel`）   | 非密；必须是用户可见可改的，且是主路径       |
+| 逐功能覆盖（`{ feature, providerId, modelId }`）             | settings（`forgejoToolkit.aiModelBindings`）                                        | 非密；必须是用户可见可改的                   |
 | 「仅本地」策略                                               | settings（`forgejoToolkit.aiLocalOnly`）                                            | 非密；策略不是密钥                           |
 | 总线开关                                                     | settings（`forgejoToolkit.aiProvidersEnabled`）                                     | 非密；它管的是"允不允许出网"                 |
 | 传输选择                                                     | settings（`forgejoToolkit.aiTransport`）                                            | 非密                                         |
@@ -614,7 +621,9 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 | `forgejoToolkit.aiProviders`             | array   | `[]`    | `machine` | 已配置的 provider 列表；**空数组 = 没有直连目的地**    |
 | `forgejoToolkit.aiProvidersEnabled`      | boolean | `false` | `machine` | 是否允许任何 AI 功能通过直连发内容（"第二条独立闸门"） |
 | `forgejoToolkit.aiTransport`             | string  | `auto`  | `machine` | `auto` / `vscode-lm` / `openai-compatible`，见 §8.4    |
-| `forgejoToolkit.aiModelBindings`         | array   | `[]`    | `machine` | 逐功能绑定（`{ feature, providerId, modelId }`）       |
+| `forgejoToolkit.aiDefaultProvider`       | string  | `""`    | `machine` | 默认目的地的端点 id；空 = 没有默认目的地（§8.4）       |
+| `forgejoToolkit.aiDefaultModel`          | string  | `""`    | `machine` | 向默认端点请求的模型名；空 = 没有默认目的地（§8.4）    |
+| `forgejoToolkit.aiModelBindings`         | array   | `[]`    | `machine` | 逐功能覆盖（`{ feature, providerId, modelId }`）       |
 | `forgejoToolkit.aiLocalOnly`             | boolean | `false` | `machine` | 拒绝非 localhost / 内网的 `baseUrl`（§8.8）            |
 | `forgejoToolkit.aiModelRequestTimeoutMs` | number  | `30000` | `machine` | 空闲看门狗窗口与单次请求上限（§6.5、§8.6）             |
 
@@ -628,19 +637,51 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 
 ### 8.4 `aiTransport` 与 `selectedModelFor(feature)`
 
-| 次序 | 条件                                                         | 结果                                                                          |
-| ---- | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| 1    | `bindings` 里有这个 feature 的绑定                           | 直连（用绑定里的 provider + model）                                           |
-| 2    | 无绑定且 `aiTransport === 'vscode-lm'`                       | `vscode.lm`                                                                   |
-| 3    | 无绑定且 `aiTransport === 'openai-compatible'`               | 直连；没有可用 provider / 密钥时**失败**（不回退）                            |
-| 4    | 无绑定且 `aiTransport === 'auto'`，且 `vscode.lm` 有可用模型 | `vscode.lm`                                                                   |
-| 5    | 无绑定且 `aiTransport === 'auto'`，`vscode.lm` 没有可用模型  | 直连，**仅当** `aiProvidersEnabled` 为真、providers 非空且能定出一个 provider |
-| 6    | 以上都不成立                                                 | 明确失败：报告"没有可用模型"并给出两条路（§9.3）                              |
+**默认与覆盖的关系（2026-10-06 维护者裁决，本节是它的住处）**：目的地由**一条默认值**加**逐功能覆盖**两层
+组成，默认值是主路径，覆盖是可选的例外。
+
+- **默认值**是 `forgejoToolkit.aiDefaultProvider` + `forgejoToolkit.aiDefaultModel` 这一对**平铺字符串**。选它而
+  不是往 `aiModelBindings` 里塞一条 `feature: "default"` 的伪条目，理由是"feature 这个字段只能有一种含义"：覆盖
+  存在的意义就是"这个功能不走默认值"，所以默认值本身不能长得像一条覆盖。两个平铺键也是最小的诚实形状——与绑定
+  用同一套读取与校验，`settings.json` 里就是一句"哪个端点 + 哪个模型"，导入导出不必为新容器加规则。
+- **一半不算默认值**。只有端点 id 没有模型、或只有模型没有端点 id，都读作"没有默认值"：直连路径**不许自己推出
+  一个模型**，所以它不能把"某个端点上的某个模型"解释出来。这一条让用户手改 `settings.json` 时不会得到一个
+  半生效的默认值。
+- **覆盖优先，且只对写了它的那个功能优先**。一条覆盖就是用户为某一个功能点名了端点与模型（"这次评审值一个更强
+  或更私密的模型"），所以它对那个功能压过默认值，对别的功能不产生任何影响。
+- **默认值只在直连那一路里说话**。它排在 `aiTransport` 的显式选择（规则 2、3）之后：`vscode-lm` 就是"别问端点了"，
+  所以它不去读默认值。`openai-compatible` 与 `auto` 的端点那一半都读它。
+- **`auto` 与默认值**：`auto` 先问编辑器有没有可用模型（规则 4），只有在编辑器提供不了模型时才去看默认端点
+  （规则 5）。也就是说 `auto` 下的默认端点是**退路**，而 `openai-compatible` 下它是**唯一那条路**。
+- **兼容性**：没有配置默认值、也没有覆盖时，行为与这组设置出现**之前完全一样**——仍是"恰好一个可读端点且它
+  声明了模型"那条规则（规则 5 的旧读法，见下），所以升级后既有配置的运行方式不变；既有的逐功能绑定也照旧生效，
+  只是现在它们在语义上叫覆盖。
+
+| 次序 | 条件                                                         | 结果                                                         |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1    | `bindings` 里有这个 feature 的覆盖                           | 直连（用覆盖里的 provider + model）                          |
+| 2    | 无覆盖且 `aiTransport === 'vscode-lm'`                       | `vscode.lm`                                                  |
+| 3    | 无覆盖且 `aiTransport === 'openai-compatible'`               | 直连；没有可用 provider / 密钥时**失败**（不回退）           |
+| 4    | 无覆盖且 `aiTransport === 'auto'`，且 `vscode.lm` 有可用模型 | `vscode.lm`                                                  |
+| 5    | 无覆盖且 `aiTransport === 'auto'`，`vscode.lm` 没有可用模型  | 直连，**仅当** `aiProvidersEnabled` 为真、且能定出一个目的地 |
+| 6    | 以上都不成立                                                 | 明确失败：报告"没有可用模型"并给出两条路（§9.3）             |
+
+**规则 3 与规则 5 里的"能定出一个目的地"按固定次序读**（`selectDirectWithoutBinding`）：
+
+1. 配了**完整**的默认值（两半都在）→ 用**它**，并像覆盖一样校验：`aiProvidersEnabled` 必须是开的，端点必须
+   在 `aiProviders` 里能读到，端点必须可用（URL、仅本地策略、密钥）；任何一条不过就**点名失败**，绝不"就近
+   找一个端点"，也绝不改走编辑器那条路。
+2. **没配默认值**→ 沿用这组设置出现之前的老规则：**恰好一个**端点能读出来、且它**声明了至少一个模型**，用
+   **它声明的第一个**模型。多于一个端点、有条目读不出来、端点没声明模型——都是"说不清把内容送给谁"的歧义，
+   照旧失败而不猜（`bind`）。
 
 - **`auto` 的选择必须是可解释的**：每次运行在 debug 日志里写一行"这次走 `<transportId>`，因为 `<reason>`"。
-- 绑定缺一个 provider 所指（provider 被删、id 写错）时**失败并点名**，不"就近找一个"（照
-  `reportAiPreReviewModelRefusal` 的纪律）。
-- 绑定是一个**数组**而不是对象：`settings.json` 手编时数组的合并语义比深层对象可预测，也与实例列表一致。
+- 覆盖缺一个 provider 所指（provider 被删、id 写错）时**失败并点名**，不"就近找一个"（照
+  `reportAiPreReviewModelRefusal` 的纪律）；默认值指向一个不存在的端点时**同样如此**，只是句子换成点名
+  `forgejoToolkit.aiDefaultProvider` 与那个 id。两处的失败**都不回退到另一层**：覆盖坏掉不会改用默认值，默认值
+  坏掉不会改用"唯一那个端点"——否则用户刚点名的那条路会静默地变成另一条。
+- 覆盖是一个**数组**而不是对象：`settings.json` 手编时数组的合并语义比深层对象可预测，也与实例列表一致；默认值
+  不是数组，它是**一条**目的地，所以用两个平铺键而不是再开一个数组。
 
 ### 8.5 自定义 header 与认证方式
 
@@ -693,16 +734,18 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 选择：**本阶段只写名字、不编辑 `package.nls.json` / `package.nls.zh-cn.json`**（两者必须同步改，等到阶段 1 落地
 设置与文案时一起做）。阶段 1 必须新增的键（英文 / 中文成对）：
 
-| 键                                                                             | 说明                     |
-| ------------------------------------------------------------------------------ | ------------------------ |
-| `config.aiProviders.title` / `.description`                                    | provider 列表            |
-| `config.aiProvidersEnabled.title` / `.description`                             | 直连总开关（默认关）     |
-| `config.aiTransport.title` / `.description`                                    | 传输选择                 |
-| `config.aiTransport.enumDescriptions.auto` / `.vscodeLm` / `.openAiCompatible` | 三个取值各自说清走哪条路 |
-| `config.aiModelBindings.title` / `.description`                                | 逐功能绑定               |
-| `config.aiLocalOnly.title` / `.description`                                    | 仅本地策略               |
-| `config.aiModelRequestTimeoutMs.title` / `.description`                        | 超时                     |
-| `command.aiTestProvider.title`                                                 | 「测试连接」             |
+| 键                                                                             | 说明                        |
+| ------------------------------------------------------------------------------ | --------------------------- |
+| `config.aiProviders.title` / `.description`                                    | provider 列表               |
+| `config.aiProvidersEnabled.title` / `.description`                             | 直连总开关（默认关）        |
+| `config.aiTransport.title` / `.description`                                    | 传输选择                    |
+| `config.aiTransport.enumDescriptions.auto` / `.vscodeLm` / `.openAiCompatible` | 三个取值各自说清走哪条路    |
+| `config.aiModelBindings.title` / `.description`                                | 逐功能绑定                  |
+| `config.aiLocalOnly.title` / `.description`                                    | 仅本地策略                  |
+| `config.aiModelRequestTimeoutMs.title` / `.description`                        | 超时                        |
+| `config.aiDefaultProvider.title` / `.description`                              | 默认端点（2026-10-06 新增） |
+| `config.aiDefaultModel.title` / `.description`                                 | 默认模型（2026-10-06 新增） |
+| `command.aiTestProvider.title`                                                 | 「测试连接」                |
 
 **两条会被测试拦住的既有约定**（不改就是红的）：
 
@@ -997,7 +1040,8 @@ Ollama"这件事了）。所以 harness 要长的是：
    `aiMockRun.ts` 管状态文件、detached 子进程与"只杀自己认得的 pid"的停止逻辑，`aiMock.ts` 是它的命令行
    （`serve` / `url` / `requests` / `stop`）。`launch --ai-mock`（`dual launch --ai-mock` 同）先起端点、再把它实际绑到的
    端口写进隔离 profile 的 `forgejoToolkit.aiProviders`，连同 `aiProvidersEnabled`、`aiTransport` 与
-   `aiPreReview` 的逐功能绑定；**不写任何密钥**（端点 `auth: "none"`，需要鉴权的端点才需要，而密钥只进
+   `aiPreReview` 的逐功能绑定（`aiModelBindings` 的一条覆盖：按 §8.4 的次序它压过默认值，所以 harness 的种子不必
+   跟着 `aiDefaultProvider` / `aiDefaultModel` 改写）；**不写任何密钥**（端点 `auth: "none"`，需要鉴权的端点才需要，而密钥只进
    `SecretStorage`），也**不写** `forgejoToolkit.aiPreReviewPromptScope`——它的默认 `ask` 正是走查里唯一必须由人回答的
    一步。两处与上面措辞不同，按实现记录：① 写成 **TypeScript**（`.ts`）而不是 `.mjs`，因为 harness 本来就用 `tsx`
    直接跑 TS、`pnpm check` 也覆盖它；② 第 3 条的"不走 MSW"已实测：带 MSW 拦截器时，指向回环 SSE 端点的请求被**放行**

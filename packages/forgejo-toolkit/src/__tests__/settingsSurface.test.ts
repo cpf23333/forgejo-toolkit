@@ -75,11 +75,12 @@ describe('the settings page ownership policy', () => {
     expect(violations).toEqual([]);
   });
 
-  it('holds the same three native-only settings the record decides', () => {
+  it('holds the same native-only settings the record decides', () => {
     // Named literally: a setting that quietly moves between the two lists is the
-    // drift this guard exists for, and the record's §1.3 is what these three are.
+    // drift this guard exists for, and the record's §1.3 is what these two are.
+    // `aiTransport` used to be a third and is rendered now — the choice decides
+    // which half of the AI area the page presents, so the page has to make it.
     expect([...nativeOnly.keys()].sort()).toEqual([
-      'forgejoToolkit.aiTransport',
       'forgejoToolkit.notificationPollingInterval',
       'forgejoToolkit.useMockApi',
     ]);

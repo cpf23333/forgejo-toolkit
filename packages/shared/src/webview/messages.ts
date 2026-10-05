@@ -374,6 +374,20 @@ export interface AiModelBindingDraft {
   modelId: string;
 }
 
+/**
+ * The default endpoint-and-model pair, as the settings page edits it
+ * (`docs/design/ai-model-transport.md` §8.4).
+ *
+ * It is the same statement a binding makes, made once for every feature that has
+ * no override of its own — which is why it carries no `feature` field. Empty
+ * strings mean "there is no default", and the host refuses a half-configured pair
+ * rather than guessing the missing half.
+ */
+export interface AiDefaultModelDraft {
+  providerId: string;
+  modelId: string;
+}
+
 /** One configured entry the settings reader could not read, so the page can name what was ignored. */
 export interface AiProviderRejection {
   index: number;
@@ -389,8 +403,11 @@ export interface AiProviderRejection {
  * screen and the parts constrain each other: whether the egress switch is on,
  * what the transport says, which endpoints exist and which of their secrets are
  * stored are read together so the page can never show a state that was never
- * true. `capability` is the §9.3 answer for the one AI feature this build has,
- * and it is the **discriminator** the "no usable model" block branches on.
+ * true. The default destination and the per-feature overrides travel together for
+ * the same reason — the page has to be able to say that an override sits on top
+ * of a default — and `capability` is the §9.3 answer for the one AI feature this
+ * build has, with `selection` naming the path that answer came from. The
+ * `capability` discriminator is what the "no usable model" block branches on.
  */
 export interface AiProviderSettingsSnapshot {
   providers: AiProviderEditorEntry[];
@@ -402,8 +419,23 @@ export interface AiProviderSettingsSnapshot {
   localOnly: boolean;
   requestTimeoutMs: number;
   bindings: AiModelBindingDraft[];
+  /**
+   * The default destination every feature without an override of its own follows
+   * (`forgejoToolkit.aiDefaultProvider` / `forgejoToolkit.aiDefaultModel`).
+   *
+   * Both empty is the "no default configured" state, which is what a fresh
+   * install and every configuration written before this pair existed report.
+   */
+  defaultModel: AiDefaultModelDraft;
   /** The features a binding may name; one today, and the page renders only what it is given. */
   features: string[];
+  /**
+   * Which path the current `capability` answer came from, so the page can say what
+   * a request would actually use right now in one sentence per transport choice.
+   * `none` accompanies an unavailable answer and names no path, because none was
+   * selected.
+   */
+  selection: 'editor' | 'configured-endpoint' | 'none';
   /**
    * Whether any model is usable right now, and — when it is not — the reason
    * code plus the sentence explaining it. This is `selectedModelFor`'s own
@@ -503,6 +535,23 @@ export const PR_DESCRIPTION_PROMPT_SCOPES = ['ask', 'commits-only', 'commits-and
 
 /** One value of `forgejoToolkit.prDescriptionPromptScope`. */
 export type PrDescriptionPromptScopeValue = (typeof PR_DESCRIPTION_PROMPT_SCOPES)[number];
+
+/**
+ * The three values of `forgejoToolkit.aiTransport`, in the order the manifest's
+ * dropdown and the settings page's own dropdown both show them
+ * (`docs/design/ai-model-transport.md` §8.4).
+ *
+ * Shared rather than declared twice: since the settings page renders the transport
+ * as a control of its own, the page's dropdown has to come from the same
+ * enumeration the host reads and writes, so a value the page cannot render and a
+ * value the host cannot store cannot drift apart. `auto` is first because it is
+ * the default and the only value that decides anything at run time — the other two
+ * are instructions to use one route and to fail rather than fall back to the other.
+ */
+export const AI_TRANSPORT_CHOICES = ['auto', 'vscode-lm', 'openai-compatible'] as const;
+
+/** One value of `forgejoToolkit.aiTransport`. */
+export type AiTransportChoiceValue = (typeof AI_TRANSPORT_CHOICES)[number];
 
 /**
  * The settings this extension's own settings page renders with a control of its
@@ -1529,6 +1578,18 @@ export type HostToWebviewMessage =
       error?: string;
       _requestId: string;
     }
+  | {
+      /**
+       * The default destination was stored (or cleared, when both fields are
+       * empty) — the answer to the page's own default row, which is a different
+       * setting pair from the per-feature overrides above.
+       */
+      command: 'aiDefaultModelSaved';
+      providerId: string;
+      modelId: string;
+      error?: string;
+      _requestId: string;
+    }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string }
   | { command: 'linkedRepository'; linked?: LinkedRepository; all?: LinkedRepository[] }
@@ -1979,6 +2040,18 @@ export type WebviewToHostMessage =
       command: 'setAiModelBinding';
       feature: string;
       /** Empty removes the binding: the feature goes back to the transport choice. */
+      providerId: string;
+      modelId: string;
+      _requestId: string;
+    }
+  | {
+      /**
+       * Stores (or clears) the **default** destination the per-feature overrides
+       * sit on top of (`docs/design/ai-model-transport.md` §8.4). Both fields
+       * empty clears it; one empty and one not is refused by name rather than
+       * resolved to a guess.
+       */
+      command: 'setAiDefaultModel';
       providerId: string;
       modelId: string;
       _requestId: string;

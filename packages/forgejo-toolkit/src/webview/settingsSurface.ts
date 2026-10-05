@@ -66,12 +66,17 @@ export interface NativeOnlySetting {
 /**
  * The settings that stay native, and why (§1.3).
  *
- * Three, and each is a decision rather than an omission: `notificationPollingInterval`
- * and `aiTransport` are ordinary typed settings VS Code's own editor renders
- * better than this page can (a range, an enum) — the page only names them, with a
- * pointer row — and `useMockApi` is a development switch that must not look like
- * a feature. `useMockApi` gets no pointer at all (§2.2): mentioning it is what
- * would make a user think it is one.
+ * Two, and each is a decision rather than an omission: `notificationPollingInterval`
+ * is an ordinary bounded number VS Code's own editor renders better than this page
+ * can (a range with a minimum and a maximum) — the page only names it, with a
+ * pointer row — and `useMockApi` is a development switch that must not look like a
+ * feature. `useMockApi` gets no pointer at all (§2.2): mentioning it is what would
+ * make a user think it is one.
+ *
+ * `aiTransport` used to be here and is **rendered** now (§1.3): it is the choice
+ * that decides which of the AI area's two halves the page presents, so the page
+ * has to be able to make it. The drift guard is what keeps the two lists from
+ * overlapping — a setting may be rendered or native-only, never both (§6.3).
  */
 export const NATIVE_ONLY_SETTINGS: readonly NativeOnlySetting[] = [
   {
@@ -79,13 +84,6 @@ export const NATIVE_ONLY_SETTINGS: readonly NativeOnlySetting[] = [
     reason:
       "A plain number with a minimum and a maximum (60–3600 seconds). VS Code's own editor renders that " +
       'range; a field here would be a second place to validate it, and the notification section names the ' +
-      'setting with a pointer row instead.',
-  },
-  {
-    key: 'forgejoToolkit.aiTransport',
-    reason:
-      'A three-value enum VS Code renders completely. Rendering it here would mean a second place to handle ' +
-      '"the host refused the value and the control has to bounce back"; the endpoint section names the ' +
       'setting with a pointer row instead.',
   },
   {

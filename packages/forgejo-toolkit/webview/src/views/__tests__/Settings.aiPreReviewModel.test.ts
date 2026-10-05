@@ -35,6 +35,8 @@ const { stateMock } = vi.hoisted(() => ({
       bindings: [],
       features: ['aiPreReview'],
       capability: { available: true } as const,
+      defaultModel: { providerId: '', modelId: '' },
+      selection: 'none' as const,
     })),
     saveAiProvider: vi.fn(async (provider: { id: string }) => ({ id: provider.id })),
     removeAiProvider: vi.fn(async () => ({ cancelled: false })),
@@ -54,6 +56,7 @@ const { stateMock } = vi.hoisted(() => ({
       requestTimeoutMs: 30000,
     })),
     setAiModelBinding: vi.fn(async () => ({ feature: 'aiPreReview', providerId: '', modelId: '' })),
+    setAiDefaultModel: vi.fn(async () => ({ providerId: '', modelId: '' })),
     // The supported floor the host pushes with `initialState`; the form's
     // description interpolates it.
     minSupportedServerVersion: { value: '16.0.0' },

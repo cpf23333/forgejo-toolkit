@@ -5,6 +5,7 @@ import { vscodeLmTransport } from './vscodeLmTransport';
 import { openAiCompatibleTransportFor } from './openAiCompatibleTransport';
 import type { AiModelInfo, AiModelTransport } from './transport';
 import {
+  aiDefaultModelSettingValue,
   aiModelBindingFor,
   aiProviderSettingsReading,
   aiProvidersEnabledSettingValue,
@@ -23,14 +24,13 @@ import type { AiSecretStore } from './providerSecrets';
  * function rather than distributed across the features, and so that the two things
  * the record forbids are impossible by construction:
  *
- * - **No fallback between transports** (§7.5). A binding that cannot be honoured is
- *   a failure, a direct endpoint that is unavailable is a failure, and an editor
+ * - **No fallback between transports** (§7.5). An override that cannot be honoured
+ *   is a failure, a direct endpoint that is unavailable is a failure, and an editor
  *   that cannot serve a request is a failure. No branch here substitutes one for
  *   another, and the `unavailable` arm carries the sentence that says why.
  * - **No "configured therefore enabled"** (§7.3). A provider is reached only when
- *   `forgejoToolkit.aiProvidersEnabled` is on **and** this feature names it (or
- *   `auto` can determine exactly one endpoint). Configuration alone never opens
- *   egress.
+ *   `forgejoToolkit.aiProvidersEnabled` is on **and** the default or a per-feature
+ *   override names it. Configuration alone never opens egress.
  *
  * It answers **by capability, never by brand** (§9.1): the `vscode.lm` question is
  * "does the API exist and does it list a model", which is why a VSCodium with no
@@ -112,6 +112,22 @@ function bindingUnknownProviderMessage(providerId: string): string {
   );
 }
 
+/** The l10n sentence for a default destination whose endpoint is switched off. */
+function defaultDisabledMessage(providerId: string): string {
+  return vscode.l10n.t(
+    'The default AI endpoint "{0}" is selected by "forgejoToolkit.aiDefaultProvider" and "forgejoToolkit.aiDefaultModel", but "forgejoToolkit.aiProvidersEnabled" is off, so nothing was sent. Turn that setting on to use the configured endpoint.',
+    providerId,
+  );
+}
+
+/** The l10n sentence for a default that names an endpoint which is not configured. */
+function defaultUnknownProviderMessage(providerId: string): string {
+  return vscode.l10n.t(
+    '"forgejoToolkit.aiDefaultProvider" names the endpoint "{0}", which is not configured under "forgejoToolkit.aiProviders". Nothing was sent.',
+    providerId,
+  );
+}
+
 /** The l10n sentence for a direct-only choice with no endpoint configured. */
 function noEndpointConfiguredMessage(switchReason: string, rejection: string | undefined): string {
   const base = vscode.l10n.t(
@@ -187,21 +203,93 @@ async function selectVscodeLm(transport: AiModelTransport): Promise<AiTransportS
 }
 
 /**
- * The direct branch when **no binding** names an endpoint: the record's rules 3 and
- * 5.
+ * One named destination — an endpoint id and a model — resolved into a selection,
+ * or the failure that says why it cannot be honoured.
  *
- * "Can determine one endpoint" is read strictly, and that is the point: exactly one
- * provider must be readable, and it must declare at least one model. Anything else
- * — two providers, an unreadable entry, a provider with no declared model — is the
- * ambiguous case, and §8.4 requires it to fail rather than to "pick the nearest
- * one". The model used is the **first** the provider declares: that declaration is
- * the user's own order, and it is the only place a direct model can come from when
- * no binding names one.
+ * **One implementation for the per-feature override and the default**, because
+ * they are the same statement with a different scope and §8.4 requires the same
+ * three answers from both: the egress switch still applies, an endpoint that is
+ * not configured fails and **names itself** rather than resolving to a neighbour,
+ * and an endpoint that cannot be used is a failure rather than a reason to ask
+ * another one. Only the two sentences that name the setting differ, which is why
+ * they are passed in.
+ */
+async function resolveNamedDestination(
+  deps: AiTransportSelectionDeps,
+  providerId: string,
+  modelId: string,
+  messages: { disabled: (providerId: string) => string; unknownProvider: (providerId: string) => string },
+  reason: string,
+): Promise<AiTransportSelection> {
+  if (!aiProvidersEnabledSettingValue()) {
+    return { kind: 'unavailable', code: 'disabled', reason: messages.disabled(providerId) };
+  }
+  const reading = aiProviderSettingsReading();
+  const provider = reading.providers.find((candidate) => candidate.id === providerId);
+  if (provider === undefined) {
+    const rejection = reading.rejected.find((candidate) => candidate.reason.includes(`"${providerId}"`));
+    return {
+      kind: 'unavailable',
+      code: 'endpoint-unusable',
+      reason:
+        rejection === undefined ? messages.unknownProvider(providerId) : unreadableProviderMessage(rejection.reason),
+    };
+  }
+  const transport = directTransportFor(provider, deps);
+  const availability = await transport.availability();
+  if (!availability.usable) {
+    return { kind: 'unavailable', code: 'endpoint-unusable', reason: availability.reason };
+  }
+  const declared = provider.models.find((model) => model.id === modelId);
+  return {
+    kind: 'openai-compatible',
+    transport,
+    model: {
+      vendor: provider.id,
+      id: modelId,
+      // The declared display name when the provider declares this model, and the
+      // id otherwise: an undeclared model is legal (§8.1 — the declaration is not
+      // a whitelist), and the id is what the user typed.
+      name: declared?.name ?? modelId,
+    },
+    reason,
+  };
+}
+
+/**
+ * The direct branch when **no binding** names an endpoint: the record's rules 3
+ * and 5, with the default destination ahead of both.
+ *
+ * Order:
+ *
+ * 1. **the default** (`forgejoToolkit.aiDefaultProvider` /
+ *    `forgejoToolkit.aiDefaultModel`) when one is configured — it is a statement
+ *    the user made about the direct path itself, so it outranks the "exactly one
+ *    endpoint is determinable" heuristic below, and it fails by name when it
+ *    cannot be honoured;
+ * 2. with **no** default configured, the behaviour is exactly what it was before
+ *    the default existed, which is what keeps an existing configuration working
+ *    unchanged: exactly one readable provider, declaring at least one model, and
+ *    the **first** declared model is the one asked for. Anything else — two
+ *    providers, an unreadable entry, a provider with no declared model — is the
+ *    ambiguous case, and §8.4 requires it to fail rather than to "pick the nearest
+ *    one".
  */
 async function selectDirectWithoutBinding(
   deps: AiTransportSelectionDeps,
   switchReason: string,
 ): Promise<AiTransportSelection> {
+  const defaultDestination = aiDefaultModelSettingValue();
+  if (defaultDestination !== undefined) {
+    return await resolveNamedDestination(
+      deps,
+      defaultDestination.providerId,
+      defaultDestination.modelId,
+      { disabled: defaultDisabledMessage, unknownProvider: defaultUnknownProviderMessage },
+      `${switchReason}, and "forgejoToolkit.aiDefaultProvider"/"forgejoToolkit.aiDefaultModel" name ` +
+        `"${defaultDestination.providerId}/${defaultDestination.modelId}" as the default`,
+    );
+  }
   // The provider list is read first so the sentence names the fact the user has to
   // act on: with nothing configured, "no endpoint is configured" is useful and "the
   // egress switch is off" is a second thing they have not reached yet.
@@ -242,7 +330,12 @@ async function selectDirectWithoutBinding(
   };
 }
 
-/** Rules 1–3: a binding, or an explicit transport choice, decides outright. */
+/**
+ * Rules 1–3: the per-feature override, or an explicit transport choice, decides
+ * outright. The override is the **only** thing that outranks the default: it is
+ * the user naming a stronger or more private model for one feature, and the
+ * default is what every other feature follows.
+ */
 async function selectExplicit(
   feature: AiFeature,
   deps: AiTransportSelectionDeps,
@@ -255,41 +348,13 @@ async function selectExplicit(
     // feature, so it is the most specific statement there is — and it is still
     // subject to the egress switch (§7.3). A binding that cannot be honoured fails
     // by name rather than being resolved to a neighbour.
-    if (!aiProvidersEnabledSettingValue()) {
-      return { kind: 'unavailable', code: 'disabled', reason: bindingDisabledMessage(binding.providerId) };
-    }
-    const reading = aiProviderSettingsReading();
-    const provider = reading.providers.find((candidate) => candidate.id === binding.providerId);
-    if (provider === undefined) {
-      const rejection = reading.rejected.find((candidate) => candidate.reason.includes(`"${binding.providerId}"`));
-      return {
-        kind: 'unavailable',
-        code: 'endpoint-unusable',
-        reason:
-          rejection === undefined
-            ? bindingUnknownProviderMessage(binding.providerId)
-            : unreadableProviderMessage(rejection.reason),
-      };
-    }
-    const transport = directTransportFor(provider, deps);
-    const availability = await transport.availability();
-    if (!availability.usable) {
-      return { kind: 'unavailable', code: 'endpoint-unusable', reason: availability.reason };
-    }
-    const declared = provider.models.find((model) => model.id === binding.modelId);
-    return {
-      kind: 'openai-compatible',
-      transport,
-      model: {
-        vendor: provider.id,
-        id: binding.modelId,
-        // The declared display name when the provider declares this model, and the
-        // id otherwise: an undeclared model is legal (§8.1 — the declaration is not
-        // a whitelist), and the id is what the user typed.
-        name: declared?.name ?? binding.modelId,
-      },
-      reason: `"forgejoToolkit.aiModelBindings" binds "${feature}" to "${binding.providerId}/${binding.modelId}"`,
-    };
+    return await resolveNamedDestination(
+      deps,
+      binding.providerId,
+      binding.modelId,
+      { disabled: bindingDisabledMessage, unknownProvider: bindingUnknownProviderMessage },
+      `"forgejoToolkit.aiModelBindings" binds "${feature}" to "${binding.providerId}/${binding.modelId}"`,
+    );
   }
   if (choice === 'vscode-lm') {
     // Rule 2: the user asked for the editor models outright.
