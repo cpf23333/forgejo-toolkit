@@ -63,6 +63,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model rows and in the report card below them, and an endpoint that has no model
   list at all is not a failure: the report says the models have to be filled in by
   hand.
+- **Your AI endpoints travel with the rest of your configuration.** An export now
+  carries a non-secret AI section — each endpoint's display name, address,
+  authentication style, declared models, the **names** of its custom headers, the
+  local-only policy and the per-feature bindings — and importing it offers those
+  endpoints in the same preview the instance list already uses: a plain `http://`
+  address is called out there rather than only when a request is finally attempted,
+  an id you already have is a choice between keeping the configured endpoint,
+  importing the file's alongside it under a new id, or replacing it, and the preview
+  states plainly whether the file carried any credentials at all. The API key and
+  every header value go into the export **only** when you encrypt it, on the same
+  path as the instance tokens, and on the way back they are stored in the editor's
+  secret storage rather than in settings — an unencrypted export contains none of
+  them, which the export itself says before it writes the file, and importing one
+  leaves the credentials you already had for that endpoint in place. Importing
+  cannot turn anything on: it never writes the switch that allows requests to
+  configured endpoints, never enables an AI feature, and never changes the model
+  transport you chose, so the first run after an import still asks you what may
+  leave your machine. An export written by an older version still imports, and
+  importing an endpoint whose address this extension refuses would say so in the
+  preview instead of writing it.
 - **Your settings page now covers the settings.** Nine settings that used to be
   reachable only through the editor's own settings user interface are now presented
   where they belong: the notification polling switch, the multi-window polling
