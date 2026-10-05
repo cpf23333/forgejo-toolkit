@@ -70,6 +70,62 @@ export const AI_MOCK_PROVIDER_ID = 'ui-review-mock';
 export const AI_MOCK_PROVIDER_NAME = 'Local mock endpoint (tools/ui-review)';
 
 /**
+ * The extension's own declaration of the AI features a binding may name —
+ * `AI_FEATURES` in `packages/forgejo-toolkit/src/ai/modelSettings.ts`.
+ *
+ * The seed binds **this** list rather than the one feature a walkthrough happened
+ * to need, and it reads the list out of the extension's source for the same reason
+ * `apiMode.ts` reads the mock handlers' API path out of theirs: a copy here would
+ * be one added feature away from describing a list the extension no longer has,
+ * and a feature with no binding cannot reach the endpoint at all (that was the
+ * gap: `seedAiEndpointSettings` wrote `aiPreReview` only, so `prDescription` —
+ * added later — drafted nothing until the binding was typed into the profile by
+ * hand).
+ *
+ * It is read, not imported: `modelSettings.ts` imports `vscode` at module load,
+ * which a plain-Node harness test cannot resolve. The reading is pinned in both
+ * directions by `config.test.ts` — every feature the source declares gets a
+ * binding, and the parse itself is asserted against the source text — and by
+ * `packages/forgejo-toolkit/src/__tests__/aiModelSettings.test.ts`, which imports
+ * the real constant.
+ */
+export const AI_FEATURES_SOURCE = 'packages/forgejo-toolkit/src/ai/modelSettings.ts';
+
+/** The last-resort feature list, used only when {@link readDeclaredAiFeatures} cannot read the source. */
+const AI_FEATURES_FALLBACK: readonly string[] = ['aiPreReview', 'prDescription'];
+
+/**
+ * The feature ids in one `AI_FEATURES` declaration.
+ *
+ * Deliberately narrow: the declaration is `export const AI_FEATURES = [ … ] as
+ * const`, so the parse takes that array literal's single-quoted strings and
+ * nothing else. Returns `undefined` for a source that does not carry the
+ * declaration (moved, renamed, reshaped) rather than an empty or partial list,
+ * because "could not read it" and "the extension has no features" must not look
+ * alike to the caller.
+ */
+export function parseDeclaredAiFeatures(sourceText: string): string[] | undefined {
+  const declaration = /AI_FEATURES\s*=\s*\[([^\]]*)\]/.exec(sourceText);
+  if (!declaration) return undefined;
+  const features = [...declaration[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  return features.length > 0 ? features : undefined;
+}
+
+/** {@link parseDeclaredAiFeatures} against the file on disk, or `undefined` when it cannot be read. */
+export function readDeclaredAiFeatures(repoRoot: string = defaultRepoRoot()): string[] | undefined {
+  try {
+    return parseDeclaredAiFeatures(fs.readFileSync(path.join(repoRoot, AI_FEATURES_SOURCE), 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+function defaultRepoRoot(): string {
+  // `<repo>/tools/ui-review/src` -> `<repo>`, the same three levels up `apiMode.ts` walks.
+  return path.resolve(import.meta.dirname, '..', '..', '..');
+}
+
+/**
  * What an `--ai-mock` launch writes into the profile so the dev host can reach the
  * local endpoint without anyone editing a file by hand.
  *
@@ -102,8 +158,11 @@ export interface AiEndpointSeed {
  * `aiEndpoint` is additive and orthogonal to that switch: it points the AI
  * transport at a local endpoint (see {@link AiEndpointSeed}). It is written as the
  * settings the extension itself reads, and it touches only entries this harness
- * owns — another provider, or another feature's binding, is left exactly as it was
- * — so a profile that also holds a real endpoint keeps it.
+ * owns — another provider, or a binding that names one, is left exactly as it was
+ * — so a profile that also holds a real endpoint keeps it. The bindings it writes
+ * cover **every** AI feature the extension declares, not the one feature a
+ * walkthrough happened to need; {@link AI_FEATURES_SOURCE} says why and where that
+ * list comes from.
  */
 export function seedProfileSettings(
   profileDir: string,
@@ -126,7 +185,9 @@ export function seedProfileSettings(
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 }
 
-/** The entries one {@link AiEndpointSeed} becomes, merged into an existing settings object. */
+/**
+ * The entries one {@link AiEndpointSeed} becomes, merged into an existing settings object.
+ */
 function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpointSeed): void {
   const providerId = seed.providerId ?? AI_MOCK_PROVIDER_ID;
   const modelId = seed.modelId ?? AI_MOCK_MODEL_ID;
@@ -164,14 +225,47 @@ function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpo
   const bindings = Array.isArray(settings['forgejoToolkit.aiModelBindings'])
     ? (settings['forgejoToolkit.aiModelBindings'] as unknown[])
     : [];
+  // One binding per feature the extension declares (see AI_FEATURES_SOURCE),
+  // merged **entry by entry** so the two rules the seed owes the profile both
+  // hold:
+  //
+  //   * a feature bound to some *other* provider keeps that provider — a binding
+  //     the user configured is never overwritten, not even for `aiPreReview`,
+  //     whose entry used to be replaced unconditionally; and
+  //   * a feature bound to this harness's own provider (its own previous write, or
+  //     a hand-written entry naming it) is refreshed, which is what makes a second
+  //     `--ai-mock` launch point at the *new* port instead of the one from the
+  //     previous session. The endpoint binds a fresh OS-picked port every time.
+  //
+  // An entry naming a feature this build does not know is passed through
+  // untouched: this harness has no model to offer it and no business deciding
+  // what a newer build meant by it.
+  const declared = readDeclaredAiFeatures() ?? AI_FEATURES_FALLBACK;
+  const seeded = new Set(declared);
+  // A hand-edited settings.json can hold any JSON under a key, so every read of an
+  // entry goes through this shape check rather than trusting the array's contents.
+  const featureOf = (entry: unknown): string | undefined => {
+    const feature = (entry as { feature?: unknown } | null)?.feature;
+    return typeof feature === 'string' ? feature : undefined;
+  };
   settings['forgejoToolkit.aiModelBindings'] = [
-    ...bindings.filter((entry) => (entry as { feature?: unknown } | null)?.feature !== 'aiPreReview'),
-    { feature: 'aiPreReview', providerId, modelId },
+    ...bindings.map((entry) => {
+      const feature = featureOf(entry);
+      const providerOfEntry = (entry as { providerId?: unknown } | null)?.providerId;
+      if (feature === undefined || !seeded.has(feature) || providerOfEntry !== providerId) {
+        return entry;
+      }
+      return { feature, providerId, modelId };
+    }),
+    ...declared
+      .filter((feature) => !bindings.some((entry) => featureOf(entry) === feature))
+      .map((feature) => ({ feature, providerId, modelId })),
   ];
 
-  // `forgejoToolkit.aiPreReviewPromptScope` is deliberately **not** written: its
-  // default `ask` is the consent question the walkthrough is about, and seeding an
-  // answer would skip the one step a human has to perform.
+  // `forgejoToolkit.aiPreReviewPromptScope` and
+  // `forgejoToolkit.prDescriptionPromptScope` are deliberately **not** written: the
+  // default `ask` is the consent question the walkthroughs are about, and seeding
+  // an answer would skip the one step a human has to perform.
 }
 
 /** The profile's `forgejoToolkit.useMockApi`, or `undefined` when it is not set. */

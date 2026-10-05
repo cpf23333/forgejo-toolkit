@@ -1423,9 +1423,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           return;
         }
-        void this._runPrDescription(target, _requestId).catch((error: unknown) => {
-          logger.error(`generatePrDescription failed: ${userFacingErrorMessage(error)}`);
-        });
+        // **Awaited, not fired and forgotten.** The dispatch wrapper above
+        // (`_dispatchMessage`) answers an unanswered `_requestId` with
+        // `requestError` as soon as this handler returns, and this handler used to
+        // return the moment the run was started. The run's own reply then arrived
+        // after the fallback, found no pending entry in the webview and was
+        // discarded, so the description never reached the form and the user saw
+        // only the generic sentence. Measured five times on 2026-10-05: every
+        // press logged `requestError` immediately followed by
+        // `prDescriptionGenerated` for the same id. Awaiting makes the run's reply
+        // the only answer for the id — the fallback still fires if the run throws,
+        // because `_reply` is what marks the id answered.
+        await this._runPrDescription(target, _requestId);
         return;
       }
       // The Settings page's AI pre-review model chooser. Both cases are pure

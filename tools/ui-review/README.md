@@ -303,6 +303,69 @@ form had worked. The pattern that held up is one step per invocation —
 trustworthy check here: the command exits 0 whether or not the value landed, so
 never read a bare success as "the field is filled".
 
+### Traps this harness keeps re-learning
+
+Four of these cost a walkthrough a working click each, all measured 2026-10-05 in
+the isolated dev host:
+
+- **Quote a `ui type` argument that contains a space.** `ui type` takes **one**
+  text argument and an optional screenshot name, so a two-word argument arrives
+  split through some shell paths: the command refuses it and prints the tokens
+  instead of typing the first word and reporting success.
+  `ui type "Add dark mode" create-title` is the working form;
+  `ui type Add dark mode` is refused. (The refusal is deliberate — the alternative
+  is a silent half-typed field — so read the error rather than retrying it the same
+  way.)
+- **A native modal blocks every input in the window, the harness's own clicks
+  included.** A confirmation modal (a destructive host command's prompt, the
+  pre-review's or the description's consent question) is a separate Win32 window:
+  CDP input goes to the webview underneath it and nothing on the page reacts, so a
+  click that "did nothing" may simply have been swallowed. Ask for a dialog
+  **first**:
+  `powershell -File src/win/shot.ps1 -Dialog` lists every visible `#32770` (with
+  its rect) and saves a render of it. Answer or dismiss it, take a fresh screenshot,
+  and only then judge the click. This is the concrete form of "editor-area panels
+  can take the driver's input": a modal is the same class of invisible overlay, and
+  `ui frames` cannot see it either.
+- **A control can be inside its frame and still off-screen: scroll _inside the
+  guest_ first.** The create-pull-request dialog is taller than the sidebar
+  viewport, so its description field is below the visible area. `ui click` at that
+  coordinate is delivered to whatever is painted there instead, exits 0, and the
+  field is never focused — `ui frames` is satisfied because the frame does contain
+  the point. Put the pointer over the frame and scroll it (`ui scroll <x> <y>
+<deltaY>`), then take a fresh `shot` and read the control's position off **that**:
+  a coordinate from before the scroll is a coordinate for the old layout.
+- **`ui eval` evaluates in the workbench page only; webview page state needs the
+  guest frame.** `ui eval --script-file …` runs in the top document, where the
+  extension's own DOM does not exist (it is a `src`-less nested iframe). A check
+  such as "the body field holds the draft" therefore has to read the guest: connect
+  over CDP yourself, take the frame that is **not** the main frame (its `url()` can
+  come back empty — see **Known blind spots**), and hand it a **static function
+  body** (`frame.evaluate(() => { … })`). The guest's CSP has no `unsafe-eval`, so
+  the body cannot be built at run time from a string, a template or a parameter: no
+  `eval`, no `new Function`, and no "pass the selector in". The reader a walkthrough
+  writes for exactly this lives under the gitignored `shots/` directory
+  (`shots/guest-read.js` in the run of 2026-10-05: connect over `CDP_PORT`, pick the
+  frame whose `#active-frame` exists, return the body field's own value and the
+  control's own labels); **the recipe is what to reproduce, not the file** — it is
+  gitignored and the next run may not have it. Two things that reader has to know:
+  the body is an **EasyMDE/CodeMirror** field, so its value is
+  `doc.querySelector('.easy-mde-editor .CodeMirror').CodeMirror.getValue()` (the
+  rendered `.CodeMirror-line` text is the fallback for reading, never for writing),
+  and the form's draft-ownership rule is **not** a DOM attribute: it is visible only
+  through the control's own state — the button's label (`生成描述` when the press
+  will draft, `生成中…` while a run is in flight, and the replace line once the body
+  is the user's) and the `field-description` hint beside it. A programmatic
+  `cm.setValue(…)` or `cm.undo()` does **not** count as the user's edit for that
+  rule — measured 2026-10-05: after an `undo()` restored the draft byte for byte,
+  the next press still showed the "your draft will be replaced" line, i.e. the form
+  still treated the body as the user's. Drive the field with real input
+  (`ui click` on the editor, then `ui type`) when the ownership flag is what the
+  step is about.
+- **A mock instance the launcher refuses to run with can sit in the profile, and
+  `pnpm kill` does not remove it.** See "Pruning an instance the launcher refuses"
+  below.
+
 ## Mock-backed runs and the real-API opt-in
 
 The mock API (msw and the fixtures in
@@ -543,13 +606,27 @@ Into `profile/User/settings.json`, as the settings the extension itself reads:
   "forgejoToolkit.aiPreReview": true,
   "forgejoToolkit.aiModelBindings": [
     { "feature": "aiPreReview", "providerId": "ui-review-mock", "modelId": "mock-pre-review" },
+    { "feature": "prDescription", "providerId": "ui-review-mock", "modelId": "mock-pre-review" },
   ],
 }
 ```
 
+- **One binding per AI feature the extension declares, not just the pre-review.**
+  The list is read out of `packages/forgejo-toolkit/src/ai/modelSettings.ts`
+  (`AI_FEATURES`) rather than restated here, because a feature with no binding
+  cannot reach the endpoint at all: measured 2026-10-05, a walkthrough of the
+  create-pull-request description had to add `prDescription` to this array by hand
+  — the seed wrote `aiPreReview` only, since that was the only feature when the
+  seed was written. A feature the source declares and this array does not is a
+  failing test in `src/config.test.ts`, and the extension's
+  `src/__tests__/aiModelSettings.test.ts` pins the same list from the other side.
 - **Only the harness's own entries are touched.** Another provider (a real endpoint
-  you added) and every unrelated setting survive, and seeding twice does not
-  duplicate anything — `src/config.test.ts` pins all three.
+  you added) survives, and a binding that names one **keeps it** — a binding you
+  configured is never overwritten, not even for `aiPreReview` (whose entry used to
+  be replaced unconditionally). A feature with no binding gets one, and a binding
+  that already names `ui-review-mock` is refreshed in place, which is what makes a
+  second `--ai-mock` launch follow the **new** port instead of the previous
+  session's. Seeding twice duplicates nothing — `src/config.test.ts` pins all of it.
 - **No key is written, anywhere.** `auth: "none"` is not a placeholder: the
   endpoint needs no authentication, so there is nothing to seed. A provider's key
   can only live in the editor's `SecretStorage`, which is not a file this harness
@@ -558,10 +635,62 @@ Into `profile/User/settings.json`, as the settings the extension itself reads:
   settings page and type the obvious dummy `sk-mock-placeholder` into its key
   field: that goes to the secret storage (never into a file), and the mock endpoint
   accepts any credential and never looks at it.
-- `forgejoToolkit.aiPreReviewPromptScope` is deliberately **not** written: its
-  default `ask` _is_ the consent question, which is the one step a human performs.
+- `forgejoToolkit.aiPreReviewPromptScope` and
+  `forgejoToolkit.prDescriptionPromptScope` are deliberately **not** written: both
+  default to `ask`, which _is_ the consent question, and that is the one step a
+  human performs.
 - `localOnly: true` is true of this endpoint (it binds loopback only) and also
   exercises the provider half of the local-only policy.
+
+### Pruning an instance the launcher refuses
+
+The profile can hold a **forgejo instance the mock handlers cannot serve** — an
+`https://` address, or any URL with a path prefix — and every mock-backed launch is
+then refused before anything is spawned, with the instance named:
+
+```
+Refusing to launch: this dev host would poll a real server.
+
+  build:     …\packages\forgejo-toolkit\out  (mock API compiled in)
+  profile:   …\tools\ui-review\profile
+  instances: Behind a proxy <https://forgejo.example.com/forgejo>
+
+Cannot mock this instance:
+  Behind a proxy <https://forgejo.example.com/forgejo>
+             its path is not the origin root the handlers match (they cover <any scheme>://<any host>/api/v1/…)
+```
+
+`--real-api` is the opt-in that runs against it anyway (and then polls it for
+real — see "Mock-backed runs and the real-API opt-in"). To get a mock-backed run
+back, **remove the instance** — and note that editing the registry file alone is
+not a fix, measured 2026-10-05:
+
+- **Editing `mcp-instances.json` gets one launch through and comes straight
+  back.** That file is a **mirror**: the window rewrites it at activation from the
+  editor's own instance store. Measured: a registry pruned by hand let the next
+  launch start (the gate reads the file _before_ the window exists) and the window
+  then republished both instances into it, so the launch after that was refused
+  again with the same message. Pruning the file is a way to _reach_ a window, not a
+  repair.
+- **The instance lives in the profile's global state, and that is what has to
+  change.** For the isolated profile that is
+  `profile/User/globalStorage/state.vscdb`, a SQLite database whose `ItemTable`
+  holds one row per extension (`key = 'cpf23333.forgejo-toolkit'`) with
+  `forgejoToolkit.instances` inside it. Removing the instance there — and its entry
+  in `forgejoToolkit.seenNotificationIds`, which names instances too — is what makes
+  the removal survive the next window. **Back the file up first**, stop the dev host
+  before editing it (`pnpm kill`; a running window rewrites the store), and leave
+  `forgejoToolkit.instanceToken.<id>` alone: that row is a **credential** in the
+  profile's encrypted secret storage, and this harness never writes one. Measured
+  after the edit: the dashboard listed one instance and the next launch's
+  `instances:` line named only that one.
+- **In a running dev host the ordinary path is the UI** — the Dashboard's instance
+  list, or the setup wizard, which is where removal is offered. Prefer it when a
+  window will start; it writes the store itself.
+
+`pnpm kill` does not prune anything: it stops the dev host and the endpoint and
+leaves `profile/` exactly as the run left it, so a bad instance survives every stop
+until it is removed as above.
 
 ### What the endpoint answers
 
@@ -625,7 +754,10 @@ pnpm --filter forgejo-toolkit build:webview     # webview: out/webview/**  <- th
    Expect one row: `Local mock endpoint (tools/ui-review)`, the address
    `http://127.0.0.1:<port>/v1`, `mock-pre-review` in its model list, and no
    "key missing" state — the endpoint needs none. The `Feature Bindings` section
-   should show `aiPreReview` bound to `ui-review-mock / mock-pre-review`.
+   should show **both** features the extension declares — `aiPreReview` and
+   `prDescription` — bound to `ui-review-mock / mock-pre-review`: the seed writes
+   one binding per declared feature (see "What `--ai-mock` writes into the
+   profile"), which is what makes the description draft reachable from step 10.
 3. **Test the connection.** Click the row's `Test connection` (the same code as the
    palette command `AI: Test Configured Endpoint`). Expect a report naming the
    address, `HTTP 200`, the elapsed time and
@@ -686,12 +818,56 @@ pnpm --filter forgejo-toolkit build:webview     # webview: out/webview/**  <- th
    exercises the non-streaming fallback, `?scenario=truncated` the "answer was cut
    off" report, and `?scenario=stall` the idle watchdog
    (`forgejoToolkit.aiModelRequestTimeoutMs`, 30 s by default).
-9. **Clean up.** `pnpm kill` stops the dev host and the endpoint — and, because it
-   proved the endpoint is gone, removes the endpoint's state file and its request
-   log with it; `ai-mock stop` stops the endpoint alone, with the same two removals.
-   The seeded settings stay in the profile — they are what the next `--ai-mock` run
-   rewrites, and a later run without `--ai-mock` keeps whatever endpoint you
-   configured by hand.
+9. **Draft a pull-request description from the create form — the second bound
+   feature** (`prDescription`, `docs/design/ai-pr-description.md`). Open the
+   create-pull-request form on the fixture repository (the `Pull Requests` tab's
+   new-pull-request action), pick two different branches, and press `Generate
+description` under the body field. Three things to read, none of them from a
+   screenshot alone:
+
+   - **The draft lands in the body as editable text**, and the control's own state
+     says it is _the draft_ and not the user's typing. Read both through the guest
+     frame with a **static function body** — `ui eval` runs in the workbench page,
+     which has no extension DOM (see "Traps this harness keeps re-learning"): the
+     body's value out of the editor's CodeMirror instance, and the control's own
+     state from its own labels (measured 2026-10-05: the button read `生成描述` with
+     the ordinary hint while the body was an untouched draft, and showed the
+     replace line once it was not). Then prove the text is editable with real
+     input — click the editor, `ui type` one character, and read the value back: it
+     must have grown by exactly that one.
+   - **A press over an untouched draft replaces it without asking.** The form keeps
+     one draft-ownership rule (`PullRequestForm.vue`): a press asks first — in the
+     webview, as a plain line beside the control, not a modal — only when the body
+     is the user's. So the sequence that shows it is: a press into an **empty**
+     body drafts with no question (measured 2026-10-05, first press: the consent
+     modal, then the run); a press right after, with the body still holding only
+     that draft, drafts again with **no** "replace it?" line (measured: the button
+     returned to `生成描述` with the ordinary hint, no replace line, and the next
+     press went straight to the host); and a press after a real edit (click the
+     editor, `ui type`) shows the replace line instead. Read that line, not the
+     screenshot's mood: it is the `dashboard.form.generateDescriptionReplace`
+     sentence, and it is the whole "ask".
+   - **A press with the scope unanswered sends nothing.** With
+     `forgejoToolkit.prDescriptionPromptScope` at its default `ask` and the modal
+     dismissed, `ai-mock requests` must show **no** new
+     `POST /v1/chat/completions`, and the body must be exactly what it was before
+     the press. If the host log shows a request, the consent question did not stop
+     the run.
+   - **A failing endpoint's own sentence reaches the page**, with the body left
+     byte-identical. Point the seeded provider's address at
+     `http://127.0.0.1:<port>/v1?scenario=500` in the settings page, press again, and
+     read the line beside the control: it must be the transport's sentence about the
+     refused request, not a generic "the request could not be completed" — that
+     generic sentence is what a lost reply looks like (`_dispatchMessage`'s
+     fallback), and it is exactly what this step distinguishes. The body is compared
+     byte for byte before and after.
+
+10. **Clean up.** `pnpm kill` stops the dev host and the endpoint — and, because it
+    proved the endpoint is gone, removes the endpoint's state file and its request
+    log with it; `ai-mock stop` stops the endpoint alone, with the same two removals.
+    The seeded settings stay in the profile — they are what the next `--ai-mock` run
+    rewrites, and a later run without `--ai-mock` keeps whatever endpoint you
+    configured by hand.
 
 What a human has to do, stated plainly: **answer the consent modal** (a native
 modal, step 5), and click in the webview if the agent is not driving it. Everything

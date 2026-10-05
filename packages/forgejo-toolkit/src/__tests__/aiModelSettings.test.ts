@@ -46,6 +46,7 @@ vi.mock('vscode', () => ({
 }));
 
 import {
+  AI_FEATURES,
   AI_MODEL_REQUEST_TIMEOUT_DEFAULT_MS,
   AI_MODEL_REQUEST_TIMEOUT_MAX_MS,
   AI_MODEL_REQUEST_TIMEOUT_MIN_MS,
@@ -327,6 +328,27 @@ describe('reading the bindings', () => {
     };
 
     expect(aiModelBindingsSettingValue()).toEqual([]);
+  });
+
+  it('is the list the ui-review harness seeds a binding for', () => {
+    // The harness's `--ai-mock` launch writes one binding per AI feature into the
+    // isolated profile, and it reads this list out of `src/ai/modelSettings.ts`
+    // (it cannot import this module: plain Node cannot resolve `vscode`). A feature
+    // added here and not seen there would draft nothing until someone edited the
+    // profile by hand — which is exactly what happened when `prDescription` was
+    // added. The harness side additionally pins its own reading
+    // (`tools/ui-review/src/config.test.ts`); this is the other direction, so the
+    // two cannot drift apart silently.
+    const harnessConfig = readFileSync(
+      path.join(packageRoot, '..', '..', 'tools', 'ui-review', 'src', 'config.ts'),
+      'utf8',
+    );
+    const fallback = /AI_FEATURES_FALLBACK[^=]*=\s*\[([^\]]*)\]/.exec(harnessConfig);
+    expect(fallback, 'the harness seed must name a last-resort feature list').not.toBeNull();
+    const seeded = [...(fallback?.[1] ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1]);
+    expect(seeded).toEqual([...AI_FEATURES]);
+    // And the path the harness reads is this one, so a moved file fails here.
+    expect(harnessConfig).toContain('packages/forgejo-toolkit/src/ai/modelSettings.ts');
   });
 });
 

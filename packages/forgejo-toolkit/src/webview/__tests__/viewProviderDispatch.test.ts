@@ -6317,4 +6317,86 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       }
     });
   });
+
+  /**
+   * The create-pull-request form's "generate a description" action, and the one
+   * way this dispatch can be answered twice.
+   *
+   * The run is a whole consent-and-model flow that can take as long as a human
+   * takes to answer a modal, and `_dispatchMessage` answers any `_requestId` the
+   * handler left unanswered **the moment the handler returns**. Dispatching the
+   * run without awaiting it therefore ended the handler with the id still
+   * pending, the fallback posted `requestError`, and the run's own
+   * `prDescriptionGenerated` — which arrives after it — found no pending entry in
+   * the webview and was dropped. Measured five times on 2026-10-05 in the
+   * isolated dev host: every press logged `requestError` immediately followed by
+   * `prDescriptionGenerated` for the same id, and the user saw only the generic
+   * sentence.
+   */
+  describe("the create-pull-request form's generate-description dispatch", () => {
+    /** The coordinates the create form posts for one comparison. */
+    const target = {
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      base: 'main',
+      head: 'feature',
+      title: 'Retry failed requests',
+    };
+
+    function replyTo(command: string): Record<string, unknown> | undefined {
+      return postedMessages(fake.posted).find((message) => message.command === command);
+    }
+
+    it("answers the request with the run's own reply, without a second reply for the same id", async () => {
+      let settle: (() => void) | undefined;
+      const runner = vi.fn(async () => {
+        // Held open on purpose: this is the shape a real run has while the
+        // consent modal is on screen, and it is the window the old code answered
+        // through the dispatch fallback.
+        await new Promise<void>((resolve) => {
+          settle = resolve;
+        });
+        return { kind: 'ok' as const, description: '## What changed\n\nRetries.' };
+      });
+      provider.setPrDescriptionRunner(runner);
+
+      fake.send({ command: 'generatePrDescription', ...target, _requestId: 'req-draft' });
+      await flushUntil(() => runner.mock.calls.length > 0);
+
+      // The run is still waiting. The dispatch fallback must not have answered
+      // the id in the meantime: the webview deletes the pending entry on
+      // `requestError` and then drops the real answer.
+      expect(replyTo('requestError')).toBeUndefined();
+      expect(replyTo('prDescriptionGenerated')).toBeUndefined();
+
+      settle?.();
+      await flushUntil(() => replyTo('prDescriptionGenerated') !== undefined);
+
+      expect(replyTo('prDescriptionGenerated')).toMatchObject({
+        description: '## What changed\n\nRetries.',
+        _requestId: 'req-draft',
+      });
+      // One answer for the id, and it is the run's — not the run's after a
+      // generic sentence the form cannot use.
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'requestError')).toEqual([]);
+      // The validated coordinates and nothing else reach the run: the model, the
+      // scope, the consent question and the prompt all stay host-side.
+      expect(runner).toHaveBeenCalledWith(target);
+    });
+
+    it('still answers a cancelled run with the empty arm rather than an error', async () => {
+      // The other half of the same contract: a dismissed consent modal is not a
+      // failure, so the form gets '' (leave the body alone) and no sentence.
+      const runner = vi.fn(async () => ({ kind: 'cancelled' }) as const);
+      provider.setPrDescriptionRunner(runner);
+
+      fake.send({ command: 'generatePrDescription', ...target, _requestId: 'req-draft-cancelled' });
+      await flushUntil(() => replyTo('prDescriptionGenerated') !== undefined);
+
+      expect(replyTo('prDescriptionGenerated')).toMatchObject({ description: '', _requestId: 'req-draft-cancelled' });
+      expect(replyTo('prDescriptionGenerated')).not.toHaveProperty('error');
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'requestError')).toEqual([]);
+    });
+  });
 });
