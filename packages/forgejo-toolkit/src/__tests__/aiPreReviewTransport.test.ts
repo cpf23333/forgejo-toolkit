@@ -31,6 +31,10 @@ import { http, HttpResponse } from 'msw';
  * 5. **The run says which transport, provider and model served it** — in the log,
  *    in the confirmation panel's payload and in the debug diagnostics dump.
  *
+ * A sixth group belongs to the same stage but not to §11.3's list: **an answer the
+ * endpoint reported as cut off is reported as cut off** (§9.2), which only the direct
+ * transport can see and only the run can tell the user about.
+ *
  * The carrier is the suite's existing `msw/node` interceptor, as in
  * `src/__tests__/openAiCompatibleTransport.test.ts`: the endpoint is a mock served
  * over the real `fetch` path, and the pull request comes from the shared Forgejo
@@ -250,6 +254,28 @@ function serveEndpoint(answer: string): void {
       endpointRequests.push(request.url);
       endpointBodies.push((await request.json()) as Record<string, unknown>);
       return new HttpResponse(sseBody(answer), { headers: { 'content-type': 'text/event-stream' } });
+    }),
+  );
+}
+
+/**
+ * The endpoint's answer as one SSE stream that **ends at the endpoint's own output
+ * limit**: the content arrives, and then a final event carries
+ * `finish_reason: 'length'` and no content of its own. That is the wire shape §6.4
+ * item 5 names, and the one `src/__tests__/openAiCompatibleTransport.test.ts`
+ * measured — the endpoint saying, in its own words, that the answer is incomplete.
+ */
+function truncatedSseBody(answer: string): string {
+  return `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: answer } }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'length' }] })}\n\ndata: [DONE]\n\n`;
+}
+
+/** Serves the endpoint with one SSE answer the endpoint itself reports as cut off. */
+function serveTruncatedEndpoint(answer: string): void {
+  mockServer.use(
+    http.post(ENDPOINT_CHAT, async ({ request }) => {
+      endpointRequests.push(request.url);
+      endpointBodies.push((await request.json()) as Record<string, unknown>);
+      return new HttpResponse(truncatedSseBody(answer), { headers: { 'content-type': 'text/event-stream' } });
     }),
   );
 }
@@ -552,6 +578,112 @@ describe('the same pre-review on both transports (§11.3)', () => {
     expect(dump).toContain('it has no tokenizer, so the run estimates');
     expect(dump).toContain(`the assumed input budget of ${AI_PRE_REVIEW_ASSUMED_INPUT_TOKENS} token(s)`);
     expect(dump).toContain('a `system` message carrying the fixed instructions');
+  });
+});
+
+/**
+ * An answer the endpoint cut off is reported **as** cut off (§9.2).
+ *
+ * The defect these cases exist for: a truncated answer is a prefix, and a prefix of a
+ * JSON document fails the contract exactly like prose does — so the run used to say
+ * "the answer was not JSON" and stop, leaving the user with nothing to act on while
+ * the endpoint had already said why. The three cases pin the three arms this has to
+ * have: the endpoint's reading reaches the report, a complete answer never gains the
+ * sentence, and the editor's own models — which report no `finish_reason` at all —
+ * cannot gain it even when their answer fails the same contract.
+ */
+describe('an answer the endpoint truncated is reported as truncated (§9.2)', () => {
+  it('says the endpoint cut its answer off, and how to stop that happening', async () => {
+    baseSettings({
+      aiProviders: [provider()],
+      aiProvidersEnabled: true,
+      aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
+    });
+    // A JSON answer stopped mid-object, which is what a real `finish_reason=length`
+    // produces and what used to read as an ordinary "not JSON".
+    serveTruncatedEndpoint('{"comments":[{"path":"src/index.ts","line":2,"side":"head","body":"a very long');
+
+    await runAiPreReview(config, undefined, controller, params, testHost());
+
+    // The retry is unchanged: a contract violation is what it exists for, so the one
+    // chosen model was asked twice and the endpoint's own limit stopped both.
+    expect(endpointBodies).toHaveLength(2);
+    const messages = messageText(vscode.window.showErrorMessage);
+    // The failure sentence the run always gave is still there, word for word …
+    expect(messages).toContain('the answer was not JSON');
+    // … and now the endpoint's own reading is beside it, named with the endpoint the
+    // consent modal named …
+    expect(messages).toContain(
+      `The AI endpoint "${PROVIDER_NAME}" reported that it hit its own output limit (finish_reason=length)`,
+    );
+    // … and the remedy §9.2 asks for, rather than a dead end.
+    expect(messages).toContain(
+      'Raise the output limit configured on the endpoint, or choose a model that respects the instruction and answers within it.',
+    );
+    // Said once for the run, not once per attempt: two of them would read as two
+    // problems when there is one.
+    expect(messages.split('finish_reason=length').length - 1).toBe(1);
+    // Nothing was created, exactly as before the report learned to say this.
+    expect(await postedBodies('/reviews')).toEqual([]);
+    expect(panelState.payloads).toEqual([]);
+  });
+
+  it('adds nothing about an output limit to an answer that was complete', async () => {
+    baseSettings({
+      aiProviders: [provider()],
+      aiProvidersEnabled: true,
+      aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
+    });
+    // The same endpoint, answering the same request with a complete JSON object and
+    // no `finish_reason` of its own: the ordinary run, which must stay word for word
+    // what it was.
+    serveEndpoint(VALID_ANSWER);
+
+    await runAiPreReview(config, undefined, controller, params, testHost());
+
+    await expectSameRunObservable();
+    expect(messageText(vscode.window.showErrorMessage)).not.toContain('output limit');
+  });
+
+  it('says nothing about an endpoint when an editor model answers something that is not JSON', async () => {
+    baseSettings({ aiTransport: 'vscode-lm', aiPreReviewModel: 'editor-vendor/editor-model' });
+    const editor = editorModel({ answer: 'The diff looks good to me.' });
+    offerEditorModel(editor);
+
+    await runAiPreReview(config, undefined, controller, params, testHost());
+
+    const messages = messageText(vscode.window.showErrorMessage);
+    // The same contract failure, reported exactly as it always was …
+    expect(messages).toContain('the answer was not JSON');
+    // … and no sentence about an endpoint's limits: `vscode.lm` reports no
+    // `finish_reason`, so its transport never sets the truncation reading, and a
+    // truncated **editor** answer cannot gain an endpoint's remedy (§11.3).
+    expect(messages).not.toContain('output limit');
+    expect(messages).not.toContain('AI endpoint');
+    expect(endpointRequests).toEqual([]);
+  });
+
+  it('records the truncation in the debug dump beside the contract violation', async () => {
+    baseSettings({
+      aiProviders: [provider()],
+      aiProvidersEnabled: true,
+      aiModelBindings: [{ feature: 'aiPreReview', providerId: PROVIDER_ID, modelId: 'qwen3:8b' }],
+    });
+    serveTruncatedEndpoint('{"comments":[{"path":"src/index.ts","line":2,"side":"head","body":"a very long');
+    vi.spyOn(logger, 'isDebugEnabled').mockReturnValue(true);
+    const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ai-pre-review-truncated-'));
+    logDirs.push(directory);
+
+    await runAiPreReview(config, undefined, controller, params, testHost({ logUri: { fsPath: directory } as never }));
+
+    const dump = await fs.promises.readFile(path.join(directory, AI_PRE_REVIEW_DIAGNOSTICS_FILE_NAME), 'utf8');
+    // The run's own record carries the fact the failure line does not: without it, a
+    // reader of the dump cannot tell a truncated JSON prefix from a model that simply
+    // answered prose.
+    expect(dump).toContain(
+      'the endpoint reported finish_reason=length, so this answer was cut off before it was complete',
+    );
+    expect(dump).toContain('outcome: contract violation: the answer is not JSON');
   });
 });
 

@@ -692,6 +692,17 @@ export interface AiPreReviewModelAttempt {
   attempt: number;
   /** Why that model's answer was not the contracted JSON object. */
   failure: AiPreReviewContractFailure;
+  /**
+   * Set when the endpoint **said** it stopped this answer at its own output limit
+   * (`AiCompletionResult.truncated`, `docs/design/ai-model-transport.md` §6.4 item 5
+   * and §9.2).
+   *
+   * Only a configured endpoint can set it: the editor API reports no `finish_reason`,
+   * so the `vscode.lm` transport leaves the reading unset and a truncated editor answer
+   * can never make the run talk about an endpoint's output limit. Present only when
+   * true, so an ordinary failure keeps carrying exactly the three facts it always did.
+   */
+  truncated?: boolean;
 }
 
 /**
@@ -1850,6 +1861,12 @@ function estimatedBudgetExplanation(): string {
  * that is the user's decision to make. {5} says where the bounded excerpt of each
  * answer now is and how to get the whole text, because "the answer was not JSON"
  * on its own is what the maintainer could not diagnose.
+ *
+ * An endpoint that **said** it stopped at its own output limit gets one more message
+ * beside this one ({@link truncatedAnswerReport}): the first sentence is pinned word
+ * for word by the failures that have nothing to do with an output limit, and the
+ * truncation is a fact only one arm carries — the second message is what makes it
+ * impossible to read this failure as a JSON problem alone (§9.2).
  */
 function reportContractFailures(
   attempts: readonly AiPreReviewModelAttempt[],
@@ -1877,6 +1894,43 @@ function reportContractFailures(
       chooseModelActionHint(),
       diagnosticsActionHint(),
     ),
+  );
+  // One message for the whole run, not one per attempt: the endpoint's reading is the
+  // reason **this** failure happened, and repeating it for a retry would read as two
+  // separate problems. Any attempt carrying the reading is enough to state it — the
+  // answer to "why could this not be JSON" is the same whether one ask or both were cut
+  // off.
+  if (attempts.some((attempt) => attempt.truncated === true)) {
+    void vscode.window.showErrorMessage(truncatedAnswerReport(servedBy.provider));
+  }
+}
+
+/**
+ * The sentence that turns "none of the answers was the JSON it needs" into "the
+ * endpoint stopped before it had finished" (`docs/design/ai-model-transport.md` §9.2).
+ *
+ * It exists because the failure above is the same sentence for every contract
+ * violation, and a truncated answer produces the most ordinary-looking one of all: a
+ * prefix of a JSON document is not JSON, so an endpoint that cut the answer off at its
+ * own output limit was reported as a plain "the answer was not JSON" with nothing to
+ * act on. The reading it states is the endpoint's own (`finish_reason=length` carried
+ * on `AiCompletionResult.truncated`), never a guess about the bytes, and the two
+ * remedies are the ones §9.2 names — raise the endpoint's output limit, or choose a
+ * model that respects the instruction and answers inside it — with no third remedy
+ * that would change the model behind the user's back.
+ *
+ * A message of its own rather than a longer first one, for the reason
+ * `estimatedBudgetExplanation` is: the contract-failure sentence is pinned word for
+ * word for the failures that have nothing to do with an output limit, and this fact
+ * only exists on the configured-endpoint arm. The editor's own models never set
+ * `truncated` — `vscode.lm` reports no `finish_reason` at all — so no `vscode.lm` run
+ * can reach this sentence, which is what keeps a truncated **editor** answer from
+ * gaining a sentence about an endpoint's limits (§11.3).
+ */
+function truncatedAnswerReport(endpointName: string): string {
+  return vscode.l10n.t(
+    'The AI endpoint "{0}" reported that it hit its own output limit (finish_reason=length), which cut the answer off before it was complete — that is why the AI pre-review could not read the JSON it needs. Raise the output limit configured on the endpoint, or choose a model that respects the instruction and answers within it.',
+    endpointName,
   );
 }
 
@@ -3095,6 +3149,18 @@ function abortSignalForToken(token: vscode.CancellationToken | undefined): Abort
   return controller.signal;
 }
 
+/**
+ * The diagnostics dump's note for an answer the endpoint said it stopped at its own
+ * output limit (`finish_reason: 'length'`, §9.2).
+ *
+ * Plain text like every other dump line: the dump is a diagnostic artifact rather than
+ * a UI surface, and this note is what lets a reader explain a "not JSON" answer without
+ * having to know that a prefix of a JSON document is exactly what a truncated answer
+ * looks like.
+ */
+const TRUNCATED_ATTEMPT_NOTE =
+  'the endpoint reported finish_reason=length, so this answer was cut off before it was complete';
+
 async function gatherPreReviewRequest(
   transport: AiModelTransport,
   client: ForgejoClient,
@@ -3242,6 +3308,16 @@ async function gatherPreReviewRequest(
       return answer;
     }
 
+    /**
+     * The endpoint's own reading of why it stopped, carried on the result rather than
+     * thrown away with the failure (§6.4 item 5). It is read **before** the answer is
+     * judged, because it is a fact about the answer and not about the contract: a
+     * truncated answer that fails the contract has to say so in the report (§9.2),
+     * while one that happens to satisfy it keeps the run it always had. `vscode.lm`
+     * never sets the reading, so none of the editor path's reports can gain it.
+     */
+    const endpointTruncated = answer.truncated;
+
     // The contract arbitrates: the text candidate is tried first, then the
     // reasoning candidate, and only then the `text` projection (which is a
     // candidate of its own, so it is judged by the same rule rather than
@@ -3274,7 +3350,10 @@ async function gatherPreReviewRequest(
         ...recorded,
         answer: chosenText,
         outcome: `the contracted JSON, with ${parsed.comments.length} proposed comment(s)`,
-        notes: [`answer stream: ${responseCandidateKindLabel(selection.candidate?.kind ?? 'text')}`],
+        notes: [
+          `answer stream: ${responseCandidateKindLabel(selection.candidate?.kind ?? 'text')}`,
+          ...(endpointTruncated ? [TRUNCATED_ATTEMPT_NOTE] : []),
+        ],
         candidates: answer.candidates,
       });
       if (failedAttempts.length > 0) {
@@ -3313,10 +3392,17 @@ async function gatherPreReviewRequest(
       ...recorded,
       answer: chosenText,
       outcome: `contract violation: ${describeContractFailurePlainly(parsed)}`,
-      notes: [`answer shape: ${shape}`, selection.reason],
+      notes: [`answer shape: ${shape}`, selection.reason, ...(endpointTruncated ? [TRUNCATED_ATTEMPT_NOTE] : [])],
       candidates: answer.candidates,
     });
-    failedAttempts.push({ model: identity, attempt, failure: parsed });
+    failedAttempts.push({
+      model: identity,
+      attempt,
+      failure: parsed,
+      // Only when true: an absent field already means "the endpoint said nothing
+      // about an output limit", which is the answer for every editor model too.
+      ...(endpointTruncated ? { truncated: true } : {}),
+    });
   }
 
   return { kind: 'unparsed', attempts: failedAttempts, changedFileCount };
@@ -3393,7 +3479,18 @@ async function preparePrompt(
  * to name it in the debug log.
  */
 type ModelAnswer =
-  | { kind: 'answer'; candidates: AiPreReviewResponseCandidate[]; fragments?: readonly string[] }
+  | {
+      kind: 'answer';
+      candidates: AiPreReviewResponseCandidate[];
+      fragments?: readonly string[];
+      /**
+       * The transport's truncation reading (`AiCompletionResult.truncated`), carried
+       * beside the candidates because it is a fact about the answer rather than about
+       * the contract: it has to survive to the report that decides the answer is
+       * unusable (§9.2), and it is `false` on every `vscode.lm` answer.
+       */
+      truncated: boolean;
+    }
   | { kind: 'cancelled' }
   | { kind: 'failed'; error: string; reported: boolean; candidates: AiPreReviewResponseCandidate[] };
 
@@ -3412,6 +3509,11 @@ type ModelAnswer =
  * cancellation is recognised by `name`/`code`/message, which is the same rule the
  * OpenAI-compatible transport has to satisfy (§6.5). A transport that observed a
  * cancellation while reading throws an `AbortError` for exactly this path.
+ *
+ * The result's **truncation reading** is carried out with the candidates, because it
+ * is the one fact about an answer that the answer's own bytes cannot show: an
+ * endpoint that stopped at its output limit hands back a prefix that parses exactly
+ * like a complete answer's failure would (`AiCompletionResult.truncated`, §9.2).
  */
 async function requestPreReviewComments(
   transport: AiModelTransport,
@@ -3420,7 +3522,12 @@ async function requestPreReviewComments(
 ): Promise<ModelAnswer> {
   try {
     const result = await transport.complete(model, request);
-    return { kind: 'answer', candidates: result.parts, fragments: result.fragments };
+    return {
+      kind: 'answer',
+      candidates: result.parts,
+      fragments: result.fragments,
+      truncated: result.truncated === true,
+    };
   } catch (error) {
     return classifyModelError(error);
   }
