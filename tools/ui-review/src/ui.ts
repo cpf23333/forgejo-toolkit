@@ -12,6 +12,11 @@
 //   node src/ui.ts eval --script-file <path.js> [name]   (evaluates in the workbench page)
 //   node src/ui.ts eval <js> [name]            (one already-quoted argument; see below)
 //
+// A script file may hold a bare expression or a function (`() => …`, what the
+// README documents): a function script is run in the page with no arguments and the
+// command prints what it returned. A script whose *result* is a function is refused
+// rather than printed or silently answered with `undefined` (src/evalScript.ts).
+//
 // Coordinates are relative to the last CDP screenshot (viewport size, e.g.
 // 1440x900, one image pixel per CSS pixel at devicePixelRatio 1). Every command
 // ends with a screenshot saved under shots/.
@@ -61,6 +66,7 @@ import {
 } from './driver';
 import { recordedTargetFor } from './state';
 import { parseWindowSelector } from './windows';
+import { scriptResultValue, wrapScriptForEvaluation } from './evalScript';
 
 const argv = process.argv.slice(2);
 
@@ -349,8 +355,20 @@ switch (cmd) {
       process.exit(1);
     }
     const [n] = scriptFile !== undefined ? rest : rest.slice(1);
-    // eslint-disable-next-line no-eval
-    const result = await page.evaluate(script);
+    // The script is run *in the page*: a function that is handed over the CDP
+    // boundary is not serializable, so the documented arrow-function form used to
+    // arrive as `undefined` (see src/evalScript.ts, which carries the measurements
+    // and the expression that replaced the old `page.evaluate(script)` string form).
+    // The one answer that cannot be printed — a function — comes back as a marker the
+    // page adds, which `scriptResultValue` turns into a loud refusal.
+    const evaluated = await page.evaluate(wrapScriptForEvaluation(script));
+    let result: unknown;
+    try {
+      result = await scriptResultValue(evaluated);
+    } catch (error) {
+      console.error(`eval: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
     console.log(JSON.stringify(result, null, 2));
     name = n || name;
     break;

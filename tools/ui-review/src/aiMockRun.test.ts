@@ -114,15 +114,67 @@ test('stop reports "none" when nothing was recorded and clears a stale record', 
   assert.equal(fs.existsSync(aiMockStatePath(dir)), false);
 });
 
+test('stop takes the request log with an endpoint it proves is gone', async () => {
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, AI_MOCK_LOG_FILE), 'ai-mock: listening\n  GET /v1/models -> HTTP 200\n');
+
+  writeAiMockStateFile(aiMockStatePath(dir), stateFor({ pid: await exitedPid(), url: `http://${AI_MOCK_HOST}:1` }));
+  const report = await stopAiMockServer(dir);
+
+  assert.equal(report.outcome, 'already-stopped');
+  // `pnpm kill` left this file behind on every run, so the next walkthrough's
+  // observation started next to the previous endpoint's lines.
+  assert.equal(fs.existsSync(path.join(dir, AI_MOCK_LOG_FILE)), false, 'the dead log goes with the record');
+  assert.match(report.message, /removed .*ai-mock\.log/, 'and the report says so');
+});
+
+test('stop leaves a log alone when no endpoint was ever recorded', async () => {
+  // 'none' is not proof of anything: no state file was found, so this call cannot
+  // say which endpoint (if any) wrote that log.
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, AI_MOCK_LOG_FILE), 'ai-mock: listening\n');
+  assert.equal((await stopAiMockServer(dir)).outcome, 'none');
+  assert.equal(fs.existsSync(path.join(dir, AI_MOCK_LOG_FILE)), true);
+});
+
+test('stop removes the log of a detached endpoint it actually killed', async () => {
+  const dir = tempDir();
+  const { state } = await startAiMockServerForLaunch({
+    harnessDir: dir,
+    scriptPath: ENTRY_SCRIPT,
+    timeoutMs: 60_000,
+  });
+  const logFile = path.join(dir, AI_MOCK_LOG_FILE);
+  assert.equal(await aiMockEndpointAlive(state.url), true);
+  assert.equal(fs.existsSync(logFile), true, 'the detached child writes the log the launcher opened for it');
+
+  const report = await stopAiMockServer(dir);
+
+  assert.equal(report.outcome, 'stopped');
+  assert.match(report.message, /stopped the mock endpoint/);
+  assert.equal(await aiMockEndpointAlive(state.url), false);
+  assert.equal(
+    fs.existsSync(logFile),
+    false,
+    'the log of an endpoint proven stopped is removed, handle-release retries included',
+  );
+});
+
 test('stop refuses to kill a live pid the endpoint does not prove is its own', async () => {
   const dir = tempDir();
   // A live pid (this test process) and a URL that answers nothing: the state file
   // cannot prove the pid is the endpoint, and killing it would be destructive.
   writeAiMockStateFile(aiMockStatePath(dir), stateFor({ pid: process.pid, url: `http://${AI_MOCK_HOST}:1` }));
+  fs.writeFileSync(path.join(dir, AI_MOCK_LOG_FILE), 'ai-mock: listening\n');
   const report = await stopAiMockServer(dir);
   assert.equal(report.outcome, 'foreign-pid');
   assert.match(report.message, /not killing a process/);
   assert.equal(fs.existsSync(aiMockStatePath(dir)), true, 'the file stays so a human can decide');
+  assert.equal(
+    fs.existsSync(path.join(dir, AI_MOCK_LOG_FILE)),
+    true,
+    'and the log stays with it: the live process may still be the thing that wrote it',
+  );
 });
 
 test('the CLI says what it knows when no endpoint is recorded', async () => {

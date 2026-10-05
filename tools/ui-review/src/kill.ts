@@ -5,7 +5,9 @@
 // too. It is part of "the isolated instance this harness started", and leaving it
 // behind would keep a port, a state file and a log for no reason — with one stop
 // command, a walkthrough cannot half-clean-up. `ai-mock stop` is the same
-// operation for an endpoint that was started on its own.
+// operation for an endpoint that was started on its own, and it removes the log
+// only once the endpoint is proven gone (see stopAiMockServer): a log something
+// may still be writing is left alone and named.
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { stopAiMockServer } from './aiMockRun';

@@ -255,6 +255,44 @@ script must arrive as **one already-quoted argument** with no metacharacters the
 shell would touch; if it arrives split or empty the command fails loudly and names
 the file form instead of evaluating a fragment.
 
+**A script file may be a function or a bare expression, and the function form is
+run in the page for you.** The script's text goes to `page.evaluate`, which takes a
+string as an _expression to evaluate_ — so the arrow-function form above is
+**called** there, and its answer is then dropped: a function is not a serializable
+value, so it does not cross the CDP boundary, and the call's result arrives as
+`undefined`. Measured 2026-10-05 in the isolated dev host, which is what fixes the
+shape of the repair:
+
+| expression handed to `page.evaluate` | answer       |
+| ------------------------------------ | ------------ |
+| `() => 7`                            | `undefined`  |
+| `typeof (() => 7)`                   | `"function"` |
+| `(() => 7)()`                        | `7`          |
+| `async () => { return 7; }`          | `undefined`  |
+| `globalThis.f = () => 7; f`          | `undefined`  |
+
+The table is read as one fact, not four: **an expression whose value is a function
+answers `undefined`**, whatever its shape, and only a call of it answers a value. So
+no wrapper on this side can recover anything — the function is already gone by the
+time the command sees the answer, which is why the repair has to run _inside_ the
+page. `ui eval` now evaluates an **IIFE** that runs the script once there and returns
+what it produced (`src/evalScript.ts`), which is why the file form above answers with
+the element count instead of `undefined`. Three consequences:
+
+- **A bare expression still works unchanged** (`document.title`, `location.href`):
+  it is not a function, so it is answered as its own value. Neither form is
+  preferred; the function form is what the README's own example uses and what a
+  script with statements in it needs (`() => { …; return x; }`).
+- **A script that throws still throws its own error**, named as written: the wrapper
+  tests `typeof` before calling, so a non-function script is never called and its
+  `ReferenceError` is not replaced by one about the wrapper.
+- **A script whose result is itself a function is refused, loudly and non-zero.**
+  That result cannot be printed either, and it is indistinguishable from the script
+  _being_ a function once both have run — so the page answers a marker the command
+  turns into a named failure, instead of printing a function object or a second
+  silent `undefined`. Write the script to return what you want to see
+  (`() => document.title`), not a function factory.
+
 Each `ui` invocation is its own CDP connection, so a `click` does not always take
 focus before the `type` of the **next** invocation runs. Measured in one acceptance
 run: the first click on a newly added form field silently swallowed all 27 typed
@@ -457,8 +495,19 @@ pnpm --filter @cpf23333-forgejo-toolkit/ui-review ai-mock serve      # run it in
   what `--ai-mock` spawns) overwrites the log on every start and writes one line
   per request into it; `ai-mock requests` asks the endpoint itself over HTTP for
   the same list, so it works after the launcher has exited.
-- **One stop command stops everything**: `pnpm kill` (and `dual close`) stop the
-  endpoint as well as the dev host, so a walkthrough cannot half-clean-up.
+- **One stop command stops everything, log included — once the endpoint is proven
+  gone.** `pnpm kill` (and `dual close`) stop the endpoint as well as the dev host,
+  and the stop clears `ai-mock.json` **and** removes `ai-mock.log` when nothing
+  answers at the recorded URL any more and no live pid is claimed to be the
+  endpoint. The run before this one left the log behind on every stop, so a later
+  walkthrough's reading of it started next to the previous endpoint's lines — the
+  removal only covers the two outcomes where the log is provably dead, and the
+  message names the file it removed. The two cases where it cannot be proven are
+  left untouched and say so: `foreign-pid` (a live pid the state file does not prove
+  is the endpoint, so the log may be its evidence) and a URL that still answers
+  after the kill. A foreground `ai-mock serve` keeps its log when it exits — it
+  stops by signal and only forgets its own state file; the log is the record of
+  what it served.
 - **Stopping is guarded by identity, not by pid.** The recorded pid is killed only
   while the recorded URL still answers as this endpoint (`GET /__mock/requests`
   returning `"id": "ui-review-ai-mock"`); a record whose endpoint is gone but whose
@@ -637,10 +686,12 @@ pnpm --filter forgejo-toolkit build:webview     # webview: out/webview/**  <- th
    exercises the non-streaming fallback, `?scenario=truncated` the "answer was cut
    off" report, and `?scenario=stall` the idle watchdog
    (`forgejoToolkit.aiModelRequestTimeoutMs`, 30 s by default).
-9. **Clean up.** `pnpm kill` stops the dev host and the endpoint; `ai-mock stop`
-   stops the endpoint alone. The seeded settings stay in the profile — they are what
-   the next `--ai-mock` run rewrites, and a later run without `--ai-mock` keeps
-   whatever endpoint you configured by hand.
+9. **Clean up.** `pnpm kill` stops the dev host and the endpoint — and, because it
+   proved the endpoint is gone, removes the endpoint's state file and its request
+   log with it; `ai-mock stop` stops the endpoint alone, with the same two removals.
+   The seeded settings stay in the profile — they are what the next `--ai-mock` run
+   rewrites, and a later run without `--ai-mock` keeps whatever endpoint you
+   configured by hand.
 
 What a human has to do, stated plainly: **answer the consent modal** (a native
 modal, step 5), and click in the webview if the agent is not driving it. Everything
@@ -982,7 +1033,14 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   frames, the workbench and the shell, and the shell is the one with no URL — so a
   script that looks for `url().startsWith('vscode-webview://')` finds nothing. Take
   the frame that is not the main frame and confirm it by its `#active-frame`, whose
-  `contentDocument` is where the extension's UI lives.
+  `contentDocument` is where the extension's UI lives. **And it can be read without
+  ever being compiled into there**: measured 2026-10-05, the guest's CSP has no
+  `unsafe-eval`, so `eval` and `new Function` invoked from a script running in the
+  shell are both refused, which makes a string that was built at run time — a
+  template, a parameter — unusable inside the guest. Every script for the guest has
+  to be a **static function body** handed to the frame (`frame.evaluate(() => { … })`,
+  compiled by the CDP client's own context rather than by the page). `ui eval` is not
+  affected: it evaluates in the workbench page, whose CSP is not the guest's.
 - **Native OS dialogs** (VS Code modal messages such as the dirty-form confirm)
   are separate Win32 windows and never appear in CDP screenshots:
 
@@ -1015,8 +1073,10 @@ localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] �
 
 `profile/` (persisted dev-host settings), `extensions/`, `shots/`, the AI mock
 endpoint's `ai-mock.json` / `ai-mock.log` and the dual-window session file are
-gitignored. The launcher pre-seeds `forgejoToolkit.useMockApi: true`, but **that
-setting alone does not give
+gitignored. Both endpoint files are also _removed_ by a stop that proves the endpoint
+is gone (`pnpm kill`, `ai-mock stop` — see "Starting, watching and stopping it"
+above), so a stopped run leaves neither behind. The launcher pre-seeds
+`forgejoToolkit.useMockApi: true`, but **that setting alone does not give
 you mock data**: `packages/forgejo-toolkit/src/extension.ts` starts the mock server only when
 `process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'`, and `packages/forgejo-toolkit/rolldown.config.mjs`
 _defines_ that expression at build time — `'true'` for a non-production build
@@ -1151,21 +1211,47 @@ Two behaviours that are easy to misread while driving the flows above:
 
 Two harness limits worth knowing before planning a flow:
 
-- **The file picker (`showOpenDialog`) needs real mouse input.** It is the modern
-  Common Item Dialog, and almost nothing else works on it: window messages
-  (`WM_COMMAND`/`IDOK`, `BM_CLICK`) are ignored, and neither the file-name box nor
-  the buttons exist in its UI Automation subtree. Beware the classic `Edit` with
+- **The file picker (`showOpenDialog`) is the modern Common Item Dialog, and the
+  honest way in is the clipboard plus a real mouse click.** Window messages
+  (`WM_COMMAND`/`IDOK`, `BM_CLICK`) are ignored and neither the file-name box nor
+  the buttons exist in its UI Automation subtree (both from the earlier
+  walkthroughs). **`SendKeys` cannot type a Windows path** — `+ ^ % ~ ( ) { }` are
+  SendKeys syntax, so a typed path is mangled rather than rejected — measured
+  2026-10-05 in the isolated dev host, where `D:\code\test\ui-live\plain.json` and
+  `D:\code\test\ui-live\import-endpoint.json` both arrived as
+  `D:、浔得 特使田、ui—li、import-恩打欧`-shaped gibberish (an active IME compounds it:
+  SendKeys feeds the IME, not the box), and the picker only answers such a value
+  with its own "file not found" box. **The clipboard route works**: `Set-Clipboard`
+  the text, activate the dialog, send `^a` then `^v` — measured, the box then read
+  the exact path (its on-screen text is visible in
+  `src/win/shot.ps1 -Dialog`'s `PrintWindow` render). `^a` matters: pasting into a
+  box that already holds text **appends** to it, which is how one run produced
+  `import-endpoint.jjsonjson` and an error box.
+- **The picker's own window title is the breadcrumb, and its error box shares that
+  title.** The Open dialog's title is its own word — `打开` on the Chinese-locale
+  dev host this was measured on 2026-10-05 — so the title tells you which dialog
+  answered, and `dialog.ps1 -Title '打开'` targets it. A path the picker cannot use
+  raises an **error box whose title is exactly the picker's**
+  (`#32770 :: 打开`, both of them): the two are one list entry apart and only their
+  rect distinguishes them — measured `打开 rect=1089,583,366x163` for the error box
+  beside `打开 rect=0,0,2560x1392` for the picker, with `dialog.ps1` refusing the
+  pair as `ambiguous target: 2 dialogs match`. Read the rect from
+  `src/win/shot.ps1 -Dialog` (it lists **every** visible `#32770`, largest first)
+  and answer the error box by hand — its OK button has no row to click and no
+  distinctive title, and it does accept `{TAB}`-then-`~`. `fileDialog.ps1 -Cancel`
+  (Escape, `WM_CLOSE` fallback) and `-RowIndex` still work on the picker itself.
+- Beware the classic `Edit` with
   control id 1148: it is a hidden legacy proxy — `SetWindowText` writes to it and
   reading it back confirms the text, while the box on screen stays empty, so Open
-  reports "file not found" and it looks like the dialog accepted the path.
-  `dialog.ps1`'s SendKeys _can_ land once the dialog has been activated, but two
-  traps remain: the last character of a typed path can be dropped (seen with
-  `.json` arriving as `.jso`, which the dialog only reports as "file not found"),
-  and `PrintWindow` may render the DirectUI file-name box empty even when it holds
-  text — so never judge the typed value from a capture; read it back from the
-  proxy control with `GetWindowText`. A path the picker rejects leaves the dialog
-  open, which `dialog.ps1` reports as `dialogClosed=false` and a non-zero exit.
-  What works reliably (`src/win/fileDialog.ps1`): flash the dialog TOPMOST and
+  reports "file not found" and it looks like the dialog accepted the path. Reading
+  it back is therefore **not** a check of what the dialog will use: measured
+  2026-10-05, `src/win/shot.ps1 -Dialog` printed `fileNameBox=[]` while the render
+  beside it showed the box holding the pasted path. `PrintWindow` may likewise
+  render the DirectUI file-name box empty even when it holds text, so never judge
+  the value from the proxy control; judge it from the render, and confirm it by
+  what the dialog does next.
+- What works reliably for _selecting a file_ (`src/win/fileDialog.ps1`): flash the
+  dialog TOPMOST and
   attach to the foreground thread so it can be activated, then click and
   double-click the file's row. Two consequences: the file must be in the folder
   the dialog already shows, and the row position has to be read from a capture —
@@ -1175,6 +1261,8 @@ Two harness limits worth knowing before planning a flow:
   area, and it says so in its summary line (`screenFallback=true`) so a capture
   that might show another window is never mistaken for the dialog's own render.
   Leftover dialogs are closed with `WM_CLOSE` on the dialog the caller selected.
+  A path the picker rejects leaves the dialog open, which `dialog.ps1` reports as
+  `dialogClosed=false` and a non-zero exit.
 - **Some UI actions are instance-wide.** "Mark all notifications read" sends its
   `PUT …/notifications?all=true` to _every_ configured instance. If the profile
   also holds a real instance (e.g. because a walkthrough needed one), that action

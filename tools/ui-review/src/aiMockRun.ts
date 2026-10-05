@@ -103,6 +103,40 @@ export function clearAiMockState(harnessDir: string): boolean {
 }
 
 /**
+ * Removes the request log of an endpoint that is **proven not to be running any
+ * more**, and says whether there was one to remove.
+ *
+ * The proof is the caller's: this is called from the two stop outcomes where
+ * nothing answers at the recorded address and no live process is claimed to be the
+ * endpoint, which is what makes the log dead. It is deliberately not called for
+ * `foreign-pid` (a live pid the state file does not prove is the endpoint, so the
+ * log may still be its evidence) or while anything answers at the URL. A log whose
+ * endpoint is still up is the one thing `ai-mock requests` falls back to, so it is
+ * never removed on a guess.
+ *
+ * A Windows file whose write handle was held by the killed child can stay
+ * undeletable for a moment, so the removal is retried briefly; a file that stays
+ * undeletable is reported as "not removed" rather than thrown, because leaving a
+ * log behind is what the harness did before and is not a failure of the stop. A log
+ * that was never written is not a removal.
+ */
+export function removeAiMockLog(harnessDir: string, attempts = 10): boolean {
+  const file = aiMockLogPath(harnessDir);
+  if (!fs.existsSync(file)) return false;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      fs.rmSync(file, { force: true });
+      return true;
+    } catch {
+      // A still-held handle: sleep it off. `Atomics.wait` is the synchronous sleep
+      // available here without an extra dependency or an async stop path.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  return false;
+}
+
+/**
  * Forgets a state file only when it describes `pid`, so a foreground `serve`
  * ending cannot delete the record of an endpoint it does not own.
  */
@@ -318,6 +352,12 @@ async function waitForSilence(url: string, timeoutMs: number): Promise<boolean> 
  * state file whose endpoint no longer answers says nothing about the process that
  * holds the pid now, and killing a recycled pid would be worse than leaving a
  * stale file behind. Both non-kill paths say which file to delete.
+ *
+ * A stop that leaves nothing running also removes the request log, which is the
+ * file `pnpm kill` used to leave behind on every run (`ai-mock.json` went, the log
+ * stayed, so the next walkthrough's observation started next to the previous
+ * endpoint's lines). The two outcomes where the endpoint is proven gone take it
+ * with them; the two where it may not be take nothing, and say so.
  */
 export async function stopAiMockServer(harnessDir: string): Promise<AiMockStopReport> {
   const file = aiMockStatePath(harnessDir);
@@ -338,11 +378,13 @@ export async function stopAiMockServer(harnessDir: string): Promise<AiMockStopRe
     }
     const silent = await waitForSilence(state.url, 3000);
     clearAiMockState(harnessDir);
+    const logRemoved = silent && removeAiMockLog(harnessDir);
     return {
       outcome: 'stopped',
       message:
         `stopped the mock endpoint at ${state.url} (pid ${state.pid})` +
-        `${silent ? '' : ' — it still answered after the kill, so check for another listener on that port'}`,
+        `${logRemoved ? ` and removed ${aiMockLogPath(harnessDir)}` : ''}` +
+        `${silent ? '' : ` — it still answered after the kill, so check for another listener on that port`}`,
     };
   }
   if (isPidAlive(state.pid)) {
@@ -354,8 +396,11 @@ export async function stopAiMockServer(harnessDir: string): Promise<AiMockStopRe
     };
   }
   clearAiMockState(harnessDir);
+  const logRemoved = removeAiMockLog(harnessDir);
   return {
     outcome: 'already-stopped',
-    message: `the mock endpoint at ${state.url} was not running; cleared the stale ${AI_MOCK_STATE_FILE}`,
+    message:
+      `the mock endpoint at ${state.url} was not running; cleared the stale ${AI_MOCK_STATE_FILE}` +
+      `${logRemoved ? ` and removed ${aiMockLogPath(harnessDir)}` : ''}`,
   };
 }
