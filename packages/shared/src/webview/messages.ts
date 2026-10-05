@@ -489,6 +489,22 @@ export const AI_PRE_REVIEW_PROMPT_SCOPES = [
 export type AiPreReviewPromptScopeValue = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[number];
 
 /**
+ * The three values of `forgejoToolkit.prDescriptionPromptScope`, in the order the
+ * manifest's dropdown, the settings page's dropdown and the consent modal show
+ * them (`docs/design/ai-model-transport.md` §7.6).
+ *
+ * A second enumeration rather than a reuse of the pre-review's five: the two
+ * features send different content at different moments, so the pre-review's names
+ * would promise something else here (the record's §7.6 states the decision, and
+ * `src/prDescriptionSettings.ts` is the reader). `ask` is first because it is the
+ * default and the only value that sends nothing on its own.
+ */
+export const PR_DESCRIPTION_PROMPT_SCOPES = ['ask', 'commits-only', 'commits-and-files'] as const;
+
+/** One value of `forgejoToolkit.prDescriptionPromptScope`. */
+export type PrDescriptionPromptScopeValue = (typeof PR_DESCRIPTION_PROMPT_SCOPES)[number];
+
+/**
  * The settings this extension's own settings page renders with a control of its
  * own, spelled as the full setting ids the manifest contributes.
  *
@@ -510,6 +526,8 @@ export const SETTINGS_SURFACE_WRITABLE_KEYS = [
   'forgejoToolkit.multiWindowLease',
   'forgejoToolkit.aiPreReview',
   'forgejoToolkit.aiPreReviewPromptScope',
+  'forgejoToolkit.prDescription',
+  'forgejoToolkit.prDescriptionPromptScope',
 ] as const;
 
 /** One setting the settings page may write. */
@@ -544,6 +562,10 @@ export interface SettingsSurfaceSnapshot {
   aiPreReview: boolean;
   /** `forgejoToolkit.aiPreReviewPromptScope`, read exactly as the run reads it. */
   aiPreReviewPromptScope: AiPreReviewPromptScopeValue;
+  /** `forgejoToolkit.prDescription` (default off). */
+  prDescription: boolean;
+  /** `forgejoToolkit.prDescriptionPromptScope`, read exactly as the run reads it. */
+  prDescriptionPromptScope: PrDescriptionPromptScopeValue;
 }
 
 /** Events accepted by the Forgejo API when submitting a pending pull review. */
@@ -735,6 +757,17 @@ export type HostToWebviewMessage =
        */
       aiPreReview?: boolean;
       /**
+       * Whether `forgejoToolkit.prDescription` is on, so the create-pull-request
+       * form can hide its "Generate description" control whose only outcome with
+       * the feature off would be a refusal.
+       *
+       * The same contract as `aiPreReview` above: the host reads the setting and
+       * the webview renders what it was told, a missing value reads as **off**,
+       * and the run's own refusal remains the gate — a hidden control is an
+       * affordance, not the guarantee.
+       */
+      prDescription?: boolean;
+      /**
        * The oldest Forgejo release this build supports, as the host spells it in
        * its own low-version notices (`MIN_SUPPORTED_VERSION_TEXT`), so a view
        * that has to show a version *example* can show the real floor instead of
@@ -782,6 +815,16 @@ export type HostToWebviewMessage =
   // `setDebug`, and like it the value only drives an affordance — the run reads
   // the setting itself.
   | { command: 'setAiPreReview'; aiPreReview: boolean }
+  /**
+   * Pushed when `forgejoToolkit.prDescription` changes in VS Code's Settings UI.
+   *
+   * The create-pull-request form offers or hides its "Generate description"
+   * control on it, and that form can sit open for as long as the user is writing a
+   * title, so a boolean read once at mount would leave the control describing the
+   * switch's previous state. Same contract as `setAiPreReview`: the value only
+   * drives an affordance, and the run reads the setting itself.
+   */
+  | { command: 'setPrDescription'; prDescription: boolean }
   | {
       command: 'repositories';
       instanceId: string;
@@ -1013,6 +1056,20 @@ export type HostToWebviewMessage =
       stateToggle?: boolean;
       /** Echoed from editPullRequest: this was an inline due-date save, not a form edit. */
       dueDateUpdate?: boolean;
+    }
+  /**
+   * One generated draft, or the sentence saying why there is none.
+   *
+   * `description` is present only on success, and `error` only on failure: the
+   * form writes its body field from the first and shows the second as a message,
+   * and neither ever overwrites what the user typed (the host writes no file, no
+   * setting and no pull request on either arm).
+   */
+  | {
+      command: 'prDescriptionGenerated';
+      description?: string;
+      error?: string;
+      _requestId: string;
     }
   | {
       command: 'pullRequestFiles';
@@ -2075,6 +2132,23 @@ export type WebviewToHostMessage =
         milestone?: number;
         due_date?: string;
       };
+      _requestId: string;
+    }
+  // The create-pull-request form's "generate a description" action.
+  //
+  // The coordinates are the whole payload on purpose, exactly as they are for
+  // `aiPreReviewPullRequest`: the webview says **which comparison** the user is
+  // about to submit and nothing else. The model, the prompt scope, the prompt and
+  // the consent question are all the host's, so a modified webview cannot
+  // influence what leaves the machine — and this message can never create or
+  // submit anything, because the host half only ever answers with text.
+  | {
+      command: 'generatePrDescription';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      base: string;
+      head: string;
       _requestId: string;
     }
   | {

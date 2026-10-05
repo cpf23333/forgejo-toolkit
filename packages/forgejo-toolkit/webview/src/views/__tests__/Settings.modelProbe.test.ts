@@ -111,6 +111,8 @@ function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSu
     multiWindowLease: true,
     aiPreReview: false,
     aiPreReviewPromptScope: 'ask',
+    prDescription: false,
+    prDescriptionPromptScope: 'ask',
     ...overrides,
   };
 }

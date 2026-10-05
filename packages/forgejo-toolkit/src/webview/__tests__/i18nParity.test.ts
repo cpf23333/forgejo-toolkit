@@ -261,6 +261,8 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.aiPreReview',
       'forgejoToolkit.aiPreReviewPromptScope',
       'forgejoToolkit.aiPreReviewModel',
+      'forgejoToolkit.prDescription',
+      'forgejoToolkit.prDescriptionPromptScope',
       'forgejoToolkit.aiProviders',
       'forgejoToolkit.aiProvidersEnabled',
       'forgejoToolkit.aiTransport',
@@ -279,6 +281,8 @@ describe('manifest nls pairs', () => {
       'config.aiPreReview.title',
       'config.aiPreReviewPromptScope.title',
       'config.aiPreReviewModel.title',
+      'config.prDescription.title',
+      'config.prDescriptionPromptScope.title',
       'config.aiProviders.title',
       'config.aiProvidersEnabled.title',
       'config.aiTransport.title',
@@ -326,6 +330,38 @@ describe('manifest nls pairs', () => {
     for (const [index, value] of values.entries()) {
       const placeholder = String(descriptions[index] ?? '');
       expect(placeholder, value).toMatch(/^%config\.aiPreReviewPromptScope\.enumDescriptions\.[a-zA-Z]+%$/);
+      const key = placeholder.slice(1, -1);
+      const english = en.get(key) ?? '';
+      const chinese = zh.get(key) ?? '';
+      expect(english, `en: ${key}`).toContain(statesEgress[value]);
+      expect(chinese, `zh: ${key}`).not.toBe('');
+      expect(chinese, `zh: ${key}`).not.toBe(english);
+      expect(chinese.length, `zh: ${key}`).toBeGreaterThan(30);
+    }
+  });
+
+  it('contributes the PR-description scope as a real dropdown, described in both languages', () => {
+    // The same contract as the pre-review's scope above, for the second feature
+    // that has one (`docs/design/ai-model-transport.md` §7.6): a **static** enum
+    // VS Code can render, and every value's description in both nls pairs, because
+    // a missing `enumDescriptions` entry shows the raw `%config.…%` placeholder in
+    // the dropdown — the one place the egress of each answer is explained.
+    const property = manifest.contributes.configuration.properties['forgejoToolkit.prDescriptionPromptScope'];
+    const values = ['ask', 'commits-only', 'commits-and-files'];
+    const descriptions = (Array.isArray(property?.enumDescriptions) ? property.enumDescriptions : []) as unknown[];
+    expect(property?.type).toBe('string');
+    expect(property?.default).toBe('ask');
+    expect(property?.enum).toEqual(values);
+    expect(descriptions).toHaveLength(values.length);
+
+    const statesEgress: Record<string, string> = {
+      ask: 'nothing is requested, sent or written until you answer',
+      'commits-only': 'No file content leaves the machine',
+      'commits-and-files': 'plus the full text of the changed files at the head branch',
+    };
+    for (const [index, value] of values.entries()) {
+      const placeholder = String(descriptions[index] ?? '');
+      expect(placeholder, value).toMatch(/^%config\.prDescriptionPromptScope\.enumDescriptions\.[a-zA-Z]+%$/);
       const key = placeholder.slice(1, -1);
       const english = en.get(key) ?? '';
       const chinese = zh.get(key) ?? '';

@@ -98,6 +98,97 @@ export function parseWebviewPullRequestTarget(value: unknown): PullRequestTarget
 }
 
 /**
+ * True when a branch name from the webview is safe to interpolate into the
+ * comparison API route.
+ *
+ * Deliberately **not** `isSafeRepoNameSegment`: git allows `/` inside a branch
+ * name, and refusing `feature/x` would refuse the ordinary case. What survives
+ * encoding is what is rejected — a leading or trailing `/`, an empty segment, and
+ * any `.`/`..` segment, which the URL parser would resolve and let a forged value
+ * walk the request onto another endpoint. `isSafeRepoNameSegment` then checks each
+ * remaining segment.
+ */
+export function isSafeBranchName(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1024) {
+    return false;
+  }
+  if (CONTROL_CHARACTER_PATTERN.test(value) || value.includes('\\') || value.startsWith('/') || value.endsWith('/')) {
+    return false;
+  }
+  if (value.startsWith('@') || value === 'HEAD') {
+    // `@` alone is git's spelling of HEAD, and a revision expression is not a
+    // branch this form could have offered; the dropdown only ever sends branches.
+    return false;
+  }
+  return value.split('/').every((segment) => isSafeRepoNameSegment(segment));
+}
+
+/**
+ * The comparison the create-pull-request form is about to submit, or `undefined`
+ * when a message does not name a usable one.
+ *
+ * `owner`/`repo` go through `isSafeRepoNameSegment` for the reason that helper
+ * documents, and the two branch names through {@link isSafeBranchName}: every one
+ * of the four is interpolated into a comparison API route. `title` is optional
+ * because a user may press the button before typing one; when present it is only
+ * ever sent as prompt text, so it is length-bounded rather than character-checked
+ * — a title is prose, unlike the names.
+ */
+export interface PrDescriptionRequestTarget {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  base: string;
+  head: string;
+  title?: string;
+}
+
+/** The largest title this request will carry into a prompt. */
+export const PR_DESCRIPTION_MAX_TITLE_CHARACTERS = 4_096;
+
+export function parsePrDescriptionRequest(value: unknown): PrDescriptionRequestTarget | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as {
+    instanceId?: unknown;
+    owner?: unknown;
+    repo?: unknown;
+    base?: unknown;
+    head?: unknown;
+    title?: unknown;
+  };
+  const { instanceId, owner, repo, base, head, title } = candidate;
+  if (typeof instanceId !== 'string' || instanceId.length === 0 || instanceId.length > 255) {
+    return undefined;
+  }
+  if (!isSafeRepoNameSegment(owner) || !isSafeRepoNameSegment(repo)) {
+    return undefined;
+  }
+  if (!isSafeBranchName(base) || !isSafeBranchName(head)) {
+    return undefined;
+  }
+  // A comparison of a branch with itself has no commits and no changed files: it
+  // is the one shape that can never produce a description, so it is refused here
+  // rather than sent to a model as an empty comparison.
+  if (base === head) {
+    return undefined;
+  }
+  if (title !== undefined && (typeof title !== 'string' || title.length > PR_DESCRIPTION_MAX_TITLE_CHARACTERS)) {
+    return undefined;
+  }
+  const trimmedTitle = typeof title === 'string' ? title.trim() : '';
+  return {
+    instanceId,
+    owner,
+    repo,
+    base,
+    head,
+    ...(trimmedTitle === '' ? {} : { title: trimmedTitle }),
+  };
+}
+
+/**
  * True when a repository file path from the webview is safe to interpolate into
  * the contents API route.
  *

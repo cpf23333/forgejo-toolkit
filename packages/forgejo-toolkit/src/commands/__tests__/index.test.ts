@@ -44,11 +44,12 @@ function registerHandlers() {
   // The extension's own identity, as the real extension host fills it in: the
   // publisher and the package name from the manifest, joined by a dot.
   const context = { subscriptions: [] as Array<{ dispose(): void }>, extension: { id: 'cpf23333.forgejo-toolkit' } };
-  // Registering the commands is also what hands the view provider the AI
-  // pre-review run that the pull request detail page's button reaches
-  // (`setAiPreReviewRunner`), so even this suite — which never dispatches a
-  // webview message — has to pass a provider that accepts the handover.
-  const viewProvider = { setAiPreReviewRunner: vi.fn() };
+  // Registering the commands is also what hands the view provider the runs the
+  // webview reaches — the AI pre-review's pull request detail button
+  // (`setAiPreReviewRunner`) and the create form's "Generate description" control
+  // (`setPrDescriptionRunner`) — so even this suite, which never dispatches a
+  // webview message, has to pass a provider that accepts both handovers.
+  const viewProvider = { setAiPreReviewRunner: vi.fn(), setPrDescriptionRunner: vi.fn() };
   registerCommands(context as never, {} as never, {} as never, viewProvider as never, controller as never);
   const handlers = new Map<string, (...args: unknown[]) => void>();
   for (const [name, callback] of vi.mocked(vscode.commands.registerCommand).mock.calls) {

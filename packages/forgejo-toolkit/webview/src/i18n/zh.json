@@ -488,6 +488,11 @@
       "titlePlaceholder": "请输入标题",
       "body": "描述",
       "bodyPlaceholder": "请输入描述（支持 Markdown）",
+      "generateDescription": "生成描述",
+      "generatingDescription": "生成中…",
+      "generateDescriptionHint": "AI 按两个分支之间的提交与变更文件起草一段描述，填入下面的描述框作为**可编辑**草稿。Pull Request 仍然由你自己创建。",
+      "generateDescriptionReplace": "你写的描述会被替换。再按一次「生成描述」确认替换，或继续编辑描述框以保留它。",
+      "generateDescriptionFailed": "无法起草描述。",
       "base": "目标分支",
       "head": "源分支",
       "labels": "标签",
@@ -533,6 +538,8 @@
     "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
     "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
+    "forgejoToolkit.prDescription": "settings.prDescription.enabled",
+    "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
     "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
@@ -647,6 +654,21 @@
         "changed-lines-only": "仅变更行——新增与删除的行连同文件头与 hunk 头，不含未改动的上下文",
         "full-diff": "整份 diff——每个 hunk 都发，含未改动的上下文行，但不含文件正文",
         "changed-files": "变更文件——整份 diff 再加上每个变更文件在 PR head 版本的完整内容"
+      }
+    },
+    "prDescription": {
+      "title": "AI：Pull Request 描述",
+      "description": "由聊天模型按创建 Pull Request 表单即将提交的比较起草一段描述，并填入描述框作为可编辑草稿。Pull Request 仍由你自己创建；生成失败时描述框保持你写的样子。",
+      "enabled": "在创建 Pull Request 表单上提供「生成描述」",
+      "enabledDefault": "默认关：打开它才会读取比较或发出内容。",
+      "disabledHint": "下面的提示词范围属于配置项，只有本开关打开后才会被用到。",
+      "scope": "提示词范围",
+      "scopeDescription": "草稿的提示词可以携带什么。这是这个答案的唯一记录处：每次生成都从这里读，`ask` 表示这个问题还没有被回答。",
+      "scopeDefault": "默认：`ask`——第一次生成时问一次，并把你的回答写进这里。",
+      "scopeOption": {
+        "ask": "每次生成前询问——在你回答之前不请求、不发送、不写入任何东西",
+        "commits-only": "提交与变更文件列表——分支名、提交的主题/正文/作者/时间，以及每个变更文件的路径与状态，不含文件内容",
+        "commits-and-files": "提交、变更文件与其正文——在上面基础上再加上变更文件在 head 分支的完整正文"
       }
     },
     "aiPreReviewModel": {

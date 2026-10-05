@@ -64,7 +64,9 @@ import {
   isSafeRepoIdentity,
   isSafeRepoNameSegment,
   isSafeRepoPath,
+  parsePrDescriptionRequest,
   parseWebviewPullRequestTarget,
+  type PrDescriptionRequestTarget,
 } from './repoIdentity';
 import type { PullRequestTarget } from './repoIdentity';
 import { readWorkflowDispatchInputs } from './workflowDispatchInputs';
@@ -79,6 +81,7 @@ import {
   isAiPreReviewEnabled,
   writeAiPreReviewModelSetting,
 } from '../aiPreReviewSettings';
+import { isPrDescriptionEnabled } from '../prDescriptionSettings';
 import {
   readAiProviderSettings,
   removeAiProvider,
@@ -578,6 +581,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    */
   private _aiPreReviewRunner: ((target: PullRequestTarget) => void) | undefined;
 
+  /**
+   * The function the create-pull-request form's "generate a description" action
+   * runs, registered by `src/prDescription.ts` for the same reason
+   * `_aiPreReviewRunner` is a callback: the run owns the model, the consent
+   * question and the prompt, and this provider owns only the webview message. Its
+   * result is the text the form puts into its body field — nothing here can create
+   * or submit a pull request, because all this callback returns is a string.
+   */
+  private _prDescriptionRunner:
+    | ((target: {
+        instanceId: string;
+        owner: string;
+        repo: string;
+        base: string;
+        head: string;
+        title?: string;
+      }) => Promise<{ kind: 'ok'; description: string } | { kind: 'cancelled' } | { kind: 'failed'; error: string }>)
+    | undefined;
+
   constructor(
     private readonly _context: vscode.ExtensionContext,
     private readonly _extensionUri: vscode.Uri,
@@ -631,13 +653,37 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (event.affectsConfiguration('forgejoToolkit.aiPreReview')) {
           this._reply('setAiPreReview', { aiPreReview: isAiPreReviewEnabled() });
         }
-        // Not listed here: `forgejoToolkit.aiProviders`, `aiModelBindings`,
-        // `aiProvidersEnabled`, `aiTransport`, `aiLocalOnly` and
-        // `aiModelRequestTimeoutMs`. A hand edit of those in VS Code's own settings
-        // editor therefore leaves an open settings page on the snapshot it read
-        // when it mounted (`Settings.vue` re-reads only then and on a visibility
-        // change) — the same staleness the import path had until it pushed. The
-        // page's own writes and the import push; this path does not, yet.
+        // The PR-description control's own switch, pushed for the same reason and
+        // with the same limit: a stale boolean can only hide or show the form's
+        // button.
+        if (event.affectsConfiguration('forgejoToolkit.prDescription')) {
+          this._reply('setPrDescription', { prDescription: isPrDescriptionEnabled() });
+        }
+        // The AI endpoint keys are listened to here for the same reason as the
+        // switch above, and they are the six the settings page renders rather than
+        // reads into a field of its own: `aiProviders` (the endpoint list),
+        // `aiModelBindings` (which feature uses which endpoint and model),
+        // `aiProvidersEnabled` (the egress switch the page mirrors),
+        // `aiTransport`, `aiLocalOnly` and `aiModelRequestTimeoutMs`. A hand edit
+        // of any of them in VS Code's own settings editor leaves an open page on
+        // the snapshot it read when it mounted (`Settings.vue` re-reads only then
+        // and on a visibility change) — the same staleness the import path had
+        // until it pushed. They belong **together** because that snapshot is one
+        // message: it answers "which endpoints exist, which are allowed, where
+        // does each feature go and under which policy", so pushing it for one of
+        // the six without the others would trade one stale control for another.
+        // `_pushAiProviderSettings` re-reads all of them from the host, so this is
+        // the page being handed the truth rather than a value from this event.
+        if (
+          event.affectsConfiguration('forgejoToolkit.aiProviders') ||
+          event.affectsConfiguration('forgejoToolkit.aiModelBindings') ||
+          event.affectsConfiguration('forgejoToolkit.aiProvidersEnabled') ||
+          event.affectsConfiguration('forgejoToolkit.aiTransport') ||
+          event.affectsConfiguration('forgejoToolkit.aiLocalOnly') ||
+          event.affectsConfiguration('forgejoToolkit.aiModelRequestTimeoutMs')
+        ) {
+          void this._pushAiProviderSettings();
+        }
         if (!event.affectsConfiguration('forgejoToolkit.locale')) {
           return;
         }
@@ -923,6 +969,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           // about, and the run re-checks the setting itself so a stale boolean
           // can only hide or show a button, never allow a run.
           aiPreReview: isAiPreReviewEnabled(),
+          // The create-pull-request form's own gate for its "Generate description"
+          // control, read and pushed exactly like the AI pre-review switch above:
+          // the form hides an action whose only outcome would be the run's own
+          // refusal, and the run re-checks the setting either way.
+          prDescription: isPrDescriptionEnabled(),
           // The floor the host's own version notices use, so the Settings
           // form's "Server version" example names the release this build
           // actually supports instead of a number written into a translation
@@ -1338,6 +1389,43 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         this._aiPreReviewRunner(target);
+        return;
+      }
+      // The create-pull-request form's "generate a description" action. The
+      // coordinates are the comparison the form is about to submit and nothing
+      // else: the model, the scope, the consent question and the prompt all belong
+      // to `src/prDescription.ts`. What comes back is text, which is the whole
+      // point — a message that could name a title, a body or a merge strategy
+      // would be an extension that opens pull requests, and this one does not.
+      //
+      // The feature switch is deliberately **not** checked here, for the same
+      // reason `aiPreReviewPullRequest` does not check its own: the run checks it
+      // first and refuses with a pointer to the setting, and the form hides the
+      // button while it is off.
+      case 'generatePrDescription': {
+        const { instanceId, owner, repo, base, head, title, _requestId } = message;
+        if (typeof _requestId !== 'string') {
+          logger.error('generatePrDescription carried no request id, so there is nothing to answer');
+          return;
+        }
+        if (!this._prDescriptionRunner) {
+          logger.error('generatePrDescription arrived before the PR-description run was registered');
+          return;
+        }
+        const target = parsePrDescriptionRequest({ instanceId, owner, repo, base, head, title });
+        if (!target) {
+          logger.error('generatePrDescription refused a message that does not name a usable comparison');
+          this._reply('prDescriptionGenerated', {
+            error: vscode.l10n.t(
+              'The description was not drafted: the request did not name a usable pair of branches. Nothing was sent.',
+            ),
+            _requestId,
+          });
+          return;
+        }
+        void this._runPrDescription(target, _requestId).catch((error: unknown) => {
+          logger.error(`generatePrDescription failed: ${userFacingErrorMessage(error)}`);
+        });
         return;
       }
       // The Settings page's AI pre-review model chooser. Both cases are pure
@@ -5006,6 +5094,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._aiPreReviewRunner = runner;
   }
 
+  /**
+   * Hands the provider the function that drafts a pull request description, so the
+   * create-pull-request form's action runs exactly the flow
+   * `COMMAND_GENERATE_PR_DESCRIPTION` names.
+   *
+   * Called once by `registerPrDescriptionCommand`, the same place the command
+   * handler is registered, so both entries are wired together or neither is. The
+   * callback's answer is what the form renders: this provider never writes a body,
+   * a setting or a pull request on its behalf.
+   */
+  public setPrDescriptionRunner(
+    runner: (target: {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      base: string;
+      head: string;
+      title?: string;
+    }) => Promise<{ kind: 'ok'; description: string } | { kind: 'cancelled' } | { kind: 'failed'; error: string }>,
+  ): void {
+    this._prDescriptionRunner = runner;
+  }
+
   public openSettings() {
     this._revealView();
     this._postOrQueue({ command: 'openSettings' });
@@ -5163,6 +5274,36 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const confirmLabel = vscode.l10n.t('Confirm');
     const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
     return choice === confirmLabel;
+  }
+
+  /**
+   * Runs one description draft and answers the form's request with what came back.
+   *
+   * The three arms are reported verbatim and none of them touches the form's body:
+   * `ok` carries the text the form fills in (the user still edits and submits it),
+   * `cancelled` carries no error — a dismissed consent modal or a dismissed model
+   * picker is not a failure, and the run has already shown its own message — and
+   * `failed` carries the run's own sentence, which is already user-facing.
+   */
+  private async _runPrDescription(target: PrDescriptionRequestTarget, requestId: string): Promise<void> {
+    const runner = this._prDescriptionRunner;
+    if (!runner) {
+      logger.error('generatePrDescription lost its run between the dispatch and the call');
+      return;
+    }
+    const outcome = await runner(target);
+    if (outcome.kind === 'ok') {
+      this._reply('prDescriptionGenerated', { description: outcome.description, _requestId: requestId });
+      return;
+    }
+    if (outcome.kind === 'failed') {
+      this._reply('prDescriptionGenerated', { error: outcome.error, _requestId: requestId });
+      return;
+    }
+    // Cancelled: the run has already said what happened (or deliberately said
+    // nothing, for a dismissed picker), so this answers the waiting form with the
+    // empty arm rather than a second dialog about the same event.
+    this._reply('prDescriptionGenerated', { description: '', _requestId: requestId });
   }
 
   /**

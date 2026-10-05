@@ -423,6 +423,30 @@ async function rewriteBodyAfterCreate(
   return failure;
 }
 
+/**
+ * Asks the host to draft a description of the comparison the create form holds.
+ *
+ * The coordinates are captured from this view's route and the form's own arguments
+ * before the await, the same rule `handleCreateSubmit` follows: the route follows
+ * the global route, and a draft posted for the repository the user switched to
+ * would be about a different comparison. Nothing here creates or submits anything
+ * — the resolved text goes into the form's body field, which the user still edits
+ * and submits themselves.
+ */
+function handleGenerateDescription(target: { base: string; head: string; title: string }): Promise<string> {
+  return state.generatePrDescription(instanceId.value, owner.value, repo.value, target);
+}
+
+/**
+ * Whether the host reports the description feature as on.
+ *
+ * A `computed` rather than `state.prDescription` in the template: `state` is the
+ * composable's plain return object, so a template read of one of its refs does not
+ * unwrap and TypeScript sees the ref itself. The other reads on this view happen to
+ * be inside `computed`s already, which is why this one is the first to need it.
+ */
+const prDescriptionEnabled = computed(() => state.prDescription.value);
+
 async function handleCreateSubmit(data: {
   title: string;
   body: string;
@@ -628,6 +652,8 @@ async function handleCreateSubmit(data: {
         :instance-id="instanceId"
         :owner="owner"
         :repo="repo"
+        :pr-description-enabled="prDescriptionEnabled"
+        :generate-description="handleGenerateDescription"
         @submit="handleCreateSubmit"
         @cancel="closeCreatePullRequest"
         @dirty="createFormDirty = $event"

@@ -3,8 +3,10 @@
 - 状态：**设计已定稿；接缝与第二种传输连同它的设置面已实施，webview 那一半也已实施（2026-10-04），
   接进 AI 预评审的端到端接线已实施并在真实编辑器里走查通过（2026-10-05）；导出/导入（§10、§11.4）也已实施
   （2026-10-06：`version: 3` 的 `ai` 段、导入预览的冲突三选一与 `http://` 提示、逐字段校验、密钥只进加密导出、
-  导入不得静默启用出网，均有测试；§11.4 的落地记录见该节）**。仍然只有 AI 预评审一条功能接在这道接缝上，PR 描述
-  生成 / Issue 分诊 / 通知摘要按 `selectedModelFor(feature)` 接的活还没做（它们是各自的独立功能，见 `FEATURES.md`
+  导入不得静默启用出网，均有测试；§11.4 的落地记录见该节）**。接在这道接缝上的功能已有两条：AI 预评审，以及
+  PR 描述生成（2026-10-06，它特有的决定——材料只从 `/compare` 取、自己的开关与范围、不发 hunk——在
+  [`ai-pr-description.md`](./ai-pr-description.md)，本文不重复）。Issue 分诊 / 通知摘要按
+  `selectedModelFor(feature)` 接的活还没做（它们是各自的独立功能，见 `FEATURES.md`
   的「未完成」与 §11.4）。「为常见本地服务预填地址」已决定不做，理由见 §12。（本文只写决定与理由。）阶段划分与
   每阶段的验收口径见 §11；动手前需要确认的未知见 §13；已核实的事实见 §16。
 
@@ -13,7 +15,9 @@
   自动 approve、不含 webview 里的任何模型调用（`vscode.lm` 只在扩展宿主可用）。
 
 - 本文**不是**任务清单：待办与上下文在 `TODO.md` 的「P4 AI 接入 OpenAI 兼容端点（可选的第二种模型传输，默认仍走
-  `vscode.lm`）」条目，该条目是本项工作的唯一待办记录，本文只承担"定了什么、为什么、否掉了什么"。
+  `vscode.lm`）」条目，该条目是本项工作的唯一待办记录，本文只承担"定了什么、为什么、否掉了什么"。第二个接上这道
+  接缝的功能（PR 描述生成）的待办在 `TODO.md` 的「P2 PR 描述生成的行级 diff」条目，它特有的决定在
+  [`ai-pr-description.md`](./ai-pr-description.md)。
 
 - 关联：宿主侧 AI 调用的方向由 [`../architecture/mcp-server.md`](../architecture/mcp-server.md) 的
   「Security model」一节末段写明（"UI-facing AI features … should instead use `vscode.lm` on the host"）；
@@ -548,6 +552,14 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 - 一个 provider 不可达 / 鉴权失败 → 报错。**不换**另一个 provider（不做负载均衡，§12）。
 - 术语上这与 `ai-prereview.md` 已经定下的"扩展不挑、不换、不轮换"（§2 第 8 条）是同一条纪律，只是从"模型之间"
   扩展到"传输之间"。
+
+### 7.6 第二个功能的同意面：自己的值，同一套纪律
+
+**已交付（2026-10-06）**：PR 描述生成本文档 §7.1–§7.3 的同意纪律照用（先问再读、取消即零请求零写入、写回全局
+设置、配置好的端点不是同意），但**不复用** `forgejoToolkit.aiPreReviewPromptScope` 这个值：本功能有自己的
+`forgejoToolkit.prDescriptionPromptScope`，取值为 `ask` / `commits-only` / `commits-and-files`。三条理由与逐条
+否掉的方案见 [`ai-pr-description.md`](./ai-pr-description.md) §3（一句话：预评审的取值在这条路上指向不同的字节，
+而同意必须逐功能回答）。这一节只登记那条边界，本功能自己的设计不在这里展开。
 
 ---
 

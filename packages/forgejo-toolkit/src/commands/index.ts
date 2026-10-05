@@ -14,6 +14,7 @@ import {
 } from '../editor/todoCommentCodeAction';
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
 import { registerAiPreReviewCommand } from '../aiPreReview';
+import { registerPrDescriptionCommand } from '../prDescription';
 import { registerAiTestProviderCommand } from '../ai/testProvider';
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
@@ -279,6 +280,11 @@ export function registerCommands(
   // state keyed by pull request rather than the single module-level boolean the
   // two flows above use.
   registerAiPreReviewCommand(context, config, viewProvider, pullReviewCommentController);
+
+  // And the PR-description draft, which shares the seam's selection point with the
+  // pre-review and owns its own feature switch, prompt scope and consent question
+  // (`docs/design/ai-model-transport.md` §7.6).
+  registerPrDescriptionCommand(context, config, viewProvider);
 
   // Likewise the endpoint test: it validates an endpoint locally, makes at most
   // two requests and renders its own report, and it is never called from any

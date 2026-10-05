@@ -39,6 +39,30 @@ interface Props {
   instanceId?: string;
   owner?: string;
   repo?: string;
+  /**
+   * Whether the host reports the AI description feature as on.
+   *
+   * The control is hidden while it is off: the run refuses with a pointer to the
+   * setting, and offering a button whose only outcome is that refusal is noise. The
+   * run re-checks the setting itself, so a stale boolean can only hide or show the
+   * button.
+   */
+  prDescriptionEnabled?: boolean;
+  /**
+   * Asks the host for a description of the comparison this form is about to
+   * submit, and resolves with the draft.
+   *
+   * The prompt, the model and the consent question all belong to the host, so this
+   * is the whole of the form's part: hand over the coordinates and put the answer
+   * into the body field. It **only** ever returns text — nothing here, and nothing
+   * on the host's side of this call, can create or submit the pull request, which
+   * stays the user's own action.
+   *
+   * It resolves with the empty string for a cancelled run (the user dismissed the
+   * consent question or the model picker, which the host has already explained),
+   * and rejects with the host's own sentence for a failure.
+   */
+  generateDescription?: (target: { base: string; head: string; title: string }) => Promise<string>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -58,6 +82,7 @@ const props = withDefaults(defineProps<Props>(), {
   branches: () => [],
   loading: false,
   error: '',
+  prDescriptionEnabled: false,
 });
 
 const emit = defineEmits<{
@@ -259,6 +284,101 @@ async function handleSubmit() {
     dueDate: dueDate.value || undefined,
   });
 }
+
+/**
+ * Whether the generate control is offered at all: the create form, the host says
+ * the feature is on, and the form knows both branch names — the comparison is
+ * exactly those two, so without them there is nothing to describe.
+ */
+const canGenerateDescription = computed(
+  () =>
+    props.mode === 'create' &&
+    props.prDescriptionEnabled &&
+    !!props.generateDescription &&
+    !!base.value &&
+    !!head.value &&
+    base.value !== head.value,
+);
+
+/** Whether a draft is being requested right now; drives the button's disabled state. */
+const generatingDescription = ref(false);
+/**
+ * The draft's own outcome line, next to the control rather than in the form's
+ * `error` slot: that slot is the **save**'s failure, and a failed draft is not a
+ * reason the pull request could not be created.
+ */
+const descriptionGenerationError = ref('');
+/** Set when the next press would replace a body the user typed themselves. */
+const replacingExistingBody = ref(false);
+/**
+ * Whether the body currently holds nothing but a draft this control filled in.
+ *
+ * It is set by the one write this control makes and cleared by the one thing that
+ * makes the text the user's own — an edit coming from the editor component — so an
+ * emptied field is never mistaken for one nobody owns: a body the user typed in and
+ * then cleared is still theirs, and the first press has to ask.
+ *
+ * It starts true exactly when the form opened with an **empty** body: text that
+ * arrived through `initialBody` is text this form did not write, so it is the
+ * user's own from the first press. A watcher on the ref cannot replace this rule —
+ * it cannot see a first programmatic write whose old and new values are equal,
+ * which is precisely the empty field a first draft lands in.
+ */
+const bodyHoldsOnlyTheDraft = ref(props.initialBody === '');
+
+/** Receives every edit that comes out of the body editor, and nothing this form writes. */
+function handleBodyUpdate(value: string): void {
+  body.value = value;
+  bodyHoldsOnlyTheDraft.value = false;
+  // Typing is an answer of its own to a pending "replace it?": the user chose to
+  // keep what they have.
+  if (replacingExistingBody.value) {
+    replacingExistingBody.value = false;
+    descriptionGenerationError.value = '';
+  }
+}
+
+async function handleGenerateDescription(): Promise<void> {
+  const generate = props.generateDescription;
+  const baseBranch = base.value;
+  const headBranch = head.value;
+  if (!generate || !baseBranch || !headBranch) {
+    return;
+  }
+  // A body the user wrote, or one they have already edited away from a previous
+  // draft, is theirs: the control asks first (a plain second press, because a
+  // webview has no `window.confirm` and a host round trip for a UI-state question
+  // would be a dialog about nothing) and leaves the body alone until they answer.
+  if (!bodyHoldsOnlyTheDraft.value && !replacingExistingBody.value) {
+    replacingExistingBody.value = true;
+    descriptionGenerationError.value = t('dashboard.form.generateDescriptionReplace');
+    return;
+  }
+  replacingExistingBody.value = false;
+  generatingDescription.value = true;
+  descriptionGenerationError.value = '';
+  try {
+    // `title` is passed as typed: it is what the form is about to submit, and a
+    // draft that ignored it would be about a pull request nobody is opening.
+    const draft = await generate({ base: baseBranch, head: headBranch, title: title.value });
+    if (draft === '') {
+      // Cancelled. The host already said what happened where it happened; the form
+      // leaves the body exactly as it was and does not say it twice.
+      return;
+    }
+    // The one body value that is ours to replace. Nothing else marks it: this write
+    // does not go through `handleBodyUpdate`, which is what tells it apart from the
+    // user's typing (a value comparison cannot, because a second draft may
+    // legitimately equal the first).
+    body.value = draft;
+    bodyHoldsOnlyTheDraft.value = true;
+  } catch (error) {
+    descriptionGenerationError.value =
+      error instanceof Error && error.message ? error.message : t('dashboard.form.generateDescriptionFailed');
+  } finally {
+    generatingDescription.value = false;
+  }
+}
 </script>
 
 <template>
@@ -374,14 +494,39 @@ async function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>
+      <!--
+        The AI draft control sits at the body it writes into, and only on the
+        create form: an existing pull request's description is not "what you are
+        about to submit", so there is no comparison to describe. It fills the
+        field as an **editable** draft — the text is the model's, the submit is
+        the user's, and nothing here can open or submit the pull request (see the
+        `generateDescription` prop).
+      -->
+      <div v-if="canGenerateDescription" class="generate-description">
+        <vscode-button
+          type="button"
+          secondary
+          :disabled="generatingDescription || loading || uploadingImage"
+          @click="handleGenerateDescription"
+        >
+          {{
+            generatingDescription ? t('dashboard.form.generatingDescription') : t('dashboard.form.generateDescription')
+          }}
+        </vscode-button>
+        <p class="field-description">{{ t('dashboard.form.generateDescriptionHint') }}</p>
+        <p v-if="descriptionGenerationError" class="form-field-error" role="status">
+          {{ descriptionGenerationError }}
+        </p>
+      </div>
       <EasyMdeEditor
-        v-model="body"
+        :model-value="body"
         :placeholder="t('dashboard.form.bodyPlaceholder')"
         :label="t('dashboard.form.body')"
         :upload-image="trackedUploadImage"
         :instance-id="instanceId"
         :owner="owner"
         :repo="repo"
+        @update:model-value="handleBodyUpdate"
       />
     </div>
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
@@ -474,5 +619,15 @@ async function handleSubmit() {
 .form-actions {
   display: flex;
   gap: 12px;
+}
+
+/* The AI draft control, kept at the body it writes into and visually part of
+   that field rather than a second row of form actions. */
+.generate-description {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  margin-bottom: 4px;
 }
 </style>

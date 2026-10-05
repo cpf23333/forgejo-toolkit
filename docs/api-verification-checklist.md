@@ -86,6 +86,8 @@
 - [x] compare 响应不含 `previous_filename`；`previous_filename` 只在 `GET /repos/{owner}/{repo}/pulls/{index}/files` 的 `api.ChangedFile` 上返回（`modules/structs/pull.go:110-113`）
 - [x] 源码位置：`routers/api/v1/repo/compare.go:17-100`
 - [x] 差异记录：与 `repoGetPullRequestFiles` 的 `status` 枚举不完全一致（compare 只返回 `added`/`removed`/`modified`，files 端点返回 `added`/`deleted`/`changed`/`renamed`/`copied` 等），当前 `getPullRequestFilesFromCompare` 已做兼容映射，基本正确；compare 不提供重命名信息，重命名在其中表现为不相关的 removed 与 added 两条，需要旧路径时必须走 `/pulls/{index}/files`
+- [x] 两个消费方与一处范围修正（2026-10-06）：同一个端点现在由 `getCompareCommits`（返回 commit 列表，供 PR 描述生成）与 `getPullRequestFilesFromCompare`（返回变更文件表）各取一半，而**范围只在一处渲染**——`src/api/client.ts` 的私有 `_compareRange`，两半都请求 `base...head`。修正前变更文件那一半自己写的是 `base..head`，到达服务端时也是 `..`（`slashPreservingPathSerializer` 会把路径参数里的 `.`/`..` 段规范化，字面的 `...` 在那里留不住），而 `..` 会把 base 分支自 fork 点之后拿到的每个 commit 都算进这次变更，与 PR 自己显示的范围不同；两半的分隔符现由 `src/api/__tests__/client.test.ts` 在**服务端实际收到的 URL** 上钉住
+- [x] `getCompareCommits` 只读它要发声明的字段（sha、主题、正文、作者、日期），并逐字段做类型检查：返回的是服务端自己的 repo-commit 形状，可能随版本增长或不同；没有 sha 的条目被丢弃
 
 ### `GET /repos/{owner}/{repo}/pulls/{index}.{diffType}` (`repoDownloadPullDiffOrPatch`)
 

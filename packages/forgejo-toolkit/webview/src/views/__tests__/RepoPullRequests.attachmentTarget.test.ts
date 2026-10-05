@@ -23,6 +23,10 @@ const { stateMock, keyFor } = vi.hoisted(() => {
       loadRepoMilestones: vi.fn(),
       changeRepoPullRequestsState: vi.fn(),
       consumePendingCreatePr: vi.fn(),
+      // The create form offers its "Generate description" control on this flag; the
+      // host reads the setting itself, so a test that is about the form only has to
+      // say whether the control exists.
+      prDescription: { value: false },
       createPullRequest: vi.fn(),
       editPullRequest: vi.fn(),
       openExternal: vi.fn(),

@@ -302,15 +302,18 @@ describe('reading the bindings', () => {
   it('ignores an entry naming a feature this build does not know', () => {
     // The decision §13 leaves to the implementation: an unknown feature id is
     // dropped rather than refused, because it cannot send anything anywhere while
-    // refusing it would discard the bindings of the features that do exist.
+    // refusing it would discard the bindings of the features that do exist. Both
+    // known features are kept beside it, so the case cannot pass by dropping
+    // everything (`prDescription` is the second one, `docs/design/ai-pr-description.md` §5).
     state.settings = {
       aiModelBindings: [
-        { feature: 'prDescription', providerId: 'ollama-local', modelId: 'qwen3:8b' },
+        { feature: 'notAFeature', providerId: 'ollama-local', modelId: 'qwen3:8b' },
         { feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' },
+        { feature: 'prDescription', providerId: 'ollama-local', modelId: 'qwen3:8b' },
       ],
     };
 
-    expect(aiModelBindingsSettingValue().map((binding) => binding.feature)).toEqual(['aiPreReview']);
+    expect(aiModelBindingsSettingValue().map((binding) => binding.feature)).toEqual(['aiPreReview', 'prDescription']);
   });
 
   it('drops an entry that is missing a part of its shape', () => {

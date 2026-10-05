@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
+  PR_DESCRIPTION_PROMPT_SCOPES,
   SETTINGS_SURFACE_WRITABLE_KEYS,
   type AiPreReviewPromptScopeValue,
+  type PrDescriptionPromptScopeValue,
   type SettingsSurfaceSnapshot,
   type SettingsSurfaceWritableKey,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiPreReviewSettings';
+import { isPrDescriptionEnabled, prDescriptionPromptScopeSettingValue } from '../prDescriptionSettings';
 import { enabledMcpWriteTools, isMcpWriteAuditToFileEnabled, MCP_WRITE_TOOLS_KEY } from '../mcpWriteSettings';
 import { isMcpServerEnabled } from '../mcpServerProvider';
 import { isMultiWindowLeaseEnabled } from '../lease/leaseSupervisor';
@@ -123,6 +126,8 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
     multiWindowLease: isMultiWindowLeaseEnabled(),
     aiPreReview: isAiPreReviewEnabled(),
     aiPreReviewPromptScope: aiPreReviewPromptScopeSettingValue(),
+    prDescription: isPrDescriptionEnabled(),
+    prDescriptionPromptScope: prDescriptionPromptScopeSettingValue(),
   };
 }
 
@@ -204,6 +209,22 @@ export async function writeSettingsSurfaceValue(
         };
       }
       await writeSettingValue('aiPreReviewPromptScope', scope as AiPreReviewPromptScopeValue);
+      logger.info(`The settings page wrote "${key}" = "${scope}"`);
+      return { ok: true };
+    }
+    if (key === 'forgejoToolkit.prDescriptionPromptScope') {
+      const scope = typeof rawValue === 'string' ? rawValue.trim() : '';
+      if (!(PR_DESCRIPTION_PROMPT_SCOPES as readonly string[]).includes(scope)) {
+        return {
+          ok: false,
+          error: vscode.l10n.t(
+            'The setting "{0}" was not written: it takes one of {1}.',
+            key,
+            PR_DESCRIPTION_PROMPT_SCOPES.join(', '),
+          ),
+        };
+      }
+      await writeSettingValue('prDescriptionPromptScope', scope as PrDescriptionPromptScopeValue);
       logger.info(`The settings page wrote "${key}" = "${scope}"`);
       return { ok: true };
     }

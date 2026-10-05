@@ -4,7 +4,10 @@ import type {
   AiProviderSettingsSnapshot,
   SettingsSurfaceSnapshot,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { AI_PRE_REVIEW_PROMPT_SCOPES } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import {
+  AI_PRE_REVIEW_PROMPT_SCOPES,
+  PR_DESCRIPTION_PROMPT_SCOPES,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 /**
  * The settings this page presents itself (`docs/design/settings-page.md` §1.3,
@@ -166,6 +169,8 @@ function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSu
     multiWindowLease: true,
     aiPreReview: false,
     aiPreReviewPromptScope: 'ask',
+    prDescription: false,
+    prDescriptionPromptScope: 'ask',
     ...overrides,
   };
 }
@@ -464,6 +469,56 @@ describe('writing one setting from the page', () => {
       const read = (catalogue: unknown): string => {
         const settings = (catalogue as { settings: { aiPreReview: { scopeOption: Record<string, string> } } }).settings;
         return settings.aiPreReview.scopeOption[scope] ?? '';
+      };
+      expect(read(en), key).not.toBe('');
+      expect(read(zh), key).not.toBe('');
+      expect(read(zh), key).not.toBe(read(en));
+    }
+  });
+
+  it('offers exactly the host’s two PR-description scopes and stores the one picked', async () => {
+    // A second pair of controls with its own enumeration: the page must offer the
+    // values the host accepts for **this** feature, not the pre-review's, which
+    // describe different content (`docs/design/ai-model-transport.md` §7.6).
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+    const wrapper = mountView();
+    await flushPromises();
+
+    const select = wrapper.find('#pr-description-scope');
+    const values = select.findAll('vscode-option').map((option) => option.attributes('value'));
+    expect(values).toEqual([...PR_DESCRIPTION_PROMPT_SCOPES]);
+
+    (select.element as unknown as { value: string }).value = 'commits-and-files';
+    await select.trigger('change');
+
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith(
+      'forgejoToolkit.prDescriptionPromptScope',
+      'commits-and-files',
+    );
+    wrapper.unmount();
+  });
+
+  it('writes the PR-description switch as its own setting id', async () => {
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+    const wrapper = mountView();
+    await flushPromises();
+
+    const checkbox = wrapper.find('#pr-description-enabled');
+    (checkbox.element as unknown as { checked: boolean }).checked = true;
+    await checkbox.trigger('change');
+    await flushPromises();
+
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith('forgejoToolkit.prDescription', true);
+    wrapper.unmount();
+  });
+
+  it('has a label for every PR-description scope value in both catalogues', () => {
+    for (const scope of PR_DESCRIPTION_PROMPT_SCOPES) {
+      const key = `settings.prDescription.scopeOption.${scope}`;
+      const read = (catalogue: unknown): string => {
+        const settings = (catalogue as { settings: { prDescription: { scopeOption: Record<string, string> } } })
+          .settings;
+        return settings.prDescription.scopeOption[scope] ?? '';
       };
       expect(read(en), key).not.toBe('');
       expect(read(zh), key).not.toBe('');

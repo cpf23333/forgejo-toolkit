@@ -16,7 +16,11 @@ import type {
   SettingsSurfaceSnapshot,
   SettingsSurfaceWritableKey,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { AI_PRE_REVIEW_PROMPT_SCOPES, stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import {
+  AI_PRE_REVIEW_PROMPT_SCOPES,
+  PR_DESCRIPTION_PROMPT_SCOPES,
+  stripUserinfo,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { inspectAiProviderBaseUrl, isLocalAiEndpointHost } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
 import { generateAiProviderId, generateAiProviderName, uniqueAiProviderId } from '../utils/providerIdentity';
 
@@ -945,6 +949,15 @@ const preReviewEnabled = ref(false);
 const promptScope = ref<SettingsSurfaceSnapshot['aiPreReviewPromptScope']>('ask');
 
 /**
+ * The PR-description feature's own switch and stored scope, with the same fallback
+ * rule as the pair above: the host answers `ask` for any value it cannot read, so
+ * the page cannot show a scope the run would not use, and the switch shows the
+ * host's reading rather than a default of this page.
+ */
+const prDescriptionEnabled = ref(false);
+const prDescriptionPromptScope = ref<SettingsSurfaceSnapshot['prDescriptionPromptScope']>('ask');
+
+/**
  * Whether the host has reported at least once. Until it has, the controls are
  * disabled rather than showing a value the page invented: a switch whose stored
  * state is unknown must not look like a switch that is off.
@@ -969,6 +982,11 @@ const MCP_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
 const PRE_REVIEW_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.aiPreReview',
   'forgejoToolkit.aiPreReviewPromptScope',
+];
+
+const PR_DESCRIPTION_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.prDescription',
+  'forgejoToolkit.prDescriptionPromptScope',
 ];
 
 /**
@@ -998,6 +1016,8 @@ watch(
     leaseEnabled.value = snapshot.multiWindowLease;
     preReviewEnabled.value = snapshot.aiPreReview;
     promptScope.value = snapshot.aiPreReviewPromptScope;
+    prDescriptionEnabled.value = snapshot.prDescription;
+    prDescriptionPromptScope.value = snapshot.prDescriptionPromptScope;
   },
   { immediate: true },
 );
@@ -1069,6 +1089,10 @@ const preReviewSurfaceStatus = computed(() =>
   surfaceStatusIn(['forgejoToolkit.aiPreReview', 'forgejoToolkit.aiPreReviewPromptScope']),
 );
 
+const prDescriptionSurfaceStatus = computed(() =>
+  surfaceStatusIn(['forgejoToolkit.prDescription', 'forgejoToolkit.prDescriptionPromptScope']),
+);
+
 function handlePollingEnabledChange(event: Event): void {
   pollingEnabled.value = (event.target as HTMLInputElement).checked;
   void saveSettingsSurfaceValue('forgejoToolkit.notificationPollingEnabled', pollingEnabled.value);
@@ -1136,6 +1160,34 @@ function handlePromptScopeChange(event: Event): void {
  */
 function promptScopeLabel(scope: SettingsSurfaceSnapshot['aiPreReviewPromptScope']): string {
   return t(`settings.aiPreReview.scopeOption.${scope}`);
+}
+
+/**
+ * The PR-description feature's own switch and scope.
+ *
+ * A second pair rather than a reuse of the pre-review's, because the two features
+ * send different content at different moments (`docs/design/ai-model-transport.md`
+ * §7.6): the page mirrors what the host reads, and the host reads two settings.
+ */
+function handlePrDescriptionEnabledChange(event: Event): void {
+  prDescriptionEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.prDescription', prDescriptionEnabled.value);
+}
+
+/**
+ * Stores the PR-description scope, from the same shared enumeration the host reads
+ * and writes with — so the page cannot offer a value the host would refuse, and
+ * cannot offer the pre-review's values, which mean something else here.
+ */
+function handlePrDescriptionScopeChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as SettingsSurfaceSnapshot['prDescriptionPromptScope'];
+  prDescriptionPromptScope.value = value;
+  void saveSettingsSurfaceValue('forgejoToolkit.prDescriptionPromptScope', value);
+}
+
+/** The page's own wording for one PR-description scope, per the shared enumeration. */
+function prDescriptionScopeLabel(scope: SettingsSurfaceSnapshot['prDescriptionPromptScope']): string {
+  return t(`settings.prDescription.scopeOption.${scope}`);
 }
 
 /**
@@ -3205,6 +3257,63 @@ defineExpose({
           aria-live="polite"
         >
           {{ preReviewSurfaceStatus.message }}
+        </div>
+      </section>
+
+      <!--
+        The PR-description draft. A section of its own rather than a row under the
+        pre-review: the two features have separate switches and separate scopes
+        (`docs/design/ai-model-transport.md` §7.6), so the page has to show two
+        pairs, and the scope dropdown is where a user who declined the modal finds
+        the answer they gave.
+      -->
+      <section class="setting-section">
+        <h2>{{ t('settings.prDescription.title') }}</h2>
+        <p class="description">{{ t('settings.prDescription.description') }}</p>
+
+        <div class="form-row">
+          <vscode-checkbox
+            id="pr-description-enabled"
+            :checked="prDescriptionEnabled"
+            :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
+            @change="handlePrDescriptionEnabledChange"
+          >
+            {{ t('settings.prDescription.enabled') }}
+          </vscode-checkbox>
+          <p class="field-description">{{ t('settings.prDescription.enabledDefault') }}</p>
+          <!--
+            The scope row stays usable while the feature is off, for the same reason
+            the pre-review's does: choosing a scope is configuration, not use.
+          -->
+          <p v-if="!prDescriptionEnabled" class="field-description">
+            {{ t('settings.prDescription.disabledHint') }}
+          </p>
+        </div>
+
+        <div class="form-row">
+          <label for="pr-description-scope">{{ t('settings.prDescription.scope') }}</label>
+          <vscode-single-select
+            id="pr-description-scope"
+            :value="prDescriptionPromptScope"
+            :label="t('settings.prDescription.scope')"
+            :disabled="!settingsSurfaceReady || surfaceBusy(PR_DESCRIPTION_SURFACE_KEYS)"
+            @change="handlePrDescriptionScopeChange"
+          >
+            <vscode-option v-for="scope in PR_DESCRIPTION_PROMPT_SCOPES" :key="scope" :value="scope">
+              {{ prDescriptionScopeLabel(scope) }}
+            </vscode-option>
+          </vscode-single-select>
+          <p class="field-description">{{ t('settings.prDescription.scopeDescription') }}</p>
+          <p class="field-description">{{ t('settings.prDescription.scopeDefault') }}</p>
+        </div>
+
+        <div
+          v-if="prDescriptionSurfaceStatus"
+          :class="['status', prDescriptionSurfaceStatus.type]"
+          role="status"
+          aria-live="polite"
+        >
+          {{ prDescriptionSurfaceStatus.message }}
         </div>
       </section>
 

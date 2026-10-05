@@ -784,6 +784,16 @@ function createAppState() {
    */
   const aiPreReview = ref<boolean>(false);
   /**
+   * Whether `forgejoToolkit.prDescription` is on, as the host last reported it.
+   *
+   * It exists for exactly one affordance: the create-pull-request form's "Generate
+   * description" control, which is hidden while the feature is off. The same
+   * `=== true` reading and for the same reason as `aiPreReview` above: a host that
+   * predates the field sends nothing, and an undefined read as "on" would offer a
+   * control whose only outcome is the run's own refusal.
+   */
+  const prDescription = ref<boolean>(false);
+  /**
    * The oldest Forgejo release this build supports, as the host spells it
    * (`MIN_SUPPORTED_VERSION_TEXT`), so the Settings form's "Server version"
    * example names the real floor rather than a literal kept in a translation
@@ -998,6 +1008,18 @@ function createAppState() {
     string,
     { resolve: (pr: ForgejoPullRequest) => void; reject: (error: Error) => void }
   >();
+  /**
+   * The create-pull-request form's description drafts, by request id.
+   *
+   * The answer is text or a sentence, never a pull request: the host half of this
+   * action cannot create, edit or submit anything, so the only thing a caller can
+   * do with a resolution is put the text in the body field.
+   */
+  let prDescriptionRequestId = 0;
+  const pendingPrDescriptions = new Map<
+    string,
+    { resolve: (description: string) => void; reject: (error: Error) => void }
+  >();
   let releaseCreationRequestId = 0;
   const pendingReleaseCreations = new Map<
     string,
@@ -1187,6 +1209,7 @@ function createAppState() {
       pendingAiProviderRequests,
       pendingSettingsSurfaceRequests,
       pendingRenderMarkdownRequests,
+      pendingPrDescriptions,
     ];
     for (const map of errorMaps) {
       const pending = map.get(requestId);
@@ -1225,6 +1248,7 @@ function createAppState() {
         void setLocale(message.locale);
         debug.value = message.debug;
         aiPreReview.value = message.aiPreReview === true;
+        prDescription.value = message.prDescription === true;
         minSupportedServerVersion.value = message.minSupportedServerVersion ?? '';
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
@@ -1334,6 +1358,10 @@ function createAppState() {
         // The switch changed in VS Code's Settings UI. Only the affordance
         // follows it: the run itself re-reads the setting on the host.
         aiPreReview.value = message.aiPreReview === true;
+        break;
+      case 'setPrDescription':
+        // Same contract for the create-pull-request form's own control.
+        prDescription.value = message.prDescription === true;
         break;
       case 'repositories':
         handleRepositories(
@@ -1788,6 +1816,15 @@ function createAppState() {
             error?: string;
           },
         );
+        break;
+      // One generated description, or the sentence saying why there is none.
+      //
+      // The success arm carries text and nothing else, and the failure arm carries
+      // only the host's own sentence: this reply cannot name a body, a title or a
+      // merge strategy, so a compromised host cannot make the form submit anything
+      // through it. The empty success arm is a cancelled run (see the action).
+      case 'prDescriptionGenerated':
+        handlePrDescriptionGenerated(message as { description?: string; error?: string; _requestId?: string });
         break;
       case 'pullRequestFiles':
         handlePullRequestFiles(
@@ -3617,6 +3654,30 @@ function createAppState() {
         index: data.index,
       };
     }
+  }
+
+  /**
+   * Settles one description request: the text on success, the host's sentence on
+   * failure, and the empty string for a cancelled run.
+   *
+   * A reply whose request id is unknown is dropped rather than treated as an
+   * error: the pending entry is deleted by its own timeout, and a late answer to a
+   * request the page has given up on must not become a second message.
+   */
+  function handlePrDescriptionGenerated(data: { description?: string; error?: string; _requestId?: string }) {
+    if (!data._requestId) {
+      return;
+    }
+    const pending = pendingPrDescriptions.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingPrDescriptions.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+      return;
+    }
+    pending.resolve(data.description ?? '');
   }
 
   function handlePullRequestFiles(data: {
@@ -5575,6 +5636,45 @@ function createAppState() {
     });
   }
 
+  /**
+   * Asks the host to draft a pull request description for one comparison.
+   *
+   * The payload is the comparison the form is about to submit and the title the
+   * user has typed, and nothing else: the model, the prompt scope, the prompt and
+   * the consent question are the host's, so this call can ask for a draft and
+   * cannot influence what leaves the machine. It resolves with the text, which the
+   * caller puts into its own body field — the user still edits and submits it, and
+   * nothing here creates a pull request.
+   *
+   * Two things can come back: the text, which the caller puts into its body field,
+   * and a rejection carrying the host's own sentence about a failure. A **cancelled**
+   * run resolves with the empty string rather than a sentence — the user dismissed
+   * the question (or the model picker), which the host has already explained where
+   * it happened — so a caller that treats "" as "nothing to write" leaves the body
+   * alone without showing a second message about one event.
+   */
+  function generatePrDescription(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    target: { base: string; head: string; title?: string },
+  ): Promise<string> {
+    const _requestId = `pr-description-${++prDescriptionRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingPrDescriptions, _requestId, 'generatePrDescription', { resolve, reject });
+      postMessage({
+        command: 'generatePrDescription',
+        instanceId,
+        owner,
+        repo,
+        base: target.base,
+        head: target.head,
+        ...(target.title === undefined ? {} : { title: target.title }),
+        _requestId,
+      });
+    });
+  }
+
   function editPullRequest(
     instanceId: string,
     owner: string,
@@ -7115,6 +7215,7 @@ function createAppState() {
     errors,
     debug,
     aiPreReview,
+    prDescription,
     minSupportedServerVersion,
     worktrees,
     worktreeOpenMode,
@@ -7205,6 +7306,7 @@ function createAppState() {
     openIssueDetail,
     loadIssueDetail,
     createPullRequest,
+    generatePrDescription,
     editPullRequest,
     mergePullRequest,
     revertMergeCommit,

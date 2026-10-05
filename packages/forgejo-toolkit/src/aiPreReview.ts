@@ -423,8 +423,12 @@ export interface AiPreReviewRunHost {
  * needs a key is simply unavailable — the fail-closed direction §7.3 already
  * requires, and the reason nothing here ever needs to write. It exists so the seam's
  * selection can be handed a store unconditionally; the run itself only ever reads.
+ *
+ * Exported because the PR-description run reads its credential the same way: the
+ * seam's selection takes a store, and "no `SecretStorage` means no credential" is
+ * one rule rather than one feature's convenience.
  */
-function hostSecrets(host: AiPreReviewRunHost): AiSecretStore {
+export function hostSecrets(host: Pick<AiPreReviewRunHost, 'secrets'>): AiSecretStore {
   return host.secrets ?? NO_AI_SECRETS;
 }
 
@@ -640,8 +644,13 @@ export const AI_PRE_REVIEW_MAX_ATTEMPTS_PER_MODEL = 2;
  * seam (`src/ai/transport.ts`), whose one implementation today is `vscode.lm`.
  */
 
-/** One identity as a log line, a picker title or a failure message names it. */
-function modelLabel(model: AiModelInfo): string {
+/**
+ * One identity as a log line, a picker title or a failure message names it.
+ *
+ * Exported so the PR-description run names a model exactly as this feature does:
+ * a user reading two messages about one model must not see two spellings of it.
+ */
+export function modelLabel(model: AiModelInfo): string {
   return formatAiPreReviewModelIdentity(aiPreReviewModelIdentity(model));
 }
 
@@ -2137,10 +2146,18 @@ function logAnswerFragments(fragments: readonly string[], answer: string, charac
  * the maintainer's machine shows) and the arbitration and the log must talk about
  * the channel, not about one of its encodings.
  */
-type AiPreReviewResponseCandidate = AiCompletionResult['parts'][number];
+/**
+ * One candidate stream of one answer, as the arbitration below reads it.
+ *
+ * Exported (with `pickResponseCandidate`) for the other AI runs that share this
+ * vocabulary: the PR-description draft has the same three-part answer and has to
+ * arbitrate it by its own contract, and a second copy of "which stream is the
+ * answer" is exactly how two features end up disagreeing about one seam.
+ */
+export type AiPreReviewResponseCandidate = AiCompletionResult['parts'][number];
 
 /** What arbitration made of the candidate streams: which one is the answer, and why. */
-type ResponseCandidateSelection =
+export type ResponseCandidateSelection =
   | { outcome: 'match'; candidate: AiPreReviewResponseCandidate; reason: string }
   | { outcome: 'mismatch'; candidate?: AiPreReviewResponseCandidate; reason: string };
 
@@ -2176,7 +2193,7 @@ function responseCandidateKindLabel(kind: AiPreReviewResponseCandidate['kind']):
  * concatenation of two candidates, no guessing and no substitution of another
  * model anywhere in this file.
  */
-function pickResponseCandidate(
+export function pickResponseCandidate(
   candidates: readonly AiPreReviewResponseCandidate[],
   accepts: (candidate: AiPreReviewResponseCandidate) => boolean,
 ): ResponseCandidateSelection {
@@ -2539,6 +2556,17 @@ export function aiPreReviewConsentDestination(chosen: AiModelInfo): AiPreReviewC
   }
   return { name: provider.name, address: openAiEndpointDisplayUrl(openAiEndpointUrl(provider.baseUrl, '')) };
 }
+
+/**
+ * The same answer under the name the second feature reads it by.
+ *
+ * "Which party would receive this content" is one question with one answer, so
+ * the PR-description draft calls this alias rather than carrying a copy: a
+ * configured endpoint's display name and address are read from the same settings
+ * by the same rule, and two copies would be two chances for the consent modal and
+ * the log line to name different parties.
+ */
+export const aiConsentDestinationFor = aiPreReviewConsentDestination;
 
 /**
  * Which **transport**, **provider** and model served one run
@@ -3136,7 +3164,7 @@ async function collectChangedFileContents(
  * shape `sendRequest` takes, so the provider still stops producing itself, and
  * the read loop asks the same fact (`signal.aborted`) before every step.
  */
-function abortSignalForToken(token: vscode.CancellationToken | undefined): AbortSignal | undefined {
+export function abortSignalForToken(token: vscode.CancellationToken | undefined): AbortSignal | undefined {
   if (!token) {
     return undefined;
   }
@@ -3478,7 +3506,16 @@ async function preparePrompt(
  * diagnostics dump, and it has to know which stream the answer came from in order
  * to name it in the debug log.
  */
-type ModelAnswer =
+/**
+ * The three arms a failed-or-answered model call can have, as the feature reads
+ * them (§9.3).
+ *
+ * Exported for the PR-description draft, which reaches the same seam and must
+ * classify a rejection the same way: the classification — is this a cancellation,
+ * is this a refusal, is this a plain failure — is a property of the seam's
+ * implementations, not of one feature's contract.
+ */
+export type ModelAnswer =
   | {
       kind: 'answer';
       candidates: AiPreReviewResponseCandidate[];
@@ -3533,11 +3570,31 @@ async function requestPreReviewComments(
   }
 }
 
-/** Maps a failed model call to the user-visible arm (§9.3). */
-function classifyModelError(error: unknown): ModelAnswer {
+/**
+ * Classifies a failed model call **without reporting it** (§9.3).
+ *
+ * Split out of {@link classifyModelError} so a second AI run can reach the same
+ * classification and write its own sentence: "the user did not grant permission"
+ * is a fact about the seam, while the message that fact becomes names the feature
+ * it stopped ("no AI pre-review was made" is not true of a description draft).
+ * The classification is the shared part; the wording is not.
+ */
+export function classifyModelErrorSilently(error: unknown): ModelAnswer {
   const code = (error as { code?: unknown } | null)?.code;
   const name = (error as { name?: unknown } | null)?.name;
   if (code === 'NoPermissions' || name === 'NoPermissions') {
+    return { kind: 'failed', error: 'NoPermissions', reported: false, candidates: [] };
+  }
+  if (isCancellation(error)) {
+    return { kind: 'cancelled' };
+  }
+  return { kind: 'failed', error: userFacingErrorMessage(error), reported: false, candidates: [] };
+}
+
+/** Maps a failed model call to the user-visible arm, reporting the refusal (§9.3). */
+export function classifyModelError(error: unknown): ModelAnswer {
+  const classified = classifyModelErrorSilently(error);
+  if (classified.kind === 'failed' && classified.error === 'NoPermissions') {
     // The consent dialog was declined. Deliberately not retried: `sendRequest`
     // may only be called in response to a user action, and the user can simply
     // run the command again.
@@ -3547,14 +3604,9 @@ function classifyModelError(error: unknown): ModelAnswer {
         'Permission to use the chat model was not granted, so no AI pre-review was made. Run the command again if you change your mind; nothing was created.',
       ),
     );
-    return { kind: 'failed', error: 'NoPermissions', reported: true, candidates: [] };
+    return { ...classified, reported: true };
   }
-  if (isCancellation(error)) {
-    return { kind: 'cancelled' };
-  }
-  // Blocked / NotFound / anything else: one log line for diagnosis, one generic
-  // error for the user, and never a heuristic substitute for the model.
-  return { kind: 'failed', error: userFacingErrorMessage(error), reported: false, candidates: [] };
+  return classified;
 }
 
 function isCancellation(error: unknown): boolean {

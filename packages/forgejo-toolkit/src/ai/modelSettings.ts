@@ -171,8 +171,14 @@ export interface AiProviderConfig {
   localOnly: boolean;
 }
 
-/** The AI features a binding may name. One today; a new feature extends this union (§3.2). */
-export const AI_FEATURES = ['aiPreReview'] as const;
+/**
+ * The AI features a binding may name. Extended one feature at a time, and each
+ * one has to be a host-side run that reaches its model through
+ * `selectedModelFor(feature)` (`src/ai/modelSelection.ts`) — a name in this list
+ * is what lets `forgejoToolkit.aiModelBindings` point that run at a configured
+ * endpoint instead of the editor's own models.
+ */
+export const AI_FEATURES = ['aiPreReview', 'prDescription'] as const;
 
 /** One feature id a binding may name. */
 export type AiFeature = (typeof AI_FEATURES)[number];

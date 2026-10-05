@@ -6241,5 +6241,80 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect.objectContaining({ command: 'setAiPreReview', aiPreReview: true }),
       );
     });
+
+    it('pushes the AI endpoint snapshot when one of the six endpoint keys changes outside the panel', async () => {
+      // A hand edit of any of these in VS Code's own settings editor is invisible
+      // to an open settings page, which re-reads the AI surface only on mount (and
+      // on a visibility change) — measured on a live walkthrough for the import
+      // path, which had the same gap. Each key below is pushed on its own so one
+      // forgotten key fails here rather than leaving a stale control on screen.
+      const provider = {
+        id: 'ollama-local',
+        name: 'Ollama (this machine)',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [{ id: 'qwen3:8b', name: 'Qwen3 8B' }],
+        auth: 'bearer',
+        headers: [],
+        localOnly: false,
+      };
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () =>
+          ({
+            get: (key: string) => {
+              if (key === 'aiProviders') {
+                return [provider];
+              }
+              if (key === 'aiModelBindings') {
+                return [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }];
+              }
+              if (key === 'aiProvidersEnabled') {
+                return true;
+              }
+              return undefined;
+            },
+            update: vi.fn(),
+          }) as never,
+      );
+
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      expect(listener).toBeTypeOf('function');
+
+      const keys = [
+        'forgejoToolkit.aiProviders',
+        'forgejoToolkit.aiModelBindings',
+        'forgejoToolkit.aiProvidersEnabled',
+        'forgejoToolkit.aiTransport',
+        'forgejoToolkit.aiLocalOnly',
+        'forgejoToolkit.aiModelRequestTimeoutMs',
+      ];
+      for (const key of keys) {
+        fake.posted.length = 0;
+        listener?.({ affectsConfiguration: (candidate: string) => candidate === key });
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'aiProviderSettings'));
+
+        const push = postedMessages(fake.posted).find((m) => m.command === 'aiProviderSettings');
+        expect(push, `${key} should push the endpoint snapshot`).toBeDefined();
+        // The snapshot is the host reading the configuration back, not a value
+        // derived from the event: the seeded endpoint and binding arrive even
+        // though the event only named the key.
+        const snapshot = push?.snapshot as
+          | {
+              providers: Array<Record<string, unknown>>;
+              bindings: Array<Record<string, unknown>>;
+              enabled: boolean;
+            }
+          | undefined;
+        expect(snapshot?.providers.map((entry) => entry.id)).toEqual(['ollama-local']);
+        expect(snapshot?.bindings).toEqual([
+          { feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' },
+        ]);
+        expect(snapshot?.enabled).toBe(true);
+        // A push rather than an answer to a request: no `_requestId`, exactly like
+        // the one the page's own writes and the import path send.
+        expect(push?._requestId).toBeUndefined();
+      }
+    });
   });
 });

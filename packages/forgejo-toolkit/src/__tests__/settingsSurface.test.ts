@@ -159,6 +159,8 @@ describe('the settings page surface: reading', () => {
       multiWindowLease: true,
       aiPreReview: false,
       aiPreReviewPromptScope: 'ask',
+      prDescription: false,
+      prDescriptionPromptScope: 'ask',
     });
   });
 
@@ -260,6 +262,29 @@ describe('the settings page surface: writing', () => {
     expect(refused.ok).toBe(false);
     expect(refused.ok === false && refused.error).toContain('it takes one of');
     expect(refused.ok === false && refused.error).toContain('changed-files');
+  });
+
+  it('accepts every value of the PR-description scope and nothing else', async () => {
+    // The second feature's scope has its own enumeration: the pre-review's values
+    // describe line-level review content and mean something else here, so a value
+    // only one of the two enumerations knows must be refused rather than stored.
+    useConfiguration();
+
+    for (const scope of ['ask', 'commits-only', 'commits-and-files']) {
+      expect(await writeSettingsSurfaceValue('forgejoToolkit.prDescriptionPromptScope', scope), scope).toEqual({
+        ok: true,
+      });
+    }
+    expect(update).toHaveBeenLastCalledWith(
+      'prDescriptionPromptScope',
+      'commits-and-files',
+      vscode.ConfigurationTarget.Global,
+    );
+    const refused = await writeSettingsSurfaceValue('forgejoToolkit.prDescriptionPromptScope', 'changed-files');
+    expect(refused.ok).toBe(false);
+    expect(refused.ok === false && refused.error).toContain('it takes one of');
+    expect(refused.ok === false && refused.error).toContain('commits-and-files');
+    expect(refused.ok === false && refused.error).not.toContain('changed-files,');
   });
 
   it('refuses a key the page does not own', async () => {

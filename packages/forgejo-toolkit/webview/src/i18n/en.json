@@ -488,6 +488,11 @@
       "titlePlaceholder": "Enter title",
       "body": "Description",
       "bodyPlaceholder": "Enter description (Markdown supported)",
+      "generateDescription": "Generate description",
+      "generatingDescription": "Generating...",
+      "generateDescriptionHint": "The AI drafts a description from the commits and changed files between the two branches, and fills it in below as an editable draft. You still create the pull request yourself.",
+      "generateDescriptionReplace": "The description you wrote would be replaced. Press Generate description again to replace it, or edit the field to keep it.",
+      "generateDescriptionFailed": "The description could not be drafted.",
       "base": "Base branch",
       "head": "Head branch",
       "labels": "Labels",
@@ -533,6 +538,8 @@
     "forgejoToolkit.aiPreReview": "settings.aiPreReview.enabled",
     "forgejoToolkit.aiPreReviewPromptScope": "settings.aiPreReview.scope",
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
+    "forgejoToolkit.prDescription": "settings.prDescription.enabled",
+    "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
     "forgejoToolkit.aiProvidersEnabled": "settings.aiProviders.policy.enabled",
     "forgejoToolkit.aiModelBindings": "settings.aiProviders.bindings.title",
@@ -647,6 +654,21 @@
         "changed-lines-only": "Changed lines only — the added and removed lines with their file and hunk headers, and no unchanged context",
         "full-diff": "Full diff — every hunk, including the unchanged context lines, but not the files' own text",
         "changed-files": "Changed files — the whole diff plus the full text of every changed file at the pull request's head version"
+      }
+    },
+    "prDescription": {
+      "title": "AI: Pull Request Description",
+      "description": "A chat model drafts a description from the comparison the create-pull-request form is about to submit, and fills it into the description field as an editable draft. You still create the pull request yourself, and a draft that could not be produced leaves the field as you wrote it.",
+      "enabled": "Offer \"Generate description\" on the create-pull-request form",
+      "enabledDefault": "Default off: nothing is read or sent until you turn this on.",
+      "disabledHint": "The prompt scope below is configuration; a draft uses it only while this is on.",
+      "scope": "Prompt scope",
+      "scopeDescription": "What the draft's prompt may carry. This is the only place the answer is recorded: every draft reads it from here, and `ask` means the question has not been answered yet.",
+      "scopeDefault": "Default: `ask` — the first draft asks once and writes your answer here.",
+      "scopeOption": {
+        "ask": "Ask before each draft — nothing is requested, sent or written until you answer",
+        "commits-only": "Commits and changed-file list — the branch names, the commits with their subjects, bodies, authors and dates, and the path and status of every changed file, with no file content",
+        "commits-and-files": "Commits, changed files and their text — the same plus the full text of the changed files at the head branch"
       }
     },
     "aiPreReviewModel": {

@@ -203,6 +203,28 @@
           "title": "%config.aiPreReviewModel.title%",
           "description": "%config.aiPreReviewModel.description%"
         },
+        "forgejoToolkit.prDescription": {
+          "type": "boolean",
+          "default": false,
+          "title": "%config.prDescription.title%",
+          "description": "%config.prDescription.description%"
+        },
+        "forgejoToolkit.prDescriptionPromptScope": {
+          "type": "string",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "commits-only",
+            "commits-and-files"
+          ],
+          "enumDescriptions": [
+            "%config.prDescriptionPromptScope.enumDescriptions.ask%",
+            "%config.prDescriptionPromptScope.enumDescriptions.commitsOnly%",
+            "%config.prDescriptionPromptScope.enumDescriptions.commitsAndFiles%"
+          ],
+          "title": "%config.prDescriptionPromptScope.title%",
+          "description": "%config.prDescriptionPromptScope.description%"
+        },
         "forgejoToolkit.aiProviders": {
           "type": "array",
           "default": [],
@@ -323,7 +345,8 @@
               "feature": {
                 "type": "string",
                 "enum": [
-                  "aiPreReview"
+                  "aiPreReview",
+                  "prDescription"
                 ],
                 "description": "%config.aiModelBindings.item.feature%"
               },
@@ -464,6 +487,12 @@
         "title": "%command.aiTestProvider.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(plug)"
+      },
+      {
+        "command": "forgejoToolkit.generatePrDescription",
+        "title": "%command.generatePrDescription.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(sparkle)"
       },
       {
         "command": "forgejoToolkit.copyAgentsWindowMcpConfig",

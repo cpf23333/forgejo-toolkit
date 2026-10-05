@@ -236,9 +236,27 @@ describe('the selection rules (§8.4)', () => {
     expect(endpointRequests).toEqual([]);
   });
 
+  it('binds the PR-description feature to its own endpoint and model', async () => {
+    // The second feature on the seam (`docs/design/ai-pr-description.md` §5): it
+    // reaches the same selection point with its own feature id, and a binding that
+    // names `prDescription` decides it exactly as `aiPreReview` decides the
+    // pre-review. Two features, one selector, and no path of their own.
+    state.settings = {
+      aiProviders: [PROVIDER],
+      aiProvidersEnabled: true,
+      aiModelBindings: [{ feature: 'prDescription', providerId: 'local-gateway', modelId: 'qwen3:8b' }],
+    };
+
+    const outcome = await selectedModelFor('prDescription', deps(editorTransport({ models: [EDITOR_MODEL] })));
+
+    expect(outcome.kind).toBe('openai-compatible');
+    expect(outcome.kind === 'openai-compatible' && outcome.model.id).toBe('qwen3:8b');
+    expect(loggedText().join('\n')).toContain('"forgejoToolkit.aiModelBindings" binds "prDescription"');
+  });
+
   it('refuses a feature id this build does not know, without sending anything', async () => {
     const outcome = await selectedModelFor(
-      'prDescription' as unknown as 'aiPreReview',
+      'notAFeature' as unknown as 'aiPreReview',
       deps(editorTransport({ models: [EDITOR_MODEL] })),
     );
 
