@@ -11,7 +11,7 @@
   写侧约束的先例是 [`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md)
   （该文 §3.6 把 Codeberg 条款翻译成了写工具的机制）；宿主侧 AI 调用的方向由
   [`../architecture/mcp-server.md`](../architecture/mcp-server.md) 的「Security model」一节
-  末段写明（"UI-facing AI features … should instead use `vscode.lm` on the host"）。
+  末段写明（"UI-facing AI features … should instead go through the host's model transport"）。
 
 - 基线代码：写作时为 HEAD `5da224b`，此后的每次修正都落在本记录的对应小节里。工作树里可能有其他
   agent 的在途改动，**行号会漂移**，所以每条断言都给**可搜索的符号名 / 标识符**；以符号名为准，

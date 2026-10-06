@@ -103,7 +103,7 @@ State changes through three routes:
   settings UI or in another panel), which is why `<html lang>` is kept in sync by
   a `watch` rather than only in `changeLocale`.
 - `refreshData` — re-fetches the visible instance data.
-- Route pushes (`openDashboard`, `openSettings`, `openNotifications`,
+- Route pushes (`openDashboard`, `openNotifications`,
   `openCreatePullRequest`, `openNewIssue`, `openPullRequestDetail`) — carry any
   pending payload as their own ref (`pendingCreatePr`, `pendingNewIssue`) and
   navigate through the router instead of writing a "current view" field.
@@ -130,7 +130,6 @@ Routing is vue-router; the store holds no route state. `createAppRouter()` in
 | ------------------- | ---------------------------------------------------- |
 | `dashboard`         | `/`                                                  |
 | `globalSearch`      | `/search`                                            |
-| `importPreview`     | `/import-preview`                                    |
 | `notifications`     | `/notifications`                                     |
 | `repoDetail`        | `/repo/:instanceId/:owner/:repo`                     |
 | `repoIssues`        | `/repo/:instanceId/:owner/:repo/issues/:state?`      |
@@ -138,13 +137,18 @@ Routing is vue-router; the store holds no route state. `createAppRouter()` in
 | `issueDetail`       | `/issue/:instanceId/:owner/:repo/:index`             |
 | `pullRequestDetail` | `/pull/:instanceId/:owner/:repo/:index`              |
 | `actionRunDetail`   | `/repo/:instanceId/:owner/:repo/actions/runs/:runId` |
-| `settings`          | `/settings`                                          |
+
+Two routes left this table when the settings page moved into an editor-area tab
+(`docs/design/settings-page.md` §9.3, §10.6): `settings` and `importPreview`. Both
+views are rendered by that tab's own surface now, so the sidebar neither carries
+them nor downloads them.
 
 - Navigation is `router.push({ name, params })`. The composable does it in its
   own helpers (`openRepoDetail`, `openPullRequestDetail`, …) and in the route
-  pushes listed above; views do it through their own `useRouter()`
-  (`Dashboard.vue`, `Settings.vue`, `Onboarding.vue`, `ImportPreview.vue`,
-  `Notifications.vue`).
+  pushes listed above; among the views `Dashboard.vue` alone navigates through its
+  own `useRouter()` — `Settings.vue`, `ImportPreview.vue` and `Onboarding.vue` no
+  longer import `vue-router` at all, and `Notifications.vue` reads `useRoute()`
+  without navigating.
 - The data a view needs comes from `useRoute().params` (`RepoDetail.vue`,
   `RepoIssues.vue`, `RepoPullRequests.vue`, `IssueDetail.vue`,
   `PullRequestDetail.vue`, `ActionRunDetail.vue`). Route params are the real

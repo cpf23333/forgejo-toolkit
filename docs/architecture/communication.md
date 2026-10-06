@@ -57,7 +57,7 @@ attachment calls (`createIssue`, `createIssueComment`, `createPullRequest`,
 `{ command: 'showConfirm'; id; message; confirmLabel }` → `showConfirmResult`,
 `showInputBox` → `showInputBoxResult`.
 
-Every other webview-to-host message is either fire-and-forget (`openSettings`,
+Every other webview-to-host message is either fire-and-forget (`openNativeSettings`,
 `openDashboard`, `setLocale`, `setDebug`, `setActiveView`, `openExternal`, …) or a
 loader whose reply is routed by the fields it echoes rather than by an id
 (`getRepoIssues` → `repoIssues`, which carries `instanceId`/`owner`/`repo`/`state`).
@@ -88,7 +88,7 @@ the host ignores a value it does not contribute.
 
 The host also pushes messages the webview did not have to request: `initialState`,
 `instances`, `setLocale` and `setDebug` (a settings change made in the settings UI or
-in another panel), `refreshData`, `openSettings`, `openDashboard`,
+in another panel), `refreshData`, `openDashboard`,
 `openNotifications`, `openCreatePullRequest`, `openNewIssue`,
 `openPullRequestDetail`, `linkedRepository`, `worktreesList`, `worktreeOpened`,
 `worktreeError`, `worktreeCancelled`, `worktreeRemoved`, `worktreeOpenMode`,
@@ -98,8 +98,10 @@ A few of these are replies on their normal path (`linkedRepository`,
 variants is the `HostToWebviewMessage` union in
 `packages/shared/src/webview/messages.ts`.
 
-On load each panel posts one `initialState` message (`_reply('initialState', …)` in
-`viewProvider.ts`, `onboardingPanel.ts`, `pullReviewCommentPanel.ts`): public
+On load the sidebar and every panel that uses this message posts one `initialState`
+message (`_reply('initialState', …)` in
+`viewProvider.ts`, `onboardingPanel.ts`, `pullReviewCommentPanel.ts`; the settings
+tab reads its own `settingsSurface` instead): public
 instances with the token stripped to a `tokenFingerprint` (`toPublicInstance` in
 `messages.ts`), the locale, the debug flag, the worktree list, the worktree open
 mode, and the worktree cache directory plus its default. The webview stores it in

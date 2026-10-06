@@ -66,7 +66,8 @@ types `Client`, `RequestConfig`, `ResponseConfig`, `RequestFetch`,
 It does **not** inject authentication headers, resolve an instance URL, build a
 URL from grouped `path`/`query` parameters, or log requests and responses. The
 shared package exposes only these subpaths (`packages/shared/package.json`):
-`./request`, `./webview/messages`, `./git/url`, `./mcp/workspaceState`, `./limits`.
+`./request`, `./webview/messages`, `./ai/providerPolicy`, `./git/url`,
+`./mcp/workspaceState`, `./limits`.
 There is no `createClient`, no `getUserRepos`, and no barrel
 `@cpf23333-forgejo-toolkit/shared`.
 
@@ -156,8 +157,8 @@ serializers). The plain `generate` script is `kubb generate` followed by
 Use `generate:safe` rather than plain `generate`: `packages/forgejo-api/kubb.config.ts`
 sets `output.clean = true`, so kubb deletes `src/generated` _before_ writing, and a
 run that then fails (a bad spec, the known native crash on Windows) leaves the
-directory empty. `scripts/generate-safe.mjs` refuses to start on a dirty
-`src/generated` and restores it from git when the run fails. See
+directory empty. `packages/forgejo-api/scripts/generate-safe.mjs` refuses to start
+on a dirty `src/generated` and restores it from git when the run fails. See
 `packages/forgejo-api/spec/README.md` for refreshing the pinned snapshot itself.
 
 ## Mocking

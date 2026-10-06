@@ -15,7 +15,7 @@
 
 ## 1. 问题
 
-`TODO.md` 的那一条写的是「创建 PR 表单加「生成描述」按钮，diff + commit 列表生成草稿填入 body」。落地时要回答
+`TODO.md` 的那一条原先写的是「创建 PR 表单加「生成描述」按钮，diff + commit 列表生成草稿填入 body」（该条目已随功能交付改写为只跟踪剩下的行级 diff）。落地时要回答
 的问题有四个，都不是「怎么调模型」：
 
 1. **材料从哪来**：创建表单里的 PR **还不存在**，所以没有 PR index，`/pulls/{index}/files`、`/pulls/{index}/commits`

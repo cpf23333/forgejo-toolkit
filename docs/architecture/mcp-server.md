@@ -903,8 +903,9 @@ implying a capability the tools do not have. Registration lives in
   menu entry for it — that setting is a no-op here. If a future feature wants
   server-side model use (e.g. an agent-facing tool that self-summarizes),
   sampling is the MCP-native route and this document must then cover the
-  model-access grant; UI-facing AI features (like the planned PR description
-  draft) should instead use `vscode.lm` on the host, where the webview is not
+  model-access grant; UI-facing AI features (the AI pre-review and the PR
+  description draft) should instead go through the host's model transport
+  (`docs/design/ai-model-transport.md`), where the webview is not
   an MCP client at all.
 
 ## Testing
