@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { PR_REVIEW_MAX_DIFF_FILES } from '../../mcp/tools';
 import {
+  PR_DESCRIPTION_DIFF_BUDGET,
   PR_DESCRIPTION_MAX_CHARACTERS,
   PR_DESCRIPTION_MAX_COMMITS,
   PR_DESCRIPTION_MAX_SUBJECT_CHARACTERS,
   PR_DESCRIPTION_SYSTEM_PROMPT,
   buildPrDescriptionBrief,
+  buildPrDescriptionDiff,
   buildPrDescriptionFileContents,
   buildPrDescriptionPromptText,
   buildPrDescriptionSystemPrompt,
@@ -171,7 +174,10 @@ describe('the measured prompt text', () => {
       texts: new Map([['src/retry.ts', 'export const retry = 1;']]),
     });
     const without = buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF');
-    const with_ = buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF', contents);
+    const with_ = buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF', {
+      kind: 'files',
+      fileContents: contents,
+    });
 
     // `commits-only`: the instruction block and the brief, and no file text.
     expect(without).toBe(`${PR_DESCRIPTION_SYSTEM_PROMPT}\n\nBRIEF`);
@@ -180,6 +186,138 @@ describe('the measured prompt text', () => {
     expect(with_.startsWith(without)).toBe(true);
     expect(with_).toContain('[changed-file-contents]');
     expect(with_).toContain('export const retry = 1;');
+  });
+
+  it('keeps the two scopes that shipped their exact bytes', () => {
+    // The regression the diff tier must not break: a run whose scope adds no
+    // material, and one that adds the file texts, produce the same strings the
+    // assembly produced before the material parameter existed. Pinned against the
+    // old expression itself rather than against a recorded literal, so a change to
+    // the joining rule is caught even if the literal were updated to match.
+    const contents = buildPrDescriptionFileContents({
+      paths: ['src/retry.ts'],
+      texts: new Map([['src/retry.ts', 'export const retry = 1;']]),
+    });
+    expect(buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF')).toBe(
+      `${PR_DESCRIPTION_SYSTEM_PROMPT}\n\nBRIEF`,
+    );
+    expect(
+      buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF', { kind: 'files', fileContents: contents }),
+    ).toBe(`${PR_DESCRIPTION_SYSTEM_PROMPT}\n\nBRIEF\n\n${renderPrDescriptionFileContents(contents)}`);
+  });
+});
+
+describe('the whole-pull-request diff section', () => {
+  const SERVER_DIFF = [
+    'diff --git a/src/index.ts b/src/index.ts',
+    'index 1111111..2222222 100644',
+    '--- a/src/index.ts',
+    '+++ b/src/index.ts',
+    '@@ -1,2 +1,3 @@',
+    ' const a = 1;',
+    '+const retry = 1;',
+    ' export default a;',
+    'diff --git a/assets/logo.png b/assets/logo.png',
+    'index 3333333..4444444 100644',
+    'Binary files a/assets/logo.png and b/assets/logo.png differ',
+  ].join('\n');
+
+  it("carries the server's bytes verbatim and says what it is", () => {
+    const diff = buildPrDescriptionDiff(SERVER_DIFF);
+
+    expect(diff.filesTotal).toBe(2);
+    expect(diff.filesShown).toBe(2);
+    expect(diff.truncatedBy).toBeUndefined();
+    // Verbatim: the hunk header, the added line and the binary detection line are
+    // the server's own text, and nothing here reconstructs a hunk.
+    expect(diff.text).toContain('[diff]');
+    expect(diff.text).toContain('@@ -1,2 +1,3 @@');
+    expect(diff.text).toContain('+const retry = 1;');
+    expect(diff.text).toContain('Binary files a/assets/logo.png and b/assets/logo.png differ');
+    expect(diff.text).toContain('diff --git a/src/index.ts b/src/index.ts');
+    // The preamble names the two facts a reader has to know: the diff is the
+    // server's, and a binary file's change arrives without hunks.
+    expect(diff.text).toContain('exactly as the server reports it');
+    expect(diff.text).toContain('without hunks');
+  });
+
+  it('says so when the server reports no change', () => {
+    const diff = buildPrDescriptionDiff('');
+    expect(diff.filesShown).toBe(0);
+    expect(diff.filesTotal).toBe(0);
+    expect(diff.text).toContain('(the server reported no change)');
+  });
+
+  it('keeps a block whose path it cannot decode instead of dropping it', () => {
+    // The pre-review's `splitDiffByFile` is path-keyed and therefore discards a
+    // block whose `+++` line it cannot read. This section's promise is "here is the
+    // diff", so a quoted (non-ASCII) path must survive: a dropped file here is a
+    // silent omission, not a safe one.
+    const quoted = [
+      'diff --git "a/\\346\\226\\207.txt" "b/\\346\\226\\207.txt"',
+      '--- "a/\\346\\226\\207.txt"',
+      '+++ "b/\\346\\226\\207.txt"',
+      '@@ -1 +1 @@',
+      '-a',
+      '+b',
+    ].join('\n');
+    const diff = buildPrDescriptionDiff(quoted);
+    expect(diff.filesTotal).toBe(1);
+    expect(diff.filesShown).toBe(1);
+    expect(diff.text).toContain('@@ -1 +1 @@');
+  });
+
+  it('drops whole files from the end when the budget runs out, and announces it', () => {
+    // Two blocks, the second of which cannot fit: the kept one is whole, and the
+    // announcement names how many of how many are shown.
+    const first = `diff --git a/a.ts b/a.ts\n@@ -1 +1 @@\n-a\n+b`;
+    const filler = 'x'.repeat(PR_DESCRIPTION_DIFF_BUDGET);
+    const diff = buildPrDescriptionDiff(`${first}\ndiff --git a/b.ts b/b.ts\n@@ -1 +1 @@\n${filler}`);
+
+    expect(diff.filesTotal).toBe(2);
+    expect(diff.filesShown).toBe(1);
+    expect(diff.truncatedBy).toBe('budget');
+    expect(diff.text).toContain('diff --git a/a.ts b/a.ts');
+    expect(diff.text).not.toContain('diff --git a/b.ts');
+    expect(diff.text).toContain('[truncated: only 1 of 2 file(s) in the diff are shown]');
+  });
+
+  it('cuts a first file larger than the whole budget rather than sending no diff', () => {
+    // The pathological case the file-contents section also handles: dropping this
+    // block would send no diff at all under a scope whose whole content is the diff.
+    const huge = `diff --git a/huge.ts b/huge.ts\n@@ -1 +1 @@\n-${'y'.repeat(PR_DESCRIPTION_DIFF_BUDGET * 2)}`;
+    const diff = buildPrDescriptionDiff(huge);
+
+    expect(diff.filesShown).toBe(1);
+    expect(diff.truncatedBy).toBe('budget');
+    expect(diff.text).toContain('diff --git a/huge.ts b/huge.ts');
+    expect(diff.text).toContain("this file's diff is longer than the whole diff budget");
+  });
+
+  it('cuts the file list at the shared file cap, not only at the budget', () => {
+    // A diff of many tiny files never reaches the character budget, so the cap has
+    // to be its own limit — the same one the pre-review's brief uses.
+    const blocks = Array.from(
+      { length: PR_REVIEW_MAX_DIFF_FILES + 1 },
+      (_, index) => `diff --git a/f${index}.ts b/f${index}.ts\n@@ -1 +1 @@\n-a\n+b`,
+    );
+    const diff = buildPrDescriptionDiff(blocks.join('\n'));
+
+    expect(diff.filesTotal).toBe(PR_REVIEW_MAX_DIFF_FILES + 1);
+    expect(diff.filesShown).toBe(PR_REVIEW_MAX_DIFF_FILES);
+    expect(diff.truncatedBy).toBe('file-limit');
+    expect(diff.text).toContain(
+      `[truncated: only ${PR_REVIEW_MAX_DIFF_FILES} of ${PR_REVIEW_MAX_DIFF_FILES + 1} file(s)`,
+    );
+  });
+
+  it('appends the diff section instead of the file texts, never both', () => {
+    const diff = buildPrDescriptionDiff(SERVER_DIFF);
+    const text = buildPrDescriptionPromptText(PR_DESCRIPTION_SYSTEM_PROMPT, 'BRIEF', { kind: 'diff', diff });
+
+    expect(text.startsWith(`${PR_DESCRIPTION_SYSTEM_PROMPT}\n\nBRIEF`)).toBe(true);
+    expect(text).toContain('[diff]');
+    expect(text).not.toContain('[changed-file-contents]');
   });
 });
 

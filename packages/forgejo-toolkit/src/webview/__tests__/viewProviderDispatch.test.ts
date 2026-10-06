@@ -6576,6 +6576,13 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       return postedMessages(fake.posted).find((message) => message.command === command);
     }
 
+    /** One reply for one request id — the two sends in a case need separating. */
+    function replyFor(command: string, requestId: string): Record<string, unknown> | undefined {
+      return postedMessages(fake.posted).find(
+        (message) => message.command === command && message._requestId === requestId,
+      );
+    }
+
     it("answers the request with the run's own reply, without a second reply for the same id", async () => {
       let settle: (() => void) | undefined;
       const runner = vi.fn(async () => {
@@ -6625,6 +6632,29 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(replyTo('prDescriptionGenerated')).toMatchObject({ description: '', _requestId: 'req-draft-cancelled' });
       expect(replyTo('prDescriptionGenerated')).not.toHaveProperty('error');
       expect(postedMessages(fake.posted).filter((m) => m.command === 'requestError')).toEqual([]);
+    });
+
+    it("passes an existing pull request's index through, and refuses an unusable one", async () => {
+      // The edit dialog of an existing pull request sends the index, and it is what
+      // the `commits-and-diff` scope reads a diff from, so it travels to the run.
+      const runner = vi.fn(async () => ({ kind: 'ok' as const, description: 'draft' }));
+      provider.setPrDescriptionRunner(runner);
+
+      fake.send({ command: 'generatePrDescription', ...target, index: 7, _requestId: 'req-draft-index' });
+      await flushUntil(() => replyFor('prDescriptionGenerated', 'req-draft-index') !== undefined);
+
+      expect(runner).toHaveBeenCalledWith({ ...target, index: 7 });
+
+      // An unusable index refuses the **whole** message rather than degrading to
+      // "no index": dropping it would silently change which tier the run can honour.
+      runner.mockClear();
+      fake.send({ command: 'generatePrDescription', ...target, index: '7', _requestId: 'req-draft-bad-index' });
+      await flushUntil(() => replyFor('prDescriptionGenerated', 'req-draft-bad-index') !== undefined);
+
+      expect(runner).not.toHaveBeenCalled();
+      const refusal = replyFor('prDescriptionGenerated', 'req-draft-bad-index');
+      expect(refusal?.error).toBeTruthy();
+      expect(String(refusal?.error)).toContain('Nothing was sent');
     });
   });
 });

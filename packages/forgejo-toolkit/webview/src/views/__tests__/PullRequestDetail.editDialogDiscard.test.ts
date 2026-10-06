@@ -48,6 +48,7 @@ const { stateMock, keyFor } = vi.hoisted(() => {
       openPrWorktree: vi.fn(),
       openPullRequestDiff: vi.fn(),
       openSelectedPullRequestDiffs: vi.fn(),
+      prDescription: { value: false },
       pullRequestComments: { value: new Map() },
       pullRequestCommits: { value: new Map() },
       pullRequestDetails: { value: new Map() },

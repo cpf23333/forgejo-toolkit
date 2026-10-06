@@ -89,6 +89,7 @@ import {
   clearUnhandledRequests,
 } from '../test/mocks/server';
 import { mockInstance } from '../test/mocks/data/instances';
+import { mockPullRequestDiff } from '../test/mocks/data/pullRequestExtras';
 import { logger } from '../logger';
 import type { ConfigManager } from '../config';
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
@@ -97,9 +98,11 @@ import type { AiTransportSelection } from '../ai/modelSelection';
 import {
   COMMAND_GENERATE_PR_DESCRIPTION,
   PR_DESCRIPTION_SCOPE_BUTTON_COMMITS,
+  PR_DESCRIPTION_SCOPE_BUTTON_DIFF,
   generatePrDescription,
   registerPrDescriptionCommand,
 } from '../prDescription';
+import { prDescriptionOfferedOnCreateForm } from '../prDescriptionSettings';
 
 beforeAll(async () => {
   await startMockServer();
@@ -232,6 +235,30 @@ beforeEach(() => {
 afterEach(() => {
   mockServer.resetHandlers();
   vi.restoreAllMocks();
+});
+
+describe('the create form’s own gate', () => {
+  it('offers the control only while the configured scope can be served without a pull request', () => {
+    // The host derives this boolean because the webview cannot read configuration,
+    // and it is what hides the create form's control while `commits-and-diff` is
+    // configured. The fail-closed direction here is the **question**, not a hidden
+    // control: an unreadable value reads as `ask`, which this surface can serve.
+    state.settings['prDescription'] = false;
+    state.settings['prDescriptionPromptScope'] = 'commits-only';
+    expect(prDescriptionOfferedOnCreateForm()).toBe(false);
+
+    state.settings['prDescription'] = true;
+    expect(prDescriptionOfferedOnCreateForm()).toBe(true);
+    state.settings['prDescriptionPromptScope'] = 'commits-and-files';
+    expect(prDescriptionOfferedOnCreateForm()).toBe(true);
+    state.settings['prDescriptionPromptScope'] = 'ask';
+    expect(prDescriptionOfferedOnCreateForm()).toBe(true);
+    state.settings['prDescriptionPromptScope'] = 'commits-and-diff';
+    expect(prDescriptionOfferedOnCreateForm()).toBe(false);
+
+    state.settings['prDescriptionPromptScope'] = 'not-a-scope';
+    expect(prDescriptionOfferedOnCreateForm()).toBe(true);
+  });
 });
 
 describe('the PR-description run', () => {
@@ -423,6 +450,144 @@ describe('the PR-description run', () => {
     expect(request?.messages[0]?.text).toContain('[changed-file-contents]');
     expect(request?.messages[0]?.text).toContain('[commits]');
     expect(request?.messages[0]?.text).toContain('--- src/index.ts ---');
+    expect(unhandledRequests()).toEqual([]);
+  });
+
+  it('refuses a stated diff scope by name where no pull request exists yet', async () => {
+    // The create form cannot serve `commits-and-diff`: there is no pull request to
+    // read a diff from. The two forbidden alternatives are both checked here — no
+    // other tier is used (no comparison read, no model call) and the question is not
+    // re-asked (no modal), because the setting is the user's answer.
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'commits-and-diff';
+    const asked: string[] = [];
+    mockServer.use(
+      http.get('*://*/api/v1/repos/:owner/:repo/compare/:basehead', ({ request }) => {
+        asked.push(new URL(request.url).pathname);
+        return HttpResponse.json({ total_commits: 0, commits: [], files: [] });
+      }),
+    );
+    const transport = fakeTransport({});
+    state.selection = editorSelection(transport);
+
+    const outcome = await generatePrDescription(config, target(), {});
+
+    expect(outcome.kind).toBe('failed');
+    const error = (outcome as { error: string }).error;
+    expect(error).toContain('commits-and-diff');
+    expect(error).toContain('pull request that already exists');
+    expect(error).toContain('forgejoToolkit.prDescriptionPromptScope');
+    // Refused before the model is chosen, before any comparison read, and without
+    // re-asking the question.
+    expect(state.selectionCalls).toEqual([]);
+    expect(transport.complete).not.toHaveBeenCalled();
+    expect(asked).toEqual([]);
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    expect(state.settingUpdates).toEqual([]);
+    expect(unhandledRequests()).toEqual([]);
+  });
+
+  it("reads the pull request's own diff from the platform endpoint, with no cache-busting query", async () => {
+    // The tier's whole material, pinned on the URL the mock server actually
+    // received: the pull request's own diff endpoint, `diffType: diff`, and **no**
+    // `?binary=true` — the tier never asks for binary content, so a binary file's
+    // change arrives as the server reports it.
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'commits-and-diff';
+    const asked: string[] = [];
+    mockServer.use(
+      http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index.diff', ({ request }) => {
+        const url = new URL(request.url);
+        asked.push(`${url.pathname}${url.search}`);
+        return new HttpResponse(mockPullRequestDiff, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+      }),
+    );
+    const transport = fakeTransport({ answer: 'With the diff.' });
+    state.selection = editorSelection(transport);
+
+    const outcome = await generatePrDescription(config, target({ index: 7 }), {});
+
+    expect(outcome).toEqual({ kind: 'ok', description: 'With the diff.' });
+    expect(asked).toEqual(['/api/v1/repos/demo-user/demo-repo/pulls/7.diff']);
+    const request = transport.complete.mock.calls[0]?.[1];
+    // The prompt carries the hunks and the comparison, and none of the files' own
+    // text: `commits-and-diff` is not `commits-and-files`.
+    expect(request?.messages[0]?.text).toContain('[diff]');
+    expect(request?.messages[0]?.text).toContain('@@ -1,2 +1,3 @@');
+    expect(request?.messages[0]?.text).toContain('[commits]');
+    expect(request?.messages[0]?.text).not.toContain('[changed-file-contents]');
+    expect(unhandledRequests()).toEqual([]);
+  });
+
+  it('offers the diff answer only where a pull request exists, and remembers the answer', async () => {
+    // The existing-pull-request surface: the modal lists the diff answer, and the
+    // answer is written into the same global setting every other answer goes to, so
+    // the question is still asked once.
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'ask';
+    const transport = fakeTransport({ answer: 'Answered with the diff.' });
+    state.selection = editorSelection(transport);
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(PR_DESCRIPTION_SCOPE_BUTTON_DIFF as never);
+
+    const outcome = await generatePrDescription(config, target({ index: 7 }), {});
+
+    expect(outcome).toEqual({ kind: 'ok', description: 'Answered with the diff.' });
+    const call = vi.mocked(vscode.window.showInformationMessage).mock.calls[0] as unknown as [
+      string,
+      unknown,
+      ...string[],
+    ];
+    const [message, options, ...buttons] = call;
+    expect(options).toEqual({ modal: true });
+    expect(buttons).toContain(PR_DESCRIPTION_SCOPE_BUTTON_DIFF);
+    // The sentence has to say that hunks leave the machine under that answer.
+    expect(message).toContain('diff');
+    expect(message).toContain('hunks');
+    expect(state.settingUpdates).toEqual([
+      { key: 'prDescriptionPromptScope', value: 'commits-and-diff', target: vscode.ConfigurationTarget.Global },
+    ]);
+  });
+
+  it('does not offer the diff answer on the create form', async () => {
+    // The same question without a pull request: the answer would be one the run
+    // would have to refuse, so it is not on the modal at all.
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'ask';
+    const transport = fakeTransport({ answer: 'Answered with the commits.' });
+    state.selection = editorSelection(transport);
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(PR_DESCRIPTION_SCOPE_BUTTON_COMMITS as never);
+
+    const outcome = await generatePrDescription(config, target(), {});
+
+    expect(outcome).toEqual({ kind: 'ok', description: 'Answered with the commits.' });
+    const call = vi.mocked(vscode.window.showInformationMessage).mock.calls[0] as unknown as [
+      string,
+      unknown,
+      ...string[],
+    ];
+    expect(call[2]).toBe(PR_DESCRIPTION_SCOPE_BUTTON_COMMITS);
+    expect(call).not.toContain(PR_DESCRIPTION_SCOPE_BUTTON_DIFF);
+    expect(state.settingUpdates).toEqual([
+      { key: 'prDescriptionPromptScope', value: 'commits-only', target: vscode.ConfigurationTarget.Global },
+    ]);
+  });
+
+  it('reports a diff that could not be read without calling a model', async () => {
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'commits-and-diff';
+    mockServer.use(
+      http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index.diff', () => new HttpResponse('nope', { status: 500 })),
+    );
+    const transport = fakeTransport({});
+    state.selection = editorSelection(transport);
+
+    const outcome = await generatePrDescription(config, target({ index: 7 }), {});
+
+    expect(outcome.kind).toBe('failed');
+    const error = (outcome as { error: string }).error;
+    expect(error).toContain('could not be read');
+    expect(error).toContain('nothing was sent to a model');
+    expect(transport.complete).not.toHaveBeenCalled();
     expect(unhandledRequests()).toEqual([]);
   });
 

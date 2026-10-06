@@ -490,7 +490,7 @@
       "bodyPlaceholder": "Enter description (Markdown supported)",
       "generateDescription": "Generate description",
       "generatingDescription": "Generating...",
-      "generateDescriptionHint": "The AI drafts a description from the commits and changed files between the two branches, and fills it in below as an editable draft. You still create the pull request yourself.",
+      "generateDescriptionHint": "The AI drafts a description from the commits and changed files between the two branches and, depending on the prompt scope, this pull request's own diff or the files' text, and fills it in below as an editable draft. You still submit the pull request yourself.",
       "generateDescriptionReplace": "The description you wrote would be replaced. Press Generate description again to replace it, or edit the field to keep it.",
       "generateDescriptionFailed": "The description could not be drafted.",
       "base": "Base branch",
@@ -692,8 +692,8 @@
     },
     "prDescription": {
       "title": "AI: Pull Request Description",
-      "description": "A chat model drafts a description from the comparison the create-pull-request form is about to submit, and fills it into the description field as an editable draft. You still create the pull request yourself, and a draft that could not be produced leaves the field as you wrote it.",
-      "enabled": "Offer \"Generate description\" on the create-pull-request form",
+      "description": "A chat model drafts a description from the comparison the form holds, and fills it into the description field as an editable draft: on the create-pull-request form that is the comparison about to be submitted, and in an existing pull request's edit dialog it is that pull request's own comparison. You still create or save the pull request yourself, and a draft that could not be produced leaves the field as you wrote it.",
+      "enabled": "Offer \"Generate description\" where a pull request description is written",
       "enabledDefault": "Default off: nothing is read or sent until you turn this on.",
       "disabledHint": "The prompt scope below is configuration; a draft uses it only while this is on.",
       "scope": "Prompt scope",
@@ -702,6 +702,7 @@
       "scopeOption": {
         "ask": "Ask before each draft — nothing is requested, sent or written until you answer",
         "commits-only": "Commits and changed-file list — the branch names, the commits with their subjects, bodies, authors and dates, and the path and status of every changed file, with no file content",
+        "commits-and-diff": "Commits, changed-file list and the pull request's own diff — the same plus every changed file's added and removed lines with its file and hunk headers, as the server reports the diff, and no file's full text; offered only in an existing pull request's edit dialog",
         "commits-and-files": "Commits, changed files and their text — the same plus the full text of the changed files at the head branch"
       }
     },

@@ -438,14 +438,21 @@ function handleGenerateDescription(target: { base: string; head: string; title: 
 }
 
 /**
- * Whether the host reports the description feature as on.
+ * Whether the **create** form may offer the description control, as the host
+ * derived it.
  *
- * A `computed` rather than `state.prDescription` in the template: `state` is the
- * composable's plain return object, so a template read of one of its refs does not
- * unwrap and TypeScript sees the ref itself. The other reads on this view happen to
- * be inside `computed`s already, which is why this one is the first to need it.
+ * Not `state.prDescription`: the feature can be on and this surface still unable to
+ * serve the configured scope — `commits-and-diff` drafts from the pull request's
+ * own diff, and this form's pull request does not exist yet. Which scopes that
+ * rules out is host-side knowledge (the webview cannot read configuration), so the
+ * host answers with this boolean and the form renders it. The run refuses by name
+ * either way, so a stale value can only hide or show a button.
+ *
+ * A `computed` rather than the ref in the template: `state` is the composable's
+ * plain return object, so a template read of one of its refs does not unwrap and
+ * TypeScript sees the ref itself.
  */
-const prDescriptionEnabled = computed(() => state.prDescription.value);
+const prDescriptionEnabled = computed(() => state.prDescriptionCreateForm.value);
 
 async function handleCreateSubmit(data: {
   title: string;

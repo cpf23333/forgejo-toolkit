@@ -224,11 +224,13 @@
           "enum": [
             "ask",
             "commits-only",
+            "commits-and-diff",
             "commits-and-files"
           ],
           "enumDescriptions": [
             "%config.prDescriptionPromptScope.enumDescriptions.ask%",
             "%config.prDescriptionPromptScope.enumDescriptions.commitsOnly%",
+            "%config.prDescriptionPromptScope.enumDescriptions.commitsAndDiff%",
             "%config.prDescriptionPromptScope.enumDescriptions.commitsAndFiles%"
           ],
           "title": "%config.prDescriptionPromptScope.title%",

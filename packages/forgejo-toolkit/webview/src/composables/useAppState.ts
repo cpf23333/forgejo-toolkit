@@ -813,13 +813,23 @@ function createAppState() {
   /**
    * Whether `forgejoToolkit.prDescription` is on, as the host last reported it.
    *
-   * It exists for exactly one affordance: the create-pull-request form's "Generate
-   * description" control, which is hidden while the feature is off. The same
+   * It exists for the affordance an **existing** pull request's edit dialog draws:
+   * its "Generate description" control, hidden while the feature is off. The same
    * `=== true` reading and for the same reason as `aiPreReview` above: a host that
    * predates the field sends nothing, and an undefined read as "on" would offer a
    * control whose only outcome is the run's own refusal.
    */
   const prDescription = ref<boolean>(false);
+  /**
+   * Whether the **create** form may offer that control, as the host derived it.
+   *
+   * A second fact rather than a second reading of the same switch: one of the
+   * stated prompt scopes drafts from the pull request's own diff and so cannot be
+   * honoured before the pull request exists, and only the host can read
+   * configuration. A missing value reads as **off** for the same reason as the two
+   * refs above.
+   */
+  const prDescriptionCreateForm = ref<boolean>(false);
   /**
    * The oldest Forgejo release this build supports, as the host spells it
    * (`MIN_SUPPORTED_VERSION_TEXT`), so the Settings form's "Server version"
@@ -1279,6 +1289,7 @@ function createAppState() {
         debug.value = message.debug;
         aiPreReview.value = message.aiPreReview === true;
         prDescription.value = message.prDescription === true;
+        prDescriptionCreateForm.value = message.prDescriptionCreateForm === true;
         minSupportedServerVersion.value = message.minSupportedServerVersion ?? '';
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
@@ -1401,8 +1412,12 @@ function createAppState() {
         aiPreReview.value = message.aiPreReview === true;
         break;
       case 'setPrDescription':
-        // Same contract for the create-pull-request form's own control.
+        // Same contract for the two description controls: the existing pull
+        // request's edit dialog follows the feature switch, and the create form
+        // follows the host's own answer for a surface whose pull request does not
+        // exist yet.
         prDescription.value = message.prDescription === true;
+        prDescriptionCreateForm.value = message.prDescriptionCreateForm === true;
         break;
       case 'repositories':
         handleRepositories(
@@ -5696,12 +5711,15 @@ function createAppState() {
   /**
    * Asks the host to draft a pull request description for one comparison.
    *
-   * The payload is the comparison the form is about to submit and the title the
-   * user has typed, and nothing else: the model, the prompt scope, the prompt and
-   * the consent question are the host's, so this call can ask for a draft and
-   * cannot influence what leaves the machine. It resolves with the text, which the
-   * caller puts into its own body field — the user still edits and submits it, and
-   * nothing here creates a pull request.
+   * The payload is the comparison the form holds, the title the user has typed and
+   * — only where the pull request already exists — its index, and nothing else: the
+   * model, the prompt scope, the prompt and the consent question are the host's, so
+   * this call can ask for a draft and cannot influence what leaves the machine. The
+   * index is what lets the host read the pull request's own diff under the
+   * `commits-and-diff` scope; the create form sends none because its pull request
+   * does not exist yet. It resolves with the text, which the caller puts into its
+   * own body field — the user still edits and submits it, and nothing here creates a
+   * pull request.
    *
    * Two things can come back: the text, which the caller puts into its body field,
    * and a rejection carrying the host's own sentence about a failure. A **cancelled**
@@ -5714,7 +5732,7 @@ function createAppState() {
     instanceId: string,
     owner: string,
     repo: string,
-    target: { base: string; head: string; title?: string },
+    target: { base: string; head: string; index?: number; title?: string },
   ): Promise<string> {
     const _requestId = `pr-description-${++prDescriptionRequestId}`;
     return new Promise((resolve, reject) => {
@@ -5726,6 +5744,7 @@ function createAppState() {
         repo,
         base: target.base,
         head: target.head,
+        ...(target.index === undefined ? {} : { index: target.index }),
         ...(target.title === undefined ? {} : { title: target.title }),
         _requestId,
       });
@@ -7334,6 +7353,7 @@ function createAppState() {
     settingsRefreshTick,
     aiPreReview,
     prDescription,
+    prDescriptionCreateForm,
     minSupportedServerVersion,
     worktrees,
     worktreeOpenMode,

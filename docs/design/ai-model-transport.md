@@ -26,8 +26,8 @@
 
 - 本文**不是**任务清单：本项工作已交付，`TODO.md` 原先跟踪它的那条 P4 条目随交付移除（`TODO.md` 只保留未完成
   事项）——这项工作的记录因此是 `FEATURES.md` 的「AI 端点（OpenAI 兼容）」条目（用户可见的能力）与本文自身：本文
-  只承担"定了什么、为什么、否掉了什么"，落地过程在提交历史里。第二个接上这道接缝的功能（PR 描述生成）的待办仍在
-  `TODO.md` 的「P2 PR 描述生成的行级 diff」条目，它特有的决定在
+  只承担"定了什么、为什么、否掉了什么"，落地过程在提交历史里。第二个接上这道接缝的功能（PR 描述生成）的待办也已
+  随 `commits-and-diff` 档位交付而移除（2026-10-06；`TODO.md` 只保留未完成事项），它特有的决定在
   [`ai-pr-description.md`](./ai-pr-description.md)。
 
 - 关联：宿主侧 AI 调用的方向由 [`../architecture/mcp-server.md`](../architecture/mcp-server.md) 的

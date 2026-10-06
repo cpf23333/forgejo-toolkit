@@ -512,7 +512,7 @@ export const AI_PRE_REVIEW_PROMPT_SCOPES = [
 export type AiPreReviewPromptScopeValue = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[number];
 
 /**
- * The three values of `forgejoToolkit.prDescriptionPromptScope`, in the order the
+ * The values of `forgejoToolkit.prDescriptionPromptScope`, in the order the
  * manifest's dropdown, the settings page's dropdown and the consent modal show
  * them (`docs/design/ai-model-transport.md` §7.6).
  *
@@ -521,8 +521,22 @@ export type AiPreReviewPromptScopeValue = (typeof AI_PRE_REVIEW_PROMPT_SCOPES)[n
  * would promise something else here (the record's §7.6 states the decision, and
  * `src/prDescriptionSettings.ts` is the reader). `ask` is first because it is the
  * default and the only value that sends nothing on its own.
+ *
+ * The two stated code-bearing tiers sit in the order of how much code leaves the
+ * machine: `commits-and-diff` sends the pull request's own diff (the added and
+ * removed lines with their file and hunk headers), `commits-and-files` sends the
+ * changed files' whole text at the head branch. Neither is a superset of the
+ * other — the diff is the smaller, changed-lines view and the file texts are the
+ * larger one — which is why they are two values rather than one value that grew a
+ * second meaning: `commits-and-files` promised, in the consent modal a user
+ * already answered, that no hunks are sent.
+ *
+ * `commits-and-diff` reads the pull request's own diff, so it needs a pull
+ * request that already exists. That is a property of one tier, not of the
+ * feature: the create form's comparison has no pull request yet and cannot
+ * honour it (`docs/design/ai-pr-description.md` §3.1).
  */
-export const PR_DESCRIPTION_PROMPT_SCOPES = ['ask', 'commits-only', 'commits-and-files'] as const;
+export const PR_DESCRIPTION_PROMPT_SCOPES = ['ask', 'commits-only', 'commits-and-diff', 'commits-and-files'] as const;
 
 /** One value of `forgejoToolkit.prDescriptionPromptScope`. */
 export type PrDescriptionPromptScopeValue = (typeof PR_DESCRIPTION_PROMPT_SCOPES)[number];
@@ -885,9 +899,8 @@ export type HostToWebviewMessage =
        */
       aiPreReview?: boolean;
       /**
-       * Whether `forgejoToolkit.prDescription` is on, so the create-pull-request
-       * form can hide its "Generate description" control whose only outcome with
-       * the feature off would be a refusal.
+       * Whether `forgejoToolkit.prDescription` is on, so an existing pull
+       * request's edit dialog can offer its "Generate description" control.
        *
        * The same contract as `aiPreReview` above: the host reads the setting and
        * the webview renders what it was told, a missing value reads as **off**,
@@ -895,6 +908,20 @@ export type HostToWebviewMessage =
        * affordance, not the guarantee.
        */
       prDescription?: boolean;
+      /**
+       * Whether the **create** form may offer that control right now.
+       *
+       * A second fact rather than a second reading of the same setting, because
+       * the answer depends on the configured prompt scope: one of the stated
+       * tiers (`commits-and-diff`) drafts from the pull request's own diff, and
+       * the create form's pull request does not exist yet, so that tier cannot be
+       * honoured there and the control is not offered. Which scopes are
+       * honourable on which surface is host-side knowledge (the webview cannot
+       * read configuration), so the host derives this boolean and the form
+       * renders it — a missing value reads as **off**, and the run refuses by
+       * name regardless.
+       */
+      prDescriptionCreateForm?: boolean;
       /**
        * The oldest Forgejo release this build supports, as the host spells it in
        * its own low-version notices (`MIN_SUPPORTED_VERSION_TEXT`), so a view
@@ -950,15 +977,18 @@ export type HostToWebviewMessage =
   // the setting itself.
   | { command: 'setAiPreReview'; aiPreReview: boolean }
   /**
-   * Pushed when `forgejoToolkit.prDescription` changes in VS Code's Settings UI.
+   * Pushed when `forgejoToolkit.prDescription` **or**
+   * `forgejoToolkit.prDescriptionPromptScope` changes in VS Code's Settings UI.
    *
-   * The create-pull-request form offers or hides its "Generate description"
-   * control on it, and that form can sit open for as long as the user is writing a
-   * title, so a boolean read once at mount would leave the control describing the
-   * switch's previous state. Same contract as `setAiPreReview`: the value only
-   * drives an affordance, and the run reads the setting itself.
+   * The create-pull-request form and an existing pull request's edit dialog both
+   * offer or hide the "Generate description" control on it, and either surface can
+   * sit open for as long as the user is writing a body, so a pair of booleans read
+   * once at mount would leave the control describing the settings' previous state.
+   * `prDescription` is the feature switch; `prDescriptionCreateForm` is the
+   * host-derived answer for the create form alone, which also depends on the
+   * scope. Both only drive an affordance — the run reads the settings itself.
    */
-  | { command: 'setPrDescription'; prDescription: boolean }
+  | { command: 'setPrDescription'; prDescription: boolean; prDescriptionCreateForm: boolean }
   | {
       command: 'repositories';
       instanceId: string;
@@ -2303,14 +2333,20 @@ export type WebviewToHostMessage =
       };
       _requestId: string;
     }
-  // The create-pull-request form's "generate a description" action.
+  // The "generate a description" action, on the create-pull-request form and in
+  // an existing pull request's edit dialog.
   //
   // The coordinates are the whole payload on purpose, exactly as they are for
   // `aiPreReviewPullRequest`: the webview says **which comparison** the user is
-  // about to submit and nothing else. The model, the prompt scope, the prompt and
-  // the consent question are all the host's, so a modified webview cannot
-  // influence what leaves the machine — and this message can never create or
-  // submit anything, because the host half only ever answers with text.
+  // about to submit (or is editing) and nothing else. The model, the prompt scope,
+  // the prompt and the consent question are all the host's, so a modified webview
+  // cannot influence what leaves the machine — and this message can never create
+  // or submit anything, because the host half only ever answers with text.
+  //
+  // `index` is present only on the existing-pull-request surface, where the pull
+  // request is known: it is what lets the host read that pull request's own diff
+  // under the `commits-and-diff` scope. The create form sends none, because its
+  // pull request does not exist yet.
   | {
       command: 'generatePrDescription';
       instanceId: string;
@@ -2318,6 +2354,7 @@ export type WebviewToHostMessage =
       repo: string;
       base: string;
       head: string;
+      index?: number;
       _requestId: string;
     }
   | {

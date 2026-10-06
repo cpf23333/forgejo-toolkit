@@ -758,6 +758,34 @@ async function handleEditSubmit(data: {
 }
 
 /**
+ * Asks the host to draft a description for the pull request being edited.
+ *
+ * The coordinates — including the **index**, which is what lets the host read this
+ * pull request's own diff under the `commits-and-diff` scope — are read and passed
+ * before any await, like every other handler on this view: `route.params` follows
+ * the global route, so reading them again later could draft a description for
+ * whatever pull request the user navigated to. Nothing here creates or submits
+ * anything; the resolved text goes into the form's body field, which the user still
+ * edits and saves themselves.
+ */
+function handleGenerateDescription(target: { base: string; head: string; title: string }): Promise<string> {
+  return state.generatePrDescription(instanceId.value, owner.value, repo.value, {
+    ...target,
+    index: index.value,
+  });
+}
+
+/**
+ * Whether the host reports the description feature as on, for this surface's own
+ * control.
+ *
+ * No scope condition enters here, unlike the create form: an existing pull request
+ * can serve every prompt scope, because the one that reads the pull request's own
+ * diff has a pull request to read (`docs/design/ai-pr-description.md` §3.1).
+ */
+const prDescriptionEnabled = computed(() => state.prDescription.value);
+
+/**
  * The detail the upload and attachment-delete handlers must write to: the pull
  * request the form that started them was opened for. `route.params` follows the
  * global route, so the `detail` computed may already be the pull request the
@@ -2207,6 +2235,8 @@ function reloadPullRequest() {
           :instance-id="instanceId"
           :owner="owner"
           :repo="repo"
+          :pr-description-enabled="prDescriptionEnabled"
+          :generate-description="handleGenerateDescription"
           @submit="handleEditSubmit"
           @cancel="confirmCancelEdit"
           @dirty="editFormDirty = $event"

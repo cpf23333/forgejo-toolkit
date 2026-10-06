@@ -124,8 +124,8 @@ export function isSafeBranchName(value: unknown): value is string {
 }
 
 /**
- * The comparison the create-pull-request form is about to submit, or `undefined`
- * when a message does not name a usable one.
+ * The comparison one description request names, or `undefined` when a message
+ * does not name a usable one.
  *
  * `owner`/`repo` go through `isSafeRepoNameSegment` for the reason that helper
  * documents, and the two branch names through {@link isSafeBranchName}: every one
@@ -133,6 +133,14 @@ export function isSafeBranchName(value: unknown): value is string {
  * because a user may press the button before typing one; when present it is only
  * ever sent as prompt text, so it is length-bounded rather than character-checked
  * — a title is prose, unlike the names.
+ *
+ * `index` is optional and, when present, must be a positive integer for the same
+ * reason {@link parseWebviewPullRequestTarget} requires it: it is interpolated
+ * into the pull request route the `commits-and-diff` scope reads its diff from.
+ * Absent means the create form (no pull request exists yet); present means an
+ * existing pull request's edit dialog. A message that carries an unusable index is
+ * refused outright rather than dropped to "no index", because dropping it would
+ * silently change which tier the run can honour.
  */
 export interface PrDescriptionRequestTarget {
   instanceId: string;
@@ -140,6 +148,7 @@ export interface PrDescriptionRequestTarget {
   repo: string;
   base: string;
   head: string;
+  index?: number;
   title?: string;
 }
 
@@ -156,9 +165,10 @@ export function parsePrDescriptionRequest(value: unknown): PrDescriptionRequestT
     repo?: unknown;
     base?: unknown;
     head?: unknown;
+    index?: unknown;
     title?: unknown;
   };
-  const { instanceId, owner, repo, base, head, title } = candidate;
+  const { instanceId, owner, repo, base, head, index, title } = candidate;
   if (typeof instanceId !== 'string' || instanceId.length === 0 || instanceId.length > 255) {
     return undefined;
   }
@@ -174,6 +184,9 @@ export function parsePrDescriptionRequest(value: unknown): PrDescriptionRequestT
   if (base === head) {
     return undefined;
   }
+  if (index !== undefined && (typeof index !== 'number' || !Number.isInteger(index) || index < 1)) {
+    return undefined;
+  }
   if (title !== undefined && (typeof title !== 'string' || title.length > PR_DESCRIPTION_MAX_TITLE_CHARACTERS)) {
     return undefined;
   }
@@ -184,6 +197,7 @@ export function parsePrDescriptionRequest(value: unknown): PrDescriptionRequestT
     repo,
     base,
     head,
+    ...(index === undefined ? {} : { index }),
     ...(trimmedTitle === '' ? {} : { title: trimmedTitle }),
   };
 }

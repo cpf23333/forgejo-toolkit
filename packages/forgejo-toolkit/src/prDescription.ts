@@ -26,29 +26,43 @@ import { selectedModelFor } from './ai/modelSelection';
 import { aiPreReviewModelIdentity, maxInputTokensOf } from './aiPreReviewModels';
 import type { AiCompletionRequest, AiModelInfo, AiModelTransport } from './ai/transport';
 import {
+  PR_DESCRIPTION_EXISTING_PULL_REQUEST_SCOPE,
   PR_DESCRIPTION_PROMPT_SCOPE_SETTING,
   PR_DESCRIPTION_SETTING,
   isPrDescriptionEnabled,
   prDescriptionPromptScopeSettingValue,
+  prDescriptionScopeNeedsExistingPullRequest,
   writePrDescriptionPromptScopeSetting,
   type PrDescriptionStatedScope,
 } from './prDescriptionSettings';
 import {
   buildPrDescriptionBrief,
+  buildPrDescriptionDiff,
   buildPrDescriptionFileContents,
   buildPrDescriptionPromptMessages,
   buildPrDescriptionPromptText,
   buildPrDescriptionSystemPrompt,
   parsePrDescriptionAnswer,
-  renderPrDescriptionFileContents,
   type PrDescriptionAnswerFailure,
+  type PrDescriptionMaterial,
 } from './prDescriptionBrief';
 import { AI_PRE_REVIEW_MAX_CONTENT_FILES, type AiPreReviewFileContents } from './aiPreReviewBrief';
 
 /**
- * "Generate a pull request description": draft the description of a pull request
- * **from what the user is about to submit**, and hand it back to the
- * create-pull-request form as an editable body.
+ * "Generate a pull request description": draft a pull request's description from
+ * the comparison the user is working on, and hand it back as an editable body.
+ *
+ * Two surfaces reach it, and they differ in exactly one fact — whether a pull
+ * request already exists (`docs/design/ai-pr-description.md` §3.1, §7):
+ *
+ * - the **create** form, whose comparison is about to be submitted: its pull
+ *   request has no index, so the two scopes built from two branch names are all it
+ *   can serve;
+ * - an **existing** pull request's edit dialog, where the index is known: it can
+ *   additionally serve `commits-and-diff`, which reads that pull request's own
+ *   diff from `getPullRequestDiff(owner, repo, index)` — the platform's own
+ *   whole-pull-request diff, never a per-commit loop and never a diff synthesised
+ *   from two file versions.
  *
  * The design record for the consent, egress and degradation decisions is
  * `docs/design/ai-model-transport.md` §7.6 (its §7.5, §8 and §9 apply unchanged);
@@ -95,13 +109,21 @@ export const COMMAND_GENERATE_PR_DESCRIPTION = 'forgejoToolkit.generatePrDescrip
  */
 export type PrDescriptionRunHost = Pick<AiPreReviewRunHost, 'secrets'>;
 
-/** What one generate request names: the comparison the form is about to submit. */
+/**
+ * What one generate request names: the comparison the form holds.
+ *
+ * `index` is present only where a pull request already exists — the edit dialog of
+ * an existing pull request — and it is what the `commits-and-diff` scope reads its
+ * material from. The create form sends none, because its pull request does not
+ * exist yet (`docs/design/ai-pr-description.md` §3.1).
+ */
 export interface PrDescriptionTarget {
   instanceId: string;
   owner: string;
   repo: string;
   base: string;
   head: string;
+  index?: number;
   /** The title the user has typed, when they have typed one. */
   title?: string;
 }
@@ -121,43 +143,97 @@ export type PrDescriptionRunResult =
   | { kind: 'failed'; error: string };
 
 /**
- * The consent modal's two answers, as the buttons the user reads.
+ * The consent modal's answers, as the buttons the user reads.
  *
- * Exported so the tests can press the exact label the modal offers, the way
- * `AI_PRE_REVIEW_SCOPE_BUTTON_*` is.
+ * Three answers plus cancel. The two that a comparison of two branch names can
+ * serve are always offered; the one that drafts from the pull request's **own
+ * diff** is offered only where a pull request exists
+ * (`docs/design/ai-pr-description.md` §3.1), because that is the only place the
+ * host can read it — and the modal must not offer an answer it would have to
+ * refuse. Exported so the tests can press the exact label the modal offers, the
+ * way `AI_PRE_REVIEW_SCOPE_BUTTON_*` is.
  */
 export const PR_DESCRIPTION_SCOPE_BUTTON_COMMITS = vscode.l10n.t('Send the commits and the changed-file list');
+export const PR_DESCRIPTION_SCOPE_BUTTON_DIFF = vscode.l10n.t('Also send the diff (its hunks)');
 export const PR_DESCRIPTION_SCOPE_BUTTON_FILES = vscode.l10n.t('Also send the changed files');
 export const PR_DESCRIPTION_SCOPE_BUTTON_CANCEL = vscode.l10n.t('Cancel — send nothing');
 
 /**
- * The sentence the one-time consent modal shows for one destination (§7.1's
+ * The sentence that names the destination, for whichever modal is asking (§7.1).
+ *
+ * Its own string rather than the pre-review's: a configured endpoint's modal in
+ * this feature used to borrow the pre-review's sentence and therefore said "The
+ * AI pre-review would send this…" in a pull-request-description dialog. The
+ * pre-review's own sentence is untouched, so that modal reads exactly as it did.
+ */
+function consentDestinationSentence(destination: AiPreReviewConsentDestination): string | undefined {
+  if (destination.address === undefined) {
+    return undefined;
+  }
+  return vscode.l10n.t(
+    'The PR-description draft would send this to the provider you configured, "{0}" at {1}.',
+    destination.name,
+    destination.address,
+  );
+}
+
+/**
+ * The sentence the one-time consent modal shows **on the create form** (§7.1's
  * wording rules, §7.6's scope).
  *
  * It names the destination first, then exactly what leaves the machine under each
  * answer, then the setting the answer is written to and the fact that nothing is
- * requested or sent before the answer — the same four things the pre-review's
- * modal states, because they are what a person has to know to answer honestly.
+ * requested or sent before the answer.
  *
- * It deliberately does **not** promise a diff: the comparison endpoint this
- * feature reads reports the commits and the changed files, not their hunks
- * (`docs/api-verification-checklist.md`, the `repoCompareDiff` entry), so a
- * sentence about "the whole diff" would be a lie about the egress. §7.6 records
- * that narrowing.
+ * It describes the two answers this surface offers and no others: the comparison a
+ * create form holds has no pull request yet, so the tier that drafts from one
+ * (`commits-and-diff`) is neither offered here nor promised here
+ * (`docs/design/ai-pr-description.md` §3.1).
  */
 export function prDescriptionPromptScopeMessage(destination: AiPreReviewConsentDestination): string {
   const body = vscode.l10n.t(
     'Before this pull request description sends anything: the chat model you chose belongs to the "{0}" provider. Choose what it may carry. "Send the commits and the changed-file list" sends the base and head branch names, your typed title if there is one, the commit shas with their subjects, bodies, authors and dates, and the path and status of every changed file — no file content. "Also send the changed files" adds the text of the changed files at the head branch, which is the most content and the only answer under which the model can read the code a change touches. In neither answer is an access token, a URL or host name ever sent. Set the setting "forgejoToolkit.prDescriptionPromptScope" by hand instead if you would rather not be asked. Nothing is requested or sent before you answer, cancelling sends nothing, and your answer is written into that setting so this question is asked only once.',
     destination.name,
   );
-  if (destination.address === undefined) {
-    return body;
-  }
-  return `${vscode.l10n.t(
-    'The AI pre-review would send this to the provider you configured, "{0}" at {1}.',
+  const prefix = consentDestinationSentence(destination);
+  return prefix === undefined ? body : `${prefix} ${body}`;
+}
+
+/**
+ * The same question **where a pull request already exists**, which can serve one
+ * more answer.
+ *
+ * The extra sentence is the honest one: the diff answer does send hunks — the
+ * changed lines with their file and hunk headers, exactly as the server reports
+ * them — and it says what it does **not** carry (no changed file's full text) and
+ * what a binary file's change looks like (no hunks, as the server wrote it), so
+ * nobody answers "also send the diff" expecting whole files or expecting the
+ * extension to reconstruct a diff it does not have.
+ */
+export function prDescriptionExistingPullRequestPromptScopeMessage(destination: AiPreReviewConsentDestination): string {
+  const body = vscode.l10n.t(
+    'Before this pull request description sends anything: the chat model you chose belongs to the "{0}" provider. Choose what it may carry. "Send the commits and the changed-file list" sends the base and head branch names, your typed title if there is one, the commit shas with their subjects, bodies, authors and dates, and the path and status of every changed file — no file content. "Also send the diff (its hunks)" adds the diff of this pull request exactly as the server reports it: the added and removed lines of every changed file with its file and hunk headers, so the model reads what actually changed — a binary file arrives without hunks, and no full file text is sent. "Also send the changed files" adds the full text of the changed files at the head branch, which is the most content and the only answer under which the model can read the whole code a change touches. No answer sends an access token, a URL or host name. Set the setting "forgejoToolkit.prDescriptionPromptScope" by hand instead if you would rather not be asked. Nothing is requested or sent before you answer, cancelling sends nothing, and your answer is written into that setting so this question is asked only once.',
     destination.name,
-    destination.address,
-  )} ${body}`;
+  );
+  const prefix = consentDestinationSentence(destination);
+  return prefix === undefined ? body : `${prefix} ${body}`;
+}
+
+/**
+ * The sentence for a stated scope this surface cannot honour because it reads a
+ * pull request that does not exist here yet.
+ *
+ * One function rather than a literal at each site: the run refuses this before the
+ * model is chosen, and the material builder would refuse it again if it ever saw
+ * the combination (it cannot today), and two copies of a five-clause sentence are
+ * two copies that drift.
+ */
+function existingPullRequestScopeRefusalMessage(scope: PrDescriptionStatedScope): string {
+  return vscode.l10n.t(
+    'The PR-description draft was not started: the prompt scope "{0}" drafts from the diff of the pull request, so it needs a pull request that already exists. This form creates a new pull request, so there is nothing to read yet — open the pull request and use "Generate description" in its edit dialog, or change "{1}" to another value. Nothing was read, nothing was sent, and no other scope was used instead.',
+    scope,
+    PR_DESCRIPTION_PROMPT_SCOPE_SETTING,
+  );
 }
 
 /**
@@ -169,19 +245,40 @@ export function prDescriptionPromptScopeMessage(destination: AiPreReviewConsentD
  * covers every "not answered" case — the explicit cancel button, the platform's
  * close control, and Escape — and the caller turns it into a cancelled run,
  * because an unanswered consent question is not consent.
+ *
+ * `canReadPullRequestDiff` decides whether the diff answer is offered **at all**.
+ * It is not a preference: on the create form there is no pull request to read, so
+ * offering that answer would be offering something the run would then have to
+ * refuse. The question itself is unchanged — only the set of answers this surface
+ * can honour.
  */
 async function askPrDescriptionPromptScope(
   destination: AiPreReviewConsentDestination,
+  canReadPullRequestDiff: boolean,
 ): Promise<PrDescriptionStatedScope | undefined> {
   const picked = await vscode.window.showInformationMessage(
-    prDescriptionPromptScopeMessage(destination),
+    canReadPullRequestDiff
+      ? prDescriptionExistingPullRequestPromptScopeMessage(destination)
+      : prDescriptionPromptScopeMessage(destination),
     { modal: true },
-    PR_DESCRIPTION_SCOPE_BUTTON_COMMITS,
-    PR_DESCRIPTION_SCOPE_BUTTON_FILES,
-    PR_DESCRIPTION_SCOPE_BUTTON_CANCEL,
+    ...(canReadPullRequestDiff
+      ? ([
+          PR_DESCRIPTION_SCOPE_BUTTON_COMMITS,
+          PR_DESCRIPTION_SCOPE_BUTTON_DIFF,
+          PR_DESCRIPTION_SCOPE_BUTTON_FILES,
+          PR_DESCRIPTION_SCOPE_BUTTON_CANCEL,
+        ] as const)
+      : ([
+          PR_DESCRIPTION_SCOPE_BUTTON_COMMITS,
+          PR_DESCRIPTION_SCOPE_BUTTON_FILES,
+          PR_DESCRIPTION_SCOPE_BUTTON_CANCEL,
+        ] as const)),
   );
   if (picked === PR_DESCRIPTION_SCOPE_BUTTON_COMMITS) {
     return 'commits-only';
+  }
+  if (picked === PR_DESCRIPTION_SCOPE_BUTTON_DIFF) {
+    return 'commits-and-diff';
   }
   if (picked === PR_DESCRIPTION_SCOPE_BUTTON_FILES) {
     return 'commits-and-files';
@@ -199,9 +296,15 @@ async function askPrDescriptionPromptScope(
  * caller reports that and stops; and an answered modal writes the answer into the
  * setting first (best effort — a failed write changes where the answer is
  * remembered, never what this run sends) and the run then uses it.
+ *
+ * A **stated** scope that this surface cannot honour never reaches here: the run
+ * refuses it by name before the model is even chosen, because re-asking would
+ * overwrite an answer the user gave and substituting another tier would send bytes
+ * they did not choose.
  */
 async function resolvePrDescriptionPromptScope(
   destination: AiPreReviewConsentDestination,
+  canReadPullRequestDiff: boolean,
 ): Promise<PrDescriptionStatedScope | undefined> {
   const configured = prDescriptionPromptScopeSettingValue();
   if (configured !== 'ask') {
@@ -210,7 +313,7 @@ async function resolvePrDescriptionPromptScope(
     );
     return configured;
   }
-  const answered = await askPrDescriptionPromptScope(destination);
+  const answered = await askPrDescriptionPromptScope(destination, canReadPullRequestDiff);
   if (answered === undefined) {
     logger.info(
       `PR description: the question about what may be sent (the setting "${PR_DESCRIPTION_PROMPT_SCOPE_SETTING}") was not answered, so nothing was requested, nothing was sent and nothing was written`,
@@ -259,10 +362,10 @@ async function countPrDescriptionTokens(
   model: AiModelInfo,
   systemPrompt: string,
   briefText: string,
-  fileContents: AiPreReviewFileContents | undefined,
+  material: PrDescriptionMaterial | undefined,
   mode: AiPreReviewBudgetMode,
 ): Promise<number | undefined> {
-  const text = buildPrDescriptionPromptText(systemPrompt, briefText, fileContents);
+  const text = buildPrDescriptionPromptText(systemPrompt, briefText, material);
   if (mode === 'estimated') {
     return estimateAiPreReviewTokens(text);
   }
@@ -370,7 +473,7 @@ async function pickPrDescriptionModel(offered: readonly AiModelInfo[]): Promise<
   const picked = await vscode.window.showQuickPick(items, {
     title: vscode.l10n.t('Which chat model should draft the pull request description?'),
     placeHolder: vscode.l10n.t(
-      'The commits and the changed-file list are sent to the provider named under the model you pick. To pin an endpoint and model instead, use the setting "forgejoToolkit.aiModelBindings".',
+      'The commits, the changed-file list and, under the "commits-and-diff" scope, the diff of this pull request are sent to the provider named under the model you pick. To pin an endpoint and model instead, use the setting "forgejoToolkit.aiModelBindings".',
     ),
     ignoreFocusOut: true,
   });
@@ -380,10 +483,12 @@ async function pickPrDescriptionModel(offered: readonly AiModelInfo[]): Promise<
 /**
  * Runs one generate request.
  *
- * The order is the pre-review's: the feature switch, the model, then the one
- * consent question, then the reads, then the budget, then the request. Nothing
- * before the consent answer reads the comparison or touches a model, and every arm
- * below has written nothing.
+ * The order is the pre-review's, with one check of this feature's own in front of
+ * the model: the feature switch, the configured scope's honourability on this
+ * surface, the model, then the one consent question, then the reads, then the
+ * budget, then the request. Nothing before the consent answer reads the comparison
+ * — or the pull request's diff — and touches a model, and every arm below has
+ * written nothing.
  */
 export async function generatePrDescription(
   config: ConfigManager,
@@ -406,6 +511,27 @@ export async function generatePrDescription(
   if (!instance) {
     const error = vscode.l10n.t('Forgejo instance not found');
     void vscode.window.showErrorMessage(error);
+    return { kind: 'failed', error };
+  }
+
+  // An answer this surface cannot honour is refused **by name**, before the model
+  // is chosen and before anything is read. Both alternatives are forbidden:
+  // substituting another tier would send bytes the user did not choose, and
+  // re-asking would overwrite the answer they gave — `ask` is this setting's own
+  // spelling of "not answered yet", not a fallback for "the answer does not fit
+  // here". Only the create form can reach this: a pull request that already exists
+  // can serve every tier, so the sentence points at that surface.
+  const configuredScope = prDescriptionPromptScopeSettingValue();
+  if (
+    configuredScope !== 'ask' &&
+    target.index === undefined &&
+    prDescriptionScopeNeedsExistingPullRequest(configuredScope)
+  ) {
+    const error = existingPullRequestScopeRefusalMessage(configuredScope);
+    logger.info(
+      `PR description: refused because "${PR_DESCRIPTION_PROMPT_SCOPE_SETTING}" = "${configuredScope}" needs a pull request that already exists and this run names no pull request; nothing was read or sent`,
+    );
+    void vscode.window.showWarningMessage(error);
     return { kind: 'failed', error };
   }
 
@@ -470,10 +596,10 @@ export async function generatePrDescription(
   // zero writes of its own. The model is why this question comes after the model
   // choice: the modal has to name who would receive the content (§7.1).
   const destination = aiConsentDestinationFor(chosen);
-  const scope = await resolvePrDescriptionPromptScope(destination);
+  const scope = await resolvePrDescriptionPromptScope(destination, target.index !== undefined);
   if (scope === undefined) {
     const error = vscode.l10n.t(
-      'The PR-description draft did not start: no answer was given to the question about what may be sent, so nothing was requested, nothing was sent and nothing was written. Take the action again and answer it, or set "forgejoToolkit.prDescriptionPromptScope" by hand — "commits-only" or "commits-and-files".',
+      'The PR-description draft did not start: no answer was given to the question about what may be sent, so nothing was requested, nothing was sent and nothing was written. Take the action again and answer it, or set "forgejoToolkit.prDescriptionPromptScope" by hand — "commits-only", "commits-and-diff" or "commits-and-files".',
     );
     void vscode.window.showInformationMessage(error);
     return { kind: 'cancelled' };
@@ -534,17 +660,66 @@ export async function generatePrDescription(
       );
 
       // The scope, as the prompt's own sections: no code at all for `commits-only`,
-      // the changed files' head text for `commits-and-files`. Nothing else is
-      // reachable from here.
+      // the pull request's own diff for `commits-and-diff`, the changed files' head
+      // text for `commits-and-files`. At most one of the two carries content, and
+      // nothing else is reachable from here.
       const signal = abortSignalForToken(token);
-      let fileContents: AiPreReviewFileContents | undefined;
+      let material: PrDescriptionMaterial | undefined;
       if (scope === 'commits-and-files') {
         progress.report({ message: vscode.l10n.t('Reading the changed files…') });
         const paths = changedFiles
           .slice(0, AI_PRE_REVIEW_MAX_CONTENT_FILES)
           .map((file) => file.filename ?? '')
           .filter((path) => path !== '');
-        fileContents = await collectPrDescriptionFileTexts(client, target, paths, token, signal);
+        material = {
+          kind: 'files',
+          fileContents: await collectPrDescriptionFileTexts(client, target, paths, token, signal),
+        };
+      } else if (scope === PR_DESCRIPTION_EXISTING_PULL_REQUEST_SCOPE) {
+        // The platform's own whole-pull-request diff — the endpoint the pull
+        // request's own "Files changed" view is built from — read as text, and
+        // nothing synthesised from the two branch versions. `target.index` is
+        // present on every surface that can reach this branch, because a stated
+        // diff scope without a pull request ends the run before the model is
+        // chosen; the guard is repeated here so a future caller that skips that
+        // check fails rather than sending a prompt that silently lacks the diff
+        // the user chose.
+        const index = target.index;
+        if (index === undefined) {
+          const error = existingPullRequestScopeRefusalMessage(scope);
+          logger.error(
+            `PR description: the "${scope}" scope reached the material builder without a pull request index; nothing was sent`,
+          );
+          void vscode.window.showWarningMessage(error);
+          return { kind: 'failed', error };
+        }
+        progress.report({ message: vscode.l10n.t('Reading the diff of this pull request…') });
+        let diffText: string;
+        try {
+          // `?binary=true` is deliberately **not** requested: this tier sends the
+          // diff the platform reports, and a binary file's change is reported
+          // without hunks rather than reconstructed here.
+          diffText = await client.getPullRequestDiff(target.owner, target.repo, index);
+        } catch (error) {
+          const err = userFacingErrorMessage(error);
+          logger.error(
+            `PR description: the diff of pull request #${index} of ${instance.name}/${target.owner}/${target.repo} could not be read: ${err}. Nothing was sent to a model.`,
+          );
+          return {
+            kind: 'failed',
+            error: vscode.l10n.t(
+              'The diff of this pull request could not be read, so no description was drafted and nothing was sent to a model: {0}',
+              err,
+            ),
+          };
+        }
+        const diff = buildPrDescriptionDiff(diffText);
+        logger.debug(
+          `PR description: the pull request's own diff carries ${diff.filesShown} of ${diff.filesTotal} file block(s) in the prompt${
+            diff.truncatedBy === undefined ? '' : ` (truncatedBy=${diff.truncatedBy})`
+          }`,
+        );
+        material = { kind: 'diff', diff };
       }
       if (token.isCancellationRequested) {
         return { kind: 'cancelled' };
@@ -572,14 +747,7 @@ export async function generatePrDescription(
       }
       const mode = aiPreReviewBudgetMode(measured, declaredBudget);
       const availableTokens = aiPreReviewAvailableTokens(mode, declaredBudget);
-      const neededTokens = await countPrDescriptionTokens(
-        transport,
-        chosen,
-        systemPrompt,
-        brief.text,
-        fileContents,
-        mode,
-      );
+      const neededTokens = await countPrDescriptionTokens(transport, chosen, systemPrompt, brief.text, material, mode);
       if (neededTokens !== undefined && neededTokens >= availableTokens) {
         logger.error(
           `PR description: the prompt needs ${neededTokens} token(s) but ${formatAiPreReviewServedBy(servedBy, chosen)} has an input budget of ${availableTokens}; nothing was sent`,
@@ -604,9 +772,9 @@ export async function generatePrDescription(
       }
 
       // The messages are built once and handed to the transport, so "what the run
-      // measured" and "what the request carried" are the same bytes.
-      const userPrompt =
-        fileContents === undefined ? brief.text : `${brief.text}\n\n${renderPrDescriptionFileContents(fileContents)}`;
+      // measured" and "what the request carried" are the same bytes — one assembly
+      // call, used by the token counter above and here.
+      const userPrompt = buildPrDescriptionPromptText(systemPrompt, brief.text, material);
       const request: AiCompletionRequest = {
         system: systemPrompt,
         messages: buildPrDescriptionPromptMessages(systemPrompt, userPrompt).map((message) => ({
@@ -616,7 +784,7 @@ export async function generatePrDescription(
         // The editor's own consent-dialog text, which is why it names the scope
         // setting rather than restating every scope (§5.3).
         purpose: vscode.l10n.t(
-          'The PR-description draft sends the commits and the changed-file list between the two branches, and — depending on the prompt scope you chose in "forgejoToolkit.prDescriptionPromptScope" — the text of the changed files, to the model, to draft a description you then edit and submit yourself.',
+          'The PR-description draft sends the commits and the changed-file list between the two branches, and — depending on the prompt scope you chose in "forgejoToolkit.prDescriptionPromptScope" — the diff of this pull request or the text of the changed files, to the model, to draft a description you then edit and submit yourself.',
         ),
         signal,
       };
@@ -685,8 +853,9 @@ export async function generatePrDescription(
  * two entries share `runAiPreReview`. Neither can create or submit a pull request:
  * the run's whole product is text.
  *
- * The command itself has no comparison to resolve — that exists only while the
- * form is open — so it points at the button rather than guessing a branch pair.
+ * The command itself has no comparison to resolve — that exists only while a form
+ * is open — so it points at both places the button lives rather than guessing a
+ * branch pair or a pull request index.
  */
 export function registerPrDescriptionCommand(
   context: vscode.ExtensionContext,
@@ -697,7 +866,7 @@ export function registerPrDescriptionCommand(
     vscode.commands.registerCommand(COMMAND_GENERATE_PR_DESCRIPTION, () => {
       void vscode.window.showInformationMessage(
         vscode.l10n.t(
-          'Open the create-pull-request form and use its "Generate description" button: the draft is written from the comparison that form is about to submit.',
+          'Open the create-pull-request form and use its "Generate description" button, or open an existing pull request and use the same button in its edit dialog: the draft is written from the comparison that form holds.',
         ),
       );
     }),

@@ -94,11 +94,38 @@ describe('PullRequestForm AI description draft', () => {
     wrapper.unmount();
   });
 
-  it('offers no control on the edit form, where there is no comparison to submit', async () => {
-    const generateDescription = vi.fn(async () => 'never used');
+  it("offers the control on an existing pull request's edit form, with that pull request's own branches", async () => {
+    const generateDescription = vi.fn(async () => 'Rewrites the description.');
     const wrapper = mountForm({
       mode: 'edit',
       prDescriptionEnabled: true,
+      generateDescription,
+      initialBase: 'main',
+      initialHead: 'feature',
+      initialTitle: 'Retry failed requests',
+    });
+    await nextTick();
+
+    const button = generateButton(wrapper);
+    expect(button).toBeDefined();
+    await button?.trigger('click');
+    await flushPromises();
+    await nextTick();
+
+    // The form hands over the refs it was opened with: in edit mode the branch
+    // pickers are hidden, but `initialBase`/`initialHead` are the pull request's own
+    // comparison and the host needs them for the commit list. The index stays with
+    // the view that knows it — the edit dialog closes over it.
+    expect(generateDescription).toHaveBeenCalledWith({ base: 'main', head: 'feature', title: 'Retry failed requests' });
+    expect(bodyOf(wrapper)).toBe('Rewrites the description.');
+    wrapper.unmount();
+  });
+
+  it('offers no control on the edit form either while the host reports it off', async () => {
+    const generateDescription = vi.fn(async () => 'never used');
+    const wrapper = mountForm({
+      mode: 'edit',
+      prDescriptionEnabled: false,
       generateDescription,
       initialBase: 'main',
       initialHead: 'feature',
@@ -106,6 +133,7 @@ describe('PullRequestForm AI description draft', () => {
     await nextTick();
 
     expect(generateButton(wrapper)).toBeUndefined();
+    expect(generateDescription).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

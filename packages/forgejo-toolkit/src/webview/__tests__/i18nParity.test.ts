@@ -364,7 +364,7 @@ describe('manifest nls pairs', () => {
     // a missing `enumDescriptions` entry shows the raw `%config.…%` placeholder in
     // the dropdown — the one place the egress of each answer is explained.
     const property = manifest.contributes.configuration.properties['forgejoToolkit.prDescriptionPromptScope'];
-    const values = ['ask', 'commits-only', 'commits-and-files'];
+    const values = ['ask', 'commits-only', 'commits-and-diff', 'commits-and-files'];
     const descriptions = (Array.isArray(property?.enumDescriptions) ? property.enumDescriptions : []) as unknown[];
     expect(property?.type).toBe('string');
     expect(property?.default).toBe('ask');
@@ -374,6 +374,7 @@ describe('manifest nls pairs', () => {
     const statesEgress: Record<string, string> = {
       ask: 'nothing is requested, sent or written until you answer',
       'commits-only': 'No file content leaves the machine',
+      'commits-and-diff': "plus the pull request's own diff",
       'commits-and-files': 'plus the full text of the changed files at the head branch',
     };
     for (const [index, value] of values.entries()) {

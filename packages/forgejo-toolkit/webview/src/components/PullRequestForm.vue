@@ -40,11 +40,14 @@ interface Props {
   owner?: string;
   repo?: string;
   /**
-   * Whether the host reports the AI description feature as on.
+   * Whether the host reports that **this** form may offer the description control.
    *
-   * The control is hidden while it is off: the run refuses with a pointer to the
+   * The control is hidden while it is false: the run refuses with a pointer to the
    * setting, and offering a button whose only outcome is that refusal is noise. The
-   * run re-checks the setting itself, so a stale boolean can only hide or show the
+   * boolean already folds in the one thing this surface cannot read — whether the
+   * configured prompt scope can be honoured before the pull request exists — so on
+   * the create form it is off while a stated `commits-and-diff` is configured. The
+   * run re-reads the settings itself, so a stale boolean can only hide or show the
    * button.
    */
   prDescriptionEnabled?: boolean;
@@ -286,13 +289,21 @@ async function handleSubmit() {
 }
 
 /**
- * Whether the generate control is offered at all: the create form, the host says
- * the feature is on, and the form knows both branch names — the comparison is
- * exactly those two, so without them there is nothing to describe.
+ * Whether the generate control is offered at all: the host says this surface may
+ * offer it, the form was handed a generator, and the form knows both branch names —
+ * the comparison is exactly those two, so without them there is nothing to
+ * describe.
+ *
+ * Both modes qualify. On the create form the comparison is what the user is about
+ * to submit; in an existing pull request's edit dialog it is that pull request's
+ * own comparison, whose refs arrive through `initialBase`/`initialHead` (the branch
+ * pickers are hidden there, but the refs are still set). Which one the host's
+ * boolean refers to is the host's business: it is already false on the create form
+ * while a scope that needs an existing pull request is configured, because that
+ * surface could not serve it.
  */
 const canGenerateDescription = computed(
   () =>
-    props.mode === 'create' &&
     props.prDescriptionEnabled &&
     !!props.generateDescription &&
     !!base.value &&
@@ -495,11 +506,13 @@ async function handleGenerateDescription(): Promise<void> {
     <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>
       <!--
-        The AI draft control sits at the body it writes into, and only on the
-        create form: an existing pull request's description is not "what you are
-        about to submit", so there is no comparison to describe. It fills the
-        field as an **editable** draft — the text is the model's, the submit is
-        the user's, and nothing here can open or submit the pull request (see the
+        The AI draft control sits at the body it writes into. It appears on the
+        create form (whose comparison is what the user is about to submit) and in an
+        existing pull request's edit dialog (whose comparison is that pull request's
+        own), so the host decides whether this surface may offer it — a scope that
+        needs a pull request to exist is off on the create form. It fills the field
+        as an **editable** draft — the text is the model's, the submit is the user's,
+        and nothing here can open or submit the pull request (see the
         `generateDescription` prop).
       -->
       <div v-if="canGenerateDescription" class="generate-description">

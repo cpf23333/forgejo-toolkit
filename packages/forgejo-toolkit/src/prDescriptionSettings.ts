@@ -67,6 +67,55 @@ export type PrDescriptionPromptScope = PrDescriptionPromptScopeValue;
  */
 export type PrDescriptionStatedScope = Exclude<PrDescriptionPromptScope, 'ask'>;
 
+/**
+ * The one stated scope that reads the pull request's **own diff**, and therefore
+ * needs a pull request that already exists (`docs/design/ai-pr-description.md`
+ * §3.1).
+ *
+ * It is a constant rather than a string spelled at each use because three places
+ * have to agree on which tier that is: the run that decides whether it can honour
+ * the configured answer, the host's own answer to "may the create form offer the
+ * control", and the sentence that refusal shows. A second spelling would let one
+ * of them drift into refusing (or offering) the wrong scope.
+ */
+export const PR_DESCRIPTION_EXISTING_PULL_REQUEST_SCOPE: PrDescriptionStatedScope = 'commits-and-diff';
+
+/**
+ * Whether a stated scope can only be honoured where a pull request already
+ * exists.
+ *
+ * The `commits-and-diff` tier drafts from `getPullRequestDiff(owner, repo, index)`
+ * — the platform's own whole-pull-request diff — so a surface whose pull request
+ * does not exist yet cannot serve it. The other two stated scopes are built from
+ * the comparison of two branch names, which both surfaces have.
+ */
+export function prDescriptionScopeNeedsExistingPullRequest(scope: PrDescriptionStatedScope): boolean {
+  return scope === PR_DESCRIPTION_EXISTING_PULL_REQUEST_SCOPE;
+}
+
+/**
+ * Whether the **create** form may offer its "Generate description" control right
+ * now: the feature is on, and the configured answer is one that comparison can
+ * serve.
+ *
+ * `ask` counts as honourable here on purpose: the modal the create surface shows
+ * offers only the answers it can serve, so the question itself is answerable
+ * there. A **stated** `commits-and-diff` is not: the host does not silently
+ * substitute another tier (that would send bytes the user did not choose), so the
+ * control is not offered and the run — reachable anyway through a stale webview or
+ * a hand-edited message — refuses by name.
+ *
+ * This is the affordance half only. The run reads the settings itself and is the
+ * gate.
+ */
+export function prDescriptionOfferedOnCreateForm(): boolean {
+  if (!isPrDescriptionEnabled()) {
+    return false;
+  }
+  const scope = prDescriptionPromptScopeSettingValue();
+  return scope === 'ask' || !prDescriptionScopeNeedsExistingPullRequest(scope);
+}
+
 /** The key without its section, for the `getConfiguration` read. */
 const PR_DESCRIPTION_KEY = 'prDescription';
 const PR_DESCRIPTION_PROMPT_SCOPE_KEY = 'prDescriptionPromptScope';

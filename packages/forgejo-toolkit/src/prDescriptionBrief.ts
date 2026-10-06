@@ -6,7 +6,7 @@ import {
   buildAiPreReviewFileContents,
   buildAiPreReviewPromptMessages,
 } from './aiPreReviewBrief';
-import { PR_REVIEW_DIFF_BUDGET } from '../mcp/tools';
+import { PR_REVIEW_DIFF_BUDGET, PR_REVIEW_MAX_DIFF_FILES } from '../mcp/tools';
 
 /**
  * The pure half of "generate a pull request description": what is sent to the
@@ -25,10 +25,12 @@ import { PR_REVIEW_DIFF_BUDGET } from '../mcp/tools';
  *    (`forgejoToolkit.prDescriptionPromptScope`, `docs/design/ai-model-transport.md`
  *    §7.6) decides what the caller may hand this module: `commits-only` passes no
  *    file text, so the prompt carries the branch names, the commit list and the
- *    changed-file table — never a file's own content — while `commits-and-files`
- *    adds the changed files' text at the head revision and nothing else. There is
- *    no scope under which a token, a host name or an existing comment's body may
- *    appear, and this module has no way to reach one.
+ *    changed-file table — never a file's own content — while `commits-and-diff`
+ *    adds the pull request's own diff (its hunks, and only for a pull request that
+ *    already exists) and `commits-and-files` adds the changed files' text at the
+ *    head revision and nothing else. There is no scope under which a token, a host
+ *    name or an existing comment's body may appear, and this module has no way to
+ *    reach one.
  * 2. **The draft is prose, and an empty answer is not a draft.** The answer is
  *    Markdown text, so there is no JSON contract to repair; an answer that is
  *    empty after trimming, or that is nothing but a code fence, is refused
@@ -290,15 +292,14 @@ function renderChangedFilesSection(
  * Assembles the user half of one request: the comparison's own facts, in the
  * order the prompt's instruction block asks for them.
  *
- * The prompt carries **no line-level diff**, and that is a fact about the
- * interface rather than a choice here: `GET /repos/{owner}/{repo}/compare/{basehead}`
- * reports the commits, their messages and the changed files with a status
- * (`added`/`removed`/`modified`) and nothing else — no hunks and no additions or
- * deletions, which only the pull request's own files endpoint reports
- * (`docs/api-verification-checklist.md`, the `repoCompareDiff` entry). A
- * pull request that does not exist yet has no index for that endpoint, so what
- * this feature can honestly send is the commit list and the changed-file set.
- * The record's §7.6 records that narrowing and `TODO.md` carries what remains.
+ * This assembles the half **both** surfaces share: the comparison's own facts —
+ * the commits, their messages and the changed files with a status
+ * (`added`/`removed`/`modified`). The comparison endpoint
+ * (`GET /repos/{owner}/{repo}/compare/{basehead}`) reports exactly that and no
+ * hunks (`docs/api-verification-checklist.md`, the `repoCompareDiff` entry), so
+ * the diff a `commits-and-diff` run carries is read from the pull request's own
+ * endpoint and appended by {@link buildPrDescriptionDiff} — never synthesised
+ * here, and never read from the comparison.
  *
  * The title the user has already typed is passed through when it is non-empty:
  * it is what the form is about to submit, and a description that ignores it would
@@ -393,20 +394,157 @@ export function buildPrDescriptionFileContents(input: {
 }
 
 /**
+ * The `[diff]` section of the `commits-and-diff` scope: the pull request's **own**
+ * diff, exactly as the server reports it.
+ *
+ * The whole point of this tier is that the model reads what actually changed
+ * instead of only what the commit messages say, so this section may not be built
+ * from anything but that response. Two consequences are encoded here:
+ *
+ * 1. **Nothing is invented, and nothing is dropped quietly.** The text is split at
+ *    `diff --git` boundaries and kept verbatim — including a block whose path this
+ *    module cannot decode, which is why the split is its own and not the
+ *    pre-review's path-keyed `splitDiffByFile`: that one drops a block whose `+++`
+ *    line it cannot read, and dropping a file from a section whose promise is
+ *    "here is the diff" would be a silent omission rather than a safe one.
+ * 2. **A binary file is reported, not guessed.** The run never asks for
+ *    `?binary=true`, so a binary change arrives as whatever the server writes
+ *    without it (a `Binary files … differ` line and no hunks); the section's own
+ *    preamble says so, and no hunk is ever manufactured for it.
+ *
+ * The budget is the pre-review's shared `PR_REVIEW_DIFF_BUDGET` and its file cap
+ * is `PR_REVIEW_MAX_DIFF_FILES`, for the reason §7.2 gives: the two features must
+ * not disagree about how much of a diff is too much. A cut drops whole blocks
+ * from the end and is announced in the text; the one exception is a first block
+ * larger than the entire budget, which is cut rather than dropped (dropping it
+ * would send no diff at all under a scope whose whole content is the diff) and
+ * says so.
+ */
+export interface PrDescriptionDiff {
+  /** The `[diff]` section, ready to append to the brief. */
+  text: string;
+  /** How many file blocks the server's diff held, before any cap. */
+  filesTotal: number;
+  /** How many of them the section carries. */
+  filesShown: number;
+  truncatedBy?: 'file-limit' | 'budget';
+}
+
+/** The most room the whole-pull-request diff may take, shared with the pre-review's diff. */
+export const PR_DESCRIPTION_DIFF_BUDGET = PR_REVIEW_DIFF_BUDGET;
+
+/**
+ * Splits a raw diff into one block per file **without** reading the paths.
+ *
+ * The pre-review's `splitDiffByFile` keys its blocks by the path `parsePullDiff`
+ * derives, which is what lets that feature drop a diff body for a file its brief
+ * does not list — and which also drops a block whose path it cannot decode. This
+ * feature's promise is the opposite one ("this is the diff the server reported"),
+ * so it keeps every block and needs no path at all; the two dividers are
+ * deliberately different for that reason, and they still agree about where a block
+ * starts (`diff --git `).
+ */
+function splitWholeDiffIntoFileBlocks(diffText: string): string[] {
+  const blocks: string[] = [];
+  let current: string[] = [];
+  for (const line of diffText.split(/\r?\n/)) {
+    if (line.startsWith('diff --git ') && current.length > 0) {
+      blocks.push(current.join('\n'));
+      current = [];
+    }
+    current.push(line);
+  }
+  if (current.length > 0) {
+    blocks.push(current.join('\n'));
+  }
+  return blocks.filter((block) => block.trim() !== '');
+}
+
+/**
+ * Builds the `[diff]` section from the pull request's own diff text.
+ *
+ * The preamble states what the section is and what it is not, so a model that
+ * receives a single `Binary files … differ` block knows it is looking at the
+ * server's whole answer for that file rather than at an empty or lost diff.
+ */
+export function buildPrDescriptionDiff(diffText: string): PrDescriptionDiff {
+  const blocks = splitWholeDiffIntoFileBlocks(diffText);
+  const head = [
+    '[diff]',
+    "(the pull request's own diff, exactly as the server reports it: every changed file's added and removed lines with its file and hunk headers; a binary file's change arrives without hunks and is shown as the server wrote it)",
+  ].join('\n');
+  if (blocks.length === 0) {
+    return { text: `${head}\n(the server reported no change)`, filesTotal: 0, filesShown: 0 };
+  }
+
+  const kept: string[] = [];
+  let used = 0;
+  let truncatedBy: PrDescriptionDiff['truncatedBy'];
+  for (const [index, block] of blocks.entries()) {
+    if (index >= PR_REVIEW_MAX_DIFF_FILES) {
+      truncatedBy = 'file-limit';
+      break;
+    }
+    if (used + block.length + 2 > PR_DESCRIPTION_DIFF_BUDGET) {
+      if (kept.length === 0) {
+        kept.push(
+          `${block.slice(0, PR_DESCRIPTION_DIFF_BUDGET)}\n[truncated: this file's diff is longer than the whole diff budget, so only its beginning is shown]`,
+        );
+      }
+      truncatedBy = truncatedBy ?? 'budget';
+      break;
+    }
+    kept.push(block);
+    used += block.length + 2;
+  }
+
+  const lines = [`${head}\n${kept.join('\n\n')}`];
+  if (truncatedBy !== undefined) {
+    lines.push(`[truncated: only ${kept.length} of ${blocks.length} file(s) in the diff are shown]`);
+  }
+  return {
+    text: lines.join('\n\n'),
+    filesTotal: blocks.length,
+    filesShown: kept.length,
+    ...(truncatedBy === undefined ? {} : { truncatedBy }),
+  };
+}
+
+/**
+ * The extra material one scope adds to the brief, **exactly one of** these
+ * (`docs/design/ai-pr-description.md` §3).
+ *
+ * A discriminated value rather than two optional parameters because the scopes are
+ * mutually exclusive by construction: no run may carry both the diff and the file
+ * texts, and a shape that could express both would be a shape the assembly would
+ * have to police. `undefined` means the scope adds nothing (`commits-only`).
+ */
+export type PrDescriptionMaterial =
+  | { kind: 'diff'; diff: PrDescriptionDiff }
+  | { kind: 'files'; fileContents: AiPreReviewFileContents };
+
+/**
  * The whole text one request sends: the instruction block, a blank line, then the
- * caller's half (plus the file texts when the scope allows them).
+ * caller's half plus the one extra section its scope allows.
  *
  * It reuses `aiPreReviewPromptText`'s exact joining rule so "what we counted" and
  * "what we sent" cannot drift, and the two features cannot disagree about the
- * shape of a request.
+ * shape of a request. A run with no extra material produces exactly the bytes it
+ * produced before this parameter existed, which is what keeps the two scopes that
+ * already shipped byte-identical.
  */
 export function buildPrDescriptionPromptText(
   systemPrompt: string,
   briefText: string,
-  fileContents?: AiPreReviewFileContents,
+  material?: PrDescriptionMaterial,
 ): string {
-  const userPrompt =
-    fileContents === undefined ? briefText : `${briefText}\n\n${renderPrDescriptionFileContents(fileContents)}`;
+  const extra =
+    material === undefined
+      ? ''
+      : material.kind === 'diff'
+        ? material.diff.text
+        : renderPrDescriptionFileContents(material.fileContents);
+  const userPrompt = extra === '' ? briefText : `${briefText}\n\n${extra}`;
   return aiPreReviewPromptText(systemPrompt, userPrompt);
 }
 

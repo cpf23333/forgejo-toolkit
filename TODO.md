@@ -25,7 +25,6 @@
 
 按建议优先级排序；MCP 侧无头进程的输出文案保持英文（既有约定），webview 侧文案走 i18n 双语 JSON。MCP 写操作工具（Phase 2）的计划与执行状态见 `docs/design/mcp-write-tools-confirmation.md`（交付记录见 `FEATURES.md` 的「已完成」「MCP Server」一节）。下面各条说的"接缝"都是同一个模型访问接缝，它的形状与两条传输写在 `docs/design/ai-model-transport.md`。
 
-- [ ] **P2 PR 描述生成的行级 diff（唯一剩余的一项）**：功能本身已交付（2026-10-06，用户可见行为见 `FEATURES.md`，设计记录 `docs/design/ai-pr-description.md`，两份 `CHANGELOG`）。它现在按**比较端点能给的材料**起草：commit 列表（主题/正文/作者/时间）与变更文件表（路径 + 状态），以及可选的文件正文。**没做的是行级 diff**：`GET /repos/{owner}/{repo}/compare/{basehead}` 只返回 `CommitAffectedFiles`（`filename` + `status`，`docs/api-verification-checklist.md` 的 `repoCompareDiff` 条目），`additions`/`deletions` 只在 `/pulls/{index}/files` 上，而创建表单里的 PR 还没有 index，所以现在**任何范围都不发 hunk**。要做就得先裁决这一条：两个分支上各取一次文件正文、自己合成一份 diff，还是**以平台自己的输出为准**（那要另找端点或新开上游诉求）——前者送去的 diff 与平台自己显示的不一定相同，而给模型一份错的 diff 比少送内容更坏。在那之前不改同意文案里的任何承诺。
 - [ ] **P2 Issue 分诊建议**：按内容建议 labels/assignees（把现有 label 描述喂给模型选）。**接缝同上**：走 `selectedModelFor(feature)`，不自己取模型
 - [ ] **P2 AI 预评审（draft-only）剩余决定**：功能已交付；设计里刻意留着的三条变体不再记在这里——它们连同各自的决定与理由记在 `FEATURES.md` 的「已完成」「PR Review」一节（那里是它们唯一的记录处），只在出现实际诉求时才重新提起。本条目保留为指针；裁决正文仍是 `docs/design/ai-prereview.md` 的 §13。
 - [ ] **P2 AI 预评审的下一档质量（两件各自独立的大功能，不是本次改动的收尾）**：相关文件检索与 agentic 读取这两个方向不再记在这里——它们记在 `FEATURES.md` 的「未完成」一节，各自需要独立的设计与批准。本条目保留为指针；工具调用与 agent 循环这道接缝的现状见 `docs/design/ai-model-transport.md`。

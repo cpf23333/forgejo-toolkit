@@ -81,7 +81,7 @@ import {
   isAiPreReviewEnabled,
   writeAiPreReviewModelSetting,
 } from '../aiPreReviewSettings';
-import { isPrDescriptionEnabled } from '../prDescriptionSettings';
+import { isPrDescriptionEnabled, prDescriptionOfferedOnCreateForm } from '../prDescriptionSettings';
 import {
   readAiProviderSettings,
   removeAiProvider,
@@ -691,11 +691,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (event.affectsConfiguration('forgejoToolkit.aiPreReview')) {
           this._reply('setAiPreReview', { aiPreReview: isAiPreReviewEnabled() });
         }
-        // The PR-description control's own switch, pushed for the same reason and
-        // with the same limit: a stale boolean can only hide or show the form's
-        // button.
-        if (event.affectsConfiguration('forgejoToolkit.prDescription')) {
-          this._reply('setPrDescription', { prDescription: isPrDescriptionEnabled() });
+        // The PR-description controls' own switches, pushed for the same reason and
+        // with the same limit: a stale pair of booleans can only hide or show a
+        // button. The **scope** is watched as well as the feature switch, because
+        // the create form's share of that answer depends on it: a stated
+        // `commits-and-diff` is honourable only where a pull request exists, and
+        // without this the create form would keep offering a control whose only
+        // outcome is the run's refusal.
+        if (
+          event.affectsConfiguration('forgejoToolkit.prDescription') ||
+          event.affectsConfiguration('forgejoToolkit.prDescriptionPromptScope')
+        ) {
+          this._reply('setPrDescription', {
+            prDescription: isPrDescriptionEnabled(),
+            prDescriptionCreateForm: prDescriptionOfferedOnCreateForm(),
+          });
         }
         // The AI endpoint keys are listened to here for the same reason as the
         // switch above, and they are the five the settings page renders rather
@@ -1048,6 +1058,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           // the form hides an action whose only outcome would be the run's own
           // refusal, and the run re-checks the setting either way.
           prDescription: isPrDescriptionEnabled(),
+          // The **create** form's gate, which is a different fact: one of the
+          // stated prompt scopes drafts from the pull request's own diff and
+          // therefore needs a pull request that already exists, so the create form
+          // does not offer the control while that scope is configured. The host
+          // derives it because only the host can read configuration; the run
+          // refuses by name either way, so a stale value can only hide or show a
+          // button.
+          prDescriptionCreateForm: prDescriptionOfferedOnCreateForm(),
           // The floor the host's own version notices use, so the Settings
           // form's "Server version" example names the release this build
           // actually supports instead of a number written into a translation
@@ -1482,19 +1500,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         this._aiPreReviewRunner(target);
         return;
       }
-      // The create-pull-request form's "generate a description" action. The
-      // coordinates are the comparison the form is about to submit and nothing
-      // else: the model, the scope, the consent question and the prompt all belong
-      // to `src/prDescription.ts`. What comes back is text, which is the whole
-      // point — a message that could name a title, a body or a merge strategy
-      // would be an extension that opens pull requests, and this one does not.
+      // The "generate a description" action, from the create form or from an
+      // existing pull request's edit dialog. The coordinates are the comparison the
+      // form holds and nothing else: the model, the scope, the consent question and
+      // the prompt all belong to `src/prDescription.ts`. What comes back is text,
+      // which is the whole point — a message that could name a title, a body or a
+      // merge strategy would be an extension that opens pull requests, and this one
+      // does not. `index` is present only on the existing-pull-request surface,
+      // where it is what the `commits-and-diff` scope reads its material from; a
+      // malformed one refuses the whole message rather than degrading it.
       //
       // The feature switch is deliberately **not** checked here, for the same
       // reason `aiPreReviewPullRequest` does not check its own: the run checks it
       // first and refuses with a pointer to the setting, and the form hides the
       // button while it is off.
       case 'generatePrDescription': {
-        const { instanceId, owner, repo, base, head, title, _requestId } = message;
+        const { instanceId, owner, repo, base, head, index, title, _requestId } = message;
         if (typeof _requestId !== 'string') {
           logger.error('generatePrDescription carried no request id, so there is nothing to answer');
           return;
@@ -1503,12 +1524,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           logger.error('generatePrDescription arrived before the PR-description run was registered');
           return;
         }
-        const target = parsePrDescriptionRequest({ instanceId, owner, repo, base, head, title });
+        const target = parsePrDescriptionRequest({ instanceId, owner, repo, base, head, index, title });
         if (!target) {
           logger.error('generatePrDescription refused a message that does not name a usable comparison');
           this._reply('prDescriptionGenerated', {
             error: vscode.l10n.t(
-              'The description was not drafted: the request did not name a usable pair of branches. Nothing was sent.',
+              'The description was not drafted: the request did not name a usable comparison. Nothing was sent.',
             ),
             _requestId,
           });

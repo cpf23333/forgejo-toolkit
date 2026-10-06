@@ -490,7 +490,7 @@
       "bodyPlaceholder": "请输入描述（支持 Markdown）",
       "generateDescription": "生成描述",
       "generatingDescription": "生成中…",
-      "generateDescriptionHint": "AI 按两个分支之间的提交与变更文件起草一段描述，填入下面的描述框作为**可编辑**草稿。Pull Request 仍然由你自己创建。",
+      "generateDescriptionHint": "AI 按两个分支之间的提交与变更文件起草一段描述，并按提示词范围再决定是否发该 Pull Request 自己的 diff 或文件正文；起草结果填入下面的描述框作为**可编辑**草稿。Pull Request 仍然由你自己提交。",
       "generateDescriptionReplace": "你写的描述会被替换。再按一次「生成描述」确认替换，或继续编辑描述框以保留它。",
       "generateDescriptionFailed": "无法起草描述。",
       "base": "目标分支",
@@ -692,8 +692,8 @@
     },
     "prDescription": {
       "title": "AI：Pull Request 描述",
-      "description": "由聊天模型按创建 Pull Request 表单即将提交的比较起草一段描述，并填入描述框作为可编辑草稿。Pull Request 仍由你自己创建；生成失败时描述框保持你写的样子。",
-      "enabled": "在创建 Pull Request 表单上提供「生成描述」",
+      "description": "由聊天模型按表单手里的那次比较起草一段描述，并填入描述框作为可编辑草稿：创建 Pull Request 的表单是「即将提交的比较」，一个已存在的 Pull Request 的编辑弹窗是它当前的比较。Pull Request 仍由你自己创建或保存；生成失败时描述框保持你写的样子。",
+      "enabled": "在写 Pull Request 描述的地方提供「生成描述」",
       "enabledDefault": "默认关：打开它才会读取比较或发出内容。",
       "disabledHint": "下面的提示词范围属于配置项，只有本开关打开后才会被用到。",
       "scope": "提示词范围",
@@ -702,6 +702,7 @@
       "scopeOption": {
         "ask": "每次生成前询问——在你回答之前不请求、不发送、不写入任何东西",
         "commits-only": "提交与变更文件列表——分支名、提交的主题/正文/作者/时间，以及每个变更文件的路径与状态，不含文件内容",
+        "commits-and-diff": "提交、变更文件列表与该 Pull Request 自己的 diff——再加上每个变更文件的新增与删除行连同文件头与 hunk 头（服务端报告的原文），不含任何文件的完整正文；只在已存在的 Pull Request 的编辑弹窗里提供",
         "commits-and-files": "提交、变更文件与其正文——在上面基础上再加上变更文件在 head 分支的完整正文"
       }
     },
