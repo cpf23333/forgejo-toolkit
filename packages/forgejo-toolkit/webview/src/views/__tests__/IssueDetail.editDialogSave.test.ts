@@ -83,9 +83,17 @@ const { stateMock, keyFor } = vi.hoisted(() => {
   };
 });
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: '5' } }),
-}));
+vi.mock('vue-router', async () => {
+  const { reactive: makeReactive } = await import('vue');
+  // A **reactive** route, because the rule under test is what happens when it moves:
+  // this view is reused across issue routes (`<keep-alive>` keys by component type), so
+  // the identity it owns has to follow this route while it is the live one.
+  const params = makeReactive({ instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: '5' });
+  return {
+    useRoute: () => ({ params, name: 'issueDetail' }),
+    __params: params,
+  };
+});
 
 vi.mock('../../composables/useAppState', async () => {
   const state = reactive(stateMock);
@@ -121,9 +129,12 @@ vi.mock('../../composables/useAppState', async () => {
 import IssueDetail from '../IssueDetail.vue';
 import IssueForm from '../../components/IssueForm.vue';
 import { useAppState } from '../../composables/useAppState';
+import * as routerModule from 'vue-router';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
 const state = useAppState() as unknown as Record<string, any>;
+/** The live route's params: moving them is what a navigation does to this view. */
+const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
 
 const EasyMdeEditorStub = defineComponent({
   name: 'EasyMdeEditor',
@@ -189,6 +200,12 @@ async function typeTitle(wrapper: ReturnType<typeof mountView>, title: string): 
 describe('the issue edit dialog after a save', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The route is the view's own again: a test that moved it (the identity rule) must
+    // not leak that move into the next one.
+    routeParams.instanceId = 'inst-1';
+    routeParams.owner = 'owner';
+    routeParams.repo = 'repo';
+    routeParams.index = '5';
     state.errors.clear();
     state.loading.clear();
     state.issueDetails.value.clear();
@@ -271,6 +288,79 @@ describe('the issue edit dialog after a save', () => {
     await flushPromises();
 
     expect(wrapper.findComponent(ModalDialogStub).props('open')).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('closes and re-reads the issue on screen when the route moved before the save', async () => {
+    // The re-walked reproduction (isolated dev host, 2026-10-06): `<keep-alive>` caches
+    // by component type, so **one** instance serves every issue route — open `broken-repo#1`,
+    // move to `demo-repo#1`, save there. The identity used to be frozen at the issue the
+    // instance was created for, so the reply for the issue now on screen did not match it
+    // and the watcher returned early: dialog open, no message, no re-read.
+    const wrapper = mountView();
+    await nextTick();
+    (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+    await nextTick();
+
+    // The route moves to another issue while the dialog is open …
+    routeParams.repo = 'other-repo';
+    routeParams.index = '7';
+    await nextTick();
+    state.issueDetails.value.set('inst-1|owner|other-repo|7', {
+      number: 7,
+      title: 'the issue on screen now',
+      body: 'body',
+      user: { login: 'demo-user' },
+      labels: [],
+      assignees: [],
+      assets: [],
+    });
+    await nextTick();
+    // … the reader saves what is on screen …
+    await wrapper.findComponent(IssueForm).vm.$emit('submit', {
+      title: 'edited title',
+      body: 'original body',
+      labels: [],
+      assignees: [],
+    });
+    await nextTick();
+    expect(state.editIssue).toHaveBeenCalledTimes(1);
+
+    // … and the host accepts it.
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'other-repo', index: 7 };
+    await flushPromises();
+
+    expect(wrapper.findComponent(ModalDialogStub).props('open')).toBe(false);
+    expect(state.loadIssueDetail).toHaveBeenCalledWith('inst-1', 'owner', 'other-repo', 7, true);
+    wrapper.unmount();
+  });
+
+  it('never applies the edit session’s marked deletions to the issue the route moved to', async () => {
+    // The marks belong to the session that made them. This instance was created for #5
+    // (`repo#5`), the route moves to `other-repo#7` where the reader opens an edit and
+    // marks an attachment, and the route comes back to #5. The report for #5 is owned —
+    // this instance displays #5 again — but #7's mark must not be deleted from it, and
+    // the old frozen identity did exactly that.
+    const wrapper = mountView();
+    await nextTick();
+
+    routeParams.repo = 'other-repo';
+    routeParams.index = '7';
+    await nextTick();
+    (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+    await nextTick();
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    await nextTick();
+
+    // Back to the issue the instance was created for, and its save report lands.
+    routeParams.repo = 'repo';
+    routeParams.index = '5';
+    await nextTick();
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 5 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
 });

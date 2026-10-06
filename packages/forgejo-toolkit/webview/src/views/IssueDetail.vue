@@ -213,6 +213,78 @@ const issueReference = computed(() => {
 // route. Guard all route-driven loading on isActive.
 const isActive = ref(true);
 
+/**
+ * The issue this instance is **displaying** — the target of every "is this mine?"
+ * decision, as opposed to the one the instance was created for.
+ *
+ * `<keep-alive>` caches by component type and this view's `router-view` carries no key,
+ * so **one** instance serves every issue route and is reused when the route moves to
+ * another issue or another repository. The ownership key used to be a constant built at
+ * setup, which froze the first target: after a navigation, a save reported for the issue
+ * then on screen did not match it and the save watcher returned early — the dialog stayed
+ * open with no message and the issue was not re-read (walked in the isolated dev host on
+ * 2026-10-06: open `broken-repo#1`, move to `demo-repo#1`, save).
+ *
+ * {@link syncDisplayedTarget} moves it when **this** surface's route changes while the
+ * instance is live, and leaves it alone the rest of the time: while this view is
+ * deactivated, `route.params` belong to whatever surface is on screen, so they say
+ * nothing about what this instance shows.
+ */
+const displayedKey = ref(issueDetailKey(instanceId.value, owner.value, repo.value, index.value));
+
+/**
+ * The issue this instance last dispatched an edit for, and whose reply has not been
+ * handled yet.
+ *
+ * A save is a fact about the target the reader pressed Save on, and its reply has to be
+ * applied even when the route moved before it arrived (the reader cannot navigate through
+ * a modal dialog, but the host can move the route). This is what keeps that late reply
+ * owned; without it, "the route has moved" would silently drop a save the reader made.
+ */
+const dispatchedKey = ref<string | undefined>(undefined);
+
+/**
+ * The target of the edit session that marked the attachments for deletion.
+ *
+ * Marks belong to the session that made them, which is the issue that was on screen when
+ * the dialog opened — not whichever issue the route points at by the time the save reply
+ * arrives.
+ */
+const sessionKey = ref<string | undefined>(undefined);
+
+/** Whether a save report for `key` is this instance's to apply. */
+function ownsSaveReport(key: string): boolean {
+  return key === displayedKey.value || key === dispatchedKey.value;
+}
+
+/**
+ * Points {@link displayedKey} at this surface's current route, when there is one.
+ *
+ * The route-name test is what makes `route.params` trustworthy here: they are the
+ * **live** route's, so they describe this view only while this view's own route is the
+ * one on screen (`useViewRefresh` recognises the surface the same way). A deactivated
+ * instance keeps the identity of the last issue it showed.
+ */
+function syncDisplayedTarget(): void {
+  if (route.name !== 'issueDetail') {
+    return;
+  }
+  const candidateIndex = Number(route.params.index);
+  const candidateInstance = String(route.params.instanceId ?? '');
+  const candidateOwner = String(route.params.owner ?? '');
+  const candidateRepo = String(route.params.repo ?? '');
+  if (
+    candidateInstance === '' ||
+    candidateOwner === '' ||
+    candidateRepo === '' ||
+    !Number.isInteger(candidateIndex) ||
+    candidateIndex <= 0
+  ) {
+    return;
+  }
+  displayedKey.value = issueDetailKey(candidateInstance, candidateOwner, candidateRepo, candidateIndex);
+}
+
 function loadIssueData(force = false) {
   state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value, force);
   state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, force);
@@ -239,6 +311,9 @@ useViewRefresh(route, 'issueDetail', () => loadIssueData(true));
 
 onActivated(() => {
   isActive.value = true;
+  // The route may have changed while this instance was deactivated, so the identity it
+  // owns is re-read before anything else: what it displays now is what it is for.
+  syncDisplayedTarget();
   // Params may have changed back before this hook ran; make sure data for the
   // current route is loaded (loaders dedup via their caches).
   loadIssueData();
@@ -254,6 +329,10 @@ watch(
     if (!isActive.value) {
       return;
     }
+    // The instance displays whatever this surface's route names, so its identity moves
+    // with it — before the load, so a reply that lands meanwhile is attributed to the
+    // issue actually on screen.
+    syncDisplayedTarget();
     loadIssueData();
   },
   { immediate: true },
@@ -547,6 +626,9 @@ function openEdit() {
  */
 function openEditWith(labelSeed: number[] | undefined) {
   pendingTriageSeed.value = labelSeed;
+  // The attachments marked in this session belong to the issue on screen when it opens:
+  // a later route change must never carry them to another issue (see the save watcher).
+  sessionKey.value = displayedKey.value;
   state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
   attachmentDeleteNotice.value = undefined;
   // A new edit session starts with no marked deletions. Clearing them here
@@ -690,6 +772,9 @@ async function handleEditSubmit(data: {
   if (!isEditing.value) {
     return;
   }
+  // The save is a fact about this target, and it stays this instance's fact even if the
+  // route moves before the host answers (see the save watcher).
+  dispatchedKey.value = issueDetailKey(target.instanceId, target.owner, target.repo, target.index);
   state.editIssue(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
     body: data.body,
@@ -1002,27 +1087,20 @@ function handleRemoveDependency(depNumber: number) {
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 
-// The issue this view exists for, captured once: under keep-alive a view of
-// another issue stays mounted (cached) while the live route has moved on, so
-// its `route.params` no longer describe it — but its own captured target still
-// does. The live route is deliberately not consulted: which route is live says
-// nothing about which issue a save reply belongs to.
-const ownIssueKey = issueDetailKey(instanceId.value, owner.value, repo.value, index.value);
-
 watch(
   () => state.lastSavedIssue.value,
   async (saved) => {
-    // Only the view that owns the saved issue may act on its report. Several
-    // detail views stay cached under keep-alive and each keeps its own
-    // `pendingDeleteAttachmentIds`, while `lastSavedIssue` is a single shared
-    // slot: without this guard, saving issue B makes every cached view delete
-    // *its own* marked attachments against B.
+    // Only the view instance that owns the saved issue may act on its report, because
+    // `lastSavedIssue` is one shared slot on a view that is **reused** across issue
+    // routes (see {@link displayedKey}).
     //
-    // Ownership is decided by the reply's target, not by the live route: a save
-    // reported after the user navigated away still belongs to the issue that was
-    // saved, and that issue's view must still clean up its marked attachments.
-    // A live view of *another* issue must not react, and neither must a cached
-    // view of another issue.
+    // Ownership is therefore asked of the identity this instance holds, in two shapes:
+    // the issue it **displays** (the ordinary case — the reader saved what is on screen),
+    // and the issue it **dispatched an edit for** (the late case — a save whose reply
+    // arrives after the route moved, which must still clean up that issue's marked
+    // attachments). A report for anything else is another surface's or another window's,
+    // and acting on it is what used to delete this instance's marks against somebody
+    // else's issue.
     if (!saved) {
       return;
     }
@@ -1033,23 +1111,27 @@ watch(
       index: saved.index,
     };
     const savedKey = issueDetailKey(target.instanceId, target.owner, target.repo, target.index);
-    if (savedKey !== ownIssueKey) {
-      // This view's own issue is not the one that was saved. Being the live
-      // route is not ownership: the live view of issue A also renders while
-      // issue B is being saved elsewhere, and it must not delete A's marked
-      // attachments against B. Ownership is decided by the reply's target
-      // versus this view's own target only.
+    if (!ownsSaveReport(savedKey)) {
       return;
     }
-    // The saved issue itself is the target, not the live route: the host can
-    // report a save after the user navigated away, and reading `route.params`
-    // again would make a late save drop (and mis-address) the marked
-    // attachment deletes of the issue that was actually saved.
+    // The saved issue itself is the target, never the live route: the reply names the
+    // issue that was actually written, and reading `route.params` again would address a
+    // late save to whatever the reader happens to be looking at by then.
     try {
-      const outcome = await deletePendingAttachments(target);
+      // The marked deletions belong to the edit session that dispatched this save, and
+      // they are applied to the target the reader pressed Save on and to no other: a
+      // report for the issue now on screen, with no edit dispatched from here, must not
+      // carry this instance's marks to it.
+      const marksAreThisSessions = savedKey === sessionKey.value;
+      const outcome = marksAreThisSessions ? await deletePendingAttachments(target) : { declined: 0, failed: 0 };
       state.loadIssueDetail(target.instanceId, target.owner, target.repo, target.index, true);
-      pendingDeleteAttachmentIds.value = [];
+      if (marksAreThisSessions) {
+        pendingDeleteAttachmentIds.value = [];
+      }
       isEditing.value = false;
+      if (savedKey === dispatchedKey.value) {
+        dispatchedKey.value = undefined;
+      }
       // The issue was saved; tell the user why a marked attachment is still
       // there instead of closing the dialog without a word.
       const notice = attachmentDeleteNoticeFor(outcome);

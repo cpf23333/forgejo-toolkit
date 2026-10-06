@@ -131,6 +131,39 @@ error is the other half of the rule: it writes that sentence onto the form's own
 leaves the save signal alone, so the dialog stays open with everything the reader typed
 and the form shows the reason — never silently.
 
+**A view's identity is the target it is displaying, not the one it was created for**
+(`IssueDetail.vue` / `PullRequestDetail.vue`, 2026-10-06). The keep-alive cache in
+`App.vue` is keyed by **component type** — its `router-view` carries no key — so **one**
+instance of each detail view serves every route of that surface: opening `broken-repo#1`
+and then `demo-repo#1` reuses the instance, and its dialog stays open across the move. The
+ownership key used to be a constant built at setup, which froze the first target; after
+such a navigation a save reported for the issue actually on screen did not match it, and
+the watcher returned early — the dialog stayed open with no message and the issue was
+never re-read (reproduced in the isolated dev host, and the second half of the same
+defect: an instance whose marks belonged to one target could delete them against the
+frozen one). The rule the two views implement:
+
+- **`displayedKey`** is the target this instance is displaying. It is updated by a watcher
+  on the route's four parameters and by `onActivated`, and only while this surface's route
+  is the one on screen (`route.name` — the same test `useViewRefresh` uses), because a
+  deactivated instance sees whatever surface is live and its params describe that surface,
+  not this one. The live instance therefore still follows the route, as it must.
+- **`dispatchedKey`** is the target this instance last dispatched an edit for. A save is a
+  fact about the target the reader pressed Save on, and its reply must still be applied
+  after the route moved (a reader cannot navigate through a modal dialog, but the host
+  can).
+- A save report is **owned** when its target is either of those; anything else is another
+  surface's or another window's, and acting on it is what deleted this instance's marked
+  attachments against someone else's issue.
+- The **marked deletions belong to the edit session that made them** (`sessionKey`, set
+  when the dialog opens), and are applied only when the report's target is that session's:
+  an owned report for a target the session was not opened for leaves the marks alone
+  rather than carrying them across.
+
+Both rules have tests that fail without them, for the issue and the pull-request surface
+alike (`*editDialogSave.test.ts`: the moved-route save closes and re-reads the target on
+screen; the moved-route report never applies the session's marks to the wrong target).
+
 The request/reply protocol itself is documented in
 [communication.md](./communication.md).
 

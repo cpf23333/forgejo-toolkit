@@ -326,6 +326,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The first-run wizard showed an empty strip under the buttons when it had
   nothing to report; the message area now stays invisible until it has
   something to say.
+- **Saving after moving between issues or pull requests now closes the edit dialog
+  and refreshes the page.** The open issue and pull-request pages are reused as you
+  navigate between them, and the dialog's idea of "my issue" was fixed when the page
+  was first opened: after a move, a save of what was actually on screen matched
+  nothing, so the dialog stayed open with no message and the page behind it was not
+  refreshed (saving straight into a page, without moving first, was unaffected). The
+  page's idea of what it is showing now follows the navigation, so a save closes the
+  dialog and re-reads the issue or pull request on screen. The other half of the
+  same mistake is fixed too: attachments you marked for deletion are applied only to
+  the item whose edit form marked them, never to one you navigated to since.
 - **Saving an issue or a pull request now closes the edit dialog, and a save that
   fails says why.** The dialog used to stay open after a successful save with no
   message at all, which read as "the save did nothing": the close waited for a

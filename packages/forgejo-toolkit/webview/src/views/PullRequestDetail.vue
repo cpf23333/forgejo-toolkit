@@ -269,6 +269,78 @@ const prReference = computed(() => {
 // route. Guard all route-driven loading on isActive.
 const isActive = ref(true);
 
+/**
+ * The pull request this instance is **displaying** — the target of every "is this mine?"
+ * decision, as opposed to the one the instance was created for.
+ *
+ * `<keep-alive>` caches by component type and this view's `router-view` carries no key, so
+ * **one** instance serves every pull request route and is reused when the route moves to
+ * another pull request or another repository. The ownership key used to be a constant
+ * built at setup, which froze the first target: after a navigation, a save reported for
+ * the pull request then on screen did not match it and the save watcher returned early —
+ * the dialog stayed open with no message and the pull request was not re-read (the same
+ * defect, walked on the issue surface on 2026-10-06).
+ *
+ * {@link syncDisplayedTarget} moves it when **this** surface's route changes while the
+ * instance is live, and leaves it alone the rest of the time: while this view is
+ * deactivated, `route.params` belong to whatever surface is on screen, so they say
+ * nothing about what this instance shows.
+ */
+const displayedKey = ref(pullRequestDetailKey(instanceId.value, owner.value, repo.value, index.value));
+
+/**
+ * The pull request this instance last dispatched an edit for, and whose reply has not
+ * been handled yet.
+ *
+ * A save is a fact about the target the reader pressed Save on, and its reply has to be
+ * applied even when the route moved before it arrived (the reader cannot navigate through
+ * a modal dialog, but the host can move the route). This is what keeps that late reply
+ * owned; without it, "the route has moved" would silently drop a save the reader made.
+ */
+const dispatchedKey = ref<string | undefined>(undefined);
+
+/**
+ * The target of the edit session that marked the attachments for deletion.
+ *
+ * Marks belong to the session that made them, which is the pull request that was on
+ * screen when the dialog opened — not whichever one the route points at by the time the
+ * save reply arrives.
+ */
+const sessionKey = ref<string | undefined>(undefined);
+
+/** Whether a save report for `key` is this instance's to apply. */
+function ownsSaveReport(key: string): boolean {
+  return key === displayedKey.value || key === dispatchedKey.value;
+}
+
+/**
+ * Points {@link displayedKey} at this surface's current route, when there is one.
+ *
+ * The route-name test is what makes `route.params` trustworthy here: they are the
+ * **live** route's, so they describe this view only while this view's own route is the
+ * one on screen (`useViewRefresh` recognises the surface the same way). A deactivated
+ * instance keeps the identity of the last pull request it showed.
+ */
+function syncDisplayedTarget(): void {
+  if (route.name !== 'pullRequestDetail') {
+    return;
+  }
+  const candidateIndex = Number(route.params.index);
+  const candidateInstance = String(route.params.instanceId ?? '');
+  const candidateOwner = String(route.params.owner ?? '');
+  const candidateRepo = String(route.params.repo ?? '');
+  if (
+    candidateInstance === '' ||
+    candidateOwner === '' ||
+    candidateRepo === '' ||
+    !Number.isInteger(candidateIndex) ||
+    candidateIndex <= 0
+  ) {
+    return;
+  }
+  displayedKey.value = pullRequestDetailKey(candidateInstance, candidateOwner, candidateRepo, candidateIndex);
+}
+
 function loadPullRequestData(force = false) {
   state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, force);
   state.loadRepoLabels(instanceId.value, owner.value, repo.value, force);
@@ -314,6 +386,9 @@ useViewRefresh(route, 'pullRequestDetail', () => {
 
 onActivated(() => {
   isActive.value = true;
+  // The route may have changed while this instance was deactivated, so the identity it
+  // owns is re-read before anything else: what it displays now is what it is for.
+  syncDisplayedTarget();
   // Params may have changed back before this hook ran; make sure data for the
   // current route is loaded (loaders dedup via their caches).
   loadPullRequestData();
@@ -330,6 +405,10 @@ watch(
     if (!isActive.value) {
       return;
     }
+    // The instance displays whatever this surface's route names, so its identity moves
+    // with it — before the load, so a reply that lands meanwhile is attributed to the
+    // pull request actually on screen.
+    syncDisplayedTarget();
     loadPullRequestData();
   },
   { immediate: true },
@@ -665,6 +744,10 @@ const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
 const branches = computed(() => repoDetail.value?.branches ?? []);
 
 function openEdit() {
+  // The attachments marked in this session belong to the pull request on screen when it
+  // opens: a later route change must never carry them to another one (see the save
+  // watcher).
+  sessionKey.value = displayedKey.value;
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
   attachmentDeleteNotice.value = undefined;
@@ -746,6 +829,9 @@ async function handleEditSubmit(data: {
   if (!isEditing.value) {
     return;
   }
+  // The save is a fact about this target, and it stays this instance's fact even if the
+  // route moves before the host answers (see the save watcher).
+  dispatchedKey.value = pullRequestDetailKey(target.instanceId, target.owner, target.repo, target.index);
   state.editPullRequest(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
     body: data.body,
@@ -1063,27 +1149,20 @@ function clearDueDate() {
   });
 }
 
-// The pull request this view exists for, captured once: under keep-alive a view
-// of another pull request stays mounted (cached) while the live route has moved
-// on, so its `route.params` no longer describe it — but its own captured target
-// still does. The live route is deliberately not consulted: which route is live
-// says nothing about which pull request a save reply belongs to.
-const ownPullRequestKey = pullRequestDetailKey(instanceId.value, owner.value, repo.value, index.value);
-
 watch(
   () => state.lastSavedPullRequest.value,
   async (saved) => {
-    // Only the view that owns the saved pull request may act on its report.
-    // Several detail views stay cached under keep-alive and each keeps its own
-    // `pendingDeleteAttachmentIds`, while `lastSavedPullRequest` is a single
-    // shared slot: without this guard, saving PR B makes every cached view
-    // delete *its own* marked attachments against B.
+    // Only the view instance that owns the saved pull request may act on its report,
+    // because `lastSavedPullRequest` is one shared slot on a view that is **reused**
+    // across pull request routes (see {@link displayedKey}).
     //
-    // Ownership is decided by the reply's target, not by the live route: a save
-    // reported after the user navigated away still belongs to the pull request
-    // that was saved, and that pull request's view must still clean up its
-    // marked attachments. A live view of *another* pull request must not react,
-    // and neither must a cached view of another pull request.
+    // Ownership is therefore asked of the identity this instance holds, in two shapes: the
+    // pull request it **displays** (the ordinary case — the reader saved what is on
+    // screen), and the one it **dispatched an edit for** (the late case — a save whose
+    // reply arrives after the route moved, which must still clean up that pull request's
+    // marked attachments). A report for anything else is another surface's or another
+    // window's, and acting on it is what used to delete this instance's marks against
+    // somebody else's pull request.
     if (!saved) {
       return;
     }
@@ -1094,21 +1173,27 @@ watch(
       index: saved.index,
     };
     const savedKey = pullRequestDetailKey(target.instanceId, target.owner, target.repo, target.index);
-    if (savedKey !== ownPullRequestKey) {
-      // Being the live route is not ownership: the live view of PR A also
-      // renders while PR B is being saved elsewhere, and it must not delete
-      // A's marked attachments against B.
+    if (!ownsSaveReport(savedKey)) {
       return;
     }
-    // The saved pull request itself is the target, not the live route: the host
-    // can report a save after the user navigated away, and reading
-    // `route.params` again would make a late save drop (and mis-address) the
-    // marked attachment deletes of the pull request that was actually saved.
+    // The saved pull request itself is the target, never the live route: the reply names
+    // the pull request that was actually written, and reading `route.params` again would
+    // address a late save to whatever the reader happens to be looking at by then.
     try {
-      const outcome = await deletePendingAttachments(target);
+      // The marked deletions belong to the edit session that dispatched this save, and
+      // they are applied to the target the reader pressed Save on and to no other: a
+      // report for the pull request now on screen, with no edit dispatched from here, must
+      // not carry this instance's marks to it.
+      const marksAreThisSessions = savedKey === sessionKey.value;
+      const outcome = marksAreThisSessions ? await deletePendingAttachments(target) : { declined: 0, failed: 0 };
       state.loadPullRequestDetail(target.instanceId, target.owner, target.repo, target.index, true);
-      pendingDeleteAttachmentIds.value = [];
+      if (marksAreThisSessions) {
+        pendingDeleteAttachmentIds.value = [];
+      }
       isEditing.value = false;
+      if (savedKey === dispatchedKey.value) {
+        dispatchedKey.value = undefined;
+      }
       // The pull request was saved; tell the user why a marked attachment is
       // still there instead of closing the dialog without a word.
       const notice = attachmentDeleteNoticeFor(outcome);

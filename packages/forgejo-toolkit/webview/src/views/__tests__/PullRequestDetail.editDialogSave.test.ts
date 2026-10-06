@@ -89,9 +89,17 @@ const { stateMock, keyFor } = vi.hoisted(() => {
   };
 });
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: '5' } }),
-}));
+vi.mock('vue-router', async () => {
+  const { reactive: makeReactive } = await import('vue');
+  // A **reactive** route, because the rule under test is what happens when it moves:
+  // this view is reused across pull request routes (`<keep-alive>` keys by component
+  // type), so the identity it owns has to follow this route while it is the live one.
+  const params = makeReactive({ instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: '5' });
+  return {
+    useRoute: () => ({ params, name: 'pullRequestDetail' }),
+    __params: params,
+  };
+});
 
 vi.mock('../../composables/useAppState', async () => {
   const state = reactive(stateMock);
@@ -124,6 +132,7 @@ vi.mock('../../composables/useAppState', async () => {
 });
 
 import PullRequestDetail from '../PullRequestDetail.vue';
+import * as routerModule from 'vue-router';
 import { useAppState } from '../../composables/useAppState';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
@@ -190,10 +199,18 @@ function mountView() {
 const detailKey = keyFor('inst-1', 'owner', 'repoA', 5);
 /** The edit form's own key — the one an error from a failed save lands on. */
 const formKey = `form|${detailKey}`;
+/** The live route's params: moving them is what a navigation does to this view. */
+const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
 
 describe('the pull request edit dialog after a save', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The route is the view's own again: a test that moved it (the identity rule) must
+    // not leak that move into the next one.
+    routeParams.instanceId = 'inst-1';
+    routeParams.owner = 'owner';
+    routeParams.repo = 'repoA';
+    routeParams.index = '5';
     state.errors.clear();
     state.loading.clear();
     state.pullRequestDetails.value.clear();
@@ -256,6 +273,76 @@ describe('the pull request edit dialog after a save', () => {
 
     expect(wrapper.findComponent(ModalDialogStub).props('open')).toBe(true);
     expect(wrapper.find('.form-error-stub').text()).toContain('API down');
+    wrapper.unmount();
+  });
+
+  it('closes and re-reads the pull request on screen when the route moved before the save', async () => {
+    // The same identity rule as the issue surface, which is where it was walked live:
+    // `<keep-alive>` caches by component type, so **one** instance serves every pull
+    // request route. A save dispatched after the route moved is a save of the pull
+    // request now on screen, and its reply has to close the dialog and re-read that one.
+    const wrapper = mountView();
+    await nextTick();
+    (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+    await nextTick();
+
+    routeParams.repo = 'repoB';
+    routeParams.index = '6';
+    await nextTick();
+    state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repoB', 6), {
+      number: 6,
+      title: 'the pull request on screen now',
+      state: 'open',
+      user: { login: 'demo-user' },
+      base: { sha: 'base-sha' },
+      head: { sha: 'head-sha' },
+      labels: [],
+      assignees: [],
+      assets: [],
+    });
+    await nextTick();
+    await wrapper.findComponent(PullRequestFormStub).vm.$emit('submit', {
+      title: 'edited title',
+      body: 'edited body',
+      base: 'main',
+      labels: [],
+      assignees: [],
+    });
+    await nextTick();
+    expect(state.editPullRequest).toHaveBeenCalledTimes(1);
+
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoB', index: 6 };
+    await flushPromises();
+
+    expect(wrapper.findComponent(ModalDialogStub).props('open')).toBe(false);
+    expect(state.loadPullRequestDetail).toHaveBeenCalledWith('inst-1', 'owner', 'repoB', 6, true);
+    wrapper.unmount();
+  });
+
+  it('never applies the edit session’s marked deletions to the pull request the route moved to', async () => {
+    // The marks belong to the session that made them: this instance was created for
+    // `repoA#5`, the route moved to `repoB#6` where the reader opened an edit and marked
+    // an attachment, and the route came back to #5. The report for #5 is owned, but #6's
+    // mark must not be deleted from it.
+    const wrapper = mountView();
+    await nextTick();
+
+    routeParams.repo = 'repoB';
+    routeParams.index = '6';
+    await nextTick();
+    (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+    await nextTick();
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    await nextTick();
+
+    routeParams.repo = 'repoA';
+    routeParams.index = '5';
+    await nextTick();
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
 });

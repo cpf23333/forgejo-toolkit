@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { nextTick, reactive } from 'vue';
+import { nextTick, reactive, defineComponent } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 
 const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
@@ -50,6 +50,11 @@ const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
       openPrWorktree: vi.fn(),
       openPullRequestDiff: vi.fn(),
       openSelectedPullRequestDiffs: vi.fn(),
+      // The dialog's own subtree reads these two (the AI pre-review button and the
+      // description control): before the dialog's slot was rendered by these tests they
+      // were never touched, and the stub now renders it so a test can press Save.
+      aiPreReview: { value: false },
+      prDescription: { value: false },
       pullRequestComments: { value: new Map() },
       pullRequestCommits: { value: new Map() },
       pullRequestDetails: { value: new Map() },
@@ -86,7 +91,7 @@ const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
 vi.mock('vue-router', async () => {
   const { reactive: makeReactive } = await import('vue');
   const params = makeReactive({ ...initialRouteParams });
-  const route = makeReactive({ params, path: '/pull/inst-1/owner/repoA/5' });
+  const route = makeReactive({ params, path: '/pull/inst-1/owner/repoA/5', name: 'pullRequestDetail' });
   return {
     useRoute: () => route,
     useRouter: () => ({ push: vi.fn() }),
@@ -136,6 +141,38 @@ const OTHER_PR_PATH = '/pull/inst-1/owner/repoA/6';
 
 const state = useAppState() as unknown as Record<string, any>;
 
+// jsdom's `<dialog>` has no showModal/close, and these tests open the real edit session,
+// so the dialog is a stub that renders its slot (an auto-stub would not, and the form
+// inside it is what a test presses Save on).
+const ModalDialogStub = defineComponent({
+  name: 'ModalDialog',
+  props: {
+    open: { type: Boolean, default: false },
+    loading: { type: Boolean, default: false },
+    title: { type: String, default: '' },
+    isDirty: { type: Boolean, default: false },
+    confirmCloseIfDirty: { type: Boolean, default: false },
+  },
+  emits: ['close'],
+  template: '<div class="modal-dialog-stub"><slot /></div>',
+});
+
+/**
+ * A form stub that declares the events the view listens to, so a test can press Save the
+ * way the reader does: the dispatched save is what makes a late reply still this
+ * instance's (`dispatchedKey`).
+ */
+const PullRequestFormStub = defineComponent({
+  name: 'PullRequestForm',
+  props: {
+    loading: { type: Boolean, default: false },
+    mode: { type: String, default: 'edit' },
+    error: { type: String, default: '' },
+  },
+  emits: ['submit', 'cancel', 'dirty'],
+  template: '<form class="pull-request-form"><slot name="extra" /></form>',
+});
+
 function mountView() {
   return mount(PullRequestDetail, {
     global: {
@@ -149,13 +186,33 @@ function mountView() {
         DiffFileList: true,
         EasyMdeEditor: true,
         MarkdownBody: true,
-        ModalDialog: true,
+        ModalDialog: ModalDialogStub,
         PendingAttachmentList: true,
-        PullRequestForm: true,
+        PullRequestForm: PullRequestFormStub,
         ReactionBar: true,
       },
     },
   });
+}
+
+/**
+ * Opens the edit dialog the way the header button does: the session it opens is what the
+ * marked deletions belong to (`sessionKey`), so a test that marks an attachment has to
+ * start one — exactly like the reader.
+ */
+function openEditSession(wrapper: ReturnType<typeof mountView>): void {
+  (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+}
+
+/** The save itself: the reader pressing Save in the edit form. */
+async function submitEdit(wrapper: ReturnType<typeof mountView>): Promise<void> {
+  await wrapper.findComponent(PullRequestFormStub).vm.$emit('submit', {
+    title: 'edited title',
+    body: 'edited body',
+    labels: [],
+    assignees: [],
+  });
+  await nextTick();
 }
 
 /**
@@ -198,6 +255,8 @@ describe('PullRequestDetail save target', () => {
 
     const wrapper = mountView();
     await nextTick();
+    openEditSession(wrapper);
+    await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7, 8];
     state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
@@ -211,15 +270,18 @@ describe('PullRequestDetail save target', () => {
   });
 
   it('still deletes the marked attachments when the save lands after the user navigated away', async () => {
-    // The host reports the save asynchronously; the user may already be on
-    // another pull request. The reply names the pull request that was saved, and
-    // that pull request's own cached view still owns the delete: dropping it
-    // would leave the marked attachment behind forever. Comparing the report
-    // against the live route instead is the bug this pins down.
+    // A save is a fact about the pull request the reader pressed Save on, and it stays
+    // this instance's fact after the route moves: the dispatch is remembered
+    // (`dispatchedKey`), so the late reply still cleans up what was marked in the session
+    // opened for #5. Comparing the report against the live route instead is the bug this
+    // pins down.
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    await submitEdit(wrapper);
     testRoute.path = OTHER_PR_PATH;
     routeParams.repo = 'repoB';
     routeParams.index = '6';
@@ -233,28 +295,24 @@ describe('PullRequestDetail save target', () => {
     wrapper.unmount();
   });
 
-  it('drops a save of another pull request while this cached view is inactive', async () => {
-    // A cached view only owns the pull request it was created for. The reply for
-    // #6 belongs to #6's own view; this cached view of #5 must neither delete
-    // its marks against #6 nor clear them, or they would be gone when the user
-    // comes back.
+  it('drops a save of another pull request this instance never showed nor saved', async () => {
+    // The instance is reused across pull request routes, so ownership cannot be "the pull
+    // request it was created for": it is the one it **displays** (or one it **dispatched**
+    // an edit for). A reply for a pull request that is neither is another surface's or
+    // another window's, and acting on it would delete this instance's marks against it.
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
     testRoute.path = OTHER_PR_PATH;
     routeParams.repo = 'repoB';
     routeParams.index = '6';
-    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoB', index: 6 };
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoC', index: 9 };
     await flushPromises();
 
-    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).not.toContainEqual([
-      'inst-1',
-      'owner',
-      'repoB',
-      6,
-      7,
-    ]);
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
     expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
@@ -283,6 +341,8 @@ describe('PullRequestDetail save target', () => {
     });
 
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
@@ -322,6 +382,8 @@ describe('PullRequestDetail save target', () => {
 
     const wrapper = mountView();
     await nextTick();
+    openEditSession(wrapper);
+    await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
     state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
@@ -347,6 +409,8 @@ describe('PullRequestDetail save target', () => {
     });
 
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];

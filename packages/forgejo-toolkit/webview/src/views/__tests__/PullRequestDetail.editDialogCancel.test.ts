@@ -263,6 +263,11 @@ describe('PullRequestDetail edit dialog save and cancel', () => {
     const wrapper = mountView();
     await nextTick();
 
+    // Opening the dialog first is what binds the mark to this pull request's edit
+    // session — the session, not the route at reply time, is what the deletions are
+    // applied against.
+    (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+    await nextTick();
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
     await nextTick();
     (wrapper.vm as unknown as { closeEdit: () => void }).closeEdit();

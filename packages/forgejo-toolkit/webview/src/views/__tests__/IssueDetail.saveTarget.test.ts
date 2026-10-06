@@ -75,7 +75,10 @@ const { initialRouteParams, initialRoutePath, stateMock, keyFor } = vi.hoisted((
 vi.mock('vue-router', async () => {
   const { reactive: makeReactive } = await import('vue');
   const params = makeReactive({ ...initialRouteParams });
-  const route = makeReactive({ params, path: initialRoutePath });
+  // `name` is what makes the route recognisable as **this** surface's: the view moves
+  // its displayed-issue identity only while its own route is the one on screen
+  // (`syncDisplayedTarget`), exactly like `useViewRefresh` identifies the surface.
+  const route = makeReactive({ params, path: initialRoutePath, name: 'issueDetail' });
   return {
     useRoute: () => route,
     __params: params,
@@ -110,6 +113,7 @@ vi.mock('../../composables/useAppState', async () => {
 });
 
 import IssueDetail from '../IssueDetail.vue';
+import IssueForm from '../../components/IssueForm.vue';
 import { useAppState } from '../../composables/useAppState';
 import * as routerModule from 'vue-router';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
@@ -143,13 +147,53 @@ const AttachmentListStub = defineComponent({
   template: '<div class="attachment-list-stub" />',
 });
 
+// jsdom's `<dialog>` has no showModal/close, and these tests open the real edit session
+// (that is what binds the marked attachments to their target), so the dialog is a stub.
+const ModalDialogStub = defineComponent({
+  name: 'ModalDialog',
+  props: {
+    open: { type: Boolean, default: false },
+    loading: { type: Boolean, default: false },
+    title: { type: String, default: '' },
+    isDirty: { type: Boolean, default: false },
+    confirmCloseIfDirty: { type: Boolean, default: false },
+  },
+  emits: ['close'],
+  template: '<div class="modal-dialog-stub"><slot /></div>',
+});
+
 function mountView() {
   return mount(IssueDetail, {
     global: {
       plugins: [createTestI18n('en')],
-      stubs: { EasyMdeEditor: EasyMdeEditorStub, AttachmentList: AttachmentListStub },
+      stubs: {
+        EasyMdeEditor: EasyMdeEditorStub,
+        AttachmentList: AttachmentListStub,
+        ModalDialog: ModalDialogStub,
+      },
     },
   });
+}
+
+/**
+ * Opens the edit dialog the way the header button does.
+ *
+ * The session it opens is what the marked deletions belong to (`sessionKey`), so a test
+ * that marks an attachment has to start one — exactly like the reader.
+ */
+function openEditSession(wrapper: ReturnType<typeof mountView>): void {
+  (wrapper.vm as unknown as { openEdit: () => void }).openEdit();
+}
+
+/** The save itself: the reader pressing Save in the edit form. */
+async function submitEdit(wrapper: ReturnType<typeof mountView>): Promise<void> {
+  await wrapper.findComponent(IssueForm).vm.$emit('submit', {
+    title: 'edited title',
+    body: 'edited body',
+    labels: [],
+    assignees: [],
+  });
+  await nextTick();
 }
 
 /**
@@ -216,13 +260,18 @@ describe('IssueDetail save target', () => {
   });
 
   it('deletes the saved issue marks even after the route moved on', async () => {
-    // The reply's target decides ownership, not the live route: the user
-    // navigated to another issue while #5's save was in flight, and #5's view
-    // still owns the save (its marks must be cleaned up).
+    // A save is a fact about the issue the reader pressed Save on, and it stays this
+    // instance's fact after the route moves: the dispatch is remembered
+    // (`dispatchedKey`), so the late reply still cleans up #5's marks. The marks belong
+    // to the session that was opened for #5 (`sessionKey`), which is what decides which
+    // target they may be deleted from.
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    await submitEdit(wrapper);
     testRoute.path = OTHER_ISSUE_PATH;
     routeParams.index = '6';
 
@@ -246,6 +295,8 @@ describe('IssueDetail save target', () => {
 
     const wrapper = mountView();
     await nextTick();
+    openEditSession(wrapper);
+    await nextTick();
 
     // The edit dialog marks one attachment for deletion, then the host reports
     // the save.
@@ -268,6 +319,8 @@ describe('IssueDetail save target', () => {
 
     const wrapper = mountView();
     await nextTick();
+    openEditSession(wrapper);
+    await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7, 8];
     state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
@@ -280,28 +333,21 @@ describe('IssueDetail save target', () => {
     wrapper.unmount();
   });
 
-  it('drops a save of another issue once the route has moved to it', async () => {
-    // A cached view only owns the issue it was created for. The reply for issue
-    // #6 belongs to #6's own view (or to whichever view the route now shows);
-    // this cached view of #5 must neither delete its marks against #6 nor clear
-    // them, or they would be gone when the user comes back.
+  it('drops a save of another issue this instance never showed nor saved', async () => {
+    // The instance is reused across issue routes, so ownership cannot be "the issue it
+    // was created for": it is the issue it **displays** (or one it **dispatched** an edit
+    // for). A reply for an issue that is neither is another surface's or another
+    // window's, and acting on it would delete this instance's marks against it.
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
-    testRoute.path = OTHER_ISSUE_PATH;
-    routeParams.repo = 'repoB';
-    routeParams.index = '6';
-    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoB', index: 6 };
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoC', index: 9 };
     await flushPromises();
 
-    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).not.toContainEqual([
-      'inst-1',
-      'owner',
-      'repoB',
-      6,
-      7,
-    ]);
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
     expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
@@ -332,6 +378,8 @@ describe('IssueDetail save target', () => {
 
     const wrapper = mountView();
     await nextTick();
+    openEditSession(wrapper);
+    await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
     state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
@@ -357,6 +405,8 @@ describe('IssueDetail save target', () => {
     });
 
     const wrapper = mountView();
+    await nextTick();
+    openEditSession(wrapper);
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
