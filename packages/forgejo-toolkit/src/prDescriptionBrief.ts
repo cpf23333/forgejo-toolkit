@@ -524,6 +524,27 @@ export type PrDescriptionMaterial =
   | { kind: 'files'; fileContents: AiPreReviewFileContents };
 
 /**
+ * The user half of one request: the brief, plus — when the scope carries one — the one
+ * extra material section that scope allows.
+ *
+ * It exists as its own function because the seam request keeps the two parts **apart**:
+ * `buildPrDescriptionPromptText` prepends the instruction block to exactly this text for
+ * the token count, while the request hands the transport the brief-plus-material and the
+ * instruction block separately, and each transport joins them its own way. Composing the
+ * text here once is what keeps "what we measured" and "what the transport renders" the
+ * same bytes.
+ */
+export function buildPrDescriptionUserText(briefText: string, material?: PrDescriptionMaterial): string {
+  const extra =
+    material === undefined
+      ? ''
+      : material.kind === 'diff'
+        ? material.diff.text
+        : renderPrDescriptionFileContents(material.fileContents);
+  return extra === '' ? briefText : `${briefText}\n\n${extra}`;
+}
+
+/**
  * The whole text one request sends: the instruction block, a blank line, then the
  * caller's half plus the one extra section its scope allows.
  *
@@ -538,14 +559,7 @@ export function buildPrDescriptionPromptText(
   briefText: string,
   material?: PrDescriptionMaterial,
 ): string {
-  const extra =
-    material === undefined
-      ? ''
-      : material.kind === 'diff'
-        ? material.diff.text
-        : renderPrDescriptionFileContents(material.fileContents);
-  const userPrompt = extra === '' ? briefText : `${briefText}\n\n${extra}`;
-  return aiPreReviewPromptText(systemPrompt, userPrompt);
+  return aiPreReviewPromptText(systemPrompt, buildPrDescriptionUserText(briefText, material));
 }
 
 /**

@@ -95,6 +95,7 @@ import type { ConfigManager } from '../config';
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 import type { AiCompletionResult, AiModelInfo, AiModelTransport } from '../ai/transport';
 import type { AiTransportSelection } from '../ai/modelSelection';
+import { aiPreReviewPromptText } from '../aiPreReviewBrief';
 import {
   COMMAND_GENERATE_PR_DESCRIPTION,
   PR_DESCRIPTION_SCOPE_BUTTON_COMMITS,
@@ -307,6 +308,40 @@ describe('the PR-description run', () => {
     ]);
     expect(transport.complete).toHaveBeenCalledTimes(1);
     expect(unhandledRequests()).toEqual([]);
+  });
+
+  it('sends the instruction block once, and measures exactly what it sends', async () => {
+    // 2026-10-06, found by the verifier's loopback capture on the sibling feature: the
+    // seam request used to carry the joined text as its user message *and* the
+    // instruction block as `system`, so both transports put the instructions on the wire
+    // twice while the budget was measured on one copy. The run must hand the transport
+    // the parts apart — joining them is the transport's own business — and the text it
+    // measured has to be the text the transport renders from those parts.
+    state.settings['prDescription'] = true;
+    state.settings['prDescriptionPromptScope'] = 'commits-and-diff';
+    // A model with an input budget and a tokenizer, so the run takes the `exact` path and
+    // really measures the text it is about to send.
+    const transport = fakeTransport({ answer: 'Adds the retry helper.' });
+    transport.countTokens.mockResolvedValue(500);
+    transport.listModels.mockResolvedValue([{ ...EDITOR_MODEL, maxInputTokens: 8_000 }]);
+    state.selection = editorSelection(transport);
+
+    const outcome = await generatePrDescription(config, target({ index: 7 }), {});
+
+    expect(outcome.kind).toBe('ok');
+    const request = transport.complete.mock.calls[0]?.[1];
+    const block = String(request?.system);
+    expect(request?.messages).toHaveLength(1);
+    expect(request?.messages[0]?.text).not.toContain('You draft a pull request description');
+    // The material the scope promises is still in the user half, and the instruction
+    // block is not repeated inside it.
+    expect(request?.messages[0]?.text).toContain('[diff]');
+
+    const effective = aiPreReviewPromptText(block, request?.messages.map((message) => message.text).join('\n\n') ?? '');
+    expect(effective.split(block)).toHaveLength(2);
+    // The budget was measured on exactly that text (the last count is the whole prompt;
+    // the first is the instruction block alone, for the budget mode).
+    expect(transport.countTokens.mock.calls.map((call) => call[1]).at(-1)).toBe(effective);
   });
 
   it('asks the comparison endpoint for the merge-base range, once per half', async () => {

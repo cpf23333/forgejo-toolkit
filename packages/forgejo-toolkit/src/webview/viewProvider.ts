@@ -65,6 +65,7 @@ import {
   isSafeRepoNameSegment,
   isSafeRepoPath,
   parsePrDescriptionRequest,
+  parseWebviewIssueTarget,
   parseWebviewPullRequestTarget,
   type PrDescriptionRequestTarget,
 } from './repoIdentity';
@@ -82,6 +83,9 @@ import {
   writeAiPreReviewModelSetting,
 } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionOfferedOnCreateForm } from '../prDescriptionSettings';
+import { isIssueTriageEnabled } from '../issueTriageSettings';
+import { suggestableLabels } from '../issueTriageBrief';
+import type { IssueTriageRunResult } from '../issueTriage';
 import {
   readAiProviderSettings,
   removeAiProvider,
@@ -638,6 +642,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }) => Promise<{ kind: 'ok'; description: string } | { kind: 'cancelled' } | { kind: 'failed'; error: string }>)
     | undefined;
 
+  /**
+   * The function the issue detail page's "suggest labels and assignees" action runs,
+   * registered by `src/issueTriage.ts` for the same reason the two above are
+   * callbacks: the run owns the model, the consent question and the prompt, and this
+   * provider owns only the webview message.
+   *
+   * The result type is imported as a **type only**, so this module never pulls the
+   * feature's runtime in: the feature imports this provider's type in turn, and a
+   * value import in either direction would make that pair a cycle.
+   */
+  private _issueTriageRunner:
+    | ((target: { instanceId: string; owner: string; repo: string; index: number }) => Promise<IssueTriageRunResult>)
+    | undefined;
+
+  /**
+   * Whether each repository this window has read declares a label that could be
+   * suggested, keyed `instanceId|owner|repo`.
+   *
+   * The issue detail page hides its triage action for a repository with nothing to
+   * suggest (`docs/design/issue-triage.md` §3.2), and the host is where that read
+   * happens: the page cannot read a repository's label list before it knows which
+   * issue is open, and the answer is a fact about the repository, not about the issue.
+   * Cached for this provider's lifetime so a second issue of the same repository — or
+   * reopening the same one — does not pay for it again; a failure is simply not
+   * cached, so the next view retries.
+   */
+  private _issueTriageLabelsAvailable = new Map<string, boolean>();
+
   constructor(
     private readonly _context: vscode.ExtensionContext,
     private readonly _extensionUri: vscode.Uri,
@@ -706,6 +738,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             prDescription: isPrDescriptionEnabled(),
             prDescriptionCreateForm: prDescriptionOfferedOnCreateForm(),
           });
+        }
+        // The issue-triage switch, pushed for the same reason and with the same
+        // limit: a stale boolean can only hide or show the issue page's control.
+        if (event.affectsConfiguration('forgejoToolkit.issueTriage')) {
+          this._reply('setIssueTriage', { issueTriage: isIssueTriageEnabled() });
         }
         // The AI endpoint keys are listened to here for the same reason as the
         // switch above, and they are the five the settings page renders rather
@@ -1066,6 +1103,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           // refuses by name either way, so a stale value can only hide or show a
           // button.
           prDescriptionCreateForm: prDescriptionOfferedOnCreateForm(),
+          // The issue detail page's own gate for its "Suggest labels and assignees"
+          // control, read and pushed exactly like the AI pre-review switch above: the
+          // page hides an action whose only outcome would be the run's own refusal,
+          // and the run re-checks the setting either way.
+          issueTriage: isIssueTriageEnabled(),
+          // No issue is open yet, so the repository question has no answer: **available**
+          // is the honest initial value (a page that has not learned that a repository
+          // declares no label has no reason to hide the action), and the first issue
+          // view replaces it with the host's own reading (§3.2).
+          issueTriageLabelsAvailable: true,
           // The floor the host's own version notices use, so the Settings
           // form's "Server version" example names the release this build
           // actually supports instead of a number written into a translation
@@ -1547,6 +1594,45 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // the only answer for the id — the fallback still fires if the run throws,
         // because `_reply` is what marks the id answered.
         await this._runPrDescription(target, _requestId);
+        return;
+      }
+      // The issue detail page's "suggest labels and assignees" action. The
+      // coordinates are validated here, at the dispatch, and the run decides
+      // everything else. Nothing this handler can receive would let the run write to
+      // the issue: the whole product of a run is a list of suggestions, and applying
+      // one stays the user's own save through the existing edit form.
+      //
+      // The feature switch is deliberately **not** checked here, for the same reason
+      // the two AI cases above do not check theirs: the run checks it first and
+      // refuses with a pointer to the setting, and the page hides the control while
+      // it is off.
+      //
+      // Awaited, for the reason `generatePrDescription` documents: the dispatch
+      // wrapper answers an unanswered `_requestId` the moment this handler returns,
+      // and a run whose reply arrived afterwards would find no pending entry and be
+      // dropped.
+      case 'suggestIssueTriage': {
+        const { instanceId, owner, repo, index, _requestId } = message;
+        if (typeof _requestId !== 'string') {
+          logger.error('suggestIssueTriage carried no request id, so there is nothing to answer');
+          return;
+        }
+        if (!this._issueTriageRunner) {
+          logger.error('suggestIssueTriage arrived before the issue-triage run was registered');
+          return;
+        }
+        const target = parseWebviewIssueTarget({ instanceId, owner, repo, index });
+        if (!target) {
+          logger.error('suggestIssueTriage refused a message that does not name a usable issue');
+          this._reply('issueTriageSuggestions', {
+            error: vscode.l10n.t(
+              'The triage suggestions were not drafted: the request did not name a usable issue. Nothing was sent.',
+            ),
+            _requestId,
+          });
+          return;
+        }
+        await this._runIssueTriage(target, _requestId);
         return;
       }
       // The Settings page's AI pre-review model chooser. Both cases are pure
@@ -2096,6 +2182,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
             detail,
           });
+          // The answer the issue view's triage control needs, read after the detail so
+          // the page paints first. Not awaited: the issue's own text is what the reader
+          // asked for, and the availability only decides whether one more control is
+          // offered.
+          void this._pushIssueTriageLabelsAvailable(instance, owner, repo);
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getIssueDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
@@ -5252,6 +5343,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Hands this provider the issue-triage run, the same way and for the same reason
+   * `setPrDescriptionRunner` does: the message carries four coordinates, the run owns
+   * everything else, and every arm it can return is a list of suggestions or a
+   * sentence — none of them writes anything to the issue.
+   */
+  public setIssueTriageRunner(
+    runner: (target: {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }) => Promise<IssueTriageRunResult>,
+  ): void {
+    this._issueTriageRunner = runner;
+  }
+
+  /**
    * Opens the settings page (`docs/design/settings-page.md` §9.3).
    *
    * It is an **editor-area tab** now, not a route inside this sidebar: the page
@@ -5484,6 +5592,72 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // nothing, for a dismissed picker), so this answers the waiting form with the
     // empty arm rather than a second dialog about the same event.
     this._reply('prDescriptionGenerated', { description: '', _requestId: requestId });
+  }
+
+  /**
+   * Whether one repository declares a label that could be suggested, read once and
+   * pushed to the page.
+   *
+   * This is the host's half of the hiding rule (`docs/design/issue-triage.md` §3.2): a
+   * repository with nothing to suggest must not offer an action whose only outcome
+   * would be the run's own refusal. The read is the same shaping rule the run uses
+   * (`suggestableLabels`), so "the page hides it" and "the run refuses" can never
+   * disagree about what counts as a label.
+   *
+   * It is an **ordinary API read, not egress**: the answer never goes to a model
+   * provider, and it happens only while the feature is on. A failure pushes nothing —
+   * a label list that could not be read is not evidence that there are none, and the
+   * run fails closed with its own sentence if a stale view asks anyway.
+   */
+  private async _pushIssueTriageLabelsAvailable(instance: ForgejoInstance, owner: string, repo: string): Promise<void> {
+    if (!isIssueTriageEnabled()) {
+      return;
+    }
+    const key = `${instance.id}|${owner}|${repo}`;
+    let available = this._issueTriageLabelsAvailable.get(key);
+    if (available === undefined) {
+      try {
+        const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+        available = suggestableLabels(await client.getRepoLabels(owner, repo)).labels.length > 0;
+      } catch (error) {
+        logger.debug(
+          `Issue triage: whether ${owner}/${repo} declares a label could not be read (${userFacingErrorMessage(error)}); the issue page keeps offering the action`,
+        );
+        return;
+      }
+      this._issueTriageLabelsAvailable.set(key, available);
+    }
+    this._reply('setIssueTriage', { issueTriage: true, issueTriageLabelsAvailable: available });
+  }
+
+  /**
+   * Runs one triage suggestion request and answers the page with what came back.
+   *
+   * The three arms are reported verbatim and none of them touches the issue:
+   * `ok` carries suggestions the run itself resolved against lists it read (the page
+   * can only display them), `cancelled` carries no error — a dismissed consent modal
+   * or a dismissed model picker is not a failure, and the run has already shown its
+   * own message — and `failed` carries the run's own sentence, which is already
+   * user-facing.
+   */
+  private async _runIssueTriage(target: PullRequestTarget, requestId: string): Promise<void> {
+    const runner = this._issueTriageRunner;
+    if (!runner) {
+      logger.error('suggestIssueTriage lost its run between the dispatch and the call');
+      return;
+    }
+    const outcome = await runner(target);
+    if (outcome.kind === 'ok') {
+      this._reply('issueTriageSuggestions', { suggestions: outcome.suggestions, _requestId: requestId });
+      return;
+    }
+    if (outcome.kind === 'failed') {
+      this._reply('issueTriageSuggestions', { error: outcome.error, _requestId: requestId });
+      return;
+    }
+    // Cancelled: the run has already explained the one event, so this answers with
+    // the cancelled arm rather than a second dialog about the same thing.
+    this._reply('issueTriageSuggestions', { cancelled: true, _requestId: requestId });
   }
 
   /**

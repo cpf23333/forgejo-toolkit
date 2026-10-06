@@ -15,6 +15,7 @@ import {
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
 import { registerAiPreReviewCommand } from '../aiPreReview';
 import { registerPrDescriptionCommand } from '../prDescription';
+import { registerIssueTriage } from '../issueTriage';
 import { registerAiTestProviderCommand } from '../ai/testProvider';
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
@@ -290,6 +291,12 @@ export function registerCommands(
   // pre-review and owns its own feature switch, prompt scope and consent question
   // (`docs/design/ai-model-transport.md` §7.6).
   registerPrDescriptionCommand(context, config, viewProvider);
+
+  // And issue triage, which takes the same seam and has its own switch, prompt scope
+  // and consent question. It contributes no command: the action needs an issue to
+  // name and only the page knows which one is open, so the page's button is the one
+  // entry point (`docs/design/issue-triage.md` §7).
+  registerIssueTriage(context, config, viewProvider);
 
   // Likewise the endpoint test: it validates an endpoint locally, makes at most
   // two requests and renders its own report, and it is never called from any

@@ -345,6 +345,23 @@
       "aiPreReview": "AI pre-review (whole PR)",
       "aiPreReviewTooltip": "Reviews the whole pull request — every changed file and the whole diff — with the chat model you chose. Running sends the pull request to the model provider; nothing is created until you confirm each comment.",
       "aiPreReviewTooltipWithFiles": "Reviews the whole pull request — all {count} changed file(s) and the whole diff — with the chat model you chose. Running sends the pull request to the model provider; nothing is created until you confirm each comment.",
+      "suggestIssueTriage": "Suggest labels",
+      "suggestIssueTriageTooltip": "Reads this issue and proposes labels from this repository's own label list with the chat model you chose. Running sends the issue and that list to the model provider; nothing is applied until you tick what you agree with and save the edit form.",
+      "triageTitle": "Label suggestions",
+      "triageNothingSuggested": "The model suggested no label this run could use.",
+      "triageTruncated": "The endpoint stopped the answer at its own output limit, so this answer may be incomplete.",
+      "triageScope": "Scope: {scope}",
+      "triageServedBy": "Answered by {model}",
+      "triageDropped": "{count} suggestion(s) were dropped: {reason}",
+      "triageDropReason": {
+        "invalid-shape": "it was not a label name",
+        "label-not-in-repository": "no label this repository has goes by that name",
+        "over-limit": "beyond the number this feature asks for"
+      },
+      "triageLabels": "Labels",
+      "triageApply": "Apply in the edit form",
+      "triageApplyHint": "Nothing is saved until you save that form.",
+      "triageDismiss": "Dismiss",
       "renderingBody": "Rendering description...",
       "markdownRenderFailed": "This comment could not be formatted: {message}. Its text is shown as written.",
       "attachments": "Attachments",
@@ -543,6 +560,8 @@
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
     "forgejoToolkit.prDescription": "settings.prDescription.enabled",
     "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
+    "forgejoToolkit.issueTriage": "settings.issueTriage.enabled",
+    "forgejoToolkit.issueTriagePromptScope": "settings.issueTriage.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
     "forgejoToolkit.aiTransport": "settings.aiProviders.policy.transport",
     "forgejoToolkit.aiDefaultProvider": "settings.aiProviders.defaultModel.provider",
@@ -704,6 +723,21 @@
         "commits-only": "Commits and changed-file list — the branch names, the commits with their subjects, bodies, authors and dates, and the path and status of every changed file, with no file content",
         "commits-and-diff": "Commits, changed-file list and the pull request's own diff — the same plus every changed file's added and removed lines with its file and hunk headers, as the server reports the diff, and no file's full text; offered only in an existing pull request's edit dialog",
         "commits-and-files": "Commits, changed files and their text — the same plus the full text of the changed files at the head branch"
+      }
+    },
+    "issueTriage": {
+      "title": "AI: Issue Label Suggestions",
+      "description": "A chat model reads an issue and suggests which of the repository's own labels apply. Nothing is applied for you: tick the suggestions you agree with, and the issue's edit form opens pre-filled for you to save. A repository that declares no label does not offer the action at all.",
+      "enabled": "Offer \"Suggest labels\" on an issue's page",
+      "enabledDefault": "Default off: nothing is read or sent until you turn this on.",
+      "disabledHint": "The prompt scope below is configuration; a run uses it only while this is on.",
+      "scope": "Prompt scope",
+      "scopeDescription": "What the run's prompt may carry. This is the only place the answer is recorded: every run reads it from here, and `ask` means the question has not been answered yet.",
+      "scopeDefault": "Default: `ask` — the first run asks once and writes your answer here.",
+      "scopeOption": {
+        "ask": "Ask before each run — nothing is requested, sent or written until you answer",
+        "issue-only": "The issue and the repository label list — the title and body, and every label's name and description (archived labels excluded)",
+        "issue-and-comments": "The issue, the labels and the discussion — the same plus the comments with their authors and dates"
       }
     },
     "aiPreReviewModel": {

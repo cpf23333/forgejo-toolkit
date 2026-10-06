@@ -198,7 +198,7 @@ export interface AiProviderConfig {
  * is what lets `forgejoToolkit.aiModelBindings` point that run at a configured
  * endpoint instead of the editor's own models.
  */
-export const AI_FEATURES = ['aiPreReview', 'prDescription'] as const;
+export const AI_FEATURES = ['aiPreReview', 'prDescription', 'issueTriage'] as const;
 
 /** One feature id a binding may name. */
 export type AiFeature = (typeof AI_FEATURES)[number];

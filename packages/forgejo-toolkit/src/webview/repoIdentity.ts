@@ -203,6 +203,21 @@ export function parsePrDescriptionRequest(value: unknown): PrDescriptionRequestT
 }
 
 /**
+ * The coordinates of one issue, or `undefined` when a message does not name a valid
+ * one.
+ *
+ * The same four fields as {@link PullRequestTarget} and the same validation, because
+ * the two are addressed identically (`/repos/{owner}/{repo}/issues/{index}` and its
+ * pull-request sibling differ only in that segment). It is a named wrapper rather
+ * than a second implementation: a triage message carrying an `owner` with a `/` in
+ * it, or an `index` of `"2"`, is refused here by exactly the rules the pre-review's
+ * target is refused by, so the two entry points cannot drift apart.
+ */
+export function parseWebviewIssueTarget(value: unknown): PullRequestTarget | undefined {
+  return parseWebviewPullRequestTarget(value);
+}
+
+/**
  * True when a repository file path from the webview is safe to interpolate into
  * the contents API route.
  *

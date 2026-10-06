@@ -345,6 +345,23 @@
       "aiPreReview": "AI 预评审（整个 PR）",
       "aiPreReviewTooltip": "用你选择的聊天模型评审整个 Pull Request——每一个变更文件与整份 diff。运行会把该 Pull Request 发给模型提供者；在你逐条确认之前不会创建任何内容。",
       "aiPreReviewTooltipWithFiles": "用你选择的聊天模型评审整个 Pull Request——全部 {count} 个变更文件与整份 diff。运行会把该 Pull Request 发给模型提供者；在你逐条确认之前不会创建任何内容。",
+      "suggestIssueTriage": "建议标签",
+      "suggestIssueTriageTooltip": "用你选择的聊天模型读这个 Issue，从**这个仓库自己的标签清单**里给出建议。运行会把这个 Issue 与那份清单发给模型提供者；在你勾选认可的建议并保存编辑表单之前，不会应用任何一条。",
+      "triageTitle": "标签建议",
+      "triageNothingSuggested": "模型这次没有给出任何可用的标签。",
+      "triageTruncated": "端点在它自己的输出上限处停下了回答，所以这份答案可能不完整。",
+      "triageScope": "范围：{scope}",
+      "triageServedBy": "由 {model} 回答",
+      "triageDropped": "有 {count} 条建议被丢弃：{reason}",
+      "triageDropReason": {
+        "invalid-shape": "它不是标签名",
+        "label-not-in-repository": "这个仓库没有叫这个名字的标签",
+        "over-limit": "超出了本功能要求的条数"
+      },
+      "triageLabels": "标签",
+      "triageApply": "在编辑表单里应用",
+      "triageApplyHint": "在你保存那张表单之前，什么都不会被写入。",
+      "triageDismiss": "忽略",
       "renderingBody": "正在渲染描述...",
       "markdownRenderFailed": "无法渲染该评论的格式：{message}。已按原文显示。",
       "attachments": "附件",
@@ -543,6 +560,8 @@
     "forgejoToolkit.aiPreReviewModel": "settings.aiPreReviewModel.selectLabel",
     "forgejoToolkit.prDescription": "settings.prDescription.enabled",
     "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
+    "forgejoToolkit.issueTriage": "settings.issueTriage.enabled",
+    "forgejoToolkit.issueTriagePromptScope": "settings.issueTriage.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
     "forgejoToolkit.aiTransport": "settings.aiProviders.policy.transport",
     "forgejoToolkit.aiDefaultProvider": "settings.aiProviders.defaultModel.provider",
@@ -704,6 +723,21 @@
         "commits-only": "提交与变更文件列表——分支名、提交的主题/正文/作者/时间，以及每个变更文件的路径与状态，不含文件内容",
         "commits-and-diff": "提交、变更文件列表与该 Pull Request 自己的 diff——再加上每个变更文件的新增与删除行连同文件头与 hunk 头（服务端报告的原文），不含任何文件的完整正文；只在已存在的 Pull Request 的编辑弹窗里提供",
         "commits-and-files": "提交、变更文件与其正文——在上面基础上再加上变更文件在 head 分支的完整正文"
+      }
+    },
+    "issueTriage": {
+      "title": "AI：Issue 标签建议",
+      "description": "由聊天模型读一个 Issue，建议**这个仓库自己的**哪些标签适用。扩展不会替你应用任何一条：勾选你认可的建议后，Issue 的编辑表单会带着这些内容打开，由你保存。一个没有声明任何标签的仓库根本不提供这个动作。",
+      "enabled": "在 Issue 页面上提供「建议标签」",
+      "enabledDefault": "默认关：打开它才会读取内容或向外发送。",
+      "disabledHint": "下面的提示词范围属于配置项，只有本开关打开后才会被用到。",
+      "scope": "提示词范围",
+      "scopeDescription": "运行的提示词可以携带什么。这是这个答案的唯一记录处：每次运行都从这里读，`ask` 表示这个问题还没有被回答。",
+      "scopeDefault": "默认：`ask`——第一次运行时问一次，并把你的回答写进这里。",
+      "scopeOption": {
+        "ask": "每次运行前询问——在你回答之前不请求、不发送、不写入任何东西",
+        "issue-only": "该 Issue 与仓库标签清单——标题与正文，以及每个标签的名字与描述（已归档标签不算在内）",
+        "issue-and-comments": "该 Issue、标签与讨论——在上面基础上再加上评论及其作者与时间"
       }
     },
     "aiPreReviewModel": {

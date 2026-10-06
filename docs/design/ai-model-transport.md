@@ -635,15 +635,33 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 
 ### 8.3 具体的设置 id 与默认值
 
-| 设置 id                                  | 类型    | 默认值  | `scope`   | 语义                                                                                                         |
-| ---------------------------------------- | ------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------ |
-| `forgejoToolkit.aiEnabled`               | boolean | `true`  | `machine` | **整个 AI 面的总开关**：关掉它，没有任何 AI 功能会运行，也不向任何模型取答案（编辑器提供的与已配置的都不问） |
-| `forgejoToolkit.aiProviders`             | array   | `[]`    | `machine` | 已配置的 provider 列表；**空数组 = 没有直连目的地**                                                          |
-| `forgejoToolkit.aiTransport`             | string  | `auto`  | `machine` | `auto` / `vscode-lm` / `openai-compatible`，见 §8.4                                                          |
-| `forgejoToolkit.aiDefaultProvider`       | string  | `""`    | `machine` | 默认目的地的端点 id；空 = 没有默认目的地（§8.4）                                                             |
-| `forgejoToolkit.aiDefaultModel`          | string  | `""`    | `machine` | 向默认端点请求的模型名；空 = 没有默认目的地（§8.4）                                                          |
-| `forgejoToolkit.aiModelBindings`         | array   | `[]`    | `machine` | 逐功能覆盖（`{ feature, providerId, modelId }`）                                                             |
-| `forgejoToolkit.aiModelRequestTimeoutMs` | number  | `30000` | `machine` | 空闲看门狗窗口与单次请求上限（§6.5、§8.6）                                                                   |
+| 设置 id                                   | 类型    | 默认值  | `scope`   | 语义                                                                                                             |
+| ----------------------------------------- | ------- | ------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `forgejoToolkit.aiEnabled`                | boolean | `true`  | `machine` | **整个 AI 面的总开关**：关掉它，没有任何 AI 功能会运行，也不向任何模型取答案（编辑器提供的与已配置的都不问）     |
+| `forgejoToolkit.aiPreReview`              | boolean | `false` | `machine` | AI 预评审的逐功能开关（§7.6）                                                                                    |
+| `forgejoToolkit.aiPreReviewPromptScope`   | string  | `ask`   | `machine` | 预评审那次运行的出网同意：`ask` / `metadata-only` / `changed-lines-only` / `full-diff` / `changed-files`（§7.6） |
+| `forgejoToolkit.aiPreReviewModel`         | string  | `""`    | `machine` | 预评审记住的模型；空 = 每次运行时弹选择器。它决定内容去哪个 provider，所以与开关、范围同级                       |
+| `forgejoToolkit.prDescription`            | boolean | `false` | `machine` | PR 描述生成的逐功能开关                                                                                          |
+| `forgejoToolkit.prDescriptionPromptScope` | string  | `ask`   | `machine` | PR 描述生成那次运行的出网同意：`ask` / `commits-only` / `commits-and-diff` / `commits-and-files`                 |
+| `forgejoToolkit.issueTriage`              | boolean | `false` | `machine` | Issue 分诊的逐功能开关（`issue-triage.md` §3）                                                                   |
+| `forgejoToolkit.issueTriagePromptScope`   | string  | `ask`   | `machine` | Issue 分诊那次运行的出网同意：`ask` / `issue-only` / `issue-and-comments`（`issue-triage.md` §3）                |
+| `forgejoToolkit.aiProviders`              | array   | `[]`    | `machine` | 已配置的 provider 列表；**空数组 = 没有直连目的地**                                                              |
+| `forgejoToolkit.aiTransport`              | string  | `auto`  | `machine` | `auto` / `vscode-lm` / `openai-compatible`，见 §8.4                                                              |
+| `forgejoToolkit.aiDefaultProvider`        | string  | `""`    | `machine` | 默认目的地的端点 id；空 = 没有默认目的地（§8.4）                                                                 |
+| `forgejoToolkit.aiDefaultModel`           | string  | `""`    | `machine` | 向默认端点请求的模型名；空 = 没有默认目的地（§8.4）                                                              |
+| `forgejoToolkit.aiModelBindings`          | array   | `[]`    | `machine` | 逐功能覆盖（`{ feature, providerId, modelId }`）                                                                 |
+| `forgejoToolkit.aiModelRequestTimeoutMs`  | number  | `30000` | `machine` | 空闲看门狗窗口与单次请求上限（§6.5、§8.6）                                                                       |
+
+**2026-10-06 的第二处作用域裁决**：三个功能的开关、三个提示词范围**与 `aiPreReviewModel`** 一并收进
+`machine` 一族（此前只有总开关、端点与传输方式在这一族里，现在这一族是 **14 个键**：`aiEnabled` + 端点与传输方式
+的 6 个 + 这次的 8 个，逐条见上表）。它们各自的理由与 `aiEnabled` 是同一条：**这些键决定内容是否出网、出多少、
+以及去哪儿**，所以工作区级的 `.vscode/settings.json` 不能替读者改这些——一个仓库自带一份把预评审的内容指向别的
+provider、或把出网范围放宽到整份 diff 的配置，而用户从未同意过，正是这一族要堵的事。其中 `aiPreReviewModel` 的
+理由是"去哪儿"最直接的一个：它不决定发多少，而是决定**发给谁**；一个工作区级的值足以把内容改道到另一个 provider，
+那正是"用户从未同意过的目的地"。
+**对既有用户是一次行为变化**：这些键上**已有的工作区级值不再生效**，生效值回到用户级 / 默认值，靠工作区覆盖的人
+要在用户级重设一次。设置页也随之不再为它们渲染"工作区这一级在这里优先"的标记（`settings-page.md` §3.5）——那一页
+的标记规则本来就按这份清单判断，所以清单改了，标记自己就消失了。
 
 **三层分工（2026-10-06 维护者裁决，本节是它的住处）**：
 
@@ -664,7 +682,8 @@ ESM，`package.json` 里没有 `sideEffects` 字段，所以"用不到的部分�
 **`scope: "machine"` 就是"只允许用户级"的实现方式**：`machine` 作用域的设置**不能**在工作区 / 远程 / 文件夹级
 被覆盖（`application` 也只允许用户级，但会阻止 Settings UI 的同步，对一个可能含密钥的配置不合适；密钥本来就不
 在这些设置里，但 provider 列表里的 base URL 也算半个秘密）。工作区级配置能把内容指向一个未知地址，正是必须堵住
-的：`package.json` 里不写 `scope` 的默认是 `window`，**可以被 `.vscode/settings.json` 覆盖**。
+的：`package.json` 里不写 `scope` 的默认是 `window`，**可以被 `.vscode/settings.json` 覆盖**。2026-10-06 起这一族
+还包括三个功能的开关、三个提示词范围与 `aiPreReviewModel`（见上面的第二处作用域裁决）。
 
 **读者纪律**：照 `aiPreReviewSettings.ts` 与 `mcpWriteSettings.ts` 的既有写法——读设置抛异常时读作"未配置"，
 只有显式 `true` 才算开（fail-closed 方向必须是不发）。`aiEnabled` 是上面写明的唯一例外。

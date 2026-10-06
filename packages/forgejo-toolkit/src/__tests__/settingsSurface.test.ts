@@ -196,6 +196,8 @@ describe('the settings page surface: reading', () => {
       aiPreReviewPromptScope: 'ask',
       prDescription: false,
       prDescriptionPromptScope: 'ask',
+      issueTriage: false,
+      issueTriagePromptScope: 'ask',
       sources: Object.fromEntries(SETTINGS_SURFACE_WRITABLE_KEYS.map((key) => [key, 'default'])),
     });
   });
@@ -279,16 +281,42 @@ describe('the settings page surface: reading', () => {
     // Claiming otherwise would make the page say a setting wins which does not.
     useInspected({
       aiEnabled: { workspaceValue: false, globalValue: true },
+      // Every AI key that decides egress or destination is machine-scoped since the
+      // maintainer's ruling of 2026-10-06: each feature's switch, each feature's
+      // prompt scope and the pre-review's model choice. The same shape on any of them
+      // is therefore not an override either.
       aiPreReview: { workspaceValue: false },
+      aiPreReviewPromptScope: { workspaceValue: 'full-diff' },
+      aiPreReviewModel: { workspaceValue: 'copilot/gpt-4o' },
+      prDescription: { workspaceValue: true },
+      prDescriptionPromptScope: { workspaceValue: 'commits-and-files' },
+      issueTriage: { workspaceValue: true },
+      issueTriagePromptScope: { workspaceValue: 'issue-and-comments' },
+      // The same shape on a key the manifest does not scope to `machine` is a real
+      // override, which is what makes the assertions above about the list and not
+      // about `inspect` being ignored everywhere.
+      notificationPollingEnabled: { workspaceValue: false },
     });
     const { sources } = readWith();
 
-    expect(MACHINE_SCOPED_SETTING_KEYS).toContain('forgejoToolkit.aiEnabled');
-    expect(sources['forgejoToolkit.aiEnabled']).toBe('user');
-    // The same shape on a key the manifest does not scope to `machine` is a real
-    // override, which is what makes the assertion above about the list and not
-    // about `inspect` being ignored everywhere.
-    expect(sources['forgejoToolkit.aiPreReview']).toBe('workspace');
+    const machineKeys: readonly (keyof typeof sources)[] = [
+      'forgejoToolkit.aiEnabled',
+      'forgejoToolkit.aiPreReview',
+      'forgejoToolkit.aiPreReviewPromptScope',
+      'forgejoToolkit.prDescription',
+      'forgejoToolkit.prDescriptionPromptScope',
+      'forgejoToolkit.issueTriage',
+      'forgejoToolkit.issueTriagePromptScope',
+    ];
+    for (const key of machineKeys) {
+      expect(MACHINE_SCOPED_SETTING_KEYS, key).toContain(key);
+      expect(sources[key], key).not.toBe('workspace');
+    }
+    // The pre-review's model is machine-scoped too, but it is not one of the page's
+    // *surface* controls (that dropdown has its own reader and writer), so it has no
+    // entry in this map — it is asserted against the list alone.
+    expect(MACHINE_SCOPED_SETTING_KEYS).toContain('forgejoToolkit.aiPreReviewModel');
+    expect(sources['forgejoToolkit.notificationPollingEnabled']).toBe('workspace');
   });
 });
 

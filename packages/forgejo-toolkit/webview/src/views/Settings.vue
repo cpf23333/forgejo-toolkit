@@ -20,6 +20,7 @@ import type {
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
   AI_TRANSPORT_CHOICES,
+  ISSUE_TRIAGE_PROMPT_SCOPES,
   PR_DESCRIPTION_PROMPT_SCOPES,
   stripUserinfo,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -1235,6 +1236,15 @@ const prDescriptionEnabled = ref(false);
 const prDescriptionPromptScope = ref<SettingsSurfaceSnapshot['prDescriptionPromptScope']>('ask');
 
 /**
+ * Issue triage's own switch and stored scope, with the same fallback rule as the
+ * pairs above: the host answers `ask` for any value it cannot read, so the page
+ * cannot show a scope the run would not use, and the switch shows the host's reading
+ * rather than a default of this page.
+ */
+const issueTriageEnabled = ref(false);
+const issueTriagePromptScope = ref<SettingsSurfaceSnapshot['issueTriagePromptScope']>('ask');
+
+/**
  * Whether the host has reported at least once. Until it has, the controls are
  * disabled rather than showing a value the page invented: a switch whose stored
  * state is unknown must not look like a switch that is off.
@@ -1270,6 +1280,11 @@ const PRE_REVIEW_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
 const PR_DESCRIPTION_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.prDescription',
   'forgejoToolkit.prDescriptionPromptScope',
+];
+
+const ISSUE_TRIAGE_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.issueTriage',
+  'forgejoToolkit.issueTriagePromptScope',
 ];
 
 /**
@@ -1311,6 +1326,8 @@ watch(
     promptScope.value = snapshot.aiPreReviewPromptScope;
     prDescriptionEnabled.value = snapshot.prDescription;
     prDescriptionPromptScope.value = snapshot.prDescriptionPromptScope;
+    issueTriageEnabled.value = snapshot.issueTriage;
+    issueTriagePromptScope.value = snapshot.issueTriagePromptScope;
   },
   { immediate: true },
 );
@@ -1391,6 +1408,10 @@ const preReviewSurfaceStatus = computed(() =>
 
 const prDescriptionSurfaceStatus = computed(() =>
   surfaceStatusIn(['forgejoToolkit.prDescription', 'forgejoToolkit.prDescriptionPromptScope']),
+);
+
+const issueTriageSurfaceStatus = computed(() =>
+  surfaceStatusIn(['forgejoToolkit.issueTriage', 'forgejoToolkit.issueTriagePromptScope']),
 );
 
 function handlePollingEnabledChange(event: Event): void {
@@ -1521,6 +1542,33 @@ function handlePrDescriptionScopeChange(event: Event): void {
 /** The page's own wording for one PR-description scope, per the shared enumeration. */
 function prDescriptionScopeLabel(scope: SettingsSurfaceSnapshot['prDescriptionPromptScope']): string {
   return t(`settings.prDescription.scopeOption.${scope}`);
+}
+
+/**
+ * Issue triage's switch and scope, a third pair for the same reason the second one
+ * exists: this feature sends bytes neither of the others does (the issue's own text
+ * plus the repository's label list, and optionally the discussion), so its switch and
+ * its scope are its own settings rather than a reading of somebody else's.
+ */
+function handleIssueTriageEnabledChange(event: Event): void {
+  issueTriageEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.issueTriage', issueTriageEnabled.value);
+}
+
+/**
+ * Stores the triage scope, from the same shared enumeration the host reads and writes
+ * with — so the page cannot offer a value the host would refuse, and cannot offer
+ * another feature's values, which mean something else here.
+ */
+function handleIssueTriageScopeChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as SettingsSurfaceSnapshot['issueTriagePromptScope'];
+  issueTriagePromptScope.value = value;
+  void saveSettingsSurfaceValue('forgejoToolkit.issueTriagePromptScope', value);
+}
+
+/** The page's own wording for one triage scope, per the shared enumeration. */
+function issueTriageScopeLabel(scope: SettingsSurfaceSnapshot['issueTriagePromptScope']): string {
+  return t(`settings.issueTriage.scopeOption.${scope}`);
 }
 
 /**
@@ -3988,13 +4036,6 @@ defineExpose({
             being off means for them instead of disabling them.
           -->
                 <p v-if="!preReviewEnabled" class="field-description">{{ t('settings.aiPreReview.disabledHint') }}</p>
-                <p v-if="sourceOverride('forgejoToolkit.aiPreReview')" class="field-description source-note">
-                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.aiPreReview')?.level }}</span>
-                  {{ sourceOverride('forgejoToolkit.aiPreReview')?.sentence }}
-                  <button type="button" class="link-button" @click="openNativeSettings">
-                    {{ t('settings.header.openNativeSettings') }}
-                  </button>
-                </p>
               </div>
 
               <!--
@@ -4019,13 +4060,6 @@ defineExpose({
                 </vscode-single-select>
                 <p class="field-description">{{ t('settings.aiPreReview.scopeDescription') }}</p>
                 <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
-                <p v-if="sourceOverride('forgejoToolkit.aiPreReviewPromptScope')" class="field-description source-note">
-                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.aiPreReviewPromptScope')?.level }}</span>
-                  {{ sourceOverride('forgejoToolkit.aiPreReviewPromptScope')?.sentence }}
-                  <button type="button" class="link-button" @click="openNativeSettings">
-                    {{ t('settings.header.openNativeSettings') }}
-                  </button>
-                </p>
               </div>
 
               <!--
@@ -4130,13 +4164,6 @@ defineExpose({
                 <p v-if="!prDescriptionEnabled" class="field-description">
                   {{ t('settings.prDescription.disabledHint') }}
                 </p>
-                <p v-if="sourceOverride('forgejoToolkit.prDescription')" class="field-description source-note">
-                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.prDescription')?.level }}</span>
-                  {{ sourceOverride('forgejoToolkit.prDescription')?.sentence }}
-                  <button type="button" class="link-button" @click="openNativeSettings">
-                    {{ t('settings.header.openNativeSettings') }}
-                  </button>
-                </p>
               </div>
 
               <div class="form-row">
@@ -4154,18 +4181,6 @@ defineExpose({
                 </vscode-single-select>
                 <p class="field-description">{{ t('settings.prDescription.scopeDescription') }}</p>
                 <p class="field-description">{{ t('settings.prDescription.scopeDefault') }}</p>
-                <p
-                  v-if="sourceOverride('forgejoToolkit.prDescriptionPromptScope')"
-                  class="field-description source-note"
-                >
-                  <span class="source-badge">{{
-                    sourceOverride('forgejoToolkit.prDescriptionPromptScope')?.level
-                  }}</span>
-                  {{ sourceOverride('forgejoToolkit.prDescriptionPromptScope')?.sentence }}
-                  <button type="button" class="link-button" @click="openNativeSettings">
-                    {{ t('settings.header.openNativeSettings') }}
-                  </button>
-                </p>
               </div>
 
               <div
@@ -4175,6 +4190,63 @@ defineExpose({
                 aria-live="polite"
               >
                 {{ prDescriptionSurfaceStatus.message }}
+              </div>
+            </section>
+
+            <!--
+        Issue triage's own pair, and its own block for the same reason the other two
+        features have one: it sends bytes neither of them does — the issue's own text
+        plus the repository's **label list** — so its switch and its scope are its own
+        settings, and the scope dropdown is where a user who declined the modal finds
+        the answer they gave (`docs/design/issue-triage.md` §3).
+      -->
+            <section class="setting-section">
+              <h2>{{ t('settings.issueTriage.title') }}</h2>
+              <p class="description">{{ t('settings.issueTriage.description') }}</p>
+
+              <div class="form-row">
+                <vscode-checkbox
+                  id="issue-triage-enabled"
+                  :checked="issueTriageEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(ISSUE_TRIAGE_SURFACE_KEYS)"
+                  @change="handleIssueTriageEnabledChange"
+                >
+                  {{ t('settings.issueTriage.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.issueTriage.enabledDefault') }}</p>
+                <!--
+            The scope row stays usable while the feature is off, for the same reason
+            the other two features' rows do: choosing a scope is configuration, not use.
+          -->
+                <p v-if="!issueTriageEnabled" class="field-description">
+                  {{ t('settings.issueTriage.disabledHint') }}
+                </p>
+              </div>
+
+              <div class="form-row">
+                <label for="issue-triage-scope">{{ t('settings.issueTriage.scope') }}</label>
+                <vscode-single-select
+                  id="issue-triage-scope"
+                  :value="issueTriagePromptScope"
+                  :label="t('settings.issueTriage.scope')"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(ISSUE_TRIAGE_SURFACE_KEYS)"
+                  @change="handleIssueTriageScopeChange"
+                >
+                  <vscode-option v-for="scope in ISSUE_TRIAGE_PROMPT_SCOPES" :key="scope" :value="scope">
+                    {{ issueTriageScopeLabel(scope) }}
+                  </vscode-option>
+                </vscode-single-select>
+                <p class="field-description">{{ t('settings.issueTriage.scopeDescription') }}</p>
+                <p class="field-description">{{ t('settings.issueTriage.scopeDefault') }}</p>
+              </div>
+
+              <div
+                v-if="issueTriageSurfaceStatus"
+                :class="['status', issueTriageSurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ issueTriageSurfaceStatus.message }}
               </div>
             </section>
 

@@ -248,10 +248,12 @@ describe('Settings groups: the mapping', () => {
     expect(new Set(blocks).size).toBe(blocks.length);
     const empty = SETTINGS_GROUPS.filter((group) => group.blocks.length === 0).map((group) => group.id);
     expect(empty).toEqual([]);
-    // The eleven blocks the page had before the split (§9.1), no more and no less,
-    // plus the developer passage `useMockApi` lives in — a twelfth block inside
-    // the existing 通用 group rather than a seventh group (§9.2).
-    expect(blocks).toHaveLength(12);
+    // The eleven blocks the page had before the split (§9.1), plus the developer
+    // passage `useMockApi` lives in — a twelfth block inside the existing 通用 group
+    // rather than a seventh group (§9.2) — plus issue triage's own block, which is a
+    // feature of its own with its own switch and scope (§3.2 of the issue-triage
+    // record), here rather than in the group's master switch.
+    expect(blocks).toHaveLength(13);
   });
 
   it('renders every block inside the pane of the group that claims it', () => {

@@ -92,7 +92,7 @@ export const AI_MOCK_PROVIDER_NAME = 'Local mock endpoint (tools/ui-review)';
 export const AI_FEATURES_SOURCE = 'packages/forgejo-toolkit/src/ai/modelSettings.ts';
 
 /** The last-resort feature list, used only when {@link readDeclaredAiFeatures} cannot read the source. */
-const AI_FEATURES_FALLBACK: readonly string[] = ['aiPreReview', 'prDescription'];
+const AI_FEATURES_FALLBACK: readonly string[] = ['aiPreReview', 'prDescription', 'issueTriage'];
 
 /**
  * The feature ids in one `AI_FEATURES` declaration.
@@ -259,8 +259,8 @@ function seedAiEndpointSettings(settings: Record<string, unknown>, seed: AiEndpo
   // `forgejoToolkit.aiEnabled` is deliberately **not** written: its manifest
   // default is on, so a value here would restate that default rather than decide
   // anything.
-  // `forgejoToolkit.aiPreReviewPromptScope` and
-  // `forgejoToolkit.prDescriptionPromptScope` are deliberately **not** written: the
+  // `forgejoToolkit.aiPreReviewPromptScope`, `forgejoToolkit.prDescriptionPromptScope`
+  // and `forgejoToolkit.issueTriagePromptScope` are deliberately **not** written: the
   // default `ask` is the consent question the walkthroughs are about, and seeding
   // an answer would skip the one step a human has to perform.
 }

@@ -183,12 +183,14 @@
         "forgejoToolkit.aiPreReview": {
           "type": "boolean",
           "default": false,
+          "scope": "machine",
           "title": "%config.aiPreReview.title%",
           "description": "%config.aiPreReview.description%"
         },
         "forgejoToolkit.aiPreReviewPromptScope": {
           "type": "string",
           "default": "ask",
+          "scope": "machine",
           "enum": [
             "ask",
             "metadata-only",
@@ -209,18 +211,21 @@
         "forgejoToolkit.aiPreReviewModel": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "title": "%config.aiPreReviewModel.title%",
           "description": "%config.aiPreReviewModel.description%"
         },
         "forgejoToolkit.prDescription": {
           "type": "boolean",
           "default": false,
+          "scope": "machine",
           "title": "%config.prDescription.title%",
           "description": "%config.prDescription.description%"
         },
         "forgejoToolkit.prDescriptionPromptScope": {
           "type": "string",
           "default": "ask",
+          "scope": "machine",
           "enum": [
             "ask",
             "commits-only",
@@ -235,6 +240,30 @@
           ],
           "title": "%config.prDescriptionPromptScope.title%",
           "description": "%config.prDescriptionPromptScope.description%"
+        },
+        "forgejoToolkit.issueTriage": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "title": "%config.issueTriage.title%",
+          "description": "%config.issueTriage.description%"
+        },
+        "forgejoToolkit.issueTriagePromptScope": {
+          "type": "string",
+          "default": "ask",
+          "scope": "machine",
+          "enum": [
+            "ask",
+            "issue-only",
+            "issue-and-comments"
+          ],
+          "enumDescriptions": [
+            "%config.issueTriagePromptScope.enumDescriptions.ask%",
+            "%config.issueTriagePromptScope.enumDescriptions.issueOnly%",
+            "%config.issueTriagePromptScope.enumDescriptions.issueAndComments%"
+          ],
+          "title": "%config.issueTriagePromptScope.title%",
+          "description": "%config.issueTriagePromptScope.description%"
         },
         "forgejoToolkit.aiProviders": {
           "type": "array",

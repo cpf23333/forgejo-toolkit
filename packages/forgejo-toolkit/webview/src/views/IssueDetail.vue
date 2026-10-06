@@ -19,6 +19,10 @@ import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import { createPendingUploads } from '../utils/pendingUploads';
 import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
+import type {
+  IssueTriageDropReasonValue,
+  IssueTriageSuggestionSet,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   useAppState,
   issueDetailKey,
@@ -301,6 +305,33 @@ watch(
 
 const issueUrl = computed(() => detail.value?.html_url ?? '');
 const isEditing = ref(false);
+/**
+ * Whether the host reports issue triage as on **and** the repository as having a label
+ * to suggest. Mirrors the pre-review button's reading on the pull request page: a
+ * missing value is **off**, because a control whose only outcome would be the run's
+ * refusal must not be offered.
+ *
+ * The second half is that same rule applied to the repository
+ * (`docs/design/issue-triage.md` §3.2): a repository that declares no label has nothing
+ * to suggest, and the host reads that once per issue view and pushes the answer. An
+ * unknown answer reads as available — the run fails closed with its own sentence if this
+ * view is stale.
+ */
+const issueTriageEnabled = computed(
+  () => state.issueTriage?.value === true && state.issueTriageLabelsAvailable?.value !== false,
+);
+/**
+ * What the last triage run suggested, or `undefined` when there is nothing to show.
+ *
+ * It is display state only: the labels carry ids the host resolved, and nothing in this
+ * view can write one. Applying is the user's own save in the edit form (see
+ * `applyTriageSuggestions`).
+ */
+const triageSuggestions = ref<IssueTriageSuggestionSet | undefined>(undefined);
+const triageLoading = ref(false);
+const triageError = ref('');
+/** The label ids the user ticked. Everything starts unticked. */
+const triageSelectedLabels = ref<number[]>([]);
 const editFormDirty = ref(false);
 // Remounts the edit form for every edit session. The dialog is a native
 // `<dialog>`, so closing it keeps its content mounted and `IssueForm` kept the
@@ -487,7 +518,35 @@ async function handleCommentSubmit() {
   }
 }
 
+/**
+ * The label ids a confirmed triage selection adds to the edit form's initial value.
+ *
+ * A seed rather than a write: `IssueForm` reads its initial props once, so the selection
+ * has to be in place before the dialog remounts (`editFormResetKey`), and the form then
+ * holds them like anything the user had picked there. Saving is what writes them — see
+ * `handleEditSubmit`, which is the same `editIssue` call a manual edit makes.
+ */
+const pendingTriageSeed = ref<number[] | undefined>(undefined);
+
+/** The edit form's initial labels: the issue's own, plus the ticked suggestions. */
+const editInitialLabelIds = computed(() => {
+  const current = (detail.value?.labels ?? []).map((label) => label.id).filter((id): id is number => id !== undefined);
+  return [...new Set([...current, ...(pendingTriageSeed.value ?? [])])];
+});
+
 function openEdit() {
+  openEditWith(undefined);
+}
+
+/**
+ * Opens the edit dialog, optionally seeded with the triage suggestions the user ticked.
+ *
+ * The seed is passed through `pendingTriageSeed`, which the form's initial-value
+ * computed reads; a plain edit passes `undefined` so a previous triage session can
+ * never leak into an ordinary edit of the issue's own labels.
+ */
+function openEditWith(labelSeed: number[] | undefined) {
+  pendingTriageSeed.value = labelSeed;
   state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
   attachmentDeleteNotice.value = undefined;
   // A new edit session starts with no marked deletions. Clearing them here
@@ -499,6 +558,70 @@ function openEdit() {
   editFormResetKey.value += 1;
   editFormDirty.value = false;
   isEditing.value = true;
+}
+
+/**
+ * Asks the host for triage suggestions for this issue.
+ *
+ * The host owns the model, the prompt scope, the prompt and the consent question, so
+ * this is the whole of the page's part: hand over the issue's coordinates and display
+ * what comes back. A **cancelled** run resolves `undefined` (the host has already
+ * explained the dismissed question), and a failure rejects with the host's own
+ * sentence. Nothing here writes anything.
+ */
+async function handleSuggestIssueTriage(): Promise<void> {
+  if (triageLoading.value) {
+    return;
+  }
+  triageLoading.value = true;
+  triageError.value = '';
+  triageSuggestions.value = undefined;
+  triageSelectedLabels.value = [];
+  try {
+    triageSuggestions.value = await state.suggestIssueTriage(instanceId.value, owner.value, repo.value, index.value);
+  } catch (error) {
+    triageError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    triageLoading.value = false;
+  }
+}
+
+/** Whether one suggested label is ticked. */
+function triageLabelTicked(id: number): boolean {
+  return triageSelectedLabels.value.includes(id);
+}
+
+function toggleTriageLabel(id: number, ticked: boolean): void {
+  triageSelectedLabels.value = ticked
+    ? [...triageSelectedLabels.value, id]
+    : triageSelectedLabels.value.filter((value) => value !== id);
+}
+
+/**
+ * Opens the edit form with the ticked suggestions seeded into its label picker.
+ *
+ * This is the whole of "apply": the user still reviews the form and saves it, and the
+ * save is the same `editIssue` call an edit they typed themselves makes. The extension
+ * has no path that writes a label by itself, and it does not touch the assignee field
+ * at all — this feature has nothing to say about who should own the issue.
+ */
+function applyTriageSuggestions(): void {
+  if (triageSuggestions.value === undefined) {
+    return;
+  }
+  openEditWith([...triageSelectedLabels.value]);
+}
+
+/** Throws the suggestions away without opening anything. */
+function dismissTriageSuggestions(): void {
+  triageSuggestions.value = undefined;
+  triageError.value = '';
+  triageSelectedLabels.value = [];
+}
+
+/** The page's own wording for one drop reason, from the shared reason vocabulary. */
+function triageDropReasonText(reason: IssueTriageDropReasonValue): string {
+  return t(`dashboard.detail.triageDropReason.${reason}`);
 }
 
 function closeEdit() {
@@ -1053,6 +1176,17 @@ function reloadIssue() {
             />
             <template v-if="canManageIssue">
               <vscode-button
+                v-if="issueTriageEnabled"
+                id="issue-triage-button"
+                icon="sparkle"
+                :title="t('dashboard.detail.suggestIssueTriageTooltip')"
+                :aria-label="t('dashboard.detail.suggestIssueTriage')"
+                :disabled="triageLoading"
+                @click="handleSuggestIssueTriage"
+              >
+                {{ t('dashboard.detail.suggestIssueTriage') }}
+              </vscode-button>
+              <vscode-button
                 icon="edit"
                 :title="t('dashboard.actions.edit')"
                 :aria-label="t('dashboard.actions.edit')"
@@ -1087,6 +1221,56 @@ function reloadIssue() {
         <div v-if="attachmentDeleteNotice" class="detail-notice">
           {{ attachmentDeleteNotice }}
         </div>
+
+        <!--
+          Triage suggestions. Display only: every label here is one the host resolved
+          against the list it read in that run, and the only way any of them is applied
+          is the edit form this panel opens — which the user still saves.
+        -->
+        <section v-if="triageError || triageSuggestions" class="triage-panel">
+          <div v-if="triageError" class="error" role="status">{{ triageError }}</div>
+          <template v-if="triageSuggestions">
+            <h3 class="triage-title">{{ t('dashboard.detail.triageTitle') }}</h3>
+            <p class="triage-meta">
+              {{ t('dashboard.detail.triageServedBy', { model: triageSuggestions.servedBy }) }}
+              · {{ t('dashboard.detail.triageScope', { scope: triageSuggestions.scope }) }}
+            </p>
+            <p v-if="triageSuggestions.truncated" class="triage-meta triage-warning">
+              {{ t('dashboard.detail.triageTruncated') }}
+            </p>
+            <p v-if="triageSuggestions.labels.length === 0" class="triage-meta">
+              {{ t('dashboard.detail.triageNothingSuggested') }}
+            </p>
+            <div v-if="triageSuggestions.labels.length > 0" class="triage-group">
+              <span class="triage-group-label">{{ t('dashboard.detail.triageLabels') }}</span>
+              <label v-for="label in triageSuggestions.labels" :key="label.id" class="triage-item">
+                <input
+                  type="checkbox"
+                  :checked="triageLabelTicked(label.id)"
+                  @change="toggleTriageLabel(label.id, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="label-tag" :style="labelStyle(label.color)">{{ label.name }}</span>
+              </label>
+            </div>
+            <p v-for="drop in triageSuggestions.dropped" :key="drop.reason" class="triage-meta">
+              {{
+                t('dashboard.detail.triageDropped', {
+                  count: drop.count,
+                  reason: triageDropReasonText(drop.reason),
+                })
+              }}
+            </p>
+            <div class="triage-actions">
+              <vscode-button id="apply-triage-suggestions" @click="applyTriageSuggestions">
+                {{ t('dashboard.detail.triageApply') }}
+              </vscode-button>
+              <span class="triage-hint">{{ t('dashboard.detail.triageApplyHint') }}</span>
+              <vscode-button secondary @click="dismissTriageSuggestions">
+                {{ t('dashboard.detail.triageDismiss') }}
+              </vscode-button>
+            </div>
+          </template>
+        </section>
 
         <div class="detail-meta">
           <img
@@ -1496,9 +1680,7 @@ function reloadIssue() {
           mode="edit"
           :initial-title="detail.title"
           :initial-body="detail.body"
-          :initial-label-ids="
-            (detail.labels ?? []).map((label) => label.id).filter((id): id is number => id !== undefined)
-          "
+          :initial-label-ids="editInitialLabelIds"
           :initial-assignees="(detail.assignees ?? []).map((user) => user.login ?? '').filter(Boolean)"
           :initial-milestone-id="detail.milestone?.id"
           :initial-due-date="detail.due_date"
@@ -1571,6 +1753,65 @@ function reloadIssue() {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
   margin-bottom: 8px;
+}
+
+/* Triage suggestions: a bounded block under the header, in the editor's own
+   surface tokens so it reads as part of the page rather than as a dialog. */
+.triage-panel {
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background-color: var(--vscode-editorWidget-background);
+}
+
+.triage-title {
+  margin: 0 0 4px;
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+.triage-meta {
+  margin: 2px 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.triage-warning {
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.triage-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.triage-group-label {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.triage-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+}
+
+.triage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.triage-hint {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
 }
 
 .detail-content {

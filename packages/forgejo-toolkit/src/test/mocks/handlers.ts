@@ -116,6 +116,19 @@ export const MOCK_SERVER_VERSION = '16.0.5';
 export const MOCK_EMPTY_REPO = 'empty-repo';
 
 /**
+ * A repository that declares **no** label. Its `/labels` response is an empty list
+ * while every other repository keeps answering with `mockLabel`.
+ *
+ * `another-repo` rather than a new name on purpose: it is already an entry in the mock
+ * repository list, so a walkthrough can navigate to it like any other repository and
+ * nothing about the list changes. It exists so the issue page's hiding rule
+ * (`docs/design/issue-triage.md` §3.2 — a repository with nothing to suggest does not
+ * offer the action) is reachable in a real run; without it every repository would answer
+ * with a label and that state could only be shown in a unit test.
+ */
+export const MOCK_LABEL_FREE_REPO = 'another-repo';
+
+/**
  * Comment bodies the mocked issue indexer matches, keyed by issue/PR number,
  * plus a keyword that appears *only* in one of them. Forgejo's issue indexer
  * searches `title`, `content` and `comments` (see the bleve mapping in
@@ -805,7 +818,9 @@ export const handlers = [
     return json({ sha: 'tree-sha', tree: [], truncated: false });
   }),
 
-  http.get('*://*/api/v1/repos/:owner/:repo/labels', ({ request }) => json(paginate(request, [mockLabel]))),
+  http.get('*://*/api/v1/repos/:owner/:repo/labels', ({ params, request }) =>
+    json(paginate(request, String(params.repo) === MOCK_LABEL_FREE_REPO ? [] : [mockLabel])),
+  ),
 
   http.get('*://*/api/v1/repos/:owner/:repo/assignees', () => json(mockAssignees)),
 

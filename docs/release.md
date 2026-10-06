@@ -44,7 +44,10 @@ explain each step.
    section that names the version and falls back to the unreleased one, which is
    why the dry run's line naming the section it used stays a required check: an
    empty unreleased heading above the released one is exactly what would be
-   published if that order ever changed.
+   published if that order ever changed. Every feature or fix in the release should
+   already be recorded twice — an `## [Unreleased]` entry and a changeset; step 1 under
+   "Release workflow" below states the rule and how to check the two lists against each
+   other.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
    `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
@@ -97,13 +100,59 @@ explain each step.
 
 ### 1. Record changes
 
-After features or fixes are merged, create a changeset:
+After features or fixes are merged, **two** records are written for the same batch, and
+they do different jobs:
+
+- **A changeset** in `.changeset/` is the version arithmetic. Its front matter names the
+  package and the semver level — `minor` for a new capability, `patch` for a fix or an
+  internal change — and `pnpm run version-packages` consumes the pending ones to bump
+  `packages/forgejo-toolkit/package.json` and to write the mechanical per-package record
+  `packages/forgejo-toolkit/CHANGELOG.md` (`@changesets/apply-release-plan`).
+- **An entry under `## [Unreleased]` in the root `CHANGELOG.md`** is the release-notes
+  text. The release workflow publishes a changelog section **verbatim** as the Codeberg
+  release body, and it reads the root file first (the paragraph beginning "The release
+  body comes from the root `CHANGELOG.md`" under "Automated release workflow (optional)"
+  lists the exact order it tries), so this — not the changeset — is what users read.
+
+Create a changeset with:
 
 ```bash
 pnpm run changeset
 ```
 
-Follow the interactive prompts to select affected packages and describe the change.
+Follow the interactive prompts to select the affected package and describe the change,
+and write the `## [Unreleased]` entry by hand in the same commit.
+
+Both describe the same change, and neither substitutes for the other: a changeset alone
+leaves the release body without the feature (the workflow falls through to the next
+source, and eventually to a capped commit log), and an `[Unreleased]` entry alone leaves
+the version number to be guessed. An internal-only change — a dependency or build change,
+a refactor nothing user-visible depends on — still needs a changeset for the version bump
+but no `[Unreleased]` entry; the two `CHANGELOG.md` files are release-notes records, not
+engineering logs.
+
+**The rule, so this cannot quietly reopen:** a change that ships a feature or a fix
+updates `## [Unreleased]` **and** adds a changeset, in the same commit. Before a release
+the two lists can be checked against each other and against the history: every entry
+under `## [Unreleased]` should have a changeset behind it, and `git log --oneline
+<last-release-tag>..HEAD` should show no user-visible commit that `## [Unreleased]`
+misses. When they disagree, the root `CHANGELOG.md` is the authoritative text and is
+corrected first; the changeset is then written to match it.
+
+At release time the two records meet like this (checklist step 1 is the authoritative
+order; the workflow itself does none of it):
+
+1. `pnpm run version-packages` consumes the pending changesets: it bumps
+   `packages/forgejo-toolkit/package.json` and writes the per-package
+   `packages/forgejo-toolkit/CHANGELOG.md`.
+2. In the same commit, the root `CHANGELOG.md`'s `## [Unreleased]` heading is renamed to
+   `## [<version>] - <date>`, a fresh `## [Unreleased]` heading is opened above the
+   released section, and the root file is copied over
+   `packages/forgejo-toolkit/CHANGELOG.md` — the copy is the mechanical step, and a test
+   keeps the two files byte-identical.
+3. The release workflow then publishes the renamed section. It never consumes a
+   changeset, never renames a heading and never copies a file, so steps 1 and 2 are what
+   make its output the curated notes instead of the commit-log fallback.
 
 ### 2. Prepare the release
 

@@ -36,7 +36,7 @@ import { makeMemoryVersionCacheStore, type MemoryVersionCacheStore } from './ser
 import { removeTempDir } from '../../__tests__/tempDir';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
-import { MOCK_EMPTY_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
+import { MOCK_EMPTY_REPO, MOCK_LABEL_FREE_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
 import {
   mockUser,
   mockRepository,
@@ -2315,6 +2315,17 @@ describe('ForgejoClient with MSW', () => {
       const labels = await client.getRepoLabels('demo-user', 'demo-repo');
       expect(labels).toHaveLength(1);
       expect(labels[0].name).toBe(mockLabel.name);
+    });
+
+    it('answers with no label for the one repository that declares none', async () => {
+      // The fixture the issue page's hiding rule is walked through against
+      // (`docs/design/issue-triage.md` §3.2): pinned here so it cannot quietly start
+      // answering with a label, which would make that walkthrough unprovable.
+      const client = createClient();
+      const labels = await client.getRepoLabels('demo-user', MOCK_LABEL_FREE_REPO);
+
+      expect(labels).toEqual([]);
+      expect(MOCK_LABEL_FREE_REPO).toBe('another-repo');
     });
 
     it('fetches repository assignees', async () => {

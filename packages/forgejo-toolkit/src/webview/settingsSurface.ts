@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
+  ISSUE_TRIAGE_PROMPT_SCOPES,
   PR_DESCRIPTION_PROMPT_SCOPES,
   SETTINGS_SURFACE_WRITABLE_KEYS,
   type AiPreReviewPromptScopeValue,
+  type IssueTriagePromptScopeValue,
   type PrDescriptionPromptScopeValue,
   type SettingsSourceLevel,
   type SettingsSurfaceSnapshot,
@@ -16,6 +18,7 @@ import {
 import { aiEnabledSettingValue } from '../ai/modelSettings';
 import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionPromptScopeSettingValue } from '../prDescriptionSettings';
+import { isIssueTriageEnabled, issueTriagePromptScopeSettingValue } from '../issueTriageSettings';
 import { enabledMcpWriteTools, isMcpWriteAuditToFileEnabled, MCP_WRITE_TOOLS_KEY } from '../mcpWriteSettings';
 import { isMcpServerEnabled } from '../mcpServerProvider';
 import { isMultiWindowLeaseEnabled } from '../lease/leaseSupervisor';
@@ -77,6 +80,18 @@ const SETTINGS_SECTION = 'forgejoToolkit';
  */
 export const MACHINE_SCOPED_SETTING_KEYS: readonly string[] = [
   'forgejoToolkit.aiEnabled',
+  // The per-feature switches, their prompt scopes and the pre-review's model choice
+  // are machine-scoped too (the maintainer's ruling of 2026-10-06): each of them
+  // decides whether content may leave the machine, how much of it, or which provider
+  // receives it, so a workspace-level value must not be able to change one behind the
+  // reader's back (`docs/design/settings-page.md` §3.5).
+  'forgejoToolkit.aiPreReview',
+  'forgejoToolkit.aiPreReviewPromptScope',
+  'forgejoToolkit.aiPreReviewModel',
+  'forgejoToolkit.prDescription',
+  'forgejoToolkit.prDescriptionPromptScope',
+  'forgejoToolkit.issueTriage',
+  'forgejoToolkit.issueTriagePromptScope',
   'forgejoToolkit.aiProviders',
   'forgejoToolkit.aiTransport',
   'forgejoToolkit.aiDefaultProvider',
@@ -189,6 +204,8 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
     aiPreReviewPromptScope: aiPreReviewPromptScopeSettingValue(),
     prDescription: isPrDescriptionEnabled(),
     prDescriptionPromptScope: prDescriptionPromptScopeSettingValue(),
+    issueTriage: isIssueTriageEnabled(),
+    issueTriagePromptScope: issueTriagePromptScopeSettingValue(),
     sources: readSettingSources(),
   };
 }
@@ -287,6 +304,22 @@ export async function writeSettingsSurfaceValue(
         };
       }
       await writeSettingValue('prDescriptionPromptScope', scope as PrDescriptionPromptScopeValue);
+      logger.info(`The settings page wrote "${key}" = "${scope}"`);
+      return { ok: true };
+    }
+    if (key === 'forgejoToolkit.issueTriagePromptScope') {
+      const scope = typeof rawValue === 'string' ? rawValue.trim() : '';
+      if (!(ISSUE_TRIAGE_PROMPT_SCOPES as readonly string[]).includes(scope)) {
+        return {
+          ok: false,
+          error: vscode.l10n.t(
+            'The setting "{0}" was not written: it takes one of {1}.',
+            key,
+            ISSUE_TRIAGE_PROMPT_SCOPES.join(', '),
+          ),
+        };
+      }
+      await writeSettingValue('issueTriagePromptScope', scope as IssueTriagePromptScopeValue);
       logger.info(`The settings page wrote "${key}" = "${scope}"`);
       return { ok: true };
     }

@@ -542,6 +542,87 @@ export const PR_DESCRIPTION_PROMPT_SCOPES = ['ask', 'commits-only', 'commits-and
 export type PrDescriptionPromptScopeValue = (typeof PR_DESCRIPTION_PROMPT_SCOPES)[number];
 
 /**
+ * The values of `forgejoToolkit.issueTriagePromptScope`, in the order the
+ * manifest's dropdown, the settings page's dropdown and the consent modal show
+ * them (`docs/design/issue-triage.md` §3).
+ *
+ * Its own enumeration for the reason the other features have theirs: the three
+ * features send different content at different moments, and one value must mean
+ * one thing (`ai-model-transport.md` §7.6). The order is the order of how much
+ * leaves the machine: `ask` sends nothing on its own, `issue-only` sends the
+ * issue's own text plus the repository's **label list** — a class of content no
+ * other feature sends — and `issue-and-comments` adds the discussion.
+ */
+export const ISSUE_TRIAGE_PROMPT_SCOPES = ['ask', 'issue-only', 'issue-and-comments'] as const;
+
+/** One value of `forgejoToolkit.issueTriagePromptScope`. */
+export type IssueTriagePromptScopeValue = (typeof ISSUE_TRIAGE_PROMPT_SCOPES)[number];
+
+/** One **stated** triage scope — every value but `ask`, which is the question. */
+export type IssueTriageStatedScopeValue = Exclude<IssueTriagePromptScopeValue, 'ask'>;
+
+/**
+ * Why one of the model's triage entries was refused.
+ *
+ * A shared vocabulary rather than free text: the host counts them and the panel
+ * says how many were dropped and why, and a reason with no wording in the
+ * catalogues would print a raw code (`docs/design/issue-triage.md` §5).
+ */
+export const ISSUE_TRIAGE_DROP_REASONS = [
+  /** The entry was not a non-empty string at all. */
+  'invalid-shape',
+  /** A label name that is not one of the labels the run read from the repository. */
+  'label-not-in-repository',
+  /** A valid entry past the cap the instruction block states, so never considered. */
+  'over-limit',
+] as const;
+
+/** One value of {@link ISSUE_TRIAGE_DROP_REASONS}. */
+export type IssueTriageDropReasonValue = (typeof ISSUE_TRIAGE_DROP_REASONS)[number];
+
+/** How many entries one reason refused. */
+export interface IssueTriageDropCount {
+  reason: IssueTriageDropReasonValue;
+  count: number;
+}
+
+/** One label a triage run suggests, resolved onto a label the repository has. */
+export interface IssueTriageLabelSuggestion {
+  /** The id the run read from the repository; the only value an application could write. */
+  id: number;
+  /** The label's name, as the repository reports it. */
+  name: string;
+  /** The label's colour, for the chip, when the server reported one. */
+  color?: string;
+}
+
+/**
+ * What one triage run suggests, **after** every entry was resolved against the label
+ * list that same run read (`docs/design/issue-triage.md` §5).
+ *
+ * Nothing here is a guess: `labels` carry ids the host read, and the entries it could
+ * not place are counted in `dropped` instead of being shown (the record forbids fuzzy
+ * matching, and an unresolvable suggestion is not a suggestion).
+ *
+ * There is no `assignees` field: the feature suggests labels only, and the login list
+ * it used to send is no longer read or promised (`docs/design/issue-triage.md` §2).
+ */
+export interface IssueTriageSuggestionSet {
+  labels: IssueTriageLabelSuggestion[];
+  dropped: IssueTriageDropCount[];
+  /** The model and transport that answered, already formatted for display. */
+  servedBy: string;
+  /** The scope this run actually used; never `ask`. */
+  scope: IssueTriageStatedScopeValue;
+  /**
+   * True when the endpoint itself said it stopped at its output limit
+   * (`finish_reason: length`), so the answer is known to be incomplete. Reported
+   * rather than hidden: a short list of suggestions may simply be a cut-off answer.
+   */
+  truncated?: boolean;
+}
+
+/**
  * The three values of `forgejoToolkit.aiTransport`, in the order the manifest's
  * dropdown and the settings page's own dropdown both show them
  * (`docs/design/ai-model-transport.md` §8.4).
@@ -585,6 +666,8 @@ export const SETTINGS_SURFACE_WRITABLE_KEYS = [
   'forgejoToolkit.aiPreReviewPromptScope',
   'forgejoToolkit.prDescription',
   'forgejoToolkit.prDescriptionPromptScope',
+  'forgejoToolkit.issueTriage',
+  'forgejoToolkit.issueTriagePromptScope',
 ] as const;
 
 /** One setting the settings page may write. */
@@ -656,6 +739,10 @@ export interface SettingsSurfaceSnapshot {
   prDescription: boolean;
   /** `forgejoToolkit.prDescriptionPromptScope`, read exactly as the run reads it. */
   prDescriptionPromptScope: PrDescriptionPromptScopeValue;
+  /** `forgejoToolkit.issueTriage` (default off). */
+  issueTriage: boolean;
+  /** `forgejoToolkit.issueTriagePromptScope`, read exactly as the run reads it. */
+  issueTriagePromptScope: IssueTriagePromptScopeValue;
   /**
    * The level each of those values comes from, one entry per writable key — the
    * whole record, not only the overridden keys, because "nothing is overridden"
@@ -923,6 +1010,28 @@ export type HostToWebviewMessage =
        */
       prDescriptionCreateForm?: boolean;
       /**
+       * Whether `forgejoToolkit.issueTriage` is on, so the issue detail page can
+       * offer its "Suggest labels" control.
+       *
+       * The same contract as `aiPreReview` above, and one boolean rather than the
+       * description feature's pair: this feature's only surface is an issue's own
+       * detail page, and every stated scope it has can be served there (the
+       * discussion it may add is a read on that same page), so there is no second
+       * fact to report. A missing value reads as **off**, and the run's own
+       * refusal remains the gate.
+       */
+      issueTriage?: boolean;
+      /**
+       * Whether the repository declares at least one label, when the host already
+       * learned it.
+       *
+       * A missing value reads as **available**: before the host has read the
+       * repository's label list the page has no evidence that there is nothing to
+       * suggest, and the run fails closed with its own sentence if a stale view asks
+       * anyway (`docs/design/issue-triage.md` §3.2).
+       */
+      issueTriageLabelsAvailable?: boolean;
+      /**
        * The oldest Forgejo release this build supports, as the host spells it in
        * its own low-version notices (`MIN_SUPPORTED_VERSION_TEXT`), so a view
        * that has to show a version *example* can show the real floor instead of
@@ -989,6 +1098,33 @@ export type HostToWebviewMessage =
    * scope. Both only drive an affordance — the run reads the settings itself.
    */
   | { command: 'setPrDescription'; prDescription: boolean; prDescriptionCreateForm: boolean }
+  /**
+   * Pushed when `forgejoToolkit.issueTriage` changes in VS Code's Settings UI.
+   *
+   * The issue detail page offers or hides its triage control on it, and that page
+   * can sit open while the user changes the setting elsewhere. Same contract as
+   * `setAiPreReview`: the value only drives an affordance, and the run reads the
+   * setting itself.
+   */
+  | {
+      command: 'setIssueTriage';
+      issueTriage: boolean;
+      /**
+       * Whether this repository declares at least one label, as the host last read it
+       * for the issue view that is open.
+       *
+       * The page **hides** the "Suggest labels" action when this is `false`: a
+       * repository that declares no label has nothing to suggest, so offering the
+       * action would only produce the run's own refusal
+       * (`docs/design/issue-triage.md` §3.2). It rides this push rather than a message
+       * of its own because it is the same fact about the same control, and the host
+       * only knows it after the issue view opens.
+       *
+       * It is an ordinary API read, not egress: whether a repository declares labels
+       * is read from the repository, never sent to a model provider.
+       */
+      issueTriageLabelsAvailable?: boolean;
+    }
   | {
       command: 'repositories';
       instanceId: string;
@@ -1232,6 +1368,30 @@ export type HostToWebviewMessage =
   | {
       command: 'prDescriptionGenerated';
       description?: string;
+      error?: string;
+      _requestId: string;
+    }
+  /**
+   * One label a triage run suggested, **resolved onto a label the repository
+   * really has**.
+   *
+   * `id` is what an application would have to write, and it is always an id the
+   * run itself read from the repository: the host resolves the model's names
+   * against that reading and drops every name it cannot place
+   * (`docs/design/issue-triage.md` §5). A suggestion the webview makes up would
+   * therefore have no id to carry, and one the host could not resolve never
+   * reaches this message at all.
+   */
+  | {
+      command: 'issueTriageSuggestions';
+      suggestions?: IssueTriageSuggestionSet;
+      /**
+       * The user dismissed the model picker or the consent question. Not an
+       * error: the host has already said what happened where it happened, and a
+       * second sentence about one event is noise (the same arm the description
+       * feature's reply has).
+       */
+      cancelled?: boolean;
       error?: string;
       _requestId: string;
     }
@@ -2355,6 +2515,23 @@ export type WebviewToHostMessage =
       base: string;
       head: string;
       index?: number;
+      _requestId: string;
+    }
+  // The issue detail page's "suggest labels and assignees" action.
+  //
+  // Four coordinates and a request id, exactly as `aiPreReviewPullRequest` carries
+  // them: the webview names **which issue**, and nothing else. The model, the scope,
+  // the prompt and the consent question are the host's, so a modified webview
+  // cannot influence what leaves the machine. Nothing this message can carry would
+  // let the run write anything: the product of a triage run is a list of
+  // suggestions, and applying one stays the user's own edit through the existing
+  // form.
+  | {
+      command: 'suggestIssueTriage';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
       _requestId: string;
     }
   | {

@@ -158,6 +158,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bound to `prDescription`. A failure is reported and never retried on another model
   or the other transport, and with no usable model at all the action sends nothing
   and points at the Settings page, which explains the two ways out.
+- **Suggest labels for an issue.** An issue's page now has a **Suggest labels** action:
+  a chat model reads that issue's title and body and the repository's own label list —
+  every label's name and description, with archived labels left out — and proposes the
+  labels that apply, each on its own line with a checkbox. **Nothing is applied for
+  you**: tick what you agree with and press **Apply in the edit form**, and the issue's
+  edit dialog opens pre-filled — a label is written when _you_ save that form, never
+  before, and the extension itself never writes one. It suggests labels only: it does
+  not read, send or suggest assignees, and it never touches the assignee field. A
+  repository that declares no label at all does not show the action, because there would
+  be nothing to suggest. Off by default, and separately from the two other AI features.
+  What may leave your machine is your own decision, recorded in
+  `forgejoToolkit.issueTriagePromptScope`: `issue-only` sends the issue's own text plus
+  the repository's label list, and `issue-and-comments` adds the discussion, each
+  comment with its author and date. The default `ask` means the first run shows one
+  modal naming the provider that would receive the content and what each answer sends —
+  nothing is read, requested or sent before you answer, and your answer is stored there
+  so you are asked once. Only what that run actually read can become a suggestion: a
+  label name that does not exactly match one of them is dropped and counted in the panel
+  rather than matched approximately. The model comes from the same place the other AI
+  features take theirs — your editor's models, or a configured endpoint bound to
+  `issueTriage` — a failure is reported and never retried on another model, and an
+  answer the endpoint stopped at its own output limit says so. Both of this feature's
+  settings are machine-scoped, so a workspace cannot turn it on or widen what it sends.
 - **The settings page can configure the notification polling interval and the
   developer mock switch.** The interval is a number field beside the polling switch:
   it takes a whole number of seconds between 60 and 3600, its default is 300, and a
@@ -172,6 +195,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Window"), and a production build does not carry the mock at all, so there the
   switch does nothing. Both settings used to live only in VS Code's own settings
   editor; nothing is left to it now.
+- **You can tell the extension which Forgejo version an instance runs.** The version
+  probe (`GET /api/v1/version`) decides which features an instance gets, and it can be
+  wrong or unavailable — a reverse proxy or path prefix that blocks the endpoint, an
+  unrecognised fork or version string, a timeout on an unreachable instance, a
+  renumbered upstream. Until now that took features away silently: Actions simply
+  disappeared, and nothing said why. The instance form therefore has a **Server
+  version** field: fill in what the instance actually runs (`16.0.2` and
+  `16.0.2+gitea-1.22.0` are both accepted, the shapes the endpoint returns) and that
+  is what the extension believes; leave it empty and the automatic probe is used
+  exactly as before. A value that cannot be a version is refused when you save, with a
+  readable message on the form — never stored and then quietly ignored — and the
+  declaration lives on the instance itself rather than in a VS Code setting, so it is
+  per instance and travels with export/import.
+  A declaration wins over everything the extension would otherwise learn: it is read
+  from the instance record rather than from the probe's cache, so the probe, that
+  cache's one-minute lifetime and its cross-window merge write cannot overwrite,
+  expire or displace it, and a declared instance is not probed at all — which is the
+  point when the endpoint is blocked or never answers. Every version gate reads that
+  one answer: a declared version below the Actions floor is refused with a message
+  naming your declaration instead of claiming what the server reports, and one below
+  the oldest supported release raises the low-version notice with the same
+  attribution. The polling diagnostics say where each instance's version came from —
+  declared, probed or unknown — with the declared string and the value the gates used.
+  The declaration also reaches the MCP server another host starts from a static
+  `mcp.json`: that launch normally forwards to the extension host, where the record is
+  available, and with no window running it builds its own client — until now it probed
+  regardless of what you had declared. The extension publishes each instance's
+  declaration in the registry it already writes for those launches and the child
+  installs it as the same reader, so its Actions gate follows your declaration exactly
+  as the editor's does. No token travels with it and no new environment variable or
+  secret channel is introduced; with no declaration the child probes as before.
+  The field arrives in an instance editor that is a place of its own. Adding and
+  editing an instance used to be an inline form inside the list, which left it unclear
+  which instance was being edited and where the edit region began and ended. The list
+  is the master and the editor is the detail now: **Edit** on a row (or **Add
+  Instance**) switches the page to the editor, whose heading states the mode and,
+  while editing, the instance's name and URL; **Save** returns to the list with the
+  outcome reported there, and **Back to instance list** / **Cancel Edit** returns
+  without saving and asks first if you have typed anything. The heading block stays
+  pinned while you scroll, so the instance you are editing stays visible while you
+  fill in the version declaration at the bottom, and the page now fits the column it
+  lives in: its fields, headers, rows and long notes wrap or stretch instead of
+  putting a horizontal scrollbar on the page, and the strip that reports a connection
+  test or a save no longer paints when it has nothing to say.
 
 ### Changed
 
@@ -198,16 +265,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the sidebar's own copy of the page is gone, so there is exactly one place to
   change these settings from). A tab that was hidden and becomes visible again
   re-reads what it shows instead of returning with the snapshot it was holding.
-- The page is divided into **General / Instances / Notifications / MCP / AI /
-  Git / Worktree**, and opens on General. In a wide tab the groups are a vertical
-  list beside the content, with the group's name as the heading above it; drag the
-  tab narrow — or drop it into one pane of a split editor — and the same choice
-  moves into a selector in the sticky bar at the top, so the page always keeps a
-  single content column at that width. Neither shape is a setting: there is nothing
-  new to configure, the width decides. Switching groups only changes which group is
-  on screen — every control stays in the page, and the instance and AI-endpoint
-  editors still return you to the group you opened them from, with focus back on
-  the row's own Edit button.
+- The page is divided into six groups — **General**, **Instances**, **Notifications**,
+  **MCP**, **AI** and **Git / Worktree** — and opens on General. In a wide tab the
+  groups are a vertical list beside the content, with the group's name as the heading
+  above it; drag the tab narrow — or drop it into one pane of a split editor — and the
+  same choice moves into a selector in the sticky bar at the top, so the page always
+  keeps a single content column at that width. Neither shape is a setting: there is
+  nothing new to configure, the width decides. Switching groups only changes which
+  group is on screen — every control stays in the page, and the instance and
+  AI-endpoint editors still return you to the group you opened them from, with focus
+  back on the row's own Edit button.
 - **The import preview has a way back.** Its own heading now carries a **Back to
   the instance list** link — the same kind of return path the instance and endpoint
   editors already offer at the top of their headings — which puts you back on the
@@ -216,6 +283,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   long file, and if you changed which instances are selected or answered an
   endpoint's conflict question, the link asks before leaving instead of discarding
   your choices silently.
+- **The instance and endpoint editors lead with a three-row identity band.** Their
+  heading used to read title, then name, then address, with the way out at the end and
+  the copy control floating at the far right of the line, away from the address it
+  copies. The heading now reads in the order you need it: the way out first (**Back to
+  instance list**, or the endpoint editor's equivalent), then the page's own title,
+  then the identity line, which puts the name and the address in one row with the copy
+  control right beside the address it copies. Both editors use the same three rows and
+  the block stays pinned while you scroll, so the two read alike.
 - The release guide now opens the next `## [Unreleased]` section before the
   release runs, in the same commit that names the released section for its
   version, so the changelog always carries a place for the next cycle and nothing
@@ -234,6 +309,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   VS Code never reports a folder value, and these settings are window-scoped, so
   the editor does not apply one either — a badge for that level would claim an
   override that cannot exist.
+- **Four AI settings are machine-scoped now, so a workspace value for them no longer
+  applies.** `forgejoToolkit.aiPreReview`, `forgejoToolkit.aiPreReviewPromptScope`,
+  `forgejoToolkit.prDescription` and `forgejoToolkit.prDescriptionPromptScope` join
+  the endpoint and transport settings at the machine level, where the global **Use AI
+  features** switch already was. The two switches say whether a feature runs and the
+  two scope values record what that feature's one-time question was answered with; all
+  four describe this installation and this person, not one repository, so a workspace
+  can no longer turn one of them on, off or wider. If you had set one at the workspace
+  level, it stops taking effect and the user-level value (or the default) is what
+  runs; set it in your user settings or on the settings page and it applies
+  everywhere. Workspace overrides of other settings are unchanged.
 
 ### Fixed
 

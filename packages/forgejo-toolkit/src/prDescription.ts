@@ -39,8 +39,8 @@ import {
   buildPrDescriptionBrief,
   buildPrDescriptionDiff,
   buildPrDescriptionFileContents,
-  buildPrDescriptionPromptMessages,
   buildPrDescriptionPromptText,
+  buildPrDescriptionUserText,
   buildPrDescriptionSystemPrompt,
   parsePrDescriptionAnswer,
   type PrDescriptionAnswerFailure,
@@ -771,16 +771,16 @@ export async function generatePrDescription(
         return { kind: 'cancelled' };
       }
 
-      // The messages are built once and handed to the transport, so "what the run
-      // measured" and "what the request carried" are the same bytes — one assembly
-      // call, used by the token counter above and here.
-      const userPrompt = buildPrDescriptionPromptText(systemPrompt, brief.text, material);
+      // The seam request keeps the instruction block and the brief **apart**: joining
+      // them is the transport's own business — the OpenAI-compatible one sends
+      // `system` as its own message, the editor's one prepends it to the single user
+      // message (`aiPreReviewPromptText`). Handing the joined text in here put the
+      // instructions on the wire **twice** while `countPrDescriptionTokens` measured
+      // them once, so a model whose declared budget fell between the two numbers passed
+      // a check it could not fit (the pre-review's request is the shape this copies).
       const request: AiCompletionRequest = {
         system: systemPrompt,
-        messages: buildPrDescriptionPromptMessages(systemPrompt, userPrompt).map((message) => ({
-          role: message.role,
-          text: message.text,
-        })),
+        messages: [{ role: 'user', text: buildPrDescriptionUserText(brief.text, material) }],
         // The editor's own consent-dialog text, which is why it names the scope
         // setting rather than restating every scope (§5.3).
         purpose: vscode.l10n.t(

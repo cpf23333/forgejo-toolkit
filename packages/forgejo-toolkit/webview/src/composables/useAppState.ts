@@ -290,6 +290,7 @@ import type {
   ExportSettings,
   HostToWebviewMessage,
   ImportAiConflictStrategy,
+  IssueTriageSuggestionSet,
   LinkedRepository,
   SettingsSurfaceSnapshot,
   SettingsSurfaceWritableKey,
@@ -831,6 +832,26 @@ function createAppState() {
    */
   const prDescriptionCreateForm = ref<boolean>(false);
   /**
+   * Whether `forgejoToolkit.issueTriage` is on, as the host last reported it.
+   *
+   * It exists for exactly one affordance: the issue detail page's "Suggest labels"
+   * control. The same `=== true` reading and for the same reason as `aiPreReview`
+   * above — a missing value reads as **off**, because a control whose only outcome
+   * would be the run's refusal must not be offered.
+   */
+  const issueTriage = ref<boolean>(false);
+  /**
+   * Whether the repository of the issue on screen declares a label that could be
+   * suggested, as the host last read it.
+   *
+   * `false` hides that control (`docs/design/issue-triage.md` §3.2): a repository with
+   * nothing to suggest must not offer an action whose only outcome would be the run's
+   * own refusal. It starts **true** and is only ever lowered by the host's own reading,
+   * because before that reading the page has no evidence that there is nothing to
+   * suggest.
+   */
+  const issueTriageLabelsAvailable = ref<boolean>(true);
+  /**
    * The oldest Forgejo release this build supports, as the host spells it
    * (`MIN_SUPPORTED_VERSION_TEXT`), so the Settings form's "Server version"
    * example names the real floor rather than a literal kept in a translation
@@ -1055,6 +1076,20 @@ function createAppState() {
   const pendingPrDescriptions = new Map<
     string,
     { resolve: (description: string) => void; reject: (error: Error) => void }
+  >();
+  /**
+   * One in-flight triage request per request id.
+   *
+   * The answer is a list of suggestions or a sentence, never a write: the host half
+   * of this action cannot touch the issue, so the only thing a caller can do with a
+   * resolution is display the suggestions and let the user choose. A **cancelled**
+   * run resolves `undefined` rather than an empty set, so the page can tell "the
+   * user dismissed the question" from "the model suggested nothing".
+   */
+  let issueTriageRequestId = 0;
+  const pendingIssueTriageRequests = new Map<
+    string,
+    { resolve: (suggestions: IssueTriageSuggestionSet | undefined) => void; reject: (error: Error) => void }
   >();
   let releaseCreationRequestId = 0;
   const pendingReleaseCreations = new Map<
@@ -1290,6 +1325,10 @@ function createAppState() {
         aiPreReview.value = message.aiPreReview === true;
         prDescription.value = message.prDescription === true;
         prDescriptionCreateForm.value = message.prDescriptionCreateForm === true;
+        issueTriage.value = message.issueTriage === true;
+        // The initial state carries the host's answer only when it has one; before any
+        // issue view the honest reading is "available" (see the ref's own comment).
+        issueTriageLabelsAvailable.value = message.issueTriageLabelsAvailable !== false;
         minSupportedServerVersion.value = message.minSupportedServerVersion ?? '';
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
@@ -1418,6 +1457,17 @@ function createAppState() {
         // exist yet.
         prDescription.value = message.prDescription === true;
         prDescriptionCreateForm.value = message.prDescriptionCreateForm === true;
+        break;
+      case 'setIssueTriage':
+        // Same contract for the issue detail page's control: only the affordance
+        // follows the setting, and the run re-reads it on the host.
+        issueTriage.value = message.issueTriage === true;
+        // Absent means "the host said nothing new about the repository", not "the
+        // repository has labels": the configuration push carries the switch alone, and
+        // forgetting a known empty list there would put the control back on screen.
+        if (message.issueTriageLabelsAvailable !== undefined) {
+          issueTriageLabelsAvailable.value = message.issueTriageLabelsAvailable;
+        }
         break;
       case 'repositories':
         handleRepositories(
@@ -1881,6 +1931,16 @@ function createAppState() {
       // through it. The empty success arm is a cancelled run (see the action).
       case 'prDescriptionGenerated':
         handlePrDescriptionGenerated(message as { description?: string; error?: string; _requestId?: string });
+        break;
+      case 'issueTriageSuggestions':
+        handleIssueTriageSuggestions(
+          message as {
+            suggestions?: IssueTriageSuggestionSet;
+            cancelled?: boolean;
+            error?: string;
+            _requestId?: string;
+          },
+        );
         break;
       case 'pullRequestFiles':
         handlePullRequestFiles(
@@ -3740,6 +3800,39 @@ function createAppState() {
       return;
     }
     pending.resolve(data.description ?? '');
+  }
+
+  /**
+   * Settles one triage request.
+   *
+   * A **cancelled** arm resolves `undefined`: the host has already shown its own
+   * sentence for the dismissed modal or picker, so the page has nothing to say and
+   * nothing to display. An `ok` arm resolves the suggestion set, which the page may
+   * only display and pre-select from — every write stays the user's own save.
+   */
+  function handleIssueTriageSuggestions(data: {
+    suggestions?: IssueTriageSuggestionSet;
+    cancelled?: boolean;
+    error?: string;
+    _requestId?: string;
+  }) {
+    if (!data._requestId) {
+      return;
+    }
+    const pending = pendingIssueTriageRequests.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingIssueTriageRequests.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+      return;
+    }
+    if (data.cancelled) {
+      pending.resolve(undefined);
+      return;
+    }
+    pending.resolve(data.suggestions);
   }
 
   function handlePullRequestFiles(data: {
@@ -5751,6 +5844,40 @@ function createAppState() {
     });
   }
 
+  /**
+   * Asks the host for triage suggestions for one issue.
+   *
+   * The payload is the issue's coordinates and nothing else: the model, the prompt
+   * scope, the prompt and the consent question are the host's, so this call can ask
+   * for suggestions and cannot influence what leaves the machine. It resolves with
+   * the suggestions — labels carrying ids the host resolved, and logins it resolved —
+   * which the caller may only display and pre-select from; applying anything is the
+   * user's own save through the existing edit form.
+   *
+   * A **cancelled** run resolves `undefined` rather than an empty set: the user
+   * dismissed the question (or the model picker), which the host has already
+   * explained where it happened, so the page shows nothing at all.
+   */
+  function suggestIssueTriage(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+  ): Promise<IssueTriageSuggestionSet | undefined> {
+    const _requestId = `issue-triage-${++issueTriageRequestId}`;
+    return new Promise((resolve, reject) => {
+      registerPending(pendingIssueTriageRequests, _requestId, 'suggestIssueTriage', { resolve, reject });
+      postMessage({
+        command: 'suggestIssueTriage',
+        instanceId,
+        owner,
+        repo,
+        index,
+        _requestId,
+      });
+    });
+  }
+
   function editPullRequest(
     instanceId: string,
     owner: string,
@@ -7354,6 +7481,8 @@ function createAppState() {
     aiPreReview,
     prDescription,
     prDescriptionCreateForm,
+    issueTriage,
+    issueTriageLabelsAvailable,
     minSupportedServerVersion,
     worktrees,
     worktreeOpenMode,
@@ -7446,6 +7575,7 @@ function createAppState() {
     loadIssueDetail,
     createPullRequest,
     generatePrDescription,
+    suggestIssueTriage,
     editPullRequest,
     mergePullRequest,
     revertMergeCommit,

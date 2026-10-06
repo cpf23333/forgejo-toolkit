@@ -25,7 +25,6 @@
 
 按建议优先级排序；MCP 侧无头进程的输出文案保持英文（既有约定），webview 侧文案走 i18n 双语 JSON。MCP 写操作工具（Phase 2）的计划与执行状态见 `docs/design/mcp-write-tools-confirmation.md`（交付记录见 `FEATURES.md` 的「已完成」「MCP Server」一节）。下面各条说的"接缝"都是同一个模型访问接缝，它的形状与两条传输写在 `docs/design/ai-model-transport.md`。
 
-- [ ] **P2 Issue 分诊建议**：按内容建议 labels/assignees（把现有 label 描述喂给模型选）。**接缝同上**：走 `selectedModelFor(feature)`，不自己取模型
 - [ ] **P2 AI 预评审（draft-only）剩余决定**：功能已交付；设计里刻意留着的三条变体不再记在这里——它们连同各自的决定与理由记在 `FEATURES.md` 的「已完成」「PR Review」一节（那里是它们唯一的记录处），只在出现实际诉求时才重新提起。本条目保留为指针；裁决正文仍是 `docs/design/ai-prereview.md` 的 §13。
 - [ ] **P2 AI 预评审的下一档质量（两件各自独立的大功能，不是本次改动的收尾）**：相关文件检索与 agentic 读取这两个方向不再记在这里——它们记在 `FEATURES.md` 的「未完成」一节，各自需要独立的设计与批准。本条目保留为指针；工具调用与 agent 循环这道接缝的现状见 `docs/design/ai-model-transport.md`。
-- [ ] **P3 通知 AI 摘要**：通知列表「总结讨论」按钮，`vscode.lm` 浓缩时间线。**接缝同上**：走 `selectedModelFor(feature)`，不自己取模型
+- [ ] **P3 通知 AI 摘要**：在通知列表的 issue / pull 通知上加「总结讨论」动作——读该实体的时间线（既有 `/issues/{index}/timeline` 端点，不需要新端点），由选择点选定的模型给出一段**只读**摘要，呈现在**编辑器区标签页面板**里（头部写明模型、本次范围与是否被截断）；时间线按「首尾两段」裁剪，每一处截断都写进提示词。**两项裁决与全部细则**（裁剪、呈现面、同意档位、设置落点、失败路径、验收判据）在 `docs/design/notification-summary.md`；**开工由 Lead 另开任务**，本条目只承载"要做这件事"与仍然需要的上下文。**接缝同上**：走 `selectedModelFor(feature)`，不自己取模型

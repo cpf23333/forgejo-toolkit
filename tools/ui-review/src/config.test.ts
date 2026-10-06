@@ -151,7 +151,7 @@ test('the feature list is read from the extension source, not restated here', ()
   const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
   const source = fs.readFileSync(path.join(repoRoot, AI_FEATURES_SOURCE), 'utf8');
   const parsed = parseDeclaredAiFeatures(source);
-  assert.deepEqual(parsed, ['aiPreReview', 'prDescription']);
+  assert.deepEqual(parsed, ['aiPreReview', 'prDescription', 'issueTriage']);
   assert.deepEqual(readDeclaredAiFeatures(repoRoot), parsed);
   // A source that does not carry the declaration answers "could not read it":
   // `undefined` rather than an empty list, which would seed nothing at all.

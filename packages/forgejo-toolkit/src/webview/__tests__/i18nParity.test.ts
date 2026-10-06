@@ -269,6 +269,8 @@ describe('manifest nls pairs', () => {
       'forgejoToolkit.aiPreReviewModel',
       'forgejoToolkit.prDescription',
       'forgejoToolkit.prDescriptionPromptScope',
+      'forgejoToolkit.issueTriage',
+      'forgejoToolkit.issueTriagePromptScope',
       'forgejoToolkit.aiProviders',
       'forgejoToolkit.aiTransport',
       'forgejoToolkit.aiDefaultProvider',
@@ -292,6 +294,8 @@ describe('manifest nls pairs', () => {
       'config.aiPreReviewModel.title',
       'config.prDescription.title',
       'config.prDescriptionPromptScope.title',
+      'config.issueTriage.title',
+      'config.issueTriagePromptScope.title',
       'config.aiProviders.title',
       'config.aiTransport.title',
       'config.aiDefaultProvider.title',
@@ -380,6 +384,38 @@ describe('manifest nls pairs', () => {
     for (const [index, value] of values.entries()) {
       const placeholder = String(descriptions[index] ?? '');
       expect(placeholder, value).toMatch(/^%config\.prDescriptionPromptScope\.enumDescriptions\.[a-zA-Z]+%$/);
+      const key = placeholder.slice(1, -1);
+      const english = en.get(key) ?? '';
+      const chinese = zh.get(key) ?? '';
+      expect(english, `en: ${key}`).toContain(statesEgress[value]);
+      expect(chinese, `zh: ${key}`).not.toBe('');
+      expect(chinese, `zh: ${key}`).not.toBe(english);
+      expect(chinese.length, `zh: ${key}`).toBeGreaterThan(30);
+    }
+  });
+
+  it('contributes the issue-triage scope as a real dropdown, described in both languages', () => {
+    // The same contract as the two scopes above, for the third feature that has one
+    // (`docs/design/issue-triage.md` §3): a **static** enum VS Code can render, and
+    // every value's description in both nls pairs, because a missing
+    // `enumDescriptions` entry shows the raw `%config.…%` placeholder in the
+    // dropdown — the one place the egress of each answer is explained.
+    const property = manifest.contributes.configuration.properties['forgejoToolkit.issueTriagePromptScope'];
+    const values = ['ask', 'issue-only', 'issue-and-comments'];
+    const descriptions = (Array.isArray(property?.enumDescriptions) ? property.enumDescriptions : []) as unknown[];
+    expect(property?.type).toBe('string');
+    expect(property?.default).toBe('ask');
+    expect(property?.enum).toEqual(values);
+    expect(descriptions).toHaveLength(values.length);
+
+    const statesEgress: Record<string, string> = {
+      ask: 'nothing is requested, sent or written until you answer',
+      'issue-only': "plus the repository's label list",
+      'issue-and-comments': 'plus the discussion',
+    };
+    for (const [index, value] of values.entries()) {
+      const placeholder = String(descriptions[index] ?? '');
+      expect(placeholder, value).toMatch(/^%config\.issueTriagePromptScope\.enumDescriptions\.[a-zA-Z]+%$/);
       const key = placeholder.slice(1, -1);
       const english = en.get(key) ?? '';
       const chinese = zh.get(key) ?? '';

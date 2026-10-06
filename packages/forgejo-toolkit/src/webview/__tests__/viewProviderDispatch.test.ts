@@ -12,6 +12,11 @@ const clientMocks = vi.hoisted(() => ({
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
   getRepoDetail: vi.fn(),
+  // The issue view's two reads: the issue itself, and the repository's label list that
+  // decides whether the triage action is offered at all
+  // (`docs/design/issue-triage.md` §3.2).
+  getIssueDetail: vi.fn(),
+  getRepoLabels: vi.fn(),
   getRepoBranches: vi.fn(),
   getRepoTags: vi.fn(),
   getRepoReleases: vi.fn(),
@@ -53,6 +58,10 @@ vi.mock('../../api/client', () => ({
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
+      // The issue view's own reads: the issue, and the repository's label list the
+      // availability answer comes from (`docs/design/issue-triage.md` §3.2).
+      getIssueDetail: clientMocks.getIssueDetail,
+      getRepoLabels: clientMocks.getRepoLabels,
       getRepoBranches: clientMocks.getRepoBranches,
       getRepoTags: clientMocks.getRepoTags,
       getRepoReleases: clientMocks.getRepoReleases,
@@ -6654,6 +6663,105 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(runner).not.toHaveBeenCalled();
       const refusal = replyFor('prDescriptionGenerated', 'req-draft-bad-index');
       expect(refusal?.error).toBeTruthy();
+      expect(String(refusal?.error)).toContain('Nothing was sent');
+    });
+  });
+
+  describe("the issue detail page's triage dispatch", () => {
+    /** The coordinates the issue page posts for one issue. */
+    const target = { instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 };
+
+    function replyFor(command: string, requestId: string): Record<string, unknown> | undefined {
+      return postedMessages(fake.posted).find(
+        (message) => message.command === command && message._requestId === requestId,
+      );
+    }
+
+    const SUGGESTIONS = {
+      labels: [{ id: 11, name: 'bug' }],
+      dropped: [],
+      servedBy: 'transport=vscode.lm, model=GPT-4o',
+      scope: 'issue-only' as const,
+    };
+
+    it('tells the page whether the repository has any label to suggest', async () => {
+      // §3.2: the host reads the repository's label list when the issue view opens and
+      // pushes the answer, so the page can hide an action that could only produce the
+      // run's refusal. An ordinary API read, not egress; and it happens only while the
+      // feature is on.
+      clientMocks.getIssueDetail.mockResolvedValue({ number: 5, title: 'an issue' });
+      clientMocks.getRepoLabels.mockResolvedValue([]);
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn((key: string) => (key === 'issueTriage' ? true : undefined)),
+        update: vi.fn(),
+      } as never);
+
+      fake.send({ command: 'getIssueDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      await flushUntil(() => postedMessages(fake.posted).some((message) => message.command === 'setIssueTriage'));
+
+      expect(clientMocks.getRepoLabels).toHaveBeenCalledWith('owner', 'repo');
+      expect(postedMessages(fake.posted).find((message) => message.command === 'setIssueTriage')).toMatchObject({
+        issueTriage: true,
+        issueTriageLabelsAvailable: false,
+      });
+    });
+
+    it('reads no label list at all while the feature is off', async () => {
+      clientMocks.getIssueDetail.mockResolvedValue({ number: 5, title: 'an issue' });
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn(() => undefined),
+        update: vi.fn(),
+      } as never);
+
+      fake.send({ command: 'getIssueDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      await flushUntil(() => postedMessages(fake.posted).some((message) => message.command === 'issueDetail'));
+
+      expect(clientMocks.getRepoLabels).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted).some((message) => message.command === 'setIssueTriage')).toBe(false);
+    });
+
+    it("answers with the run's suggestions and hands it the validated coordinates", async () => {
+      const runner = vi.fn(async () => ({ kind: 'ok' as const, suggestions: SUGGESTIONS }));
+      provider.setIssueTriageRunner(runner);
+
+      fake.send({ command: 'suggestIssueTriage', ...target, _requestId: 'req-triage' });
+      await flushUntil(() => replyFor('issueTriageSuggestions', 'req-triage') !== undefined);
+
+      // The four coordinates and nothing else reach the run: the model, the scope,
+      // the prompt and the consent question all stay host-side.
+      expect(runner).toHaveBeenCalledWith(target);
+      expect(replyFor('issueTriageSuggestions', 'req-triage')).toMatchObject({
+        suggestions: SUGGESTIONS,
+        _requestId: 'req-triage',
+      });
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'requestError')).toEqual([]);
+    });
+
+    it('answers a cancelled run with the cancelled arm rather than an error', async () => {
+      const runner = vi.fn(async () => ({ kind: 'cancelled' }) as const);
+      provider.setIssueTriageRunner(runner);
+
+      fake.send({ command: 'suggestIssueTriage', ...target, _requestId: 'req-triage-cancelled' });
+      await flushUntil(() => replyFor('issueTriageSuggestions', 'req-triage-cancelled') !== undefined);
+
+      expect(replyFor('issueTriageSuggestions', 'req-triage-cancelled')).toMatchObject({
+        cancelled: true,
+        _requestId: 'req-triage-cancelled',
+      });
+      expect(replyFor('issueTriageSuggestions', 'req-triage-cancelled')).not.toHaveProperty('error');
+    });
+
+    it('refuses coordinates that do not name a usable issue', async () => {
+      const runner = vi.fn(async () => ({ kind: 'cancelled' }) as const);
+      provider.setIssueTriageRunner(runner);
+
+      // `index` must be a positive integer: `Number(...)` alone would accept `true`
+      // (→ 1) and `null` (→ 0), and "issue 0" names no issue.
+      fake.send({ command: 'suggestIssueTriage', ...target, index: 0, _requestId: 'req-triage-bad' });
+      await flushUntil(() => replyFor('issueTriageSuggestions', 'req-triage-bad') !== undefined);
+
+      expect(runner).not.toHaveBeenCalled();
+      const refusal = replyFor('issueTriageSuggestions', 'req-triage-bad');
       expect(String(refusal?.error)).toContain('Nothing was sent');
     });
   });

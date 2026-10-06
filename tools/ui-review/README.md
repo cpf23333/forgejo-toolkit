@@ -727,6 +727,37 @@ endpoint's address **in the settings page** makes every request to it take that
 path — no code change, and the Test button then reports the 429 sentence. An
 unknown scenario name is answered with 400 and the list of known ones.
 
+### Reading the bytes a run sends (what the recorder keeps, and what it does not)
+
+`/__mock/requests` and the JSONL log answer **what arrived and how much**: the method,
+the path, the scenario, the status, the stream shape, the chunk count, the byte count
+and the model (`AiMockRequestRecord`). They deliberately keep **no request body**, so
+they can prove that a request happened, how big it was and which route it took — and
+they cannot prove **what content a feature sent**. An egress claim ("this scope sends
+the issue and the label list and no comment") is a claim about the bytes, so it needs a
+reader that keeps them:
+
+1. Run a loopback endpoint that answers the same OpenAI shape (`GET /models`, one
+   `chat.completion` document for `POST /chat/completions`) and appends every request —
+   method, path, headers and the raw body — to a JSONL file. Binding port 0 and
+   writing the chosen port to a state file keeps it collision-free, like the harness's
+   own endpoint.
+2. Seed **only** the endpoint plumbing in the profile: a provider whose `baseUrl` is
+   that endpoint, `forgejoToolkit.aiTransport` = `openai-compatible`, and one
+   `forgejoToolkit.aiModelBindings` entry per feature under test. Do **not** seed the
+   feature switch or a prompt scope: turning the switch on through the settings page
+   and answering the consent modal by hand is what exercises the new controls and the
+   fail-closed path, and a seeded answer would skip the one step a human performs.
+   Launch **without** `--ai-mock` so the launcher does not rewrite that provider.
+3. Drive the feature, then read the JSONL: the body is the artifact. For a run whose
+   scope is still `ask`, take the file's **absence** as the zero-request evidence, and
+   check the profile's `User/settings.json` for the zero-write half.
+
+The scratch implementation used for the issue-triage verification (an OpenAI-shaped
+capture endpoint plus a CDP driver for the settings and issue-detail surfaces) lives
+under the gitignored `shots/qa/`; the recipe above is the part worth reproducing, not
+the files.
+
 ### Walkthrough: endpoint → test connection → pre-review → destination
 
 **Rebuild first — it is the maintainer's step, and it is two builds.** The dev host
