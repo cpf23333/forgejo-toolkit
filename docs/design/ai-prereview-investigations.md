@@ -10,7 +10,8 @@
 - 状态：**设计已定稿；阶段 0–4 已交付**（2026-09-29 写作，2026-09-29 实现）。§10 的四个阶段
   在同一次改动里落地，§13 的全部八个问题也已由维护者裁决并改写进下面的正文；本文只记录
   **决定了什么、为什么、否掉了什么**，仍未做的部分（要不要「只评当前文件」的开关等）记在
-  `TODO.md` 的「AI 预评审（draft-only）剩余决定」条目里（设计文档只指向跟踪条目，不持有待办项的唯一副本）。
+  `FEATURES.md` 的「已完成」「PR Review」一节的「AI 预评审的三条变体…」条目里（设计文档只指向记录处，
+  不持有它们的唯一副本）。
   与既有两份记录不同，本文写作时**没有**任何「已交付」段落，读到时请按"计划"而非"现状"理解；
   状态与交付记录见 `docs/design/README.md` 的索引行与 `FEATURES.md` 的 **已完成** 一节。
 - 状态修正（2026-10-01，维护者裁决）：**"谁来选模型"这一块改过一次**——空设置不再表示"自动选择"，
@@ -426,7 +427,8 @@ candidate did not satisfy the contract` / `no candidate satisfied the contract (
   ⑦ **用户可见变化**：预评审在这类提供者上**从"必然失败"变成"能成功"**，所以本次新增 changeset 条目，
   两份 `CHANGELOG` 也加一条；两份 `KNOWN_ISSUES` 里那条"提供者删字符"按本条重写为"答案在 stream part 里、
   `text` 给的是推理流；扩展读 part 并回落 `text`"。`TODO.md` 里"让解析改用 `stream` 里的文本 part"那条
-  P2 条目随之删除（已完成），该节只剩「AI 预评审（draft-only）剩余决定」那三条刻意保留的变体。
+  P2 条目随之删除（已完成），该节只剩「AI 预评审（draft-only）剩余决定」那三条刻意保留的变体
+  （这三条现在记在 `FEATURES.md` 的「已完成」「PR Review」一节，任务清单里只剩一条指向它的指针）。
   ⑧ **测什么**（`src/__tests__/aiPreReview.test.ts`）：新增 "the candidate streams of a response and the
   contract that arbitrates them" 一组——文本 part 答案被采用且 `text` getter 一次都没被读；真机数据
   （`$mid=21` 两条拼成 27 字符字面量 + `$mid=22` 的 `{"":",cdef12`）下 echo 判词为 `true` 且它点名文本候选；
@@ -541,7 +543,8 @@ candidate did not satisfy the contract` / `no candidate satisfied the contract (
   "不预选、无自建全选入口"继续钉住。
   ⑩ **文档同步**：`FEATURES.md`（能力条目改成"第一次问一次、之后记住"，并新增一条"自己决定送什么出去"）、
   两份 `CHANGELOG`（字节一致）、这条改动自己的 changeset、两份 `KNOWN_ISSUES`（旧键残留）、
-  `TODO.md`（下一档质量：相关文件检索与 agentic 读取，各自是独立的大功能，理由写在条目里）。
+  `TODO.md`（下一档质量：相关文件检索与 agentic 读取，各自是独立的大功能）；这两条连同理由现在记在
+  `FEATURES.md` 的「预评审读 PR 之外的相关文件」与「预评审按需索取文件」条目里。
 - 交付后的修正（2026-10-02，**维护者裁决：确认这一步从 QuickPick 换成专门的 webview 面板**）。
   ① **被推翻的**：确认清单原先是一个多选 QuickPick，每条的**正文塞在 label 里**，而 VS Code 会截断
   label，`description` 没设、也没有 `tooltip`——所以用户**读不到自己正要接受的那条评论**。2026-10-01 的
