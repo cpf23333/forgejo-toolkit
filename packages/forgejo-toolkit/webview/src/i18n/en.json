@@ -603,8 +603,9 @@
     "updateInstance": "Update Instance",
     "instanceEditor": {
       "backToList": "Back to instance list",
+      "backToListTitle": "Leave this editor and return to the instance list",
       "cancel": "Cancel Edit",
-      "copyUrl": "Copy instance URL"
+      "copyUrl": "Copy instance address"
     },
     "saving": "Saving...",
     "savedInstances": "Saved Instances",
@@ -711,6 +712,7 @@
       "editTitle": "Edit AI Endpoint",
       "addTitle": "Add AI Endpoint",
       "backToList": "Back to the endpoint list",
+      "backToListTitle": "Leave this editor and return to the endpoint list",
       "test": "Test connection",
       "testing": "Testing...",
       "edit": "Edit",
@@ -892,6 +894,7 @@
     "disabled": "Off",
     "importPreview": {
       "title": "Import Preview",
+      "backToList": "Back to the instance list",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
       "empty": "No instances to import.",

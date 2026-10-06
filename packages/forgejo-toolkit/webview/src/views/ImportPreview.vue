@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 import type {
@@ -11,6 +11,39 @@ import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instanc
 
 const { t } = useI18n();
 const state = useAppState();
+
+/**
+ * How this surface wants leaving to go, and where its return control is drawn.
+ *
+ * Where leaving goes is a fact about the page that showed the preview, not about
+ * the preview: the settings tab returns to its own list, in the group it was
+ * opened from (`docs/design/settings-page.md` §9.4 rule 3, §10.6), while the setup
+ * wizard returns to the step it came from. What a surface may also want is a
+ * question first, and only the settings tab's host answers one (`showConfirm`) —
+ * a confirmation offered from here would be a question the wizard's panel never
+ * answers.
+ *
+ * So the surface is handed the two facts only this component has — `dirty` (has
+ * the reader chosen anything here?) and `leave` (the one exit, below) — and decides
+ * what happens. Every way out of this component goes through it, so leaving means
+ * the same thing wherever it is asked from. A surface that passes nothing gets the
+ * plain exit: that is the wizard, whose Cancel is already its way back and whose
+ * panel has no modal question at all.
+ */
+const props = defineProps<{
+  requestLeave?: (dirty: boolean, leave: () => void) => void;
+}>();
+
+/**
+ * The surface's return control, drawn where this component puts it — under the
+ * title, before the list, the place both editor states state their own way back.
+ * The control belongs to the surface because its destination and its wording do,
+ * and because the page's own return-control styling only reaches markup the page
+ * renders.
+ */
+defineSlots<{
+  'return-path'?: (props: { leave: () => void }) => unknown;
+}>();
 
 const preview = computed(() => state.importPreview.value);
 const selectedIds = ref<Set<string>>(new Set());
@@ -186,10 +219,64 @@ function handleImport() {
   state.importPreview.value = undefined;
 }
 
-function cancel() {
+/**
+ * Whether leaving now would throw away something the reader chose here.
+ *
+ * The arriving state is "every instance selected" (the watcher below) with every
+ * conflict question on `keep` — the answer that changes nothing — so a preview the
+ * reader has not touched holds nothing of their own, and the surface's return
+ * control can stay silent on the ordinary way out. It is the same shape as the two
+ * editors' `formDirty`/`providerDraftDirty`, and the same reason: the question is
+ * asked only when there is really something to lose.
+ *
+ * The imported file's settings and AI endpoints are not part of it: they are all
+ * on screen, and a preview that arrived with them has already shown them.
+ */
+const previewDirty = computed(
+  () =>
+    selectedIds.value.size !== instances.value.length ||
+    Object.values(aiChoices.value).some((strategy) => strategy !== 'keep'),
+);
+
+/**
+ * The exit itself: the host drops the stash it kept for the file (the entries with
+ * their tokens, and the AI section) and the state that renders this component is
+ * cleared, which is what brings the surface that asked for the preview back.
+ *
+ * It is the one place the preview is left, and both ways out reach it — the footer's
+ * Cancel and the surface's own return control, through {@link requestLeavePreview} —
+ * because leaving has to mean the same thing wherever it is asked for. The other way
+ * the preview closes is a confirmation (`handleImport` above), which is the host
+ * *consuming* the stash rather than dropping it; a close that did neither would leave
+ * the file's credentials in the host's memory with no preview left to use them from.
+ */
+function leavePreview() {
   state.cancelImportInstances();
   state.importPreview.value = undefined;
 }
+
+/**
+ * What every exit does: ask the surface how leaving should go, and leave the plain
+ * way when the surface wants no say in it (see the prop above).
+ */
+function requestLeavePreview() {
+  if (props.requestLeave) {
+    props.requestLeave(previewDirty.value, leavePreview);
+    return;
+  }
+  leavePreview();
+}
+
+/**
+ * The preview's own focus anchor, for the same reason the settings page gives one
+ * to its list and to each editor (`Settings.vue`): the state that replaces the
+ * page takes focus, so assistive technology reads the heading it holds, and a
+ * keyboard user lands inside the preview instead of on `<body>` — which is what
+ * makes the return control one Tab away rather than a hunt through the document.
+ * `tabindex="-1"` keeps it out of the tab order; it is a destination, not a stop.
+ */
+const previewRoot = useTemplateRef<HTMLElement | null>('previewRoot');
+onMounted(() => previewRoot.value?.focus());
 
 watch(
   instances,
@@ -201,9 +288,18 @@ watch(
 </script>
 
 <template>
-  <div class="import-preview">
+  <div ref="previewRoot" class="import-preview" tabindex="-1">
     <div class="import-preview-header">
-      <h1 class="import-preview-title">{{ t('settings.importPreview.title') }}</h1>
+      <div class="import-preview-heading">
+        <h1 class="import-preview-title">{{ t('settings.importPreview.title') }}</h1>
+        <!--
+          The way back, drawn by the surface that showed the preview (see the slot
+          contract above). It sits under the title, before the list — the same
+          place the two editor states put their own return path, because it is
+          where a reader who opened the wrong file looks.
+        -->
+        <slot name="return-path" :leave="requestLeavePreview" />
+      </div>
       <div v-if="!previewError" class="import-preview-actions">
         <vscode-button :disabled="instances.length === 0" @click="selectAll" secondary>
           {{ t('settings.importPreview.selectAll') }}
@@ -214,6 +310,12 @@ watch(
       </div>
     </div>
 
+    <!--
+      The three states below are the middle of the preview; the list state carries
+      its own scrollport (see the stylesheet), so the heading above — with the way
+      back in it — and the footer below, with Cancel and Import, are drawn where
+      they are read rather than at the ends of a long list.
+    -->
     <div v-if="previewError" class="error-state">
       <vscode-icon name="error" />
       <span>{{ t('settings.importPreview.error', { message: previewError }) }}</span>
@@ -223,7 +325,7 @@ watch(
       {{ t('settings.importPreview.empty') }}
     </div>
 
-    <div v-else>
+    <div v-else class="import-preview-body">
       <!-- Above the list on purpose: the entries it names are missing from
            `instances` below, so a user counting rows sees fewer than the file
            holds and has to be told why before confirming. The warning is also
@@ -343,7 +445,7 @@ watch(
     </div>
 
     <div class="import-preview-footer">
-      <vscode-button @click="cancel" secondary>{{ t('settings.importPreview.cancel') }}</vscode-button>
+      <vscode-button @click="requestLeavePreview" secondary>{{ t('settings.importPreview.cancel') }}</vscode-button>
       <vscode-button :disabled="selectedIds.size === 0" @click="handleImport">
         {{ t('settings.importPreview.importSelected', { count: selectedIds.size }) }}
       </vscode-button>
@@ -352,13 +454,49 @@ watch(
 </template>
 
 <style scoped>
+/*
+ * Three parts, one scroller: the heading (with the way back in it), the middle
+ * state, and the footer (Cancel and Import). Only the middle one scrolls — see
+ * `.import-preview-body` below — so both ends stay where they are read.
+ */
 .import-preview {
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  /* The fallback scroller: only the error and empty states can outgrow the box,
+     and the instance list scrolls in `.import-preview-body` instead. */
   overflow: auto;
   padding: 0 8px;
+}
+
+/*
+ * The list state's own scrollport, so a long file cannot push the heading (with the
+ * way back in it) or the footer (Cancel and Import) off the screen: a preview used
+ * to be one scrolling column whose only visible exit, in a long list, was the end of
+ * that list. `min-height: 0` is what lets it shrink below its content and scroll at
+ * all inside the column.
+ *
+ * There is deliberately no sticky block and no `scroll-padding-top`: nothing
+ * overlays this box, so a control the browser scrolls into view (a checkbox reached
+ * by Tab) cannot land behind anything — the failure the settings page's own measured
+ * `--editor-sticky-height` exists to prevent.
+ */
+.import-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/*
+ * The root is a programmatic destination, not a control: it takes focus on mount
+ * so the heading is what a screen reader reads (see `previewRoot` in the script),
+ * and it paints no ring of its own. The same rule, for the same reason, is stated
+ * for the settings page's list and editor roots.
+ */
+.import-preview:focus,
+.import-preview:focus-visible {
+  outline: none;
 }
 
 .import-preview-header {
@@ -366,6 +504,14 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* The title and the return path under it, the shape both editor headings have. */
+.import-preview-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .import-preview-title {
@@ -479,6 +625,9 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  /* In the error and empty states the list is absent, so this is what keeps the
+     two exits at the bottom edge; when the list is there it takes the free space
+     and the auto margin has nothing to claim. */
   margin-top: auto;
   padding-bottom: 8px;
 }

@@ -172,6 +172,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on screen — every control stays in the page, and the instance and AI-endpoint
   editors still return you to the group you opened them from, with focus back on
   the row's own Edit button.
+- **The import preview has a way back.** Its own heading now carries a **Back to
+  the instance list** link — the same kind of return path the instance and endpoint
+  editors already offer at the top of their headings — which puts you back on the
+  settings list, in the group you opened the preview from, with focus on the Import
+  button again. The heading and the Cancel/Import pair no longer scroll away with a
+  long file, and if you changed which instances are selected or answered an
+  endpoint's conflict question, the link asks before leaving instead of discarding
+  your choices silently.
 - The release guide now opens the next `## [Unreleased]` section before the
   release runs, in the same commit that names the released section for its
   version, so the changelog always carries a place for the next cycle and nothing

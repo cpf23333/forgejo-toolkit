@@ -114,17 +114,20 @@ const editorRoot = useTemplateRef<HTMLElement | null>('editorRoot');
 const editorHeading = useTemplateRef<HTMLElement | null>('editorHeading');
 // The list controls focus returns to. The page has two master–detail pairs — the
 // instance list/editor and the endpoint list/editor — so a target says which pair
-// it belongs to as well as which row. Both are filled through a `:ref` callback
-// (`setListTargetButton`), which is also what Vue calls with `null` when a row
-// leaves the list.
+// it belongs to as well as which row; the import preview is the third detail state
+// and returns to the one control that opens it. Every target is filled through a
+// `:ref` callback (`setListTargetButton`), which is also what Vue calls with `null`
+// when a row leaves the list.
 type ListReturnTarget =
   | { kind: 'instance'; id: string }
   | { kind: 'provider'; id: string }
   | { kind: 'addInstance' }
-  | { kind: 'addProvider' };
+  | { kind: 'addProvider' }
+  | { kind: 'importInstances' };
 
 const addInstanceButton = ref<HTMLElement | null>(null);
 const addProviderButton = ref<HTMLElement | null>(null);
+const importInstancesButton = ref<HTMLElement | null>(null);
 const instanceEditButtons = new Map<string, HTMLElement>();
 const providerEditButtons = new Map<string, HTMLElement>();
 
@@ -136,6 +139,10 @@ function setListTargetButton(element: unknown, target: ListReturnTarget): void {
   }
   if (target.kind === 'addProvider') {
     addProviderButton.value = resolved;
+    return;
+  }
+  if (target.kind === 'importInstances') {
+    importInstancesButton.value = resolved;
     return;
   }
   const buttons = target.kind === 'instance' ? instanceEditButtons : providerEditButtons;
@@ -166,6 +173,11 @@ function addProviderButtonRef(element: unknown) {
   setListTargetButton(element, { kind: 'addProvider' });
 }
 
+/** The `:ref` binding for the Import button, which opens the import preview. */
+function importInstancesButtonRef(element: unknown) {
+  setListTargetButton(element, { kind: 'importInstances' });
+}
+
 type FocusHandoff = {
   target: ListReturnTarget | undefined;
   attempts: number;
@@ -176,10 +188,11 @@ type FocusHandoff = {
 let focusHandoff: FocusHandoff | null = null;
 
 /**
- * The list control focus returns to: the row the editor was opened from, or the
- * section's own Add button when the editor was the new-record mode (or the row is
- * gone, which is what a removal leaves). The list container is only the last
- * resort — no list control to return to at all.
+ * The list control focus returns to: the row the editor was opened from, the
+ * control that opened the import preview, or the section's own Add button when the
+ * editor was the new-record mode (or the row is gone, which is what a removal
+ * leaves). The list container is only the last resort — no list control to return
+ * to at all.
  */
 function listTarget(target: ListReturnTarget | undefined): HTMLElement | null {
   if (target?.kind === 'instance') {
@@ -190,6 +203,9 @@ function listTarget(target: ListReturnTarget | undefined): HTMLElement | null {
   }
   if (target?.kind === 'addProvider') {
     return addProviderButton.value ?? listRoot.value;
+  }
+  if (target?.kind === 'importInstances') {
+    return importInstancesButton.value ?? listRoot.value;
   }
   return addInstanceButton.value ?? listRoot.value;
 }
@@ -538,6 +554,35 @@ watch(
     if (open) {
       cancelFocusHandoff();
       editorRoot.value?.focus();
+      return;
+    }
+    if (wasOpen) {
+      focusListTarget(returnToListTarget);
+    }
+  },
+  { flush: 'post' },
+);
+
+/**
+ * The import preview is the page's third detail state, and it follows the same
+ * transition as the two editors.
+ *
+ * Its "heading" is inside `ImportPreview.vue`, which takes focus for itself on
+ * mount, so the open half here only has to drop a handoff the state it replaces
+ * may have left pending. The close half is the point: leaving the preview — by the
+ * return control it is given (`requestLeaveImportPreview`), by its Cancel, or by a
+ * successful import — hands focus back to the Import button that opened it.
+ *
+ * The group needs nothing here, and that is the design: nothing writes
+ * `currentGroup` while the preview is on screen, so "back to the group the reader
+ * came from" is the same structural fact §9.4 rule 3 relies on for the editors.
+ * Focus and group are one move, not two mechanisms.
+ */
+watch(
+  () => state.importPreview.value,
+  (open, wasOpen) => {
+    if (open) {
+      cancelFocusHandoff();
       return;
     }
     if (wasOpen) {
@@ -912,7 +957,52 @@ function toggleExportSelection(instance: ForgejoInstance, event: Event) {
 
 function handleImportInstances() {
   importStatus.value = null;
+  // Where focus goes when the preview closes (see the `importPreview` watcher).
+  // Recorded here, by the control that opens the state, exactly as `openEditor`
+  // records the row it was opened from.
+  returnToListTarget = { kind: 'importInstances' };
   state.previewImportInstances();
+}
+
+/**
+ * The import preview's own return path, as the page's third detail state
+ * (`docs/design/settings-page.md` §9.4 rule 3, §10.6).
+ *
+ * It is the editors' path: the click asks before throwing away what the reader has
+ * not applied, keeps the state when they decline, and hands focus back to the
+ * control that opened it (the watcher above). It is given to `ImportPreview` as its
+ * `requestLeave`, so every way out of the preview — this page's return control and
+ * the preview's own Cancel — is this one function, the way `Cancel Edit` and the
+ * instance editor's Back are both `requestCloseEditor`.
+ *
+ * `dirty` is the preview's own answer to "has the reader chosen anything here?"
+ * (which instances are selected, and each endpoint's conflict answer); the file
+ * itself cannot be kept alive — leaving drops the host's stash, credentials and all
+ * — which is why the guard is on the reader's choices and why the prompt is the
+ * page's one discard sentence rather than a second wording for the same question.
+ */
+let importPreviewCancelInFlight = false;
+
+async function requestLeaveImportPreview(dirty: boolean, leave: () => void) {
+  if (dirty) {
+    if (importPreviewCancelInFlight) {
+      return;
+    }
+    importPreviewCancelInFlight = true;
+    try {
+      const discard = await state.showConfirm(t('common.discardChangesConfirm'));
+      if (!discard) {
+        return;
+      }
+    } catch {
+      // The prompt never answered (a dropped reply): keep the preview rather than
+      // discarding the reader's choices on a failed question.
+      return;
+    } finally {
+      importPreviewCancelInFlight = false;
+    }
+  }
+  leave();
 }
 
 function handleLocaleChange(event: Event) {
@@ -2824,12 +2914,29 @@ defineExpose({
       The import preview replaces the page while it is open, and this page is the
       only surface that can open one now: the sidebar's `importPreview` route was
       retired with its settings route, so the preview is rendered here instead of
-      being navigated to (`docs/design/settings-page.md` §9.3). `ImportPreview`
-      clears `state.importPreview` when the user confirms or cancels, which is
-      what brings the page back — the same inline-preview arrangement the setup
-      wizard's panel uses.
+      being navigated to (`docs/design/settings-page.md` §9.3). Clearing
+      `state.importPreview` is what brings the page back — by the return control
+      below, by the preview's own Cancel, or by a successful import — and the
+      `importPreview` watcher in the script is what puts focus back on the Import
+      button that opened it.
+
+      That return control is this page's, not the preview's: its destination is
+      this page's list, its guard is this page's discard question, and the preview
+      hands over the two facts it alone has (`requestLeave`). It is a text link
+      rather than the two editor headings' `.editor-band-back` band control — the
+      preview's own heading is the component's, and its shape is unchanged — but
+      it keeps the same wording shape and the same place in the reading order, so
+      the three detail states of this page offer the same way out first — and the
+      preview's own Cancel goes through that same guard, exactly as `Cancel Edit`
+      goes through `requestCloseEditor`.
     -->
-    <ImportPreview v-if="state.importPreview.value" />
+    <ImportPreview v-if="state.importPreview.value" :request-leave="requestLeaveImportPreview">
+      <template #return-path="{ leave }">
+        <button type="button" class="link-button editor-back import-preview-back" @click="leave">
+          {{ t('settings.importPreview.backToList') }}
+        </button>
+      </template>
+    </ImportPreview>
     <template v-else>
       <!--
       The page header. It is visible in all three states — the instance list and
@@ -2852,18 +2959,36 @@ defineExpose({
 
       <div v-if="editorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
         <!--
-        The editor's subject: the heading names the instance (name and URL), so
-        the fields below it cannot be mistaken for another record's. The visible
-        heading is not its own live region: opening the editor moves focus here,
-        and a live region would announce the subject a second time on top of
-        that.
+        The editor's identity band: the way out, the title, and the record the
+        fields below belong to — in that order, and all three in the sticky block
+        (`docs/design/settings-page.md` §3.4). The band names the instance (name
+        and URL) so the fields below it cannot be mistaken for another record's.
+        The visible heading is not its own live region: opening the editor moves
+        focus here, and a live region would announce the band a second time on top
+        of that.
       -->
         <div ref="editorHeading" class="editor-heading">
+          <!--
+            The identity band's first line, and the heading block's first
+            element: the way out is read before the identity rather than after
+            it (`docs/design/settings-page.md` §3.4). It is a real `<button>`
+            with a codicon, an accessible name and a tooltip, so it is in the tab
+            order and Enter/Space activate it without a pointer.
+          -->
+          <button
+            type="button"
+            class="link-button editor-band-back"
+            :title="t('settings.instanceEditor.backToListTitle')"
+            @click="requestCloseEditor"
+          >
+            <i class="codicon codicon-arrow-left" aria-hidden="true"></i>
+            {{ t('settings.instanceEditor.backToList') }}
+          </button>
           <h2 class="editor-title">{{ editorTitle }}</h2>
-          <div v-if="editingInstance" class="editor-subject">
-            <span class="editor-subject-name">{{ editorSubjectName }}</span>
-            <span class="editor-subject-url-group">
-              <span class="editor-subject-url">{{ editorSubjectUrl }}</span>
+          <div v-if="editingInstance" class="editor-identity">
+            <span class="editor-identity-name">{{ editorSubjectName }}</span>
+            <span class="editor-identity-url-group">
+              <span class="editor-identity-url">{{ editorSubjectUrl }}</span>
               <vscode-button
                 class="editor-copy-url"
                 icon="copy"
@@ -2875,11 +3000,6 @@ defineExpose({
               />
             </span>
           </div>
-          <!-- The return path is stated first, before the fields: it is where a
-             user who opened the wrong row looks. -->
-          <button type="button" class="link-button editor-back" @click="requestCloseEditor">
-            {{ t('settings.instanceEditor.backToList') }}
-          </button>
         </div>
 
         <div class="editor-fields">
@@ -2986,21 +3106,30 @@ defineExpose({
 
       <!--
       The endpoint editor: the same detail half as the instance editor, for the
-      other master. The heading follows the same rules — the mode, the record's
-      identity, then the way back — so the two editors read as one pattern rather
-      than two.
+      other master. Its heading is that editor's band element for element — the
+      way out first, then the title, then the record's identity with the copy
+      control beside the address — so the two editors read as one pattern rather
+      than two (`docs/design/settings-page.md` §3.4).
     -->
       <div v-else-if="providerEditorOpen" ref="editorRoot" class="instance-editor" tabindex="-1">
         <div ref="editorHeading" class="editor-heading">
+          <button
+            type="button"
+            class="link-button editor-band-back"
+            :title="t('settings.aiProviders.backToListTitle')"
+            @click="requestCloseProviderEditor"
+          >
+            <i class="codicon codicon-arrow-left" aria-hidden="true"></i>
+            {{ t('settings.aiProviders.backToList') }}
+          </button>
           <h2 class="editor-title">
             {{ editingProviderId ? t('settings.aiProviders.editTitle') : t('settings.aiProviders.addTitle') }}
           </h2>
-          <div v-if="editingProviderId" class="editor-subject">
-            <span class="editor-subject-name">{{ providerDraft.name }}</span>
-            <span class="editor-subject-url-group">
-              <span class="editor-subject-url">{{ openedProviderAddress }}</span>
+          <div v-if="editingProviderId && openedProviderAddress" class="editor-identity">
+            <span class="editor-identity-name">{{ providerDraft.name }}</span>
+            <span class="editor-identity-url-group">
+              <span class="editor-identity-url">{{ openedProviderAddress }}</span>
               <vscode-button
-                v-if="openedProviderAddress"
                 class="editor-copy-url"
                 icon="copy"
                 icon-only
@@ -3011,9 +3140,6 @@ defineExpose({
               />
             </span>
           </div>
-          <button type="button" class="link-button editor-back" @click="requestCloseProviderEditor">
-            {{ t('settings.aiProviders.backToList') }}
-          </button>
         </div>
 
         <div class="editor-fields">
@@ -4281,7 +4407,12 @@ defineExpose({
                   >
                     {{ t('settings.exportInstances') }}
                   </vscode-button>
-                  <vscode-button icon="file-directory" @click="handleImportInstances" secondary>
+                  <vscode-button
+                    :ref="importInstancesButtonRef"
+                    icon="file-directory"
+                    @click="handleImportInstances"
+                    secondary
+                  >
                     {{ t('settings.importInstances') }}
                   </vscode-button>
                 </div>
@@ -4443,31 +4574,65 @@ vscode-single-select {
 }
 
 /*
- * The editor's subject is kept on screen while the fields below it are edited:
- * the block sticks to the top of the panel's scroll column, so a later field
- * (the version declaration) can be reached without losing which instance is
- * being edited. It is the heading block itself that sticks — not a second,
- * repeated strip — so the editor still has exactly one heading and the name is
- * never announced twice.
+ * The editor's identity band (`docs/design/settings-page.md` §3.4).
  *
- * The opaque background is what makes that safe: without it the fields would
- * scroll through the text. `--vscode-sideBar-background` is the surface this
- * webview draws on — the rest of the webview uses the same token, with the
- * body's `--vscode-editor-background` as its fallback.
+ * Three lines, in the order they are read: the way out, the title, the identity.
+ * It is the block that sticks to the top of the panel's scroll column — not a
+ * second, repeated strip — so the editor still has exactly one heading and the
+ * record's name is never announced twice.
+ *
+ * A grid rather than a stack of margins, so the three lines share one left edge
+ * at every width and the gap between them is one declaration. `align-content:
+ * start` is what keeps a short band's rows from spreading: the band still fits
+ * its own content, so the value measured into `--editor-sticky-height` stays the
+ * height the fields have to clear.
+ *
+ * The opaque background is what makes the stickiness safe: without it the fields
+ * would scroll through the band. `--vscode-sideBar-background` is the surface
+ * this webview draws on — the rest of the webview uses the same token, with the
+ * body's `--vscode-editor-background` as its fallback — and the hairline under
+ * it (`--vscode-panel-border`) is what makes the block read as a band rather
+ * than as text that happens to be above the fields.
  */
 .editor-heading {
   position: sticky;
   top: 0;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  align-content: start;
+  align-items: start;
+  gap: 6px;
   min-width: 0;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--vscode-panel-border);
   background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
 
+/*
+ * The way out. It is the band's first line, and it holds its line: at a narrow
+ * width the name and the address below give way and wrap, this control does not.
+ * `justify-self` keeps it the width of its own label in a grid whose items
+ * otherwise fill the column.
+ *
+ * `display` is stated because the `inline-flex` is what puts the codicon and the
+ * label on one line: the global `.link-button` reset says `inline`, and this
+ * rule's extra class is what decides between the two.
+ */
+.editor-heading .editor-band-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/*
+ * The title. It repeats the page's `h2` element rule on purpose rather than
+ * abandoning the element for a class: the two are the same declaration, and
+ * stating them here is what keeps the heading the page's own `h2` style wherever
+ * a later element rule lands.
+ */
 .editor-title {
   margin: 0;
   font-size: 1rem;
@@ -4475,63 +4640,76 @@ vscode-single-select {
 }
 
 /*
- * The subject: the instance the fields below belong to. Its name is the
- * prominent line; the URL sits under it with the copy control beside it, and
- * both are allowed to shrink so a long URL wraps instead of widening the panel
- * (the same rule the saved-instance rows follow).
+ * The identity line: the record's name, then the address in monospace with its
+ * copy control immediately beside it. `flex-wrap` is the narrow-width answer —
+ * the name and the address move onto separate lines rather than widening the
+ * panel — while `min-width: 0` on both halves is what lets either of them
+ * shrink below its content width instead of holding the line open.
  */
-.editor-subject {
+.editor-identity {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
   min-width: 0;
 }
 
-.editor-subject-name {
+.editor-identity-name {
+  min-width: 0;
   font-size: 0.95em;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.editor-subject-url-group {
+/*
+ * The address and the control that copies it, as one group: the copy control is
+ * the address's own affordance, so it sits directly beside the value rather than
+ * at the far end of the line. The value ellipsises instead of wrapping — it is
+ * an address, and the field below holds it in full — while the control never
+ * shrinks and never wraps, which is why the value is the half that gives way.
+ */
+.editor-identity-url-group {
   display: flex;
+  flex: 1 1 12ch;
   align-items: center;
   gap: 4px;
   min-width: 0;
 }
 
-.editor-subject-url {
-  flex: 1 1 auto;
+.editor-identity-url {
+  flex: 0 1 auto;
   min-width: 0;
+  font-family: var(--vscode-editor-font-family), monospace;
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.editor-back {
-  align-self: flex-start;
-  margin-top: 4px;
-  font-size: 0.9em;
+/* The copy control is a control: it keeps its size while the address shrinks. */
+.editor-identity-url-group .editor-copy-url {
+  flex: 0 0 auto;
 }
 
 /*
- * A short panel gets the compact form of the block: the URL line and its copy
- * control are dropped, leaving the mode and the instance name — the two facts
- * that say which record the fields below belong to.
+ * A short panel gets the compact form of the band: the identity line is dropped,
+ * leaving the way out and the title — the two facts that say where you are and
+ * how to leave.
  *
  * The measured padding above cannot rescue a panel this short on its own. It
  * moves where a focused field stops, but it cannot create scroll range: at a
  * 300 px panel the scroll is already at its end when the declared-version field
  * is reached, so the field stays where the exhausted scroll leaves it — behind
- * the block. Making the block shorter is what leaves the field room, and the URL
- * is the part of the block the editor can spare: the field below still holds it
- * in full, and the control that drops it returns as soon as the panel has the
- * room again. `display: none` is deliberately used rather than removing the
- * group, so the block keeps one shape in the DOM and the copy control keeps its
- * place in the tab order only where it is drawn.
+ * the band. Making the band shorter is what leaves the field room, and the
+ * identity line is the part of it the editor can spare: the record is named in
+ * the field below, and the address is in the URL field. `display: none` is
+ * deliberately used rather than removing the group, so the band keeps one shape
+ * in the DOM and the copy control keeps its place in the tab order only where it
+ * is drawn.
  */
 @media (max-height: 420px) {
-  .editor-subject-url-group {
+  .editor-identity {
     display: none;
   }
 

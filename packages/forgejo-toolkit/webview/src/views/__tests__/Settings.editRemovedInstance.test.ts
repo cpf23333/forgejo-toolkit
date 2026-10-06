@@ -185,7 +185,7 @@ describe('Settings instance editor for a removed instance', () => {
 
     await clickEdit(wrapper, 0);
     expect(headings(wrapper)).toContain(EDITOR_TITLE);
-    expect(wrapper.find('.editor-subject-name').text()).toBe(INSTANCE_A.name);
+    expect(wrapper.find('.editor-identity-name').text()).toBe(INSTANCE_A.name);
     expect(fieldValue(wrapper, '#forgejo-url')).toBe(INSTANCE_A.url);
 
     // The user removes Alpha (confirmed host-side); the refreshed list no

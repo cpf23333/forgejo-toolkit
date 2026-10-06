@@ -461,7 +461,7 @@ describe('Settings AI endpoint editor', () => {
     await openEditorForRow(wrapper);
 
     expect(wrapper.find('.editor-title').text()).toBe('Edit AI Endpoint');
-    expect(wrapper.find('.editor-subject-name').text()).toBe('Ollama (this machine)');
+    expect(wrapper.find('.editor-identity-name').text()).toBe('Ollama (this machine)');
     expect(fieldValue(wrapper, '#ai-provider-id')).toBe('ollama-local');
     // The id is part of the key a stored secret lives under, so it is fixed.
     expect(wrapper.find('#ai-provider-id').attributes('disabled')).toBeDefined();

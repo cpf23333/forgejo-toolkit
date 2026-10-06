@@ -164,7 +164,7 @@ async function clickButton(wrapper: VueWrapper, label: string) {
 
 /** The editor's return path, which is a text link rather than a `vscode-button`. */
 async function clickBack(wrapper: VueWrapper) {
-  const back = wrapper.find('.editor-back');
+  const back = wrapper.find('.editor-band-back');
   expect(back.exists(), 'editor back link').toBe(true);
   await back.trigger('click');
   await nextTick();
@@ -309,8 +309,8 @@ describe('Settings instance editor is a state of its own', () => {
     expect(wrapper.findAll('.saved-item')).toHaveLength(0);
     // …and the editor states its subject: the mode, the name and the URL.
     expect(wrapper.find('.editor-title').text()).toBe('Edit Instance');
-    expect(wrapper.find('.editor-subject-name').text()).toBe('Alpha');
-    expect(wrapper.find('.editor-subject-url').text()).toBe(INSTANCE_A.url);
+    expect(wrapper.find('.editor-identity-name').text()).toBe('Alpha');
+    expect(wrapper.find('.editor-identity-url').text()).toBe(INSTANCE_A.url);
     // The fields below are that instance's.
     expect(fieldValue(wrapper, '#forgejo-url')).toBe(INSTANCE_A.url);
     expect(fieldValue(wrapper, '#forgejo-declared-version')).toBe('16.0.2');
@@ -328,7 +328,7 @@ describe('Settings instance editor is a state of its own', () => {
     expect(wrapper.find('.editor-title').text()).toBe('Add Forgejo Instance');
     // Nothing is loaded, so the editor shows no identity rather than borrowing
     // one from the list.
-    expect(wrapper.find('.editor-subject').exists()).toBe(false);
+    expect(wrapper.find('.editor-identity').exists()).toBe(false);
     expect(fieldValue(wrapper, '#forgejo-url')).toBe('');
     expect(fieldValue(wrapper, '#forgejo-token')).toBe('');
     wrapper.unmount();
@@ -339,7 +339,7 @@ describe('Settings instance editor is a state of its own', () => {
     await nextTick();
 
     await clickEdit(wrapper, 1);
-    expect(wrapper.find('.editor-subject-name').text()).toBe('Beta');
+    expect(wrapper.find('.editor-identity-name').text()).toBe('Beta');
 
     await clickBack(wrapper);
 
@@ -534,7 +534,7 @@ describe('Settings instance editor is a state of its own', () => {
     // …and the name is stated exactly once, as the subject the heading block
     // introduces. A second copy would be read twice wherever the two are
     // announced together.
-    expect(editor(wrapper).findAll('.editor-subject-name')).toHaveLength(1);
+    expect(editor(wrapper).findAll('.editor-identity-name')).toHaveLength(1);
     expect(wrapper.text().match(/Alpha/g)).toHaveLength(1);
     wrapper.unmount();
   });
@@ -556,13 +556,13 @@ describe('Settings instance editor is a state of its own', () => {
     wrapper.unmount();
   });
 
-  it('offers the instance URL as a copyable value beside the name', async () => {
+  it('offers the instance address as a copyable value beside the name', async () => {
     const wrapper = mountView();
     await nextTick();
 
     await clickEdit(wrapper, 0);
     const copy = wrapper.find('.editor-copy-url');
-    expect(copy.attributes('aria-label')).toBe('Copy instance URL');
+    expect(copy.attributes('aria-label')).toBe('Copy instance address');
 
     await copy.trigger('click');
     expect(stateMock.copyToClipboard).toHaveBeenCalledWith(INSTANCE_A.url);
@@ -581,7 +581,7 @@ describe('Settings instance editor is a state of its own', () => {
     // by the webview entry point) is what makes them focusable controls — a
     // `vscode-*` tag is an inert custom element in this test environment, so
     // that half is asserted on what the view passes, not on the runtime.
-    const back = wrapper.find('.editor-back');
+    const back = wrapper.find('.editor-band-back');
     expect(back.element.tagName).toBe('BUTTON');
     expect(back.attributes('type')).toBe('button');
     for (const label of ['Update Instance', 'Cancel Edit']) {

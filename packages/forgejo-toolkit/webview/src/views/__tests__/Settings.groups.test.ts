@@ -487,7 +487,7 @@ describe('Settings groups: the editors return to their group', () => {
     expect(wrapper.find('.instance-editor').exists()).toBe(true);
     expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
 
-    await wrapper.find('.editor-back').trigger('click');
+    await wrapper.find('.editor-band-back').trigger('click');
     await nextTick();
     await flushFocusHandoff();
 
@@ -519,7 +519,7 @@ describe('Settings groups: the editors return to their group', () => {
     expect(wrapper.find('.instance-editor').exists()).toBe(true);
     expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
 
-    await wrapper.find('.editor-back').trigger('click');
+    await wrapper.find('.editor-band-back').trigger('click');
     await nextTick();
     await flushFocusHandoff();
 

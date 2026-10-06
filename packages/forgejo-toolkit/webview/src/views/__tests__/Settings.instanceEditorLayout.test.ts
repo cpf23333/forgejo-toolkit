@@ -102,25 +102,84 @@ describe('Settings editor identity layout', () => {
     expect(ruleBody('.editor-heading')).toContain('position: sticky');
   });
 
-  it('compacts the block in a panel too short to hold both it and the fields', () => {
+  it('compacts the band in a panel too short to hold both it and the fields', () => {
     // The reserved padding moves where a focused field stops, but it cannot
     // create scroll range: at a 300 px panel the scroll is already at its end
-    // when the version field is reached. Dropping the URL line is what leaves the
-    // field room, and it is the URL — not the mode or the name — that the block
-    // can spare.
+    // when the version field is reached. Dropping the identity line is what
+    // leaves the field room, and it is the identity — not the way out or the title
+    // — that the band can spare: the record is named in the fields below.
     const compact = /@media\s*\(max-height:\s*(\d+)px\)\s*\{([\s\S]*?)\n\}/.exec(settingsSource);
     expect(compact, 'a short-panel media query').toBeTruthy();
     // A real short-panel threshold, not a value the ordinary sidebar ever meets.
     expect(Number(compact![1])).toBeGreaterThan(0);
     expect(Number(compact![1])).toBeLessThanOrEqual(500);
     const body = compact![2];
-    expect(body).toContain('.editor-subject-url-group');
+    expect(body).toContain('.editor-identity');
     // Hidden while the panel is short, not removed from the markup: hiding keeps
-    // one shape in the DOM for the block.
+    // one shape in the DOM for the band.
     expect(body).toContain('display: none');
-    // The block must not grow in its compact form, and it must not become a
+    // The band must not grow in its compact form, and it must not become a
     // second heading — the compaction only takes a line away.
     expect(body).not.toMatch(/font-size|position:\s*sticky|::before|::after/);
+  });
+
+  it('aligns the band’s three lines on one grid at every width', () => {
+    // The band is a grid, not a stack of margins: one left edge for the way out,
+    // the title and the identity, and one declaration for the gap between the
+    // rows (`docs/design/settings-page.md` §3.4). The measured height stays the
+    // band's own, which is what `--editor-sticky-height` publishes.
+    const band = ruleBody('.editor-heading');
+    expect(band).toContain('display: grid');
+    expect(band).toContain('align-content: start');
+    expect(band).toMatch(/gap:\s*\d+px/);
+  });
+
+  it('keeps the way out and the copy control from wrapping while the record text gives way', () => {
+    // At a narrow width the name and the address below wrap; neither control
+    // does. The way out is nowrap and keeps its own width in its grid row, and
+    // the copy control never shrinks inside the identity line.
+    const back = ruleBodyFor(['.editor-heading .editor-band-back']);
+    expect(back).toContain('white-space: nowrap');
+    expect(back).toContain('justify-self: start');
+    // The codicon and the label on one line is what `inline-flex` buys, over the
+    // global `.link-button` reset's `inline`.
+    expect(back).toContain('display: inline-flex');
+
+    const identity = ruleBody('.editor-identity');
+    expect(identity).toContain('flex-wrap: wrap');
+    expect(identity).toContain('min-width: 0');
+
+    // The address is the half that gives way: it ellipsises rather than holding
+    // the line open, and the control beside it keeps its size.
+    const url = ruleBody('.editor-identity-url');
+    expect(url).toContain('min-width: 0');
+    expect(url).toContain('text-overflow: ellipsis');
+    expect(url).toContain('white-space: nowrap');
+    expect(url).toContain('var(--vscode-editor-font-family)');
+    expect(ruleBody('.editor-identity-url-group .editor-copy-url')).toContain('flex: 0 0 auto');
+
+    // A `nowrap` on the address only ellipsises if its group hands the room over:
+    // the group is flexible, and it is the address — not the control — that
+    // shrinks.
+    expect(ruleBody('.editor-identity-url-group')).toContain('flex: 1 1 12ch');
+  });
+
+  it('does not rely on colour alone for the identity', () => {
+    // The name is weight and the address is monospace as well as secondary
+    // colour: the two halves are distinguishable without the hue.
+    const name = ruleBody('.editor-identity-name');
+    expect(name).toContain('font-weight: 600');
+    const url = ruleBody('.editor-identity-url');
+    expect(url).toContain('font-family');
+    expect(url).toContain('color: var(--vscode-descriptionForeground)');
+  });
+
+  it('paints the band from the page surface and closes it with a hairline', () => {
+    // The band is not a card: the page's own background plus the theme's panel
+    // border, the same pair the pane titles use.
+    const band = ruleBody('.editor-heading');
+    expect(band).toContain('background-color: var(--vscode-sideBar-background, var(--vscode-editor-background))');
+    expect(band).toContain('border-bottom: 1px solid var(--vscode-panel-border)');
   });
 });
 

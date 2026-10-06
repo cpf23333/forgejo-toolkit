@@ -603,6 +603,7 @@
     "updateInstance": "更新实例",
     "instanceEditor": {
       "backToList": "返回实例列表",
+      "backToListTitle": "离开这个编辑器并回到实例列表",
       "cancel": "取消编辑",
       "copyUrl": "复制实例地址"
     },
@@ -711,6 +712,7 @@
       "editTitle": "编辑 AI 端点",
       "addTitle": "添加 AI 端点",
       "backToList": "返回端点列表",
+      "backToListTitle": "离开这个编辑器并回到端点列表",
       "test": "测试连接",
       "testing": "测试中...",
       "edit": "编辑",
@@ -892,6 +894,7 @@
     "disabled": "关闭",
     "importPreview": {
       "title": "导入预览",
+      "backToList": "返回实例列表",
       "selectAll": "全选",
       "deselectAll": "取消全选",
       "empty": "没有可导入的实例。",

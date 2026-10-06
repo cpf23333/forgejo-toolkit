@@ -257,7 +257,7 @@ describe('Settings sticky block scroll padding', () => {
     await openEditor(wrapper);
     expect(publishedHeight(wrapper)).toBe('118px');
 
-    await wrapper.find('.editor-back').trigger('click');
+    await wrapper.find('.editor-band-back').trigger('click');
     await nextTick();
 
     // The list is back and it has no sticky block.
@@ -300,7 +300,7 @@ describe('Settings sticky block scroll padding', () => {
     expect(order).toEqual(['editor-heading', 'editor-fields', 'status']);
     // One heading, and the hidden group is still the only place carrying the URL.
     expect(editor.findAll('h1, h2, h3, h4, h5, h6')).toHaveLength(1);
-    expect(editor.findAll('.editor-subject-url-group')).toHaveLength(1);
+    expect(editor.findAll('.editor-identity-url-group')).toHaveLength(1);
     wrapper.unmount();
   });
 });

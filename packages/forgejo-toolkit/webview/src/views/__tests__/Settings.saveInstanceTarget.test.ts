@@ -163,7 +163,7 @@ async function clickButton(wrapper: VueWrapper, label: string) {
 
 /** The editor's own return path, a text link rather than a `vscode-button`. */
 async function clickBack(wrapper: VueWrapper) {
-  const back = wrapper.find('.editor-back');
+  const back = wrapper.find('.editor-band-back');
   expect(back.exists(), 'editor back link').toBe(true);
   await back.trigger('click');
   await nextTick();
