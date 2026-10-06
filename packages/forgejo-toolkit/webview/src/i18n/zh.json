@@ -529,6 +529,8 @@
     "forgejoToolkit.worktreeOpenMode": "settings.worktree.openMode",
     "forgejoToolkit.worktreeCacheDirectory": "settings.worktree.cacheDirectory",
     "forgejoToolkit.notificationPollingEnabled": "settings.notifications.enabled",
+    "forgejoToolkit.notificationPollingInterval": "settings.notifications.interval",
+    "forgejoToolkit.useMockApi": "settings.developer.mockApi",
     "forgejoToolkit.mcpEnabled": "settings.mcp.enabled",
     "forgejoToolkit.mcpWriteTools.createIssueComment": "settings.mcp.writeTools.createIssueComment",
     "forgejoToolkit.mcpWriteTools.submitPullReview": "settings.mcp.writeTools.submitPullReview",
@@ -560,13 +562,16 @@
     "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
     "header": {
       "openNativeSettings": "打开扩展设置",
-      "openNativeSettingsDescription": "本扩展贡献的全部设置，在 VS Code 自己的设置界面里、按本扩展筛过。没有放在本页的设置都在那里。",
+      "openNativeSettingsDescription": "本扩展贡献的全部设置，在 VS Code 自己的设置界面里、按本扩展筛过。设置的其余配置层级——工作区那一份，它压过本页写入的任何值——要在那里改。",
       "loadFailed": "读不到本扩展的设置：{error}"
     },
-    "nativePointer": {
-      "label": "更多设置：",
-      "action": "在 VS Code 设置中打开",
-      "interval": "（轮询间隔，单位秒，60–3600）"
+    "source": {
+      "level": {
+        "workspace": "工作区"
+      },
+      "overrides": {
+        "workspace": "工作区级的设置在这里优先，所以在这一页改动这个控件不会生效。"
+      }
     },
     "addInstanceTitle": "添加 Forgejo 实例",
     "instanceUrl": "实例地址",
@@ -621,7 +626,17 @@
       "description": "本窗口如何监视各实例的未读通知。",
       "enabled": "轮询未读通知",
       "enabledDefault": "默认开：配好一个实例即可生效。",
-      "disabledHint": "关闭期间角标与提醒都不再更新。"
+      "disabledHint": "关闭期间角标与提醒都不再更新。",
+      "interval": "轮询间隔（秒）",
+      "intervalSave": "保存间隔",
+      "intervalDescription": "本窗口每隔多久向各实例查询一次未读通知，单位是秒。这条设置接受 60 到 3600 之间的数字，默认 300；超出范围的值会被拒绝并给出说明，已存的间隔保持原样。带小数的值由轮询读取器四舍五入到整秒，字段随后显示的就是那个读数。"
+    },
+    "developer": {
+      "title": "开发者",
+      "description": "用来开发这个扩展本身的开关，而不是给日常使用准备的。日常使用并不需要其中任何一项，而打开其中一项会改变其余页面显示的内容。",
+      "mockApi": "使用模拟的 Forgejo API 响应",
+      "mockApiDescription": "本扩展发出的每一个 Forgejo 请求都由这个构建自带的样本数据回答，而不是由你的实例回答：各页面显示的仓库、issue、Pull Request、通知与 Actions 运行都是样本数据，不是你服务器上的；你在界面里做的改动由 mock 留在内存里，不会写进真实实例。只有开发构建才带 mock，生产构建里这套已被剥离，那里的这个开关不起任何作用。",
+      "mockApiReload": "这项设置在扩展启动时只读一次，所以打开或关闭它要重载窗口之后才生效（VS Code：「Developer: Reload Window」）。本扩展自己没有重载动作。"
     },
     "multiWindow": {
       "title": "多窗口",

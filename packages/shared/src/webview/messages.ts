@@ -551,13 +551,15 @@ export type AiTransportChoiceValue = (typeof AI_TRANSPORT_CHOICES)[number];
  * It is the **writable** half of the page's ownership policy
  * (`docs/design/settings-page.md` §1.3, §3.2): the host accepts a write for one of
  * these keys from the page and refuses every other key, and the drift guard
- * (`src/__tests__/settingsSurface.test.ts`) holds the same list — read from the
- * webview's English string catalogue — against the manifest. A setting that is
- * not here is native-only, and `NATIVE_ONLY_SETTINGS` in
- * `src/webview/settingsSurface.ts` is where its reason lives.
+ * (`src/__tests__/settingsSurface.test.ts`) holds the list the page renders —
+ * read from the webview's English string catalogue — against the manifest. Since
+ * every contributed setting is rendered there now, a manifest key that is not in
+ * that catalogue is what the guard fails on, not a native-only list.
  */
 export const SETTINGS_SURFACE_WRITABLE_KEYS = [
   'forgejoToolkit.notificationPollingEnabled',
+  'forgejoToolkit.notificationPollingInterval',
+  'forgejoToolkit.useMockApi',
   'forgejoToolkit.mcpEnabled',
   'forgejoToolkit.mcpWriteTools.createIssueComment',
   'forgejoToolkit.mcpWriteTools.submitPullReview',
@@ -575,6 +577,25 @@ export const SETTINGS_SURFACE_WRITABLE_KEYS = [
 export type SettingsSurfaceWritableKey = (typeof SETTINGS_SURFACE_WRITABLE_KEYS)[number];
 
 /**
+ * Which configuration level an effective value comes from
+ * (`docs/design/settings-page.md` §3.5).
+ *
+ * The page writes the user level and reads the effective value, so a workspace
+ * value wins over anything written there and a click can look like it did
+ * nothing. This is the reading that says whether one does; `user` and `default`
+ * are the levels the page's own write outranks.
+ *
+ * There is deliberately **no `workspaceFolder`** member: the host reads
+ * `getConfiguration('forgejoToolkit')` without a resource URI, where
+ * `inspect().workspaceFolderValue` is always `undefined`, and these settings are
+ * window-scoped, so the editor does not apply a folder value to them either. A
+ * level the page could never observe would be a marker claiming an override that
+ * does not exist — the case the reader already skips for `machine`-scoped keys
+ * (`docs/design/settings-page.md` §3.5, §10.11).
+ */
+export type SettingsSourceLevel = 'default' | 'user' | 'workspace';
+
+/**
  * The settings the page's own sections present, as the host last read them
  * (`docs/design/settings-page.md` §3.2).
  *
@@ -582,11 +603,23 @@ export type SettingsSurfaceWritableKey = (typeof SETTINGS_SURFACE_WRITABLE_KEYS)
  * snapshot gives: the page renders a screen, and every control on it has to be
  * showing the host's own reading rather than a value the page remembered. The
  * values are the **effective** ones (`getConfiguration` resolves workspace over
- * user over default), which is what the user is actually living with.
+ * user over default), which is what the user is actually living with — and
+ * `sources` is the other half of that same fact: which level each effective value
+ * came from, so the page can say when the level that won is not the one it
+ * writes (§3.5).
  */
 export interface SettingsSurfaceSnapshot {
   /** `forgejoToolkit.notificationPollingEnabled` (default on). */
   notificationPollingEnabled: boolean;
+  /**
+   * `forgejoToolkit.notificationPollingInterval`, read exactly as the poller
+   * reads it (`ConfigManager.getNotificationPollingInterval`, which clamps a
+   * stored value into the manifest's own 60–3600 seconds and rounds it), so the
+   * field and the polling loop cannot disagree about the interval.
+   */
+  notificationPollingInterval: number;
+  /** `forgejoToolkit.useMockApi` (default off): the developer switch. */
+  useMockApi: boolean;
   /** `forgejoToolkit.mcpEnabled` (default on). */
   mcpEnabled: boolean;
   /** The three per-tool write gates, each off by default. */
@@ -609,6 +642,18 @@ export interface SettingsSurfaceSnapshot {
   prDescription: boolean;
   /** `forgejoToolkit.prDescriptionPromptScope`, read exactly as the run reads it. */
   prDescriptionPromptScope: PrDescriptionPromptScopeValue;
+  /**
+   * The level each of those values comes from, one entry per writable key — the
+   * whole record, not only the overridden keys, because "nothing is overridden"
+   * and "this build says nothing about it" must not look alike to the page.
+   *
+   * A key whose manifest scope is `machine` can never be overridden, so its entry
+   * is `user` or `default` by construction (`MACHINE_SCOPED_SETTING_KEYS` in
+   * `src/webview/settingsSurface.ts` is that list, held against the manifest by
+   * the drift guard). The one level above the user's own that is left is
+   * `workspace`.
+   */
+  sources: Record<SettingsSurfaceWritableKey, SettingsSourceLevel>;
 }
 
 /** Events accepted by the Forgejo API when submitting a pending pull review. */

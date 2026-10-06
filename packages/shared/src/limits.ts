@@ -33,6 +33,24 @@ export function isListTruncatedWithTotal(items: readonly unknown[], totalCount?:
 export const MAX_REPO_FILE_SEARCH_RESULTS = 200;
 
 /**
+ * The bounds and the default of `forgejoToolkit.notificationPollingInterval`, in
+ * seconds — the exact numbers the manifest declares as `minimum`, `maximum` and
+ * `default` (`packages/forgejo-toolkit/package.json`).
+ *
+ * Three places need them and cannot share a literal: the poller's own reader
+ * clamps a stored value to this range (`ConfigManager.getNotificationPollingInterval`),
+ * the settings page's write validation refuses a value outside it, and the page's
+ * own sentence states the range to the reader. They live here rather than only in
+ * the extension because the manifest is the declaration and this module is what
+ * both readers agree on; `settingsSurface.test.ts` holds them against the
+ * manifest, so neither a changed bound nor a changed default can leave one of the
+ * three behind.
+ */
+export const NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS = 60;
+export const NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS = 3600;
+export const NOTIFICATION_POLLING_INTERVAL_DEFAULT_SECONDS = 300;
+
+/**
  * Characters kept from one review comment body; the rest is announced in the
  * body itself.
  *

@@ -5,9 +5,14 @@ import {
   SETTINGS_SURFACE_WRITABLE_KEYS,
   type AiPreReviewPromptScopeValue,
   type PrDescriptionPromptScopeValue,
+  type SettingsSourceLevel,
   type SettingsSurfaceSnapshot,
   type SettingsSurfaceWritableKey,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import {
+  NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS,
+  NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS,
+} from '@cpf23333-forgejo-toolkit/shared/limits';
 import { aiEnabledSettingValue } from '../ai/modelSettings';
 import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionPromptScopeSettingValue } from '../prDescriptionSettings';
@@ -18,82 +23,66 @@ import { MCP_WRITE_TOOL_SETTING_KEYS, type McpWriteTool } from '../../mcp/writeT
 import { logger } from '../logger';
 
 /**
- * The settings page's own surface: which settings it renders, which it leaves to
- * VS Code's own settings editor, and how the settings it renders are read and
- * written (`docs/design/settings-page.md` §1.3, §3.2, §6).
+ * The settings page's own surface: how the settings it renders are read and
+ * written, and which of them VS Code cannot let a workspace override
+ * (`docs/design/settings-page.md` §1.3, §3.2, §3.5, §6).
  *
- * The module exists for the reason the record gives for the policy half of it:
- * **the page's ownership policy has one home**. `NATIVE_ONLY_SETTINGS` is that
- * home — the settings that stay native together with the reason each one does —
- * and `src/__tests__/settingsSurface.test.ts` holds it against the manifest and
- * the webview's English string catalogue, which together are the other half of
- * the same fact ("rendered" vs "native-only"). The page's own text, this module
- * and the test all refer to this list rather than restating it.
+ * The page and this module are one surface seen from two sides: it renders a
+ * control for every setting the manifest contributes, and this module is the only
+ * place a write from it is accepted. Which settings those are is the webview
+ * string catalogue's answer (`en.json`'s `settings["forgejoToolkit.…"]` keys),
+ * held against the manifest by `src/__tests__/settingsSurface.test.ts`; there is
+ * deliberately no second list here of settings that stay native, because none do
+ * — every contributed setting has a control on that page now (§1.3, §6).
  *
  * The reads reuse the **feature readers** the behaviours themselves use
  * (`isMcpServerEnabled`, `enabledMcpWriteTools`, `isMcpWriteAuditToFileEnabled`,
  * `isMultiWindowLeaseEnabled`, `aiEnabledSettingValue`, `isAiPreReviewEnabled`,
  * `aiPreReviewPromptScopeSettingValue`), so the page cannot claim a switch is on
- * while the feature reads it off. The one exception is the notification poller,
- * whose reader lives on `ConfigManager` (it owns that switch); it is passed in as
- * a dependency for the same reason: one reading, not two.
+ * while the feature reads it off. The two exceptions are the notification poller
+ * and the mock switch, whose readers live on `ConfigManager` (it owns those
+ * settings); they are passed in as dependencies for the same reason: one reading,
+ * not two.
  *
  * Writes go to **global** scope, matching every other control this page has
  * (`setLocale`, `setDebug`, `setWorktreeOpenMode`, the AI model policy): the page
- * edits the user's own settings, and a workspace-level override stays what it is
- * — which is why every write is followed by a fresh read and the reply carries
- * the value that is actually in effect.
+ * edits the user's own settings, and a workspace-level override stays what it is.
+ * That is why every write is followed by a fresh read and the reply carries the
+ * value that is actually in effect — and why the reading also says which **level**
+ * that value came from: a workspace value beats the one this page writes, so
+ * without that fact a click on an overridden control looks like it did nothing
+ * (§3.5). The page writes the user level and reads the source; it never writes a
+ * second scope, and the workspace level is the only one above its own that the
+ * reading can report.
  */
 
 /** The settings section every key of this extension lives under. */
 const SETTINGS_SECTION = 'forgejoToolkit';
 
 /**
- * One setting the page deliberately does **not** render, with the reason it stays
- * in VS Code's own settings editor.
+ * The settings the manifest declares at **`machine` scope**, as full setting ids.
  *
- * The reason is read by the drift guard's failure message and by whoever adds the
- * next setting, so it is written for a maintainer rather than for a user: the
- * user-facing pointer a native-only setting gets on the page is an i18n string of
- * its own (§2.2), not this sentence. English on purpose, like the rest of the
- * test-facing surface (`docs/design/settings-page.md` §8 question 6).
+ * A machine-scoped setting cannot be overridden: VS Code applies only a user
+ * (machine) value to one, so a value hand-written into `.vscode/settings.json`
+ * never becomes the effective one. The page therefore must not claim a workspace
+ * value wins for one of these, and the source reading below never reports a level
+ * above `user` for a key in this list (§3.5).
+ *
+ * It is written out rather than derived because the manifest's scope is not part
+ * of any runtime reading, and it is a **complete** list rather than only the keys
+ * this snapshot happens to carry: the drift guard
+ * (`src/__tests__/settingsSurface.test.ts`) holds it against every
+ * `"scope": "machine"` property in the manifest, so the day one is added to, or
+ * removed from, the AI family the guard says so.
  */
-export interface NativeOnlySetting {
-  /** The full setting id, exactly as the manifest contributes it. */
-  key: string;
-  reason: string;
-}
-
-/**
- * The settings that stay native, and why (§1.3).
- *
- * Two, and each is a decision rather than an omission: `notificationPollingInterval`
- * is an ordinary bounded number VS Code's own editor renders better than this page
- * can (a range with a minimum and a maximum) — the page only names it, with a
- * pointer row — and `useMockApi` is a development switch that must not look like a
- * feature. `useMockApi` gets no pointer at all (§2.2): mentioning it is what would
- * make a user think it is one.
- *
- * `aiTransport` used to be here and is **rendered** now (§1.3): it is the choice
- * that decides which of the AI area's two halves the page presents, so the page
- * has to be able to make it. The drift guard is what keeps the two lists from
- * overlapping — a setting may be rendered or native-only, never both (§6.3).
- */
-export const NATIVE_ONLY_SETTINGS: readonly NativeOnlySetting[] = [
-  {
-    key: 'forgejoToolkit.notificationPollingInterval',
-    reason:
-      "A plain number with a minimum and a maximum (60–3600 seconds). VS Code's own editor renders that " +
-      'range; a field here would be a second place to validate it, and the notification section names the ' +
-      'setting with a pointer row instead.',
-  },
-  {
-    key: 'forgejoToolkit.useMockApi',
-    reason:
-      'A development switch, and its own description says so ("Development use only; stripped from production ' +
-      'builds"). Putting it on a user-facing page would read as a feature. It is deliberately not mentioned ' +
-      'anywhere on the page either.',
-  },
+export const MACHINE_SCOPED_SETTING_KEYS: readonly string[] = [
+  'forgejoToolkit.aiEnabled',
+  'forgejoToolkit.aiProviders',
+  'forgejoToolkit.aiTransport',
+  'forgejoToolkit.aiDefaultProvider',
+  'forgejoToolkit.aiDefaultModel',
+  'forgejoToolkit.aiModelBindings',
+  'forgejoToolkit.aiModelRequestTimeoutMs',
 ];
 
 /** What one host-side read of the surface needs from its caller. */
@@ -103,6 +92,18 @@ export interface SettingsSurfaceReadDeps {
    * itself obeys, so the switch on the page cannot disagree with the behaviour.
    */
   isNotificationPollingEnabled: () => boolean;
+  /**
+   * `ConfigManager.getNotificationPollingInterval`: the poller's own clamped
+   * reading, so the field shows the interval that is actually being used rather
+   * than a value out of the store the loop would never obey.
+   */
+  getNotificationPollingInterval: () => number;
+  /**
+   * `ConfigManager.isMockApiEnabled`: the reading `extension.ts` makes its own
+   * activation decision from, so the developer switch cannot show a state the
+   * mock server was not started under.
+   */
+  isMockApiEnabled: () => boolean;
 }
 
 /** Whether a value is one of the keys the page may write. */
@@ -110,11 +111,71 @@ export function isSettingsSurfaceWritableKey(value: unknown): value is SettingsS
   return typeof value === 'string' && (SETTINGS_SURFACE_WRITABLE_KEYS as readonly string[]).includes(value);
 }
 
+/** The key's name without the section prefix `inspect`/`update` take it under. */
+function settingKeyName(fullKey: string): string {
+  return fullKey.slice(`${SETTINGS_SECTION}.`.length);
+}
+
+/**
+ * The level one setting's effective value comes from, as `inspect` reports it.
+ *
+ * The order is VS Code's own precedence — workspace over user over default — and
+ * a level counts only when it holds a value, which is what tells "this level set
+ * it" from "it was never set here". Language-scoped values
+ * (`globalLanguageValue` and its siblings) are deliberately not consulted: the
+ * levels this page names are the levels these settings are scoped to, and a
+ * per-language override of one of them is not a state the page has wording for.
+ *
+ * There is no `workspaceFolder` reading, on purpose. This configuration is read
+ * without a resource URI, so `inspect().workspaceFolderValue` is always
+ * `undefined` here, and these settings are window-scoped, so the editor does not
+ * apply a folder value to them anyway: a marker for that level would claim an
+ * override that does not exist, exactly the case `machine`-scoped keys skip
+ * below. Adding it back means reading with a `scopeUri`
+ * (`workspace.getConfiguration(SETTINGS_SECTION, folderUri)`) as well, which is
+ * what §3.5 of the design record says.
+ *
+ * A machine-scoped key skips the workspace level: the editor does not apply a
+ * workspace value to it, so reporting one would make the page tell the reader
+ * that a setting wins which does not (§3.5).
+ */
+function readSettingSourceLevel(config: vscode.WorkspaceConfiguration, fullKey: string): SettingsSourceLevel {
+  const inspected = config.inspect(settingKeyName(fullKey));
+  if (inspected === undefined) {
+    return 'default';
+  }
+  if (!MACHINE_SCOPED_SETTING_KEYS.includes(fullKey)) {
+    if (inspected.workspaceValue !== undefined) {
+      return 'workspace';
+    }
+  }
+  return inspected.globalValue !== undefined ? 'user' : 'default';
+}
+
+/**
+ * The level every setting this snapshot presents comes from, in the order of
+ * `SETTINGS_SURFACE_WRITABLE_KEYS`.
+ *
+ * The map is total: every writable key gets an entry, so the page can tell "this
+ * level is not the user's" from "nothing was said about this key". It is built
+ * from one `getConfiguration` call, and it reads the settings themselves, not a
+ * value: the values come from the feature readers, which is why nothing here
+ * duplicates a default or a coercion rule.
+ */
+function readSettingSources(): Record<SettingsSurfaceWritableKey, SettingsSourceLevel> {
+  const config = vscode.workspace.getConfiguration(SETTINGS_SECTION);
+  return Object.fromEntries(
+    SETTINGS_SURFACE_WRITABLE_KEYS.map((key) => [key, readSettingSourceLevel(config, key)]),
+  ) as Record<SettingsSurfaceWritableKey, SettingsSourceLevel>;
+}
+
 /** Reads the settings the page's own sections present. */
 export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurfaceSnapshot {
   const enabledWriteTools = enabledMcpWriteTools();
   return {
     notificationPollingEnabled: deps.isNotificationPollingEnabled(),
+    notificationPollingInterval: deps.getNotificationPollingInterval(),
+    useMockApi: deps.isMockApiEnabled(),
     mcpEnabled: isMcpServerEnabled(),
     mcpWriteTools: {
       createIssueComment: enabledWriteTools.includes('create_issue_comment'),
@@ -128,6 +189,7 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
     aiPreReviewPromptScope: aiPreReviewPromptScopeSettingValue(),
     prDescription: isPrDescriptionEnabled(),
     prDescriptionPromptScope: prDescriptionPromptScopeSettingValue(),
+    sources: readSettingSources(),
   };
 }
 
@@ -226,6 +288,32 @@ export async function writeSettingsSurfaceValue(
       }
       await writeSettingValue('prDescriptionPromptScope', scope as PrDescriptionPromptScopeValue);
       logger.info(`The settings page wrote "${key}" = "${scope}"`);
+      return { ok: true };
+    }
+    if (key === 'forgejoToolkit.notificationPollingInterval') {
+      // The manifest's own range, refused rather than clamped: VS Code's settings
+      // editor refuses a value outside `minimum`/`maximum` too, and clamping would
+      // store a number the user never typed. A value that got into the store by
+      // hand is still survivable — the poller's reader clamps it (§3.5).
+      const seconds = rawValue;
+      if (
+        typeof seconds !== 'number' ||
+        !Number.isFinite(seconds) ||
+        seconds < NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS ||
+        seconds > NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS
+      ) {
+        return {
+          ok: false,
+          error: vscode.l10n.t(
+            'The setting "{0}" was not written: it takes a number of seconds between {1} and {2}.',
+            key,
+            NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS,
+            NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS,
+          ),
+        };
+      }
+      await writeSettingValue('notificationPollingInterval', seconds);
+      logger.info(`The settings page wrote "${key}" = ${seconds}`);
       return { ok: true };
     }
     if (typeof rawValue !== 'boolean') {

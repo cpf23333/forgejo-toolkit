@@ -76,21 +76,11 @@ const { stateMock } = vi.hoisted(() => ({
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
     // The settings page reads its own surface on mount and renders the host's
-    // reading rather than a value of its own; the defaults below are the
-    // manifest's, so a test that does not care about those sections still mounts
-    // a page with the values a fresh install has.
-    settingsSurface: {
-      value: {
-        notificationPollingEnabled: true,
-        mcpEnabled: true,
-        mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
-        mcpWriteAuditToFile: false,
-        multiWindowLease: true,
-        aiEnabled: true,
-        aiPreReview: false,
-        aiPreReviewPromptScope: 'ask',
-      },
-    },
+    // reading rather than a value of its own. It is filled in after the imports
+    // below: a `vi.hoisted` body runs before this file's imports are
+    // initialized, so the complete, typed reading — source map included — can
+    // only be built once `settingsSurfaceFixture` exists.
+    settingsSurface: { value: undefined as unknown },
     loadSettingsSurface: vi.fn(async () => undefined),
     setSettingsSurfaceValue: vi.fn(async () => ({ snapshot: undefined })),
     testAiProviderDraft: vi.fn(async () => ({
@@ -124,7 +114,12 @@ vi.mock('../../composables/useAppState', async (importOriginal) => {
 
 import Settings from '../Settings.vue';
 import { useAppState } from '../../composables/useAppState';
-import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import { createTestRouter, createTestI18n, settingsSurfaceFixture } from '../../__tests__/helpers/test-utils';
+
+// The host's reading of the settings page's own surface (§3.2): the manifest's
+// defaults with the whole source map. It is built here rather than in the
+// `vi.hoisted` body above because that body runs before this import exists.
+stateMock.settingsSurface.value = settingsSurfaceFixture();
 
 type SaveResult = { success: boolean; error?: string; target?: { kind: 'instance' | 'new'; instanceId?: string } };
 type TestResult = {

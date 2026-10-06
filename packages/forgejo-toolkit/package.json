@@ -128,11 +128,13 @@
           "default": 300,
           "minimum": 60,
           "maximum": 3600,
+          "title": "%config.notificationPollingInterval.title%",
           "description": "%config.notificationPollingInterval.description%"
         },
         "forgejoToolkit.useMockApi": {
           "type": "boolean",
           "default": false,
+          "title": "%config.useMockApi.title%",
           "description": "%config.useMockApi.description%"
         },
         "forgejoToolkit.mcpEnabled": {

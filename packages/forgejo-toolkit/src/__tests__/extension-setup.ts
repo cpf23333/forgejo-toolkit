@@ -50,6 +50,11 @@ vi.mock('vscode', () => ({
     getConfiguration: vi.fn(() => ({
       get: vi.fn(),
       update: vi.fn(),
+      // The settings page reads which configuration level each of its values
+      // comes from (`docs/design/settings-page.md` §3.5); an answer of `undefined`
+      // is "the manifest default holds it", which is what an untouched install
+      // reports.
+      inspect: vi.fn(),
     })),
     onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
     onDidChangeWorkspaceFolders: vi.fn(() => ({ dispose: vi.fn() })),

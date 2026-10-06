@@ -447,6 +447,7 @@
   "Remove the AI endpoint \"{0}\" and its stored secrets?": "要删除 AI 端点 \"{0}\" 以及为它保存的密钥吗？",
   "That setting cannot be written from this page.": "这条设置不能从本页写入。",
   "The setting \"{0}\" was not written: it takes on or off.": "设置 \"{0}\" 没有写入：它只接受开或关。",
+  "The setting \"{0}\" was not written: it takes a number of seconds between {1} and {2}.": "设置 \"{0}\" 没有写入：它只接受 {1} 到 {2} 之间的秒数。",
   "The setting \"{0}\" was not written: it takes one of {1}.": "设置 \"{0}\" 没有写入：它只接受 {1} 之一。",
   "The setting \"{0}\" was not written: {1}": "设置 \"{0}\" 没有写入：{1}",
   "Send the commits and the changed-file list": "发送提交与变更文件列表",

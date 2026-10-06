@@ -148,6 +148,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retried on another model or the other transport, and with no usable model at all
   the action sends nothing and points at the Settings page, which explains the two
   ways out.
+- **The settings page can configure the notification polling interval and the
+  developer mock switch.** The interval is a number field beside the polling switch:
+  it takes a whole number of seconds between 60 and 3600, its default is 300, and a
+  value outside that is refused with the range in the message while the interval
+  already stored stays what it was. The mock switch sits in a **Developer** passage
+  at the end of **General** and says plainly what it does: while it is on, every
+  Forgejo request this extension makes is answered from the build's own sample data
+  instead of from your instances, so the repositories, issues, pull requests,
+  notifications and Actions runs on screen are not your server's and an edit stays
+  in the mock's memory. It is read once when the extension starts, so turning it on
+  or off takes effect after you reload the window (VS Code: "Developer: Reload
+  Window"), and a production build does not carry the mock at all, so there the
+  switch does nothing. Both settings used to live only in VS Code's own settings
+  editor; nothing is left to it now.
 
 ### Changed
 
@@ -196,6 +210,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   release runs, in the same commit that names the released section for its
   version, so the changelog always carries a place for the next cycle and nothing
   depends on a step remembered after the release.
+- **The settings page says when a workspace setting is the value you are looking
+  at.** The page writes your user settings and shows the value in effect, so a
+  workspace value won silently and a click on such a control looked like it did
+  nothing. A control whose value comes from a workspace setting now carries that
+  level's name as a small badge and one sentence saying the workspace value wins
+  here and that changing the control on this page will not take effect, next to
+  the same **Open Extension Settings** action the page header offers, so you can
+  go and change the copy that wins. With nothing overriding a control, nothing is
+  shown. The page still writes only the user level: it never writes the workspace
+  level, and there is no second setting for this. A workspace **folder** value is
+  deliberately not named: this configuration is read without a resource URI, where
+  VS Code never reports a folder value, and these settings are window-scoped, so
+  the editor does not apply one either — a badge for that level would claim an
+  override that cannot exist.
 
 ### Fixed
 

@@ -1099,7 +1099,7 @@ function createAppState() {
   const aiProviderSettings = ref<AiProviderSettingsSnapshot | undefined>(undefined);
 
   /**
-   * The settings page's own surface: the nine settings its sections render with a
+   * The settings page's own surface: every setting its sections render with a
    * control (`docs/design/settings-page.md` §3.2). The page renders this ref, so
    * every control follows the host's reading rather than the click — including
    * the values the host refuses.
@@ -5000,14 +5000,14 @@ function createAppState() {
   }
 
   /**
-   * Writes one of the nine settings, through the host, and returns the host's
-   * reading of the state it produced. A refused or failed write comes back in
-   * `error` with the snapshot unchanged, which is what lets the control bounce
-   * back to the truth instead of keeping the value that was never stored.
+   * Writes one of the settings the page presents, through the host, and returns
+   * the host's reading of the state it produced. A refused or failed write comes
+   * back in `error` with the snapshot unchanged, which is what lets the control
+   * bounce back to the truth instead of keeping the value that was never stored.
    */
   async function setSettingsSurfaceValue(
     key: SettingsSurfaceWritableKey,
-    value: boolean | string,
+    value: boolean | string | number,
   ): Promise<SettingsSurfaceAnswer> {
     const answer = await settingsSurfaceRequest('setSettingsSurfaceValue', { key, value });
     settingsSurface.value = answer.snapshot;

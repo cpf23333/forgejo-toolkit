@@ -102,25 +102,14 @@ vi.mock('../../composables/useAppState', async (importOriginal) => {
 });
 
 import Settings from '../Settings.vue';
-import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import { createTestRouter, createTestI18n, settingsSurfaceFixture } from '../../__tests__/helpers/test-utils';
 
 const BASE_URL = 'https://api.example.com/v1';
 const API_KEY = 'sk-typed-in-the-editor';
 
+/** One complete reading of the page's own surface, the source map included. */
 function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSurfaceSnapshot {
-  return {
-    notificationPollingEnabled: true,
-    mcpEnabled: true,
-    mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
-    mcpWriteAuditToFile: false,
-    multiWindowLease: true,
-    aiEnabled: true,
-    aiPreReview: false,
-    aiPreReviewPromptScope: 'ask',
-    prDescription: false,
-    prDescriptionPromptScope: 'ask',
-    ...overrides,
-  };
+  return settingsSurfaceFixture(overrides);
 }
 
 function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {}): AiProviderSettingsSnapshot {

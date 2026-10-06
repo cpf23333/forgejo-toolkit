@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import {
+  NOTIFICATION_POLLING_INTERVAL_DEFAULT_SECONDS,
+  NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS,
+  NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS,
+} from '@cpf23333-forgejo-toolkit/shared/limits';
 import { isSameOriginUrl } from './webview/instanceImport';
 import { isHttpUrl } from './webview/connectionTest';
 import { resolveInstanceIdCollision } from './instanceIdentity';
@@ -31,9 +36,6 @@ const INSTANCES_KEY = 'forgejoToolkit.instances';
  */
 const SERVER_VERSIONS_KEY = 'forgejoToolkit.serverVersions';
 const TOKEN_SECRET_PREFIX = 'forgejoToolkit.instanceToken.';
-const DEFAULT_INTERVAL_SECONDS = 300;
-const MIN_INTERVAL_SECONDS = 60;
-const MAX_INTERVAL_SECONDS = 3600;
 
 /**
  * The stored form of a user-declared server version: the trimmed string when
@@ -532,14 +534,26 @@ export class ConfigManager {
     return vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('notificationPollingEnabled', true);
   }
 
+  /**
+   * The interval the poller uses, clamped to the manifest's own range.
+   *
+   * The clamp is what makes a hand-written out-of-range value survivable: the
+   * settings page refuses one instead of storing it (`writeSettingsSurfaceValue`),
+   * but `.vscode/settings.json` can hold anything, and a polling loop that obeyed
+   * `1` second would hammer the server. The page shows this clamped reading, so
+   * the field and the loop never disagree.
+   */
   getNotificationPollingInterval(): number {
     const value = vscode.workspace
       .getConfiguration('forgejoToolkit')
-      .get<number>('notificationPollingInterval', DEFAULT_INTERVAL_SECONDS);
+      .get<number>('notificationPollingInterval', NOTIFICATION_POLLING_INTERVAL_DEFAULT_SECONDS);
     if (typeof value !== 'number' || Number.isNaN(value)) {
-      return DEFAULT_INTERVAL_SECONDS;
+      return NOTIFICATION_POLLING_INTERVAL_DEFAULT_SECONDS;
     }
-    return Math.max(MIN_INTERVAL_SECONDS, Math.min(MAX_INTERVAL_SECONDS, Math.round(value)));
+    return Math.max(
+      NOTIFICATION_POLLING_INTERVAL_MIN_SECONDS,
+      Math.min(NOTIFICATION_POLLING_INTERVAL_MAX_SECONDS, Math.round(value)),
+    );
   }
 
   isMockApiEnabled(): boolean {

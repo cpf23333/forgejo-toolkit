@@ -1,8 +1,7 @@
 # 设置页面的归属与呈现
 
 - 状态：**设计已定稿，并已在工作树里实现**：呈现、自动探测、生成与漂移守卫都有代码与测试（2026-10-05，同一改动）。
-  实现按本文的归类落地，清单条数随基线增长到 25 条：其中 23 条由本页渲染、2 条留在原生界面
-  （`src/webview/settingsSurface.ts` 的 `NATIVE_ONLY_SETTINGS` 持有各自理由），§1.3 表格里"该上
+  实现按本文的归类落地，清单条数随基线增长到 25 条，§1.3 表格里"该上
   页面"的 9 条全部上页面。**2026-10-06 的三处修订（维护者裁决，同一改动）**：① `aiTransport` 从原生清单
   **移回页面**，用它原本就有的三值下拉渲染，§2.2 的指针行随之删除（§1.3、§2.2、§3.2 已就地改成现状）；
   ② 页面按当前传输方式呈现对应的一半配置——`vscode-lm` 只留编辑器的聊天模型行、`openai-compatible`
@@ -23,7 +22,16 @@
   「AI」，传输方式那一行与它名下的能力提示块都留在这一组里）、导航按页面自己量到的宽度给两种形态（宽的竖向导航列表 /
   窄的吸顶分组选择器），并写明不得回退与验收判据。**这一节已于 2026-10-06 实现，并在隔离 dev host 的真实编辑器里
   按 §9.7 走查**；阈值与它的实测依据写进 §9.3，实现过程里自行决定的事项、备选方案与仍待维护者定夺的事项在 §10，
-  用户可见的变化记在 `FEATURES.md` 与两份 `CHANGELOG`。
+  用户可见的变化记在 `FEATURES.md` 与两份 `CHANGELOG`。**2026-10-06 的第六处修订（维护者裁决，同一改动）**：两条
+  原本留在原生界面的设置——`notificationPollingInterval`（带上下限的数字）与 `useMockApi`（开发开关）——**上页面**
+  （§1.3、§3.2、§9.2：前者进通知区块的字段，后者进「通用」组里新增的**开发者**段落，不新增第七个组），于是
+  **25 条设置全部由本页渲染**，`NATIVE_ONLY_SETTINGS` 这张"只在原生"清单与 §2.2 的指针行一起退役，§6 的漂移守卫
+  改成"manifest 的每一个键都必须被本页渲染"。同一次修订给页面补上**生效值的来源层级**（§3.5）：页面读写分家的问题
+  一直是"写用户级、读生效值"，工作区里有同名设置时点一下看起来没反应；现在宿主在每个键上读 `inspect` 的层级，
+  只有**高于用户级**（工作区）才在控件旁给一个层级标记与一句"在这里改动不会生效"，并复用 §2.1 的
+  原生设置入口让读者去改那一份，**写入仍旧只有用户级一处**（走查随后证明工作区**文件夹**那一级读不出来——
+  不带资源 URI 的 `inspect` 里它永远是 `undefined`，而 window 级设置本就不吃文件夹值——于是这一级连同标记与文案
+  一并删掉，读得到的只剩默认 / 用户 / 工作区三级，见 §3.5 第 7 条与 §10.11 的走查记录）。`TODO.md` 里那条执行项随交付移除。
 
 - 适用范围：**扩展自己的设置面**——`packages/forgejo-toolkit/webview/src/views/Settings.vue` 这个页面，加上它为了
   自身的可发现性而要用到的宿主入口，以及**它住在哪儿**（§9.3 决定这个面住进编辑器区的一个标签页，所以宿主那侧的
@@ -65,7 +73,8 @@
 3. **唯一来源**：同一个值有两个可写控件，就必然有两个校验、两个默认值、两个错误出口；用户在一边被拒、在另一边
    被接受时，没有任何办法说出哪一个是权威。本页今天已经踩在这条线上：`worktreeCacheDirectory` 字段自己用
    `applyWorktreeCacheDirectory` 把被宿主拒绝的路径**弹回**原生值，这个动作之所以成立，只是因为它是"读回去"
-   而不是"校验一遍"。
+   而不是"校验一遍"。同一条限制的另一半是**作用域**：这一页只写用户级，所以工作区里的同名设置压过它写的值——
+   页面不因此去写第二个作用域，而是**把来源那一级读出来、说出来**（§3.5）。
 
 ### 1.2 这条规则在现有页面上的例外，以及为什么留着
 
@@ -85,46 +94,47 @@
 ### 1.3 设置清单与归类
 
 下表覆盖 `packages/forgejo-toolkit/package.json` 的 `contributes.configuration.properties` 的**全部 25 条**（manifest 把
-`mcpWriteTools` 的三条写工具也作为带点号的键直接挂在 `properties` 下，没有额外的容器层级）。归类只有三种：
-**已渲染**、**该上页面**、**只在原生**；"提到"一列只对**只在原生**的条目有意义。
+`mcpWriteTools` 的三条写工具也作为带点号的键直接挂在 `properties` 下，没有额外的容器层级）。归类现在只有一种取值：
+**已渲染**；"该上页面"与"只在原生"是它曾经有过的两种取值，那两次决定的批次记在下面的小结里，不再作为现状留在行上。
+"页面是否提到"一列同理：它原来只对"只在原生"的条目有意义，而那样的条目现在是 0 条。
 
-| 设置（`forgejoToolkit.` 前缀省略） | 类型   | 归类     | 理由（现状证据 / 决定理由）                                                                                                                                               | 页面是否提到                                     |
-| ---------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `locale`                           | 枚举   | 已渲染   | `Settings.vue` 的 `settings.language` 区块（`handleLocaleChange`）；见 §1.2                                                                                               | —                                                |
-| `debug`                            | 布尔   | 已渲染   | `settings.debug` 区块（`handleDebugChange`）；见 §1.2                                                                                                                     | —                                                |
-| `worktreeOpenMode`                 | 枚举   | 已渲染   | `settings.worktree.openMode` 的 `vscode-single-select`                                                                                                                    | —                                                |
-| `worktreeCacheDirectory`           | 字符串 | 已渲染   | `settings.worktree.cacheDirectory` 字段 + `browseWorktreeCacheDirectory` / `restoreDefaultCacheDirectory`                                                                 | —                                                |
-| `notificationPollingEnabled`       | 布尔   | 该上页面 | 这一条现在**完全不可达**：Dashboard 用 `forgejoToolkit.notificationPollingEnabled` 解释角标为什么不更新，用户却只能在原生界面找它                                         | —                                                |
-| `notificationPollingInterval`      | 数字   | 只在原生 | 带 `minimum` / `maximum` 的普通数字，原生界面比页面做得好（页面得自己写范围校验，那就是第二个校验源）                                                                     | **要**：在通知区块说"轮询间隔"这个数字在原生界面 |
-| `useMockApi`                       | 布尔   | 只在原生 | 描述自称 "Development use only; stripped from production builds"，是开发开关；放进用户界面只会让人以为它是个功能                                                          | **不要**：连提都不提，它是给改这个仓库的人看的   |
-| `mcpEnabled`                       | 布尔   | 该上页面 | 描述里那句"关掉会立刻撤回 server definitions"是一个开关的后果，不是它的值；这是整个 MCP 面的总闸，必须有可发现的地方                                                      | —                                                |
-| `mcpWriteTools.createIssueComment` | 布尔   | 该上页面 | 三条写工具开关放一起才讲得清那套"默认关闭 + 逐工具"的确认模型（`mcp-write-tools-confirmation.md` 的 §3.3）                                                                | —                                                |
-| `mcpWriteTools.submitPullReview`   | 布尔   | 该上页面 | 同上                                                                                                                                                                      | —                                                |
-| `mcpWriteTools.cancelActionRun`    | 布尔   | 该上页面 | 同上                                                                                                                                                                      | —                                                |
-| `mcpWriteAuditToFile`              | 布尔   | 该上页面 | 它描述的是审计记录**去哪儿**（日志目录里的 `mcp-write-audit.jsonl`），而审计正是"agent 改了什么"的答案；只留原生界面等于把总闸和它的账本分开放                            | —                                                |
-| `multiWindowLease`                 | 布尔   | 该上页面 | 关掉它直接改变提醒出现在哪个窗口；`leaseDegradedNotice` 还会在降级时弹一次提示，用户需要一个能自己读完这件事的地方                                                        | —                                                |
-| `aiEnabled`                        | 布尔   | 已渲染   | `settings.ai.enabled` 的复选框；它是**整个 AI 面的总开关**，在功能自己的区块之前，而且它是"关掉之后怎么打开"的唯一可写来源（§3.2、§3.3）                                  | —                                                |
-| `aiPreReview`                      | 布尔   | 该上页面 | 一个功能的**总开关**：关掉它命令直接报"没有可用模型"那类结果，用户会以为是模型的问题                                                                                      | —                                                |
-| `aiPreReviewPromptScope`           | 枚举   | 该上页面 | 五个取值每一条都是一次**出网范围**的同意；描述里写清了"发什么"，但它现在只在运行时的**一次性模态框**里被问过一次，用户看不到自己上次答应的是什么、也改不了                | —                                                |
-| `aiPreReviewModel`                 | 字符串 | 已渲染   | `settings.aiPreReviewModel` 区块（`loadAiPreReviewModels` / `storeAiPreReviewModel`），运行时列表，原生界面做不成下拉                                                     | —                                                |
-| `prDescription`                    | 布尔   | 已渲染   | `settings.prDescription.enabled` 的复选框；第二个功能的开关，默认关                                                                                                       | —                                                |
-| `prDescriptionPromptScope`         | 枚举   | 已渲染   | `settings.prDescription.scope` 的下拉；第二个功能自己的出网同意                                                                                                           | —                                                |
-| `aiProviders`                      | 数组   | 已渲染   | `settings.aiProviders` 区块的编辑器；数组 + 密钥，原生界面只能手编 JSON                                                                                                   | —                                                |
-| `aiTransport`                      | 枚举   | 已渲染   | `settings.aiProviders.policy.transport` 的 `vscode-single-select`（`handlePolicyTransportChange`）；它的取值决定 AI 区块呈现哪一半配置，所以要能就地改（§3.2、§8 问题 7） | —                                                |
-| `aiDefaultProvider`                | 字符串 | 已渲染   | `settings.aiProviders.defaultModel.provider` 的下拉；默认端点是直连路线的主路径（§3.2）                                                                                   | —                                                |
-| `aiDefaultModel`                   | 字符串 | 已渲染   | `settings.aiProviders.defaultModel.model` 的自由文本字段，与上一行同一条默认值（§3.2、[`ai-model-transport.md`](./ai-model-transport.md) §8.4）                           | —                                                |
-| `aiModelBindings`                  | 数组   | 已渲染   | `settings.aiProviders.bindings` 区块：逐功能一行，是叠加在默认值之上的**覆盖项**；provider 下拉的选项在运行时才存在，原生界面表达不了                                     | —                                                |
-| `aiModelRequestTimeoutMs`          | 数字   | 已渲染   | `settings.aiProviders.policy.timeout` + `savePolicyTimeout`；见 §1.2                                                                                                      | —                                                |
+| 设置（`forgejoToolkit.` 前缀省略） | 类型   | 归类   | 理由（现状证据 / 决定理由）                                                                                                                                                                   | 页面是否提到 |
+| ---------------------------------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `locale`                           | 枚举   | 已渲染 | `Settings.vue` 的 `settings.language` 区块（`handleLocaleChange`）；见 §1.2                                                                                                                   | —            |
+| `debug`                            | 布尔   | 已渲染 | `settings.debug` 区块（`handleDebugChange`）；见 §1.2                                                                                                                                         | —            |
+| `worktreeOpenMode`                 | 枚举   | 已渲染 | `settings.worktree.openMode` 的 `vscode-single-select`                                                                                                                                        | —            |
+| `worktreeCacheDirectory`           | 字符串 | 已渲染 | `settings.worktree.cacheDirectory` 字段 + `browseWorktreeCacheDirectory` / `restoreDefaultCacheDirectory`                                                                                     | —            |
+| `notificationPollingEnabled`       | 布尔   | 已渲染 | 这一条现在**完全不可达**：Dashboard 用 `forgejoToolkit.notificationPollingEnabled` 解释角标为什么不更新，用户却只能在原生界面找它                                                             | —            |
+| `notificationPollingInterval`      | 数字   | 已渲染 | 通知区块里带 Save 的数字字段（`notification-polling-interval`）：它和上面那个开关回答的是同一个问题，范围 60–3600、默认 300 来自 manifest，范围外的值由**宿主**拒绝并说明（页面不自己写校验） | —            |
+| `useMockApi`                       | 布尔   | 已渲染 | 「通用」组里新增的**开发者**段落（`settings.developer.title`）里的复选框：它是个开发开关，所以段落本身就标明这一点，并写清它做什么、开着时屏幕上的数据是什么、以及要重载窗口才生效（§3.2）    | —            |
+| `mcpEnabled`                       | 布尔   | 已渲染 | 描述里那句"关掉会立刻撤回 server definitions"是一个开关的后果，不是它的值；这是整个 MCP 面的总闸，必须有可发现的地方                                                                          | —            |
+| `mcpWriteTools.createIssueComment` | 布尔   | 已渲染 | 三条写工具开关放一起才讲得清那套"默认关闭 + 逐工具"的确认模型（`mcp-write-tools-confirmation.md` 的 §3.3）                                                                                    | —            |
+| `mcpWriteTools.submitPullReview`   | 布尔   | 已渲染 | 同上                                                                                                                                                                                          | —            |
+| `mcpWriteTools.cancelActionRun`    | 布尔   | 已渲染 | 同上                                                                                                                                                                                          | —            |
+| `mcpWriteAuditToFile`              | 布尔   | 已渲染 | 它描述的是审计记录**去哪儿**（日志目录里的 `mcp-write-audit.jsonl`），而审计正是"agent 改了什么"的答案；只留原生界面等于把总闸和它的账本分开放                                                | —            |
+| `multiWindowLease`                 | 布尔   | 已渲染 | 关掉它直接改变提醒出现在哪个窗口；`leaseDegradedNotice` 还会在降级时弹一次提示，用户需要一个能自己读完这件事的地方                                                                            | —            |
+| `aiEnabled`                        | 布尔   | 已渲染 | `settings.ai.enabled` 的复选框；它是**整个 AI 面的总开关**，在功能自己的区块之前，而且它是"关掉之后怎么打开"的唯一可写来源（§3.2、§3.3）                                                      | —            |
+| `aiPreReview`                      | 布尔   | 已渲染 | 一个功能的**总开关**：关掉它命令直接报"没有可用模型"那类结果，用户会以为是模型的问题                                                                                                          | —            |
+| `aiPreReviewPromptScope`           | 枚举   | 已渲染 | 五个取值每一条都是一次**出网范围**的同意；描述里写清了"发什么"，但它现在只在运行时的**一次性模态框**里被问过一次，用户看不到自己上次答应的是什么、也改不了                                    | —            |
+| `aiPreReviewModel`                 | 字符串 | 已渲染 | `settings.aiPreReviewModel` 区块（`loadAiPreReviewModels` / `storeAiPreReviewModel`），运行时列表，原生界面做不成下拉                                                                         | —            |
+| `prDescription`                    | 布尔   | 已渲染 | `settings.prDescription.enabled` 的复选框；第二个功能的开关，默认关                                                                                                                           | —            |
+| `prDescriptionPromptScope`         | 枚举   | 已渲染 | `settings.prDescription.scope` 的下拉；第二个功能自己的出网同意                                                                                                                               | —            |
+| `aiProviders`                      | 数组   | 已渲染 | `settings.aiProviders` 区块的编辑器；数组 + 密钥，原生界面只能手编 JSON                                                                                                                       | —            |
+| `aiTransport`                      | 枚举   | 已渲染 | `settings.aiProviders.policy.transport` 的 `vscode-single-select`（`handlePolicyTransportChange`）；它的取值决定 AI 区块呈现哪一半配置，所以要能就地改（§3.2、§8 问题 7）                     | —            |
+| `aiDefaultProvider`                | 字符串 | 已渲染 | `settings.aiProviders.defaultModel.provider` 的下拉；默认端点是直连路线的主路径（§3.2）                                                                                                       | —            |
+| `aiDefaultModel`                   | 字符串 | 已渲染 | `settings.aiProviders.defaultModel.model` 的自由文本字段，与上一行同一条默认值（§3.2、[`ai-model-transport.md`](./ai-model-transport.md) §8.4）                                               | —            |
+| `aiModelBindings`                  | 数组   | 已渲染 | `settings.aiProviders.bindings` 区块：逐功能一行，是叠加在默认值之上的**覆盖项**；provider 下拉的选项在运行时才存在，原生界面表达不了                                                         | —            |
+| `aiModelRequestTimeoutMs`          | 数字   | 已渲染 | `settings.aiProviders.policy.timeout` + `savePolicyTimeout`；见 §1.2                                                                                                                          | —            |
 
-小结：25 条键在实现后分成 **已渲染 23 条** 与 **只在原生 2 条**（`23 + 2 = 25`；`useMockApi` 不提，
-`notificationPollingInterval` 提名字）。这 23 条是上表"已渲染"的 13 条加上本次"该上页面"的 9 条，再加 2026-10-06
-新增的 `aiEnabled`。把归类读成几次改动：**该上页面的 9 条**是 `mcpEnabled`、`mcpWriteTools` 的三条写工具、
+小结：25 条键**全部由本页渲染**，**只在原生的 0 条**——2026-10-06 的最后两处修订之后，这张表里已经没有第二条身份。
+把这 25 条读成几次改动：最初"已渲染"的 13 条、**该上页面的 9 条**（`mcpEnabled`、`mcpWriteTools` 的三条写工具、
 `mcpWriteAuditToFile`、`notificationPollingEnabled`、`multiWindowLease`、`aiPreReview` 与
-`aiPreReviewPromptScope`；**只在原生的 2 条**里，`notificationPollingInterval` 在页面上留一行指针，`useMockApi`
-什么都不留。2026-10-06 的三处修订把 `aiTransport` 从"只在原生"移进"已渲染"，并新增 `aiDefaultProvider` 与
-`aiDefaultModel` 两条（它们诞生时就是页面控件，所以不进"该上页面"那一批）；同一日的第四处修订删掉
-`aiProvidersEnabled` 与 `aiLocalOnly`（连同逐端点的 `localOnly` 编辑器控件）、新增 `aiEnabled`，条数因此从 24 变成
-25。§6 的漂移守卫把这个小结变成可执行的约束。
+`aiPreReviewPromptScope`）、2026-10-06 新增的 `aiEnabled`，以及原本"只在原生"的 `notificationPollingInterval` 与
+`useMockApi`——第五处修订把 `aiTransport` 从"只在原生"移进"已渲染"并新增 `aiDefaultProvider` 与 `aiDefaultModel`
+两条（它们诞生时就是页面控件，所以不进"该上页面"那一批），第四处修订删掉 `aiProvidersEnabled` 与 `aiLocalOnly`
+（连同逐端点的 `localOnly` 编辑器控件）、新增 `aiEnabled`，条数因此从 24 变成 25，而最后这一处修订把剩下的 2 条
+"只在原生"清零：`NATIVE_ONLY_SETTINGS` 随之退役，页面上也不再有任何指针行（§2.2）。§6 的漂移守卫把
+这个小结变成可执行的约束，并且**只有一种身份**：manifest 的每一个键都必须出现在页面的字符串目录里。
 
 ## 2. 可发现性
 
@@ -148,36 +158,33 @@
 `@ext:${context.extension.id}` 为参数调用 `workbench.action.openSettings` 实现（id 的来历见上一段）。改旧命令的
 语义是另一条路，但会让"打开设置"这个标题指向两个不同的地方，本文否掉。
 
-### 2.2 每个区块的"更多设置"指针
+### 2.2 "更多设置"指针行：已随最后两条设置上页面而退役
 
-区块里凡是留在原生界面的设置，都在该区块末尾放一行**同一种形状**的指针，而不是在页面里再画一个控件：
+本节的规则曾经是：区块里凡是**留在原生界面**的设置，都在该区块末尾放一行同一种形状的指针（**设置 id** 用等宽
+字体、**一句话**它管什么、**一个动作**，用 §2.1 的同一个命令），因为用户在原生设置里搜索时需要的正是那个 id。
 
-> 更多设置：`forgejoToolkit.notificationPollingInterval`（轮询间隔，秒）—— 在 VS Code 设置中打开
-
-这一行由三段组成，且三段都不许省略：**设置 id**（等宽字体）、**一句话它管什么**、**一个动作**（打开原生设置，
-用 §2.1 的同一个命令）。指针行是可点的，点它就打开筛好的原生设置；不写 id 而只写"更多设置"是不够的，因为用户
-在原生设置里搜索时需要的正是这个 id。
-
-保留在原生界面的两条与它们的落点：
-
-| 留在原生的设置                | 指针落在哪个区块                                  | 一行里必须说清的                               |
-| ----------------------------- | ------------------------------------------------- | ---------------------------------------------- |
-| `notificationPollingInterval` | 通知区块，`notificationPollingEnabled` 的开关下面 | 单位是**秒**，范围 60–3600                     |
-| `useMockApi`                  | **无**                                            | 不提。它是开发开关，提它只会让用户以为这是功能 |
-
-`aiTransport` 曾经在这张表里，2026-10-06 起它是页面自己的控件（§1.3），因此不再有指针行：一个值有两个可写
-控件正是 §1.1 第 3 条禁止的，所以它只能是二者之一。
+2026-10-06 起它**没有实例**：§1.3 的 25 条设置全部由本页渲染（最后两条是 `notificationPollingInterval` 与
+`useMockApi`），所以页面上没有任何一条"只在原生"的落点行——`Settings.vue` 里那个常量、指针对应的
+`settings.nativePointer.*` 文案与 `.pointer-row` 样式一起删掉了（页面上仍有两处把 id 写进说明句，那不是本节的行，
+见 §2.3）。**这条机制不是被否掉，而是没有对象**：一个值既然
+在页面上有控件，它就只能有一个可写来源（§1.1 第 3 条），而"只在原生"这个身份本身已经不存在（§1.3、§6）。若将来
+真的出现一条只能留在原生界面的设置，那是一次需要同时改 §1.1、§1.3 与 §6 的决定，指针行的形状可以照本节的原样
+拿回来。
 
 ### 2.3 页面里的设置名怎么写
 
-**原生设置用它的 id 指称，页面自己的控件用它的标签指称。** 具体：
+**页面自己的控件用它的标签指称；宿主文案走宿主那一侧的语言文件。** 具体：
 
-- 原生设置一律写成等宽字体的完整 id（`forgejoToolkit.aiTransport`），**不翻译、不简写**成"传输方式"这样的中文
-  名；用户要拿着这个字符串去原生设置里搜，翻译过的名字搜不到。id 是标识符，不是界面文案，所以它不进
-  `webview/src/i18n/*.json`，而把 id 嵌进去的那句说明走那个语言文件。
-- 页面自己的控件用 `en.json` / `zh.json` 里的标签（`settings.worktree.cacheDirectory` 这类），和今天一样。
-- 宿主侧文案（如指针行的动作、`showInformationMessage`）走 `l10n/bundle.l10n.*.json`；**manifest 里的设置名与描述**
-  走 `package.nls.json` / `package.nls.zh-cn.json`，那是原生设置在两种语言下的样子，不与页面的键混用。
+- 页面自己的控件用 `en.json` / `zh.json` 里的标签（`settings.worktree.cacheDirectory` 这类）。
+- 宿主侧文案（`showInformationMessage`、§2.1 那个入口的标题）走 `l10n/bundle.l10n.*.json` 与
+  `package.nls*.json`；**manifest 里的设置名与描述**走 `package.nls.json` / `package.nls.zh-cn.json`，那是原生设置
+  在两种语言下的样子，不与页面的键混用。
+- §2.2 的指针行已经没有实例，所以页面**不再为一个"只在原生"的设置印等宽 id**（`POLLING_INTERVAL_SETTING` 那个
+  常量跟着删了）。页面上还剩**两处把设置 id 写在说明句里**，都是给用户拿去搜索或手改的，不是落点：
+  `settings.aiPreReviewModel.note`（`forgejoToolkit.aiPreReviewModel` 与选模型的命令 id）与
+  `settings.aiProviders.rejected.intro`（`forgejoToolkit.aiProviders`）。它们照旧**不翻译**——id 是标识符，不是
+  界面文案——而句子的其余部分走语言文件；将来若又有一条只在原生的设置，那条指针行的规则原文是"一律写成等宽字体的
+  完整 id，**不翻译、不简写**"。
 
 ## 3. 呈现方式
 
@@ -216,6 +223,13 @@
 | `aiPreReview`                          | 复选框          | AI 预评审区块第 1 行        | 默认**关**，写"默认关：打开后才会向模型发送内容"                                                     | 关着时把提示范围与模型两行的位置保留（变灰），并说明"打开它才会用到下面两项"                      |
 | `aiPreReviewPromptScope`（**新控件**） | 单选下拉        | AI 预评审区块第 2 行        | 五个取值，每个取值的中文/英文说明与原生 `enumDescriptions` **同义**，其中 `ask` 写作"每次运行前询问" | 值来自宿主的读数；写失败时选择器弹回宿主报的值（`storeAiPreReviewModel` 的同一条处置）            |
 | `aiPreReviewModel`（**已渲染**）       | 单选下拉 + 刷新 | AI 预评审区块第 3 行        | 现状保留                                                                                             | 现状保留（"设置里是 X，但这里没有这个模型"那句已经在）；传输方式为 `openai-compatible` 时整行隐藏 |
+
+**2026-10-06 最后两条设置上页面的呈现规格**（此前它们是"只在原生"的两条，见 §1.3）：
+
+| 设置                          | 控件                                               | 所在区块与顺序                                                             | 单位 / 范围 / 默认值的写法                                                                                                                                                                                                                                                                             | 冲突与无效输入的呈现                                                                                                                                                                                                                                                  |
+| ----------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notificationPollingInterval` | 数字字段 + Save（`notification-polling-interval`） | 通知区块，`notificationPollingEnabled` 的开关下面                          | 单位是**秒**；范围与默认值就是 manifest 声明的 **60–3600 / 300**（`shared/src/limits.ts` 的三个常量，`settingsSurface.test.ts` 拿 manifest 的 `minimum`/`maximum`/`default` 钉住它们），行内把这三个数字都写出来                                                                                       | 值不是数字、或落在范围之外：**宿主拒绝**并给出"只接受 60 到 3600 之间的秒数"这句，字段**保留用户输入**让读者改（§3.3 第 1 条），区块下方的状态行显示宿主原句；已存的间隔不动。手写进 `.vscode/settings.json` 的越界值由轮询读取器夹回范围，字段显示的是那个夹过的读数 |
+| `useMockApi`                  | 复选框（`use-mock-api`）                           | 「通用」组里新增的**开发者**段落（`settings.developer.title`），本组第三块 | 默认**关**；段落标题与第一句就标明它是给改这个扩展的人用的，第二句写清开着时**屏幕上的数据是构建自带的样本数据**（不是你服务器上的），第三句写清**启动时只读一次、要重载窗口才生效**，并点名 VS Code 自己的 `Developer: Reload Window`——本扩展没有自己的重载动作，所以这一页**不给按钮**，也不新增命令 | 写入失败时复选框回到宿主报的值，旁边给宿主原句（`developerSurfaceStatus`）；生产构建里这个开关不起作用，这句写在它的说明里，所以"打开却什么都没变"时有答案                                                                                                            |
 
 **2026-10-06 修订后的 AI 区块呈现规格**（`ai-model-transport.md` 的 §8.3 与 §8.4 是这些语义的住处）：
 
@@ -302,6 +316,53 @@
 
 **这次改动只动这两个编辑器态的标题块**：列表态、导入预览的标题区（它有自己的 h1 与插槽，形状未动）与
 `ImportPreview.vue` 都不变。
+
+### 3.5 生效值来自哪一级：读来源、写用户级
+
+**这一页是用户级表面：它读的是来源层级，写的是用户级，永远不写第二个作用域。** 规则一句话：
+
+> 页面渲染的是**生效值**（`getConfiguration` 的结果：工作区 > 用户 > 默认），而它写的是**用户级**
+> （`ConfigurationTarget.Global`）。所以只要有一个**高于用户级**的值存在，这一页上的改动就不会生效——
+> 页面必须说出这件事，而不是让用户对着一按就没反应的控件猜。
+
+具体形状：
+
+1. **来源怎么读。** 宿主对**页面自己呈现的每一个键**（`SETTINGS_SURFACE_WRITABLE_KEYS`，见
+   `src/webview/settingsSurface.ts` 的 `readSettingSources`）调用一次
+   `getConfiguration('forgejoToolkit').inspect(key)`，按 VS Code 自己的优先级取第一层**有值**的：
+   `workspaceValue` → `workspace`、`globalValue` → `user`、都没有 →
+   `default`。读出来的东西随快照走（`SettingsSurfaceSnapshot.sources`），是**整份**的映射而不是只有被覆盖的那几个键：
+   "这一级没设过"与"这次快照没说"必须对页面是两件事。语言级的值（`globalLanguageValue` 那一家）不看——这一页
+   命名的三个层级就是这些设置自身的层级。**工作区文件夹那一级不在读法里**，理由见第 7 条。
+2. **只在高于用户级时才渲染。** 标记与那句话**只**出现在来源是 `workspace` 的控件旁；
+   `user`（本来就是这一页写的那一级）与 `default`（写入会立刻生效）都**什么都不显示**。不加这个条件的话，
+   一个全新安装的页面上会挂满"工作区设置在这里优先"，那是假话。
+3. **说的是哪一级，用什么形状。** 控件下方一行：一个**小标记**写这一级的名字（「工作区」，
+   用编辑器的 badge 主题色），**一句**"这一级的设置在这里优先，所以在这一页改动这个控件不会生效"，
+   再加**一个动作**——复用 §2.1 的同一个入口（`openNativeSettings` → `forgejoToolkit.openNativeSettings`），
+   读者去那里改真正生效的那一份。形状与 §3.1 第 3 条同源：一句话加一个出口，不新增控件、不改控件本身。
+4. **写入只有一处。** 有覆盖时那一次点击**照样**写用户级：页面绝不会"顺手"写工作区，也不新增第二套写入作用域
+   （§1.1 第 3 条、§7 第 1 条）。用户要的是"让它生效"，而那需要的是一次工作区写入——所以页面给的是**去那儿改的
+   动作**，不是替用户改。
+5. **`scope: machine` 的键不需要标记，也不该有。** manifest 里声明为 `machine` 的设置**结构上不可被工作区覆盖**
+   （VS Code 不会把工作区的值用在一个 machine 级设置上），所以它的来源只可能是 `user` 或 `default`。宿主因此对
+   这些键**跳过工作区层级**（`MACHINE_SCOPED_SETTING_KEYS`，漂移守卫拿 manifest 里每一个 `"scope": "machine"`
+   的属性钉住它），页面对它们也就不可能渲染出标记——AI 那一族的 7 个键（`aiEnabled`、`aiProviders`、`aiTransport`、
+   `aiDefaultProvider`、`aiDefaultModel`、`aiModelBindings`、`aiModelRequestTimeoutMs`）是这一族的全部，`aiEnabled`
+   也是本页唯一一个**不给标记**的控件（连 markup 都不留：一条永远不会出现的规则就是假的规则）。
+6. **判据与测试。** 有覆盖时：标记出现、按钮走同一个入口、点击仍然只调 `setSettingsSurfaceValue`（宿主侧断言写入
+   目标是 `ConfigurationTarget.Global`）；没有覆盖时：页面里 `.source-note` 数量为 0。
+7. **没有"工作区文件夹"这一级，这是决定。** （2026-10-06 走查后的裁决，原委见 §10.11 的走查记录。）
+   宿主读的是 `getConfiguration('forgejoToolkit')`，**不带资源 URI**，这种读法里 `inspect().workspaceFolderValue`
+   永远是 `undefined`；而且这些设置的 scope 是 `window`，编辑器本来也不会把一个文件夹里的值应用到它们上面。
+   于是这一级在真实窗口里**永远读不出来**，`workspaceFolder` 是**第四个永远不会出现的标记**——与第 5 条里机器级的
+   情形同形：一条走不到的规则就是假规则，留着它只会让标记去声称一个并不存在的覆盖，所以它连同
+   `SettingsSourceLevel` 的第四项、`sourceOverride` 的第二支与两句 i18n 文案（含 badge 标签）一起删掉了；
+   留下的是 `default` / `user` / `workspace` 三级，判据与形状（第 2、3、6 条）一个字没变。
+   **要改回四级**：把宿主的读法换成带 `scopeUri` 的那一种
+   （`vscode.workspace.getConfiguration(SETTINGS_SECTION, folderUri)`，需要逐个工作区文件夹读一次再合并），再按
+   本节的形状把 `SettingsSourceLevel`、`sourceOverride`、`settings.source.level.workspaceFolder` 与
+   `settings.source.overrides.workspaceFolder` 一起加回来——**那个改动从"读法带上 `scopeUri`"开始，而不是从标记开始**。
 
 ## 4. 改进一：模型列表自动探测
 
@@ -429,40 +490,52 @@
 
 ### 6.1 要守的是什么
 
-新加一条设置时可能发生的事故只有一种：它**既没有**被页面渲染，**也没有**被列进明确的"只在原生"清单——于是它
-静默地不存在于任何用户能找到的地方。§1.3 的表格是给人读的，它拦不住这件事；守卫要拦住它。
+新加一条设置时可能发生的事故只有一种：它**没有**被页面渲染——于是它静默地不存在于任何用户能找到的地方。
+§1.3 的表格是给人读的，它拦不住这件事；守卫要拦住它。
+
+**2026-10-06 起守卫只有一种身份。** 它原来判的是"被本页渲染**或**被列进明确的'只在原生'清单"，而最后两条
+设置（`notificationPollingInterval`、`useMockApi`）上页面之后，那张清单 `NATIVE_ONLY_SETTINGS` 空了、也就退役了
+（§1.3、§2.2）：既然这个面的家就是**每一**条设置的家，守卫直接说这句话，而不是留一张空表等着被填。
 
 ### 6.2 守卫的形状
 
-| 项         | 规格                                                                                                                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 测试文件   | `packages/forgejo-toolkit/src/__tests__/settingsSurface.test.ts`（落在扩展套件里：`vitest.extension.config.mts` 的 `include` 是 `src/**/*.test.ts`，`i18nParity.test.ts` 就是在那儿读 manifest 的先例）                                          |
-| 读什么     | ① `packages/forgejo-toolkit/package.json` 的 `contributes.configuration.properties` 的**键集合**；② `packages/forgejo-toolkit/webview/src/i18n/en.json` 的**已渲染键清单**——即 `settings.*` 里以 `forgejoToolkit.` 开头的键名；③ §6.3 的策略模块 |
-| 策略住哪儿 | `packages/forgejo-toolkit/src/webview/settingsSurface.ts`，导出 `NATIVE_ONLY_SETTINGS`：每条是 `{ key, reason }`。它是页面归属策略的唯一住址；**测试、页面文案、本文都引用它**，谁也不另抄一份                                                   |
-| 判定       | 对 manifest 的每一个键：在 `NATIVE_ONLY_SETTINGS` 里（且 `reason` 非空）**或**出现在 ② 里。两者都不占 = 失败；两者都占 = 也失败（说明页面开始渲染它了，策略该更新）                                                                              |
-| 失败输出   | 逐条列出违规的键与两个选项，例如 `forgejoToolkit.foo: neither rendered by the settings page nor listed as` `native-only — render it and add its id to the webview string catalogue, or add it to NATIVE_ONLY_SETTINGS with a reason`             |
+| 项         | 规格                                                                                                                                                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 测试文件   | `packages/forgejo-toolkit/src/__tests__/settingsSurface.test.ts`（落在扩展套件里：`vitest.extension.config.mts` 的 `include` 是 `src/**/*.test.ts`，`i18nParity.test.ts` 就是在那儿读 manifest 的先例）                                                                                                      |
+| 读什么     | ① `packages/forgejo-toolkit/package.json` 的 `contributes.configuration.properties` 的**键集合**；② `packages/forgejo-toolkit/webview/src/i18n/en.json` 的**已渲染键清单**——即 `settings.*` 里以 `forgejoToolkit.` 开头的键名；③ 同一个 manifest 的属性体（`scope`、`minimum`/`maximum`/`default`，见 §6.3） |
+| 策略住哪儿 | `packages/forgejo-toolkit/src/webview/settingsSurface.ts`。它导出的不是一份"只在原生"的清单（那已经不存在了），而是两条**页面读不了、只能由声明回答**的事实：`MACHINE_SCOPED_SETTING_KEYS`（哪些键结构上不可被工作区覆盖，§3.5）与共享的轮询区间常量（§6.3 第 3 条）                                         |
+| 判定       | 对 manifest 的**每一个**键：它必须出现在 ② 里——"页面渲染了每一条设置"就是这一条。**反向也断**：② 里以 `forgejoToolkit.` 开头的键必须仍然是 manifest 的键（旧的两张清单看不见一个 stale 的目录条目，这一条看它）                                                                                              |
+| 失败输出   | 逐条列出违规的键，例如 `forgejoToolkit.foo: not rendered by the settings page — render it (the page is every setting's home now) and add its id to the webview string catalogue`；反方向是 `forgejoToolkit.bar: the page renders it, but the manifest does not contribute it`                                |
 
-`NATIVE_ONLY_SETTINGS` **不是**漂移源：一个写错的键不会让测试通过，只会让**真正的**键因为不在清单里而失败，失败
-信息里带着那个写错的键不在 manifest 里这一事实（同一测试再断一条：清单里的每个键都必须是 manifest 的键）。
+`MACHINE_SCOPED_SETTING_KEYS` **不是**漂移源：一个写错的键不会让测试通过，只会让守卫在**另一条**断言上失败——
+同一测试拿它和 manifest 里每一个 `"scope": "machine"` 的属性对齐（多一个、少一个都会红）。
 
 ### 6.3 失败信息要能直接照着做
 
-守卫失败时，用户（这里是维护者）需要知道的是"加哪个键、加到哪里"。所以同一测试里再断两条：
+守卫失败时，用户（这里是维护者）需要知道的是"加哪个键、加到哪里"。所以同一测试里再断四条：
 
 1. **已渲染的键必须在字符串目录里按 id 出现**：`en.json` 的 `settings` 段落里该键名作为子串出现（`aiTransport`
    这类短语会因此顺便被守住），且它的值是一个在**两种语言**里都存在的标签键。失败信息给出缺失的键；
-2. **已渲染的键不得出现在 `NATIVE_ONLY_SETTINGS` 里**（§6.2 的"两者都占"）。2026-10-06 的修订正是被这一条逼出来的：
-   `aiTransport` 回到页面，就必须同时从 `NATIVE_ONLY_SETTINGS` 移走，否则守卫会红。
+2. **页面上可写的键必须是被渲染的键**（`SETTINGS_SURFACE_WRITABLE_KEYS` ⊆ ②），否则页面会接受一条它自己都没画的
+   设置的写入；
+3. **区间这类"manifest 是声明、代码是读者"的数字要对齐**：`notificationPollingInterval` 的
+   `minimum`/`maximum`/`default` 必须等于 `shared/src/limits.ts` 的三个常量（轮询读取器与页面的写入校验都读它），
+   并且页面两句说明（`en`/`zh` 的 `settings.notifications.intervalDescription`）里都要出现这三个数字——一个不许
+   悄悄换一个范围；
+4. **机器级清单必须与 manifest 完全一致**（§6.2 的"另一条断言"），因为它是"这些键不给来源标记"这条规则的依据。
 
 ## 7. 页面不该做的事
 
-1. **不当第二个可写来源**：任何原生设置一旦在页面上有控件，就必须同时从 `NATIVE_ONLY_SETTINGS` 里移走——
-   守卫会替我们记住这件事。
+1. **不当第二个可写来源**：一个值只能有一个可写作用域，而这个页面的那一个是**用户级**。原生设置一旦在页面上有
+   控件，就不再有自己的第二份界面；工作区里那一份不是"第二个来源"，而是**更高的一级**——页面读它、说出来，
+   并且去改它的动作是打开原生设置，不是替用户写（§3.5）。
 2. **不自己定义默认值**：默认值只在 manifest 的 `default` 里写一次；页面显示的是宿主的读数，不是页面常量。
 3. **不自己写校验**：id 字符集、URL 合法性、范围、枚举顺序全部来自宿主（`isAiProviderSegment`、
-   `inspectAiProviderBaseUrl`、`AI_MODEL_REQUEST_TIMEOUT_*`），页面只在**控件状态**上反映校验结果。
+   `inspectAiProviderBaseUrl`、`AI_MODEL_REQUEST_TIMEOUT_*`、`NOTIFICATION_POLLING_INTERVAL_*`），页面只在
+   **控件状态**上反映校验结果——轮询间隔的范围外输入由宿主拒绝并给出那句话，页面只把它显示出来。
 4. **不擅自保存**：自动探测不回写设置、不建端点、不改模型声明以外的东西。
-5. **不翻译设置 id**：原生设置的 id 在页面里保持英文原样，用户要拿它去搜。
+5. **不写第二个作用域**：写入一律 `ConfigurationTarget.Global`，页面里没有一处写工作区级或工作区文件夹级；
+   来源层级只读不写（§3.5）。
 6. **不回显密钥**：永远不把已存密钥 / header 值读回页面，只显示"已设置"。
 7. **不把「打开设置」做成两个都叫这个名字的入口**：本页的入口与原生设置入口必须名字可区分（§2.1）。
 8. **不用 `window.alert` / `confirm` / `prompt`**：webview 的既有禁令，设置页也不例外。
@@ -507,7 +580,8 @@
    提示并带「Turn Off in This Window」这个设置级回退，剩下的"少一次自动更新"是"手动打开通知视图仍即时读取"的
    已知代价（上引记录 §2.1）。本决定不改任何用户可见行为，因此不进 `FEATURES.md`，也不进两份 `CHANGELOG`。
 6. **`reason` 字段要不要中文**？`NATIVE_ONLY_SETTINGS` 的 `reason` 是给维护者读的（测试失败信息），本文定为
-   **英文**，与测试面的其余注释一致；页面上的"更多设置"指针不复用它，而是走 i18n 键。
+   **英文**，与测试面的其余注释一致；页面上的"更多设置"指针不复用它，而是走 i18n 键。**这条裁决随那张表一起失效**
+   （2026-10-06，§6.1）：`reason` 字段已经不存在，守卫的失败信息仍是英文，与测试面其余注释一致。
 7. **`aiTransport` 该不该在页面上有控件，以及 `auto` 下"用不到"的那一半要不要藏起来？已由维护者决定（2026-10-06）：
    两件都做。** 原来把它留在原生界面的理由是"三值枚举原生下拉表达得更好、页面渲染就要处理控件弹回"，维护者否掉了
    这个权衡：这个选择决定 AI 区块呈现哪一半配置（"选了编辑器模型却还看到一整块端点配置"读起来像页面没说真话），
@@ -557,6 +631,10 @@
 | 10  | PR Worktree / `settings.worktree.title`                | 打开方式下拉、缓存目录字段 + 浏览 / 恢复默认、已保存工作树列表（`settings.worktree.savedWorktrees`）                                                                                                                                            |
 | 11  | 已保存实例 / `settings.savedInstances`                 | 添加 / 导出 / 导入按钮、实例列表（每行编辑 / 移除）                                                                                                                                                                                             |
 
+**2026-10-06 的最后一处修订给「通用」组添了第十二块**（§1.3、§3.2）：`useMockApi` 上页面时进的是**开发者**段落
+（`settings.developer.title`，`settingsGroups.ts` 的 `general.blocks` 第三项）。上表是 `aa08ff90` 的实测，因此保持
+原样；本文其余几处提到"十一块"的地方都是这次修订之前的数字，现状是**十二块**。
+
 两个控件常被误当成独立区块，此处点名它们真正的落点：**`缓存目录`（`settings.worktree.cacheDirectory`）在 10 里**，
 是 PR Worktree 区块的一行；**`服务器版本`（`settings.declaredServerVersion.label`）不在上表任何一行里**，它只在
 **实例编辑器**这一态里（它是实例记录自己的字段，`declaredServerVersion.value = instance.declaredServerVersion`）。
@@ -576,21 +654,21 @@
 这一段观察是在**侧边栏**里做的（约 297 px）。§9.3 决定把这个面搬进编辑器区的一个标签页，所以那个宽度从此是**窄的
 那一态**，不再是这一页被设计时的常态。
 
-### 9.2 分组：六个组，十一块各有其家
+### 9.2 分组：六个组，十二块各有其家
 
 **六组，不是本文 §9 初稿里的七组**——维护者在 2026-10-06 的回答里定了这个数：AI 功能、AI 端点与逐功能覆盖
 回答的是同一个问题（"用不用 AI、发什么、发到哪里"），合成一组「AI」，传输方式那一行与它名下的能力提示块也留在
 这一组里。代价是这一组是页面上最长的一组（五块、二十多行），换来的是"AI"在导航里只出现一次，用户不必在两组之间
 推理"我要改的东西在哪一组"。§9.6 的问题 1 与问题 2 由此裁决。
 
-| 分组           | 收哪几块（§9.1 的序号与 i18n 键）                                                                                                                                                                                                                                                                                    | 为什么在这一组                                                                                                                                                                                                                                                                                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 通用           | 1 语言 `settings.language`、2 调试日志 `settings.debug.title`                                                                                                                                                                                                                                                        | 两块都与实例、AI、工作树无关，是**页面自己的**开关：语言要立刻改变用户正在看的这个面板，调试日志是页面问题的诊断出口（§1.2 各写过一次）。"零星控件"没有第三个主人：看起来像候选的两条都已经有家——`服务器版本` 是实例记录的字段（留在实例编辑器里），`缓存目录` 是 10 里的一行——所以本组恰好两块，不藏第三块。                                                    |
-| 实例           | 11 已保存实例 `settings.savedInstances`，以及它自己的编辑器态（含 `服务器版本` 声明）                                                                                                                                                                                                                                | 列表、添加 / 导出 / 导入与实例记录本身是同一件事；编辑器是页面的一态而不是区块，所以「实例」组点开的编辑态归这一组（§9.4 第 3 条）。                                                                                                                                                                                                                             |
-| 通知           | 3 通知 `settings.notifications.title`（含子组 `settings.multiWindow.title`）                                                                                                                                                                                                                                         | 轮询总闸、原生指针行、多窗口租约回答的是同一个问题——角标与提醒为什么静默；拆开就要在两组里各解释一遍同一个后果。                                                                                                                                                                                                                                                 |
-| MCP            | 4 MCP Server `settings.mcp.title`（含写工具与审计两个子组）                                                                                                                                                                                                                                                          | 总闸 + 逐工具 + 审计去向是一条确认模型，[`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md) 的 §3.3 已经写过"三条写工具开关放一起才讲得清"；审计是这条模型的账本，不跟它分开。                                                                                                                                                                |
-| AI             | 5 AI `settings.ai.title`、6 AI 预评审 `settings.aiPreReview.title`、7 AI：Pull Request 描述 `settings.prDescription.title`、8 AI 端点 `settings.aiProviders.title`（含传输方式一行与它名下的能力提示、端点清单与编辑态、默认端点与模型、请求超时、逐条被拒清单）、9 逐功能覆盖 `settings.aiProviders.bindings.title` | 这一组回答"用不用 AI、每次允许发什么、发到哪里"。总开关必须最先（§3.2）；两个功能各自带开关与出网范围；传输方式决定这一页呈现哪一半配置，而它名下那块提示讲的是**这条路的模型从哪来**——它是传输选择自己的属性（显式 `openai-compatible` 的运行从不问编辑器的模型），所以两者不分开；端点配置与逐功能覆盖在最具体的一端，"覆盖"只有在默认端点与模型旁边才读得懂。 |
-| Git / Worktree | 10 PR Worktree `settings.worktree.title`（含缓存目录与已保存工作树）                                                                                                                                                                                                                                                 | 与 git 有关、与 AI 无关；本组今天只有一块，将来 git 面长大时它就是落点。                                                                                                                                                                                                                                                                                         |
+| 分组           | 收哪几块（§9.1 的序号与 i18n 键）                                                                                                                                                                                                                                                                                    | 为什么在这一组                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 通用           | 1 语言 `settings.language`、2 调试日志 `settings.debug.title`、**12 开发者 `settings.developer.title`（`useMockApi`，§1.3 修订时新增）**                                                                                                                                                                             | 两块都与实例、AI、工作树无关，是**页面自己的**开关：语言要立刻改变用户正在看的这个面板，调试日志是页面问题的诊断出口（§1.2 各写过一次）。开发者段落与它们同组，因为它是**页面自己的最后一个开关**：`useMockApi` 既不属于实例、AI 也不属于工作树，而这一组恰好是"零星控件"的家。它自己成一块而不是混进调试日志区块，因为一个开发开关和页面诊断不是同一件事——段落标题与第一句标明它是给改这个扩展的人用的（§3.2）。 |
+| 实例           | 11 已保存实例 `settings.savedInstances`，以及它自己的编辑器态（含 `服务器版本` 声明）                                                                                                                                                                                                                                | 列表、添加 / 导出 / 导入与实例记录本身是同一件事；编辑器是页面的一态而不是区块，所以「实例」组点开的编辑态归这一组（§9.4 第 3 条）。                                                                                                                                                                                                                                                                              |
+| 通知           | 3 通知 `settings.notifications.title`（含子组 `settings.multiWindow.title`）                                                                                                                                                                                                                                         | 轮询总闸、轮询间隔、多窗口租约回答的是同一个问题——角标与提醒为什么静默、多久查一次；拆开就要在两组里各解释一遍同一个后果。                                                                                                                                                                                                                                                                                        |
+| MCP            | 4 MCP Server `settings.mcp.title`（含写工具与审计两个子组）                                                                                                                                                                                                                                                          | 总闸 + 逐工具 + 审计去向是一条确认模型，[`mcp-write-tools-confirmation.md`](./mcp-write-tools-confirmation.md) 的 §3.3 已经写过"三条写工具开关放一起才讲得清"；审计是这条模型的账本，不跟它分开。                                                                                                                                                                                                                 |
+| AI             | 5 AI `settings.ai.title`、6 AI 预评审 `settings.aiPreReview.title`、7 AI：Pull Request 描述 `settings.prDescription.title`、8 AI 端点 `settings.aiProviders.title`（含传输方式一行与它名下的能力提示、端点清单与编辑态、默认端点与模型、请求超时、逐条被拒清单）、9 逐功能覆盖 `settings.aiProviders.bindings.title` | 这一组回答"用不用 AI、每次允许发什么、发到哪里"。总开关必须最先（§3.2）；两个功能各自带开关与出网范围；传输方式决定这一页呈现哪一半配置，而它名下那块提示讲的是**这条路的模型从哪来**——它是传输选择自己的属性（显式 `openai-compatible` 的运行从不问编辑器的模型），所以两者不分开；端点配置与逐功能覆盖在最具体的一端，"覆盖"只有在默认端点与模型旁边才读得懂。                                                  |
+| Git / Worktree | 10 PR Worktree `settings.worktree.title`（含缓存目录与已保存工作树）                                                                                                                                                                                                                                                 | 与 git 有关、与 AI 无关；本组今天只有一块，将来 git 面长大时它就是落点。                                                                                                                                                                                                                                                                                                                                          |
 
 两条口径要一起记住：**§3.2 决定区块内部怎么摆，§9.2 决定区块归哪一组**。合组之后两处不再有冲突：传输方式那一行
 仍渲染在 `settings.aiProviders.title` 区块的第一行，§3.2 的表格照旧，只是这一行与它名下的提示块和端点配置一起
@@ -726,15 +804,18 @@ router，等于把仪表盘外壳搬进标签页），要么先把 `Settings.vue
 1. **没有死路：六个组都在选择器里，点一次就到；一个控件的唯一可写来源必须仍然够得着。** 尤其 `aiEnabled` 那条
    "永不隐藏、永不被它自己关掉的东西禁用"（§3.2），以及"关掉总开关不隐藏也不禁用功能面与端点面"（§3.3 第 2 条）：
    分组只决定同一时刻呈现哪一组，不改变任何控件的可见性、可写性，也不改变它是唯一来源这一点。任何一个只有本页才
-   写得了的值，都不许因为切组而变得不可达。**推荐十一块全部保持挂载、非当前组用 `hidden` / `inert` 隐藏**——`hidden`
+   写得了的值，都不许因为切组而变得不可达。**推荐十二块全部保持挂载、非当前组用 `hidden` / `inert` 隐藏**——`hidden`
    同样把它移出 Tab 顺序，也就是那两个编辑器态当初用 `v-if` / `v-else` 而不是 `v-show` 要保住的性质；理由与这一条的
    代价见 §9.7 的「挂载与守卫」一行。
 2. **漂移守卫照旧。** `settingsSurface.test.ts` 判的是"这条设置有没有被渲染"，不是"哪一组渲染它"：它读 manifest 的
-   键、`en.json` 的键与 `Settings.vue` 的**模板文本**，所以分组怎么切都不影响它，它必须**不加改动**继续通过。它依赖
-   的两处形态要在实现里保住：指针行渲染的两个 id、以及 `useMockApi` 在模板里不出现——两条都靠"这些文字在
-   `Settings.vue` 里"。把任何区块拆成子组件会让守卫读不到它们（它会静默放过，而不是报错），所以要么不拆，要么在
-   同一次改动里把守卫的读取面一起扩。**不过**：任何按**渲染结果**判断的检查——包括页面自己的挂载式套件与 §9.7 新增的
-   映射断言——不能只看当前那一组，否则它会从"通过"变成"静默空转"；这条见 §9.7 的「挂载与守卫」一行。
+   键与 `en.json` 的键，所以分组怎么切都不影响它。**2026-10-06 的最后一处修订把它的第二种身份拿掉了**（§6.1）：
+   `useMockApi` 上页面之后"只在原生"的清单空了，守卫从此只说一件事——manifest 的每一个键都必须在
+   `en.json` 里被渲染，反方向再断一条"目录里没有 manifest 不存在的 id"。它读的两处形态（`Settings.vue` 的模板
+   文本、指针行渲染的 id）随那次修订一起消失，所以**把区块拆成子组件**这条限制的**守卫那一半**也不再成立；剩下
+   的一半是页面自己的挂载式套件（`Settings.groups.test.ts` 读的是渲染结果里的 `.setting-section`），它仍然要求
+   区块留在 `Settings.vue` 里，或者在同一次改动里把它的读取面一起扩。**不过**：任何按**渲染结果**判断的检查——
+   包括页面自己的挂载式套件与 §9.7 新增的映射断言——不能只看当前那一组，否则它会从"通过"变成"静默空转"；
+   这条见 §9.7 的「挂载与守卫」一行。
 3. **两个编辑态记得自己从哪一组打开，并回到那一组。** 实例编辑器从「实例」开，端点编辑器从「AI 端点」开，返回后
    停在同一组。回程的落点照旧是原来那一行的「编辑」按钮（`listTarget` 与 `instanceEditButtonRef` /
    `providerEditButtonRef` 的 `FocusHandoff`），所以"回到哪一组"和"焦点交给谁"必须是同一次动作：先回到组，再把焦点
@@ -746,12 +827,11 @@ router，等于把仪表盘外壳搬进标签页），要么先把 `Settings.vue
    进同一个 `--editor-sticky-height` 读数，否则被聚焦的字段会落到它下面——那正是 54 px 那个缺陷的形状。
 5. **页面记住用户上次在哪一组：会话内的状态**（`Settings.vue` 里一个 `ref`；这里的"会话"就是**这个标签页从打开到关掉**
    的那段时间，标签页关掉即丢，§9.3），**不是存下来的设置**。理由：
-   ① §1.1 第 3 条与 §6 的守卫模型只有两种身份——"被本页渲染的设置"与"明确只在原生的设置"；一个纯导航偏好两条都不
-   占，写成 manifest 键会让守卫的 25 条账目多出一个与用户无关的键，写进 `NATIVE_ONLY_SETTINGS` 又会让那张表的理由从
-   "用户不该看见的设置"变成"我们记不住 UI 状态"。② 页面至今不是它自己的设置源（§7 第 2、3 条），为一条页面内部偏好
-   开第二个作用域，正是这一页一直在防的事。③ 需要跨标签页关闭记住的场景还没有出现，重开回到第一组是可接受的代价；
-   webview 至今没有任何 `setState` / `getState` 调用（全仓只有 `acquireVsCodeApi()`）。默认落在哪一组是 §9.6
-   问题 3。
+   ① §1.1 第 3 条与 §6 的守卫模型只有一种身份——"被本页渲染的设置"；一个纯导航偏好不占这一条，写成 manifest 键
+   会让守卫的 25 条账目多出一个与用户无关的键（而 §6 的守卫现在会**因为**这条多出来的键而红）。② 页面至今不是它
+   自己的设置源（§7 第 2、3 条），为一条页面内部偏好开第二个作用域，正是这一页一直在防的事。③ 需要跨标签页关闭
+   记住的场景还没有出现，重开回到第一组是可接受的代价；webview 至今没有任何 `setState` / `getState` 调用
+   （全仓只有 `acquireVsCodeApi()`）。默认落在哪一组是 §9.6 问题 3。
 
 ### 9.5 这次明确不做的事
 
@@ -786,21 +866,21 @@ router，等于把仪表盘外壳搬进标签页），要么先把 `Settings.vue
 
 实现必须过下面这些（本节写于交付前，当时执行项在 `TODO.md`；那条目已随交付移除，走查结果见 §10.7）：
 
-| 项                             | 判据                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 类型检查                       | `pnpm check`（`tsc --noEmit` + `vue-tsc -p webview/tsconfig.json --noEmit`）通过                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 既有套件                       | `pnpm --filter forgejo-toolkit test` 全绿；其中 `packages/forgejo-toolkit/src/__tests__/settingsSurface.test.ts`（漂移守卫）**不加改动**通过，`src/webview/__tests__/i18nParity.test.ts` 通过，`webview/src/views/__tests__/` 下 17 个 `Settings.*.test.ts` 通过                                                                                                                                                                                                                                                                                                                                                 |
-| 标签页的两个入口               | 命令面板的 `forgejoToolkit.openSettings` 与侧边栏视图标题栏的 `$(gear)` 动作都打开同一个标签页；第二次打开是**聚焦**已开着的那个，不叠第二个；关掉再打开是一个新页面                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 打开设置不动侧边栏             | 打开标签页**不**把侧边栏抢过来或换掉它的内容（`openSettings` 不再 `_revealView()`）；侧边栏此后除设置面以外一切照旧（仪表盘、通知、仓库与 PR 详情、工作树入口），并且侧边栏那一份应用**不再渲染** `Settings.vue`                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 重新显示时不带旧状态           | 标签页重新可见时推一份新读数；关掉再打开时全部重新读一遍，不保留任何旧快照（上次分组随之回到默认组）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 挂载与守卫                     | 分组**不能**把守卫变成空转：只挂载当前组时，漂移守卫与映射断言必须改成**遍历全部六个组**，而不是只看可见的那一个；本文的推荐是**十一块全部保持挂载、非当前组用 `hidden` / `inert` 隐藏**——这样 `settingsSurface.test.ts`（读源码文本）与页面自己的套件照原样通过：`Settings.settingsSurface.test.ts` 在一次挂载里跨组查询（`#notification-polling-enabled`、`#mcp-*`、`#multi-window-lease`、`#ai-enabled`、`#ai-pre-review-*`、`#pr-description-*`、`#ai-transport`、`#ai-request-timeout`、`.pointer-row`），`Settings.controlLabels.test.ts` 查的是可访问名。`hidden` / `inert` 同时保证非当前组不可 Tab 到达 |
-| 分组映射                       | 六个组各非空、十一块每块只在**一个**组里；映射是组件里的一份**数据**（一张表），并配一条测试断言"漂移守卫算作已渲染的每一个键都属于且只属于一个组"——这样新增区块不可能没有家                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 可达性                         | 从任何一组都能一次点到其余五组；每个只有本页可写的控件都在某一组里，且切组后仍然可达（§9.4 第 1 条）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 编辑态返回                     | 从「实例」进实例编辑器、从「AI 端点」进端点编辑器，返回后停在原组，焦点落在原来那一行的「编辑」按钮上                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 宽形态（标签页常态）           | 竖列导航出现、当前组有选中态、切换后内容换组、返回后形态不跳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 窄形态（拖窄或分割编辑器一格） | 在 233–297 px 量级下走查：**只有一列内容、没有页面自己的导航列**；分组选择器完整可读可操作、不溢出；吸顶块、`scroll-padding-top`、焦点交接、按钮与说明的换行照旧工作（jsdom 不做布局，`Settings.instanceEditorLayout` / `Settings.stickyScrollPadding` / `Settings.savedListLayout` / `Settings.proseWrap` / `Settings.controlLabels` 只能守住"规则还在"，所以这一段必须真渲染）                                                                                                                                                                                                                                 |
-| 跨阈值                         | 把标签页从宽拖到窄（反向亦然）时形态跟着切，且不来回抖                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 阈值                           | 走查里读出两种实测宽度，把阈值数字写进 §9.3 与 `TODO.md` 的条目                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 项                             | 判据                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 类型检查                       | `pnpm check`（`tsc --noEmit` + `vue-tsc -p webview/tsconfig.json --noEmit`）通过                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 既有套件                       | `pnpm --filter forgejo-toolkit test` 全绿；其中 `packages/forgejo-toolkit/src/__tests__/settingsSurface.test.ts`（漂移守卫）**不加改动**通过，`src/webview/__tests__/i18nParity.test.ts` 通过，`webview/src/views/__tests__/` 下 17 个 `Settings.*.test.ts` 通过                                                                                                                                                                                                                                                                                                                                                                    |
+| 标签页的两个入口               | 命令面板的 `forgejoToolkit.openSettings` 与侧边栏视图标题栏的 `$(gear)` 动作都打开同一个标签页；第二次打开是**聚焦**已开着的那个，不叠第二个；关掉再打开是一个新页面                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 打开设置不动侧边栏             | 打开标签页**不**把侧边栏抢过来或换掉它的内容（`openSettings` 不再 `_revealView()`）；侧边栏此后除设置面以外一切照旧（仪表盘、通知、仓库与 PR 详情、工作树入口），并且侧边栏那一份应用**不再渲染** `Settings.vue`                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 重新显示时不带旧状态           | 标签页重新可见时推一份新读数；关掉再打开时全部重新读一遍，不保留任何旧快照（上次分组随之回到默认组）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 挂载与守卫                     | 分组**不能**把守卫变成空转：只挂载当前组时，漂移守卫与映射断言必须改成**遍历全部六个组**，而不是只看可见的那一个；本文的推荐是**十二块全部保持挂载、非当前组用 `hidden` / `inert` 隐藏**——这样漂移守卫与页面自己的套件照原样通过：`Settings.settingsSurface.test.ts` 在一次挂载里跨组查询（`#notification-polling-enabled`、`#notification-polling-interval`、`#mcp-*`、`#multi-window-lease`、`#ai-enabled`、`#ai-pre-review-*`、`#pr-description-*`、`#ai-transport`、`#ai-request-timeout`、`#use-mock-api`、`.source-note`），`Settings.controlLabels.test.ts` 查的是可访问名。`hidden` / `inert` 同时保证非当前组不可 Tab 到达 |
+| 分组映射                       | 六个组各非空、十二块每块只在**一个**组里；映射是组件里的一份**数据**（一张表），并配一条测试断言"漂移守卫算作已渲染的每一个键都属于且只属于一个组"——这样新增区块不可能没有家                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 可达性                         | 从任何一组都能一次点到其余五组；每个只有本页可写的控件都在某一组里，且切组后仍然可达（§9.4 第 1 条）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 编辑态返回                     | 从「实例」进实例编辑器、从「AI 端点」进端点编辑器，返回后停在原组，焦点落在原来那一行的「编辑」按钮上                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 宽形态（标签页常态）           | 竖列导航出现、当前组有选中态、切换后内容换组、返回后形态不跳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 窄形态（拖窄或分割编辑器一格） | 在 233–297 px 量级下走查：**只有一列内容、没有页面自己的导航列**；分组选择器完整可读可操作、不溢出；吸顶块、`scroll-padding-top`、焦点交接、按钮与说明的换行照旧工作（jsdom 不做布局，`Settings.instanceEditorLayout` / `Settings.stickyScrollPadding` / `Settings.savedListLayout` / `Settings.proseWrap` / `Settings.controlLabels` 只能守住"规则还在"，所以这一段必须真渲染）                                                                                                                                                                                                                                                    |
+| 跨阈值                         | 把标签页从宽拖到窄（反向亦然）时形态跟着切，且不来回抖                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 阈值                           | 走查里读出两种实测宽度，把阈值数字写进 §9.3 与 `TODO.md` 的条目                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 **真实编辑器走查是验收的一部分**：新的**住处**与新的导航在这个宽度下**从未**在真实编辑器构建里验证过（这一页此前的
 走查只走到控件层面）。载体是 [`tools/ui-review/README.md`](../../tools/ui-review/README.md) 的隔离 dev host；要走的
@@ -942,3 +1022,60 @@ router，等于把仪表盘外壳搬进标签页），要么先把 `Settings.vue
 - **窄宽度与短面板**：316 px 下名字占一行、地址组换到下一行，两个控件都不换行（返回控件 `white-space: nowrap` + `justify-self: start`，与标题同左边缘）。视口高 330 px 时 `max-height: 420px` 生效：`.editor-identity` 保留在 DOM 里但 `display: none`，身份带高 56 px，`--editor-sticky-height` 与 `scrollPaddingTop` 都读到 `56px`；焦点移到最下面的「服务器版本」字段后页面自动滚到 `scrollTop 535`，字段落在 `y=181`、身份带底边 `y=72`，没有被吸顶块盖住。
 - **焦点交接**：实例编辑器经返回控件与页脚「取消编辑」两条路都让 `document.activeElement` 回到该行的「编辑实例」；保存成功（状态行 `实例保存成功`）同样回到「编辑实例」；端点编辑器经返回控件回到「编辑」。
 - **两处与本机环境有关的限制**（不是本次改动的缺陷）：本会话里 `SetCursorPos`/`mouse_event`/`keybd_event` 都不落到共享桌面，文件选择器改用它的 UI Automation 接口（`ListItem` 的 `InvokePattern`）选中文件；地址栏的复制控件点击已被宿主日志证明到达（`Received message from webview: copyToClipboard`），但 OS 剪贴板在这个进程里读不回来，所以「复制出来的字节」没有在本机复核。
+
+### 10.11 来源层级、轮询间隔与开发者开关（2026-10-06，本次实现记录）
+
+第六处修订（§1.3、§2.2、§3.5、§6）在设计里只有一条判据和两句形状，落地时下面几处必须自己判断。每条都写清"问题、
+看到的选项、选了哪个、为什么、要另一个的话改哪里"。
+
+| 项                              | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 来源层级里 `default` 要不要标记 | 判据是"**高于用户级**才说"，不是"不是用户级就说"：`default` 意味着这一页写一下就立刻生效，给它挂一句"工作区设置在这里优先"是假话。所以标记条件是 `workspace`，`default` 与 `user` 一样什么都不显示（§3.5 第 2 条）。要另一个口径：把 `sourceOverride` 的判据扩到 `default`，并把 §3.5 第 2 条与 `settings.source.overrides.workspace` 一起改。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 层级读在哪一侧                  | 宿主读（`readSettingsSources` 一次 `getConfiguration` + 每个键一次 `inspect`），因为 webview 拿不到 `inspect`，也因为"写用户级"这条规则的判据必须是宿主的读数。选项是把读法做成 `SettingsSurfaceReadDeps` 的第四个依赖，但那样机器级清单就要在调用方再抄一份；现在清单与读法同住 `settingsSurface.ts`。要改：把 `readSettingSources` 换成依赖注入，宿主侧实现。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 机器级的处理                    | manifest 里 7 个 `"scope": "machine"` 的键（AI 那一族）结构上不可被工作区覆盖，宿主对它们**跳过工作区层级**，所以来源只会是 `user`/`default`。列表 `MACHINE_SCOPED_SETTING_KEYS` 写在策略模块里，由守卫对 manifest 的 `scope` 属性钉住（多一个少一个都会红）。代价：这是 manifest 之外唯一一份"哪些键是 machine"的副本；换来的是页面不可能对一条 VS Code 不会应用的设置说"工作区在这里优先"。**`aiEnabled` 因此是页面上唯一没有来源标记的控件**（连 markup 都没留，见 §3.5 第 5 条）：一条永远不出现的规则不如不写。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 间隔的拒绝 vs 夹取              | 选了**拒绝**（和原生设置编辑器一样，范围外的输入不落盘），而不是夹到边界。轮询的读取器仍然**夹取**（`ConfigManager.getNotificationPollingInterval`），因为 `.vscode/settings.json` 可以手写任何值，而一个 1 秒的轮询会锤服务器——两个方向各管一件事：页面不写下用户没打过的数字，循环不服从一个离谱的数字。范围与默认值来自 `shared/src/limits.ts` 的三个常量，守卫拿 manifest 的 `minimum`/`maximum`/`default` 与页面两句说明一起钉住（§6.3 第 3 条）。要改成夹取：`writeSettingsSurfaceValue` 的那一支改成 `Math.min/Math.max`，并删掉守卫里"页面说明必须写出这三个数字"的那半条。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 间隔字段的形状                  | 与「请求超时」同形：`vscode-textfield` + 一个 Save 按钮，而不是"输入即写"（页面至今没有第二个 debounce 写路径，自动探测是唯一一处 debounce）。拒绝时字段**保留用户输入**让读者改（§3.3 第 1 条），区块下方的状态行给宿主原句。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 开发者段落放哪、几块            | 选了「通用」组里**新增的一块**（`settings.developer.title`，组内第三块），而不是塞进调试日志区块、或新开第七组：`useMockApi` 是页面自己的开关（与语言、调试日志同族），但它和"页面诊断"不是一件事。代价是区块数从 11 变成 12，`Settings.groups.test.ts` 的期望值与 §9.1/§9.2/§9.7 的数字一起改。要另一条路：把这一块并进 `settings.debug.title` 的 `<section>`（少一块，段落仍以自己的 `h3` 出现）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| mock 开关要不要给"重载窗口"按钮 | **不给**。`useMockApi` 在 `activate()` 里读一次（`extension.ts`），所以是**重载窗口之后**才生效；本扩展**没有**contributed 的重载命令，全仓唯一一处重载是更新提示里直接执行的 `workbench.action.reloadWindow`——为这一页新增一个命令（哪怕只是包一层）就是新增接口，而说明里点名 VS Code 自己的 `Developer: Reload Window` 就够了。要加：新增一条宿主消息执行那个内建命令，并在 `package.json`/nls 无关的前提下复用 `updateNotifier` 的同一句标题。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 守卫删清单还是留空表            | 选了**删**（`NATIVE_ONLY_SETTINGS` 与 `NativeOnlySetting` 一起删，`reason` 字段随之消失）：留一张空表会留下一个"填进来就通过"的出口，而删掉之后"每一条设置都必须在页面上"是守卫唯一能表达的意思；反方向新增了一条（目录里的 id 必须仍然是 manifest 的键），所以守卫的表达力是**增强**而不是减弱。要留空表：`settingsSurface.ts` 恢复那个导出，守卫回到"两者占其一"的判定，并把它断言为空数组。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 页面测试夹具里的 `sources`      | **2026-10-06 复核后改成更严的那种**：页面读的是 `settingsSurface.value?.sources[key]`——`sources` 自己不挂可选链，所以一份不带这份映射的读数在渲染时直接失败，而不是安静地一个标记都不画；类型也不再依赖"夹具自己记得写"：`webview/src/__tests__/helpers/test-utils.ts` 新增 `settingsSurfaceFixture()`（内部用现成的 `settingSources()` 造整份映射），页面测试的读数一律由它造，一份没有映射的快照**编译不过**（实测：把 `sources` 从工厂里删掉，`vue-tsc` 报 TS2322）。宿主侧只有 `readSettingsSurface` 一个产出点，返回类型同样必填，`src/__tests__/settingsSurface.test.ts` 里那条逐键比较（`carries the level every setting it presents comes from, for every writable key`）把这份映射钉住，少了就红；页面那条读法另有源码级断言（`Settings.settingsSurface.test.ts` 断言读到 `sources[` 且读不到 `sources?.[`）。**代价写在明处：每个夹具都背上这份映射**——14 个只把快照当读数的夹具（`Settings.aiProviders`、`Settings.aiPreReviewModel`、`Settings.cacheDirectory`、`Settings.controlLabels`、`Settings.declaredServerVersion`、`Settings.editRemovedInstance`、`Settings.editorHeadingBand`、`Settings.groups`、`Settings.importPreviewReturn`、`Settings.instanceEditor`、`Settings.saveInstanceTarget`、`Settings.stickyScrollPadding`、`Settings.tokenSettingsUrl`、`Settings.worktreeError` 各一个）原先各自手写的片段换成了这个工厂，它们原先还少写了 `notificationPollingInterval`、`useMockApi`、`prDescription`、`prDescriptionPromptScope` 四个键，现在一并按 manifest 的默认值补齐；本来就用 `settingSources()` 标成 `SettingsSurfaceSnapshot` 的两个夹具（`Settings.modelProbe`、`Settings.settingsSurface`）也改成走同一个工厂。这些夹具住在 `vi.hoisted` 里，而那段代码跑在本文件 import 初始化**之前**（实测报 `Cannot access '__vi_import_0__' before initialization`），所以工厂调用只能放在 import 之后，夹具对象里留一个占位。要回到宽容：把可选链加回去，并把工厂换回各文件自带的片段。 |
+
+**这一节没有"仍在等维护者"的条目**：上面每一条都有默认做法与明确的改回点，没有需要维护者先裁决才能继续的事项。
+**走查状态（2026-10-06，隔离 dev host；构建为 `build:extension` + `build:webview` 两份，宿主以 `--ai-mock` 启动）**：
+本次改动的三处新界面已经在真实构建里走查过，测量全部取在 guest 帧自己的 DOM 上
+（这次的读者与驱动是 `tools/ui-review/shots/w2-drive.mjs`，坐标按 webview iframe 的 rect 换算）：
+
+1. **来源标记**。隔离工作区的 `.vscode/settings.json` 写 `forgejoToolkit.notificationPollingEnabled: false` 后，控件旁出现「工作区」标记与那句"这一级的设置在这里优先，
+   所以在这一页改动这个控件不会生效"，动作按钮打开的确实是 VS Code 自己的设置编辑器，搜索框里读到 `@ext:cpf23333.forgejo-toolkit`（列表只有 `Forgejo Toolkit (25)`）；
+   带着这个覆盖点击控件，写入仍落在**用户级**（`profile/User/settings.json` 得到 `true`，工作区那份仍是 `false`），页面继续显示工作区的值，标记也在；
+   删掉覆盖并重载窗口后标记与句子消失，控件显示的就是刚写下的用户级值。窄宽度（页面内容列 159 px）下标记、句子与动作按钮都换行且留在窗格内，
+   `scrollWidth == clientWidth`（214），没有横向溢出。
+2. **`aiEnabled`**。把 `forgejoToolkit.aiEnabled: false` 写进工作区设置，页面照样一个标记都不出（`sources` 对这一族跳过工作区层级），
+   `#ai-enabled` 那一行的 markup 里没有任何 `source-note`/`source-badge`——这条规则永远不会触发。
+3. **轮询间隔**。`900` 保存成功，原生设置编辑器里按 `@ext:` 过滤后搜 `notificationPollingInterval`，那一行读到的就是 `900`；
+   `5` 与 `abc`（字母进不了 `type=number` 的字段，字段留空）都被宿主原句拒绝（`它只接受 60 到 3600 之间的秒数`），已存值不动，`5` 还留在字段里等读者改；
+   说明句里 60 / 3600 / 300 三个数字都在。
+4. **开发者段落**。「通用」组内第三块（语言、调试日志、开发者），全页仍是六组、没有第七组；两句话分别说明屏幕上是构建自带 fixture 的样本数据、
+   以及这项设置在重载窗口之后才生效并点名 `Developer: Reload Window`；拨动它写出用户级的 `useMockApi`（两个方向都验过），重载后页面显示的就是新值——
+   关掉那一次重载后仪表板对每个实例读作"加载失败：无法连接到实例"，再打开并重载后仓库列表回来。
+5. **六组导航**。宽（内容列 956 px）与窄（256 px）两种形态下六个组都点得到（宽形态点竖排 tab、窄形态用选择器），每次都只有一个窗格可见、
+   其余五个 `hidden` + `inert`，每个窗格都有自己的内容（无死路）；没有一处把不生效的值当作生效值显示。
+
+**走查发现 A：`workspaceFolder` 这一级宿主读不出来——已按"删掉它"裁决并落地。**（§3.5 第 7 条是形状。）
+`readSettingSourceLevel` 用的是不带资源 URI 的 `getConfiguration('forgejoToolkit')`，这种读法里 `inspect().workspaceFolderValue`
+永远是 `undefined`。实测：在同一个多根窗口里把覆盖写进**某个文件夹**的 `.vscode/settings.json`，页面既不出「工作区文件夹」标记、
+生效值也不变；把同一个值写进 `.code-workspace` 的 `settings`（工作区级）就照常出「工作区」标记。
+也就是说设计里写下的四级，页面在真实窗口里只读得到三级，`sourceOverride` 的 `workspaceFolder` 分支与 `SettingsSourceLevel` 里的这一项都走不到
+（jsdom 夹具可以手写造出来，所以套件里它是"活的"——这正是它躲过静态检查、只在真机上露馅的原因）。两条路里选了**删**：
+留着它的唯一好处是"不会说假话，只是永不出现"，可它恰恰会让标记去声称一个并不存在的覆盖，与机器级那一族（§3.5 第 5 条）是同一种假规则；
+而且它读不出来还有第二层原因——这些设置在 manifest 里的 scope 是 `window`，编辑器本来也不把某个文件夹里的值应用到它们上面，
+所以这一级不是"这次没读到"，而是**没有可读的东西**。删掉的是 `SettingsSourceLevel` 的第四项、`sourceOverride` 的第二支、
+`settings.source.level.workspaceFolder` 与 `settings.source.overrides.workspaceFolder` 两句文案，以及各处夹具/层级清单里的这一项；
+留下的三级是 `default` / `user` / `workspace`。**要改回四级**：先把宿主的读法换成带 `scopeUri` 的那一种
+（`vscode.workspace.getConfiguration(SETTINGS_SECTION, folderUri)`，多根窗口要逐个文件夹读一次再合并），再按 §3.5 第 7 条把类型、分支、两句文案一起加回来。
+
+**走查发现 B：间隔字段的注释写错了原因，已改正（无行为改动）。** `savePollingInterval`（`Settings.vue`）上那段注释原先说空字段是
+`NaN`，被宿主按范围拒绝；实际上 `Number('')` 是 `0`，它低于 manifest 的 `minimum: 60`，拒绝的理由同样是"超出范围"。注释改成说这件事，
+校验与写入路径一个字没动（拒绝的实现本来就看数值是否落在 `[60, 3600]` 内，`NaN` 与 `0` 走的是同一条拒绝分支）。
+
+**仍然欠一次走查的是**：badge 在浅色主题下的可读性（这次只量了深色主题）。

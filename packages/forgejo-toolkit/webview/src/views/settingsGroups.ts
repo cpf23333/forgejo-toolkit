@@ -14,11 +14,12 @@
  *   be imported by a test, and a second copy of the mapping written into the
  *   test is exactly the drift this table exists to prevent.
  * - `settingsSurface.test.ts` (the drift guard) holds the manifest against the
- *   webview catalogue: every setting is either rendered by this page or listed
- *   as native-only. It says nothing about *where* a rendered setting lives, so
- *   this table is what answers that — and `Settings.groups.test.ts` holds the
- *   two together: every key that guard counts as rendered belongs to exactly one
- *   group here, and every group's blocks are inside that group's pane.
+ *   webview catalogue: every setting the manifest contributes is rendered by this
+ *   page, so a key in that catalogue is a setting some group has to own. The guard
+ *   says nothing about *where* a rendered setting lives, so this table is what
+ *   answers that — and `Settings.groups.test.ts` holds the two together: every key
+ *   that guard counts as rendered belongs to exactly one group here, and every
+ *   group's blocks are inside that group's pane.
  *
  * The block list is written as the i18n key of each block's own heading, which is
  * also what the section carries as its `data-block` attribute, so the test can
@@ -64,9 +65,12 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     id: 'general',
     labelKey: 'settings.groups.general',
     // The page's own switches: the language changes the panel the user is
-    // looking at, and the debug log is this page's diagnostic exit (§1.2).
-    blocks: ['settings.language', 'settings.debug.title'],
-    settingIds: ['forgejoToolkit.locale', 'forgejoToolkit.debug'],
+    // looking at, the debug log is this page's diagnostic exit (§1.2), and the
+    // last block is the developer passage `forgejoToolkit.useMockApi` lives in
+    // (§1.3, §3.2) — a page-level setting with no other section to belong to, so
+    // it is its own block here rather than a seventh group.
+    blocks: ['settings.language', 'settings.debug.title', 'settings.developer.title'],
+    settingIds: ['forgejoToolkit.locale', 'forgejoToolkit.debug', 'forgejoToolkit.useMockApi'],
   },
   {
     id: 'instances',
@@ -80,10 +84,15 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
     id: 'notifications',
     labelKey: 'settings.groups.notifications',
-    // The polling switch, the native pointer row and the multi-window lease
-    // answer one question: why the badge went quiet (§9.2).
+    // The polling switch, the interval it paces itself by and the multi-window
+    // lease answer one question: why the badge went quiet (§9.2). The interval
+    // joined them when the page took it over from VS Code's own editor (§1.3).
     blocks: ['settings.notifications.title'],
-    settingIds: ['forgejoToolkit.notificationPollingEnabled', 'forgejoToolkit.multiWindowLease'],
+    settingIds: [
+      'forgejoToolkit.notificationPollingEnabled',
+      'forgejoToolkit.notificationPollingInterval',
+      'forgejoToolkit.multiWindowLease',
+    ],
   },
   {
     id: 'mcp',

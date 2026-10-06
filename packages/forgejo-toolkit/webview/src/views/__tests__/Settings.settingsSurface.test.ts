@@ -6,7 +6,9 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
+  AI_TRANSPORT_CHOICES,
   PR_DESCRIPTION_PROMPT_SCOPES,
+  SETTINGS_SURFACE_WRITABLE_KEYS,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 /**
@@ -154,25 +156,35 @@ vi.mock('../../composables/useAppState', async (importOriginal) => {
 });
 
 import Settings from '../Settings.vue';
-import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import {
+  createTestRouter,
+  createTestI18n,
+  settingSources,
+  settingsSurfaceFixture,
+} from '../../__tests__/helpers/test-utils';
 import en from '../../i18n/en.json';
 import zh from '../../i18n/zh.json';
 
-/** The manifest's defaults, i.e. what a fresh install reports. */
+/**
+ * The page's own source. One rule about the source map is a property of the read
+ * rather than of a render (`sourceOverride` must not optional-chain the map), and
+ * the webview tests run without Node types, so it is read through Vite's glob —
+ * the same way `Settings.instanceEditorLayout.test.ts` reads it.
+ */
+const settingsSource = Object.values(
+  import.meta.glob('../Settings.vue', { query: '?raw', import: 'default', eager: true }) as Record<string, string>,
+)[0] as string;
+
+/**
+ * The manifest's defaults, i.e. what a fresh install reports.
+ *
+ * The source map is stated at `default` — nothing above the user's own level
+ * holds anything, which is what makes every source note stay away — and every
+ * fixture built from `settingsSurfaceFixture()` carries the whole map, so a
+ * reading that dropped it cannot be written here at all (§3.5).
+ */
 function surfaceOf(overrides: Partial<SettingsSurfaceSnapshot> = {}): SettingsSurfaceSnapshot {
-  return {
-    notificationPollingEnabled: true,
-    mcpEnabled: true,
-    mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
-    mcpWriteAuditToFile: false,
-    multiWindowLease: true,
-    aiEnabled: true,
-    aiPreReview: false,
-    aiPreReviewPromptScope: 'ask',
-    prDescription: false,
-    prDescriptionPromptScope: 'ask',
-    ...overrides,
-  };
+  return settingsSurfaceFixture({ sources: settingSources('default'), ...overrides });
 }
 
 function providerSnapshotOf(overrides: Partial<AiProviderSettingsSnapshot> = {}): AiProviderSettingsSnapshot {
@@ -381,29 +393,129 @@ describe('the settings the page presents', () => {
     on.unmount();
   });
 
-  it('names the native-only setting instead of re-implementing it, and renders the transport', async () => {
+  it('renders the last two settings that used to be native-only', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf();
 
     const wrapper = mountView();
     await flushPromises();
 
-    // The one pointer row that is left, with the full id the user has to search for.
-    const pointers = wrapper.findAll('.pointer-row');
-    expect(pointers).toHaveLength(1);
-    expect(pointers[0]!.text()).toContain('forgejoToolkit.notificationPollingInterval');
-    // The transport is a control of this page now (§1.3): the choice decides which
-    // half of the AI area the page presents, so it cannot be native-only.
+    // `notificationPollingInterval`: a number field with the range the manifest
+    // declares, and its own Save control, so a draft is only written when asked.
+    const interval = wrapper.find('#notification-polling-interval');
+    expect(interval.exists()).toBe(true);
+    expect(interval.attributes('label')).toBe('Polling interval (seconds)');
+    // `vscode-textfield` is not a registered custom element under jsdom either, so
+    // the field's value lands on the element as an **attribute** — the same split
+    // the `checked` helper at the top of this file deals with.
+    expect(interval.attributes('value')).toBe('300');
+    expect(wrapper.text()).toContain('between 60 and 3600');
+    // `useMockApi`: a switch in the developer passage of 通用, which says what it
+    // does, that the data on screen is sample data while it is on, and that it
+    // takes effect after a window reload.
+    expect(wrapper.find('#use-mock-api').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Developer');
+    expect(wrapper.text()).toContain('sample data, not your server');
+    expect(wrapper.text()).toContain('reload the window');
+    // Nothing is left to VS Code's own editor, so the interval's "more settings"
+    // row is gone with the last of them (§2.2): the page does not name the
+    // setting as a native one anywhere. (The two AI prose sentences that do spell
+    // a setting id are about their own settings, not about this one — §2.3.)
+    expect(wrapper.text()).not.toContain('forgejoToolkit.notificationPollingInterval');
+    wrapper.unmount();
+  });
+
+  it('names the level a control’s value comes from, and only when it is not the user’s own', async () => {
+    // §3.5: the page writes the user level, so a workspace value wins over a click
+    // here. The note says which level it is and where to change it; every control
+    // whose level is the user's own (or the manifest's default) carries nothing.
+    surface.current = surfaceOf({
+      sources: {
+        ...settingSources('user'),
+        'forgejoToolkit.notificationPollingEnabled': 'workspace',
+        'forgejoToolkit.mcpWriteAuditToFile': 'workspace',
+        // Machine-scoped: the host never reports a workspace level for it, and the
+        // page has no note for it to render even if one arrived (§3.5).
+        'forgejoToolkit.aiEnabled': 'user',
+      },
+    });
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const notes = wrapper.findAll('.source-note');
+    // Two overridden settings, two notes — and no others anywhere on the page.
+    expect(notes).toHaveLength(2);
+    for (const note of notes) {
+      expect(note.text()).toContain('A workspace setting wins here');
+      expect(note.text()).toContain('changing this control on this page will not take effect');
+      expect(note.find('.source-badge').text()).toBe('Workspace');
+    }
+    // The action goes through the one entry point to the native editor (§2.1), so
+    // the reader can go and change the copy that wins.
+    await notes[0]!.find('button').trigger('click');
+    expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(1);
+    // `aiEnabled` is the machine-scoped control with no note at all (§3.5), and it
+    // is still rendered and still writable.
+    expect(wrapper.find('#ai-enabled').exists()).toBe(true);
+    expect(wrapper.find('#ai-enabled').attributes('disabled')).not.toBe('true');
+    wrapper.unmount();
+  });
+
+  it('shows no source note when no level above the user’s own holds anything', async () => {
+    // The overridden case above is only half of the rule: with nothing overriding,
+    // nothing is rendered — no marker, no sentence, no action.
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.findAll('.source-note')).toHaveLength(0);
+    expect(wrapper.text()).not.toContain('wins here');
+    wrapper.unmount();
+  });
+
+  it('states a source map for every reading a fixture builds, so a reading cannot drop it', () => {
+    // §3.5: the map is required, and `settingsSurfaceFixture()` is how every
+    // fixture in this suite states a reading — a fixture that dropped the map
+    // could not be written (its type requires one), and a map that lost a key
+    // fails here rather than making one control silently unannotatable.
+    const reading = settingsSurfaceFixture();
+    expect(Object.keys(reading.sources).sort()).toEqual([...SETTINGS_SURFACE_WRITABLE_KEYS].sort());
+    for (const level of Object.values(reading.sources)) {
+      expect(['default', 'user', 'workspace']).toContain(level);
+    }
+  });
+
+  it('reads the source map as a required field, not through an optional chain', () => {
+    // The page-level half of the same rule, pinned where jsdom cannot show it:
+    // the read is `settingsSurface.value?.sources[key]`, so a reading without the
+    // map fails during render instead of quietly rendering a page whose every
+    // overridden control looks unmarked. Re-adding the second optional chain is
+    // what this notices.
+    expect(settingsSource).toContain('settingsSurface.value?.sources[');
+    expect(settingsSource).not.toContain('sources?.[');
+  });
+
+  it('offers the transport from the shared enumeration rather than a copy of it', async () => {
+    // The transport became a control of this page (§1.3) because it decides which
+    // half of the AI area the page presents. Its three values come from
+    // `AI_TRANSPORT_CHOICES`, the enumeration the host reads and writes with, so
+    // the page cannot offer one the host would refuse.
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+
+    const wrapper = mountView();
+    await flushPromises();
+
     const transport = wrapper.find('#ai-transport');
     expect(transport.exists()).toBe(true);
     expect(transport.findAll('vscode-option').map((option) => option.attributes('value'))).toEqual([
-      'auto',
-      'vscode-lm',
-      'openai-compatible',
+      ...AI_TRANSPORT_CHOICES,
     ]);
     wrapper.unmount();
   });
 
-  it('opens the filtered native settings editor from the header and from the pointer row', async () => {
+  it('opens the filtered native settings editor from the header', async () => {
     stateMock.aiProviderSettings.value = providerSnapshotOf();
 
     const wrapper = mountView();
@@ -415,15 +527,6 @@ describe('the settings the page presents', () => {
     expect(header, 'the header control').toBeTruthy();
     await header!.trigger('click');
     expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(1);
-
-    // The one entry point goes through the one action, which posts the one command
-    // the host implements with the extension's own id as the filter (§2.1, §2.2):
-    // a second, hand-written filter is how the header and the row could drift
-    // apart, and one of them opening an unfiltered editor is the defect this pins.
-    const pointers = wrapper.findAll('.pointer-row');
-    expect(pointers).toHaveLength(1);
-    await pointers[0]!.trigger('click');
-    expect(stateMock.openNativeSettings).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
 });
@@ -602,6 +705,64 @@ describe('writing one setting from the page', () => {
     // value the page holds lands on the element as a **property** rather than as an
     // attribute — the same split the `checked` helper at the top deals with.
     expect((wrapper.find('#ai-transport').element as unknown as { value: string }).value).toBe('vscode-lm');
+    wrapper.unmount();
+  });
+
+  it('writes the polling interval as a number when its own Save control is pressed', async () => {
+    // A typed field, not a switch: the draft is only written when asked, and it is
+    // written as a **number**, which is the shape the host validates against the
+    // manifest's range. The page never validates the range itself (§7 rule 3).
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+    const wrapper = mountView();
+    await flushPromises();
+
+    const field = wrapper.find('#notification-polling-interval');
+    (field.element as unknown as { value: string }).value = '900';
+    await field.trigger('input');
+    const save = wrapper.findAll('vscode-button').find((button) => button.text().trim() === 'Save interval');
+    expect(save, 'the interval Save control').toBeTruthy();
+    await save!.trigger('click');
+    await flushPromises();
+
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith('forgejoToolkit.notificationPollingInterval', 900);
+    wrapper.unmount();
+  });
+
+  it('turns the developer mock switch on through its own setting id', async () => {
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+    const wrapper = mountView();
+    await flushPromises();
+
+    const checkbox = wrapper.find('#use-mock-api');
+    expect(checked(wrapper, '#use-mock-api')).toBe(false);
+    (checkbox.element as unknown as { checked: boolean }).checked = true;
+    await checkbox.trigger('change');
+    await flushPromises();
+
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith('forgejoToolkit.useMockApi', true);
+    wrapper.unmount();
+  });
+
+  it('still writes the user level when a workspace value is what the control shows', async () => {
+    // The note is not a second write scope (§3.5): the page keeps writing the user
+    // level and says the workspace copy wins, which is what the reader has to act
+    // on. A control that refused to write, or wrote the workspace level, would be
+    // the second writable source §7 rule 1 forbids.
+    surface.current = surfaceOf({
+      sources: { ...settingSources('user'), 'forgejoToolkit.notificationPollingEnabled': 'workspace' },
+    });
+    stateMock.aiProviderSettings.value = providerSnapshotOf();
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.findAll('.source-note')).toHaveLength(1);
+
+    const checkbox = wrapper.find('#notification-polling-enabled');
+    (checkbox.element as unknown as { checked: boolean }).checked = false;
+    await checkbox.trigger('change');
+    await flushPromises();
+
+    expect(stateMock.setSettingsSurfaceValue).toHaveBeenCalledWith('forgejoToolkit.notificationPollingEnabled', false);
     wrapper.unmount();
   });
 

@@ -99,20 +99,10 @@ const { stateMock } = vi.hoisted(() => ({
     copyInstancesToClipboard: vi.fn(),
     loadAiPreReviewChatModels: vi.fn(async () => ({ models: [], configured: '' })),
     saveAiPreReviewChatModel: vi.fn(async (value: string) => ({ value })),
-    settingsSurface: {
-      value: {
-        notificationPollingEnabled: true,
-        mcpEnabled: true,
-        mcpWriteTools: { createIssueComment: false, submitPullReview: false, cancelActionRun: false },
-        mcpWriteAuditToFile: false,
-        multiWindowLease: true,
-        aiEnabled: true,
-        aiPreReview: false,
-        aiPreReviewPromptScope: 'ask',
-        prDescription: false,
-        prDescriptionPromptScope: 'ask',
-      },
-    },
+    // Filled in after the imports below: a `vi.hoisted` body runs before this
+    // file's imports are initialized, so the complete, typed reading — source map
+    // included — can only be built once `settingsSurfaceFixture` exists.
+    settingsSurface: { value: undefined as unknown },
     loadSettingsSurface: vi.fn(async () => undefined),
     setSettingsSurfaceValue: vi.fn(async () => ({ snapshot: undefined })),
     testAiProviderDraft: vi.fn(async () => ({
@@ -138,9 +128,14 @@ vi.mock('../../composables/useAppState', async (importOriginal) => {
 });
 
 import Settings from '../Settings.vue';
-import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import { createTestRouter, createTestI18n, settingsSurfaceFixture } from '../../__tests__/helpers/test-utils';
 import en from '../../i18n/en.json';
 import { SETTINGS_GROUPS, WIDE_NAV_MIN_WIDTH } from '../settingsGroups';
+
+// The host's reading of the settings page's own surface (§3.2): the manifest's
+// defaults with the whole source map. It is built here rather than in the
+// `vi.hoisted` body above because that body runs before this import exists.
+stateMock.settingsSurface.value = settingsSurfaceFixture();
 
 /** The observer the page builds: `stickyScrollPadding.test.ts` records the same one. */
 class FakeResizeObserver {
@@ -253,8 +248,10 @@ describe('Settings groups: the mapping', () => {
     expect(new Set(blocks).size).toBe(blocks.length);
     const empty = SETTINGS_GROUPS.filter((group) => group.blocks.length === 0).map((group) => group.id);
     expect(empty).toEqual([]);
-    // The eleven blocks the page had before the split (§9.1), no more and no less.
-    expect(blocks).toHaveLength(11);
+    // The eleven blocks the page had before the split (§9.1), no more and no less,
+    // plus the developer passage `useMockApi` lives in — a twelfth block inside
+    // the existing 通用 group rather than a seventh group (§9.2).
+    expect(blocks).toHaveLength(12);
   });
 
   it('renders every block inside the pane of the group that claims it', () => {

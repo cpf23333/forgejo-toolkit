@@ -529,6 +529,8 @@
     "forgejoToolkit.worktreeOpenMode": "settings.worktree.openMode",
     "forgejoToolkit.worktreeCacheDirectory": "settings.worktree.cacheDirectory",
     "forgejoToolkit.notificationPollingEnabled": "settings.notifications.enabled",
+    "forgejoToolkit.notificationPollingInterval": "settings.notifications.interval",
+    "forgejoToolkit.useMockApi": "settings.developer.mockApi",
     "forgejoToolkit.mcpEnabled": "settings.mcp.enabled",
     "forgejoToolkit.mcpWriteTools.createIssueComment": "settings.mcp.writeTools.createIssueComment",
     "forgejoToolkit.mcpWriteTools.submitPullReview": "settings.mcp.writeTools.submitPullReview",
@@ -560,13 +562,16 @@
     "languageDescription": "Select display language for the Forgejo Toolkit panel.",
     "header": {
       "openNativeSettings": "Open Extension Settings",
-      "openNativeSettingsDescription": "Every setting this extension contributes, in VS Code's own settings editor, filtered to it. The settings that are not on this page live there.",
+      "openNativeSettingsDescription": "Every setting this extension contributes, in VS Code's own settings editor, filtered to it. That editor is where a setting's other configuration levels are changed — a workspace value, which wins over anything this page writes.",
       "loadFailed": "The extension's settings could not be read: {error}"
     },
-    "nativePointer": {
-      "label": "More settings:",
-      "action": "Open in VS Code Settings",
-      "interval": "(the polling interval in seconds, 60–3600)"
+    "source": {
+      "level": {
+        "workspace": "Workspace"
+      },
+      "overrides": {
+        "workspace": "A workspace setting wins here, so changing this control on this page will not take effect."
+      }
     },
     "addInstanceTitle": "Add Forgejo Instance",
     "instanceUrl": "Instance URL",
@@ -621,7 +626,17 @@
       "description": "How this window watches your instances for unread notifications.",
       "enabled": "Poll for unread notifications",
       "enabledDefault": "Default on: polling works as soon as an instance is configured.",
-      "disabledHint": "While this is off the unread badge and the alerts stop updating."
+      "disabledHint": "While this is off the unread badge and the alerts stop updating.",
+      "interval": "Polling interval (seconds)",
+      "intervalSave": "Save interval",
+      "intervalDescription": "How often this window asks your instances for unread notifications, in seconds. The setting takes a number between 60 and 3600 and defaults to 300; anything outside that is refused and the sentence says so, while the interval already stored stays what it was. A value with a fraction is rounded to the nearest second by the poller, and the field then shows that reading."
+    },
+    "developer": {
+      "title": "Developer",
+      "description": "Switches meant for working on this extension itself rather than for using it. Nothing here is needed for ordinary use, and a switch that is on changes what the other pages show.",
+      "mockApi": "Use mock Forgejo API responses",
+      "mockApiDescription": "Every Forgejo request this extension makes is answered from the build's own fixtures instead of from your instances: the repositories, issues, pull requests, notifications and Actions runs the pages show are sample data, not your server's, and an edit you make in the UI is held by the mock in memory rather than written to a real instance. Only a development build carries the mock at all — a production build has it stripped out, and there this switch does nothing.",
+      "mockApiReload": "Read once when the extension starts, so turning it on or off takes effect after you reload the window (VS Code: \"Developer: Reload Window\"). This extension has no reload action of its own."
     },
     "multiWindow": {
       "title": "Multiple windows",

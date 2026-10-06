@@ -247,11 +247,16 @@ describe('manifest nls pairs', () => {
     // name yet (`notificationPollingEnabled`, `mcpEnabled`, `multiWindowLease`)
     // joined the list with it: the page's header opens VS Code's settings editor
     // filtered to this extension, so those entries are now a surface a user reads.
+    // The last two to join are `notificationPollingInterval` and `useMockApi`,
+    // which the page renders itself since 2026-10-06 — a setting whose control is
+    // on the page is a name the reader meets there and in that filtered editor.
     const titled = Object.keys(manifest.contributes.configuration.properties).filter(
       (key) => typeof manifest.contributes.configuration.properties[key]?.title === 'string',
     );
     expect(titled).toEqual([
       'forgejoToolkit.notificationPollingEnabled',
+      'forgejoToolkit.notificationPollingInterval',
+      'forgejoToolkit.useMockApi',
       'forgejoToolkit.mcpEnabled',
       'forgejoToolkit.mcpWriteTools.createIssueComment',
       'forgejoToolkit.mcpWriteTools.submitPullReview',
@@ -273,6 +278,8 @@ describe('manifest nls pairs', () => {
     ]);
     const names = [
       'config.notificationPollingEnabled.title',
+      'config.notificationPollingInterval.title',
+      'config.useMockApi.title',
       'config.mcpEnabled.title',
       'config.mcpWriteTools.createIssueComment.title',
       'config.mcpWriteTools.submitPullReview.title',

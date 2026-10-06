@@ -1660,8 +1660,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         this._reply('aiProviderTestReport', { report, _requestId: message._requestId });
         return;
       }
-      // The settings page's own surface: the nine settings its sections render
-      // with a control. Reading sends nothing anywhere and writes nothing; a write
+      // The settings page's own surface: every setting its sections render with a
+      // control. Reading sends nothing anywhere and writes nothing; a write
       // is validated (the webview is untrusted input) and answered with the host's
       // own reading of the state it produced, so the control on screen always
       // shows what is actually stored.
@@ -1678,8 +1678,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         });
         return;
       }
-      // The settings page's pointer rows and its header control all land here, and
-      // all of them run the **command** rather than reaching for
+      // The settings page's header control and every source note's own action land
+      // here, and all of them run the **command** rather than reaching for
       // `executeCommand` here: one implementation, and the command is also what the
       // palette offers. It carries the `@ext:` filter, which is the whole point —
       // an unfiltered settings editor is the place the user could not find this
@@ -5496,16 +5496,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   /**
    * The settings page's own surface, read fresh for every request and after every
-   * write (`docs/design/settings-page.md` §3.2).
+   * write (`docs/design/settings-page.md` §3.2, §3.5).
    *
    * Each value comes from the reader the behaviour itself uses, which is why the
-   * notification switch is passed in rather than read here: the poller owns that
-   * reading (`ConfigManager.isNotificationPollingEnabled`), and a page that read
-   * it a second way could show "on" while the poller disagreed.
+   * notification switch, the polling interval and the developer mock switch are
+   * passed in rather than read here: `ConfigManager` owns those readings (the
+   * poller obeys the first two, activation makes its mock decision from the
+   * third), and a page that read them a second way could show a state the
+   * behaviour disagreed with.
    */
   private _readSettingsSurface(): SettingsSurfaceSnapshot {
     return readSettingsSurface({
       isNotificationPollingEnabled: () => this._config.isNotificationPollingEnabled(),
+      getNotificationPollingInterval: () => this._config.getNotificationPollingInterval(),
+      isMockApiEnabled: () => this._config.isMockApiEnabled(),
     });
   }
 

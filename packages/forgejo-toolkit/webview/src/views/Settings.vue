@@ -27,23 +27,17 @@ import { inspectAiProviderBaseUrl } from '@cpf23333-forgejo-toolkit/shared/ai/pr
 import { generateAiProviderId, generateAiProviderName, uniqueAiProviderId } from '../utils/providerIdentity';
 
 /**
- * The one setting that stays in VS Code's own settings editor and is **named**
- * here with a pointer row (`docs/design/settings-page.md` §2.2, §2.3).
+ * The two settings that used to live in VS Code's own settings editor and are
+ * rendered by this page now (`docs/design/settings-page.md` §1.3, §3.2):
+ * `forgejoToolkit.notificationPollingInterval` as a bounded number field in the
+ * notification section, and `forgejoToolkit.useMockApi` as a developer switch in
+ * the 通用 group. Nothing is left to the native editor, so this page no longer
+ * prints a setting id and no longer has a "more settings" pointer row (§2.2).
  *
- * It is written as the full setting id and never translated: the user needs the
- * exact string to search for in the settings editor, and a translated name finds
- * nothing. It is an identifier rather than interface text, which is why it is a
- * literal here and not an entry in the i18n catalogues; the sentence around it is
- * translated. `src/__tests__/settingsSurface.test.ts` holds it against
- * `NATIVE_ONLY_SETTINGS` — and holds `forgejoToolkit.useMockApi`, the second
- * native-only setting, out of this file entirely.
- *
- * `forgejoToolkit.aiTransport` used to be a second constant here. It is a control
- * of this page now (§1.3, §3.2), so it is spelled as the id the catalogue entry
- * `settings["forgejoToolkit.aiTransport"]` names, like every other rendered
- * setting, rather than as a pointer.
+ * They are spelled as full setting ids in `shared/webview/messages.ts`, not here:
+ * the id is the key the write goes through, and the page's own label for each is
+ * the catalogue entry named after it (`settings["forgejoToolkit.…"]`).
  */
-const POLLING_INTERVAL_SETTING = 'forgejoToolkit.notificationPollingInterval';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -1170,14 +1164,17 @@ async function storeAiPreReviewModel(value: string) {
 }
 
 // ---------------------------------------------------------------------------
-// The settings this page presents itself, and the settings it deliberately
-// leaves to VS Code (`docs/design/settings-page.md` §3.2).
+// The settings this page presents itself (`docs/design/settings-page.md` §3.2,
+// §3.5).
 //
-// Nine settings get a control here. Every one of them is read from, and written
-// through, the host: the page never keeps a value of its own, and the host's
-// answer to a write is the host's fresh reading of the state, so a control that
-// a refused write bounced back shows what is stored rather than what was
-// clicked. The one thing the page does keep is a *mirror* per control, because a
+// Every setting in the surface snapshot gets a control here, and every one of them
+// is read from, and written through, the host: the page never keeps a value of its
+// own, and the host's answer to a write is the host's fresh reading of the state,
+// so a control that a refused write bounced back shows what is stored rather than
+// what was clicked. The snapshot also says which configuration **level** each
+// effective value came from; where that is not the user's own level, the control
+// carries a note saying so, because a write from this page would not take effect
+// there. The one thing the page does keep is a *mirror* per control, because a
 // `vscode-checkbox` toggles itself on click: the mirror is what the click sets
 // optimistically, and the host's next reading is what puts it right again.
 // ---------------------------------------------------------------------------
@@ -1194,6 +1191,18 @@ const settingsSurfaceStatus = ref<{
 const settingsSurfaceLoadError = ref('');
 
 const pollingEnabled = ref(false);
+/**
+ * The polling interval, in the two shapes the field needs: the number the host
+ * reports (what the poller is using, and what a save's own comparison is about)
+ * and the text the field holds while the user types. The text is a draft, not a
+ * value: it is only read when the field's own Save control is pressed, and the
+ * host's reading is what the next snapshot puts back (`docs/design/settings-page.md`
+ * §3.2, and the timeout field's identical pair).
+ */
+const pollingIntervalSeconds = ref(300);
+const pollingIntervalField = ref('300');
+/** `forgejoToolkit.useMockApi`: the developer switch, off by default. */
+const useMockApi = ref(false);
 const mcpEnabledValue = ref(false);
 const writeToolCreateIssueComment = ref(false);
 const writeToolSubmitPullReview = ref(false);
@@ -1236,8 +1245,12 @@ const settingsSurfaceSaving = ref<SettingsSurfaceWritableKey | null>(null);
 /** The settings of one section, so only the section being written is disabled. */
 const NOTIFICATION_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.notificationPollingEnabled',
+  'forgejoToolkit.notificationPollingInterval',
   'forgejoToolkit.multiWindowLease',
 ];
+
+/** The developer section's own setting: the switch is the whole of it. */
+const DEVELOPER_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = ['forgejoToolkit.useMockApi'];
 
 const MCP_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.mcpEnabled',
@@ -1278,6 +1291,15 @@ watch(
       return;
     }
     pollingEnabled.value = snapshot.notificationPollingEnabled;
+    // The field is only overwritten when the interval the host reports actually
+    // changed: another control's write must not discard text the user is typing
+    // here, and a refused interval write leaves the host's reading where it was —
+    // so the user's own input survives to be corrected (`§3.3` rule 1).
+    if (snapshot.notificationPollingInterval !== pollingIntervalSeconds.value) {
+      pollingIntervalSeconds.value = snapshot.notificationPollingInterval;
+      pollingIntervalField.value = String(snapshot.notificationPollingInterval);
+    }
+    useMockApi.value = snapshot.useMockApi;
     mcpEnabledValue.value = snapshot.mcpEnabled;
     writeToolCreateIssueComment.value = snapshot.mcpWriteTools.createIssueComment;
     writeToolSubmitPullReview.value = snapshot.mcpWriteTools.submitPullReview;
@@ -1314,7 +1336,10 @@ async function loadSettingsSurface(): Promise<void> {
  * that is stored. The page adds no interpretation of its own to the host's
  * sentence (§3.3 rule 3).
  */
-async function saveSettingsSurfaceValue(key: SettingsSurfaceWritableKey, value: boolean | string): Promise<void> {
+async function saveSettingsSurfaceValue(
+  key: SettingsSurfaceWritableKey,
+  value: boolean | string | number,
+): Promise<void> {
   if (settingsSurfaceSaving.value !== null) {
     return;
   }
@@ -1343,9 +1368,9 @@ function surfaceStatusIn(keys: readonly SettingsSurfaceWritableKey[]) {
   return status && keys.includes(status.key) ? status : null;
 }
 
-const notificationsSurfaceStatus = computed(() =>
-  surfaceStatusIn(['forgejoToolkit.notificationPollingEnabled', 'forgejoToolkit.multiWindowLease']),
-);
+const notificationsSurfaceStatus = computed(() => surfaceStatusIn([...NOTIFICATION_SURFACE_KEYS]));
+
+const developerSurfaceStatus = computed(() => surfaceStatusIn(DEVELOPER_SURFACE_KEYS));
 
 const mcpSurfaceStatus = computed(() =>
   surfaceStatusIn([
@@ -1371,6 +1396,34 @@ const prDescriptionSurfaceStatus = computed(() =>
 function handlePollingEnabledChange(event: Event): void {
   pollingEnabled.value = (event.target as HTMLInputElement).checked;
   void saveSettingsSurfaceValue('forgejoToolkit.notificationPollingEnabled', pollingEnabled.value);
+}
+
+/**
+ * Writes the polling interval the field holds, in seconds.
+ *
+ * The field is typed rather than toggled, so this is the only place the draft is
+ * read — and it is read as a **number**, the shape `writeSettingsSurfaceValue`
+ * validates against the manifest's own range. An empty field is `0` there
+ * (`Number('')`), which is below the manifest's `minimum` and is refused as out
+ * of range like any other value outside it, so the page never has to say what an
+ * empty box means; it states the range below the field and leaves the refusal to
+ * the host (`§3.3` rules 1 and 3).
+ */
+function savePollingInterval(): void {
+  void saveSettingsSurfaceValue(
+    'forgejoToolkit.notificationPollingInterval',
+    Number(pollingIntervalField.value.trim()),
+  );
+}
+
+/**
+ * Flips the developer mock switch. It is a page-owned setting like the rest: the
+ * host writes the user level and answers with its fresh reading, so the checkbox
+ * can never show a state that was not stored.
+ */
+function handleUseMockApiChange(event: Event): void {
+  useMockApi.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.useMockApi', useMockApi.value);
 }
 
 function handleMcpEnabledChange(event: Event): void {
@@ -1473,12 +1526,45 @@ function prDescriptionScopeLabel(scope: SettingsSurfaceSnapshot['prDescriptionPr
 /**
  * Opens VS Code's own settings editor, filtered to this extension (§2.1).
  *
- * One action for the page header and for every pointer row: the host runs the
+ * One action for the page header **and for every source note**: the host runs the
  * `forgejoToolkit.openNativeSettings` command, which is the same command the
- * palette offers, and the filter is part of it.
+ * palette offers, and the filter is part of it. A note's reader has to go and
+ * change the workspace copy of a setting, so it is the same destination the page
+ * header opens — there is no second entry point to keep in step.
  */
 function openNativeSettings(): void {
   state.openNativeSettings();
+}
+
+/**
+ * The configuration level a setting's effective value comes from, when that level
+ * is **not** the user's own (`docs/design/settings-page.md` §3.5), or `undefined`
+ * when this page's own writes are in charge.
+ *
+ * The page writes the user level and renders the effective value, so a workspace
+ * value beats anything written here: without this note a click on such a control
+ * looks like it did nothing. The host's snapshot says which level each value came
+ * from, and this turns "above the user level" into the two strings a note needs —
+ * the level's own name and its sentence. `workspace` is the only such level left:
+ * the host reads without a resource URI, where a workspace-folder value never
+ * appears, so that level is not in the type at all (§3.5). `aiEnabled` is the one
+ * control on the page with no note: the manifest scopes it to `machine`, so the
+ * host never reports a workspace level for it and markup that can never appear
+ * would be a rule pretending to be one.
+ *
+ * The map is read as a **required** field. `readSettingsSurface` fills an entry
+ * for every writable key, so a reading that carries none is a host bug rather
+ * than a page state: an optional chain here turned exactly that bug into a page
+ * that quietly rendered no markers at all. The type is what makes such a reading
+ * not compile, and this read is what makes one that arrives anyway fail loudly
+ * instead of silently unmarking every overridden control.
+ */
+function sourceOverride(key: SettingsSurfaceWritableKey): { level: string; sentence: string } | undefined {
+  const source = settingsSurface.value?.sources[key];
+  if (source === 'workspace') {
+    return { level: t('settings.source.level.workspace'), sentence: t('settings.source.overrides.workspace') };
+  }
+  return undefined;
 }
 
 /**
@@ -3523,6 +3609,49 @@ defineExpose({
                 </vscode-checkbox>
               </div>
             </section>
+
+            <!--
+        The developer passage (`docs/design/settings-page.md` §1.3, §3.2). It is
+        the one place on this page a switch is addressed to whoever works on the
+        extension rather than to whoever uses it, and it says so in its own
+        heading and its first sentence: `useMockApi` intercepts every Forgejo
+        request this extension makes and answers it from the build's fixtures, so
+        what the page shows is sample data, not the reader's server. It needs a
+        window reload because activation reads it once — and this extension has no
+        reload action of its own, so the note names VS Code's own command instead
+        of inventing a second one.
+      -->
+            <section class="setting-section">
+              <h2>{{ t('settings.developer.title') }}</h2>
+              <p class="description">{{ t('settings.developer.description') }}</p>
+              <div class="form-row checkbox-row">
+                <vscode-checkbox
+                  id="use-mock-api"
+                  :checked="useMockApi"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(DEVELOPER_SURFACE_KEYS)"
+                  @change="handleUseMockApiChange"
+                >
+                  {{ t('settings.developer.mockApi') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.developer.mockApiDescription') }}</p>
+                <p class="field-description">{{ t('settings.developer.mockApiReload') }}</p>
+                <p v-if="sourceOverride('forgejoToolkit.useMockApi')" class="field-description source-note">
+                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.useMockApi')?.level }}</span>
+                  {{ sourceOverride('forgejoToolkit.useMockApi')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
+              </div>
+              <div
+                v-if="developerSurfaceStatus"
+                :class="['status', developerSurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ developerSurfaceStatus.message }}
+              </div>
+            </section>
           </section>
 
           <section
@@ -3535,11 +3664,13 @@ defineExpose({
           >
             <h2 class="settings-pane-title">{{ t('settings.groups.notifications') }}</h2>
             <!--
-        Notifications. The polling switch is one of the settings the record moves
-        onto this page: the dashboard explains the unread badge with it, and until
-        now the only place to change it was VS Code's settings editor
-        (`docs/design/settings-page.md` §1.3). The interval stays native — it is a
-        plain bounded number — and is named by a pointer row instead.
+        Notifications. The polling switch and the polling interval are both
+        settings of this section (`docs/design/settings-page.md` §1.3, §3.2): the
+        dashboard explains the unread badge with the first, and the interval is the
+        number the second one paces itself by, so "how often does this window ask"
+        is answered where the switch that turns asking off already lives. Nothing
+        is left to VS Code's own editor here, so the "more settings" pointer row
+        that used to stand in the interval's place is gone (§2.2).
       -->
             <section class="setting-section">
               <h2>{{ t('settings.notifications.title') }}</h2>
@@ -3555,18 +3686,52 @@ defineExpose({
                 </vscode-checkbox>
                 <p class="field-description">{{ t('settings.notifications.enabledDefault') }}</p>
                 <p v-if="!pollingEnabled" class="field-description">{{ t('settings.notifications.disabledHint') }}</p>
-                <!--
-            The pointer row (§2.2) is clickable as a whole and carries all three
-            parts: the setting's full id in monospace, one sentence about what it
-            controls, and the action. The id is the literal the guard holds against
-            NATIVE_ONLY_SETTINGS; the sentence around it is translated.
-          -->
-                <button type="button" class="link-button pointer-row" @click="openNativeSettings">
-                  <span>{{ t('settings.nativePointer.label') }}</span>
-                  <code class="pointer-id">{{ POLLING_INTERVAL_SETTING }}</code>
-                  <span class="pointer-note">{{ t('settings.nativePointer.interval') }}</span>
-                  <span class="pointer-action">{{ t('settings.nativePointer.action') }}</span>
-                </button>
+                <p
+                  v-if="sourceOverride('forgejoToolkit.notificationPollingEnabled')"
+                  class="field-description source-note"
+                >
+                  <span class="source-badge">{{
+                    sourceOverride('forgejoToolkit.notificationPollingEnabled')?.level
+                  }}</span>
+                  {{ sourceOverride('forgejoToolkit.notificationPollingEnabled')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
+              </div>
+
+              <div class="form-row">
+                <label for="notification-polling-interval">{{ t('settings.notifications.interval') }}</label>
+                <vscode-textfield
+                  id="notification-polling-interval"
+                  :value="pollingIntervalField"
+                  :label="t('settings.notifications.interval')"
+                  type="number"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+                  @input="pollingIntervalField = ($event.target as HTMLInputElement).value"
+                />
+                <div class="cache-directory-actions">
+                  <vscode-button
+                    secondary
+                    :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SURFACE_KEYS)"
+                    @click="savePollingInterval"
+                  >
+                    {{ t('settings.notifications.intervalSave') }}
+                  </vscode-button>
+                </div>
+                <p class="field-description">{{ t('settings.notifications.intervalDescription') }}</p>
+                <p
+                  v-if="sourceOverride('forgejoToolkit.notificationPollingInterval')"
+                  class="field-description source-note"
+                >
+                  <span class="source-badge">{{
+                    sourceOverride('forgejoToolkit.notificationPollingInterval')?.level
+                  }}</span>
+                  {{ sourceOverride('forgejoToolkit.notificationPollingInterval')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <div class="settings-group">
@@ -3589,6 +3754,13 @@ defineExpose({
             -->
                   <p class="field-description">{{ t('settings.multiWindow.description') }}</p>
                   <p v-if="!leaseEnabled" class="field-description">{{ t('settings.multiWindow.offHint') }}</p>
+                  <p v-if="sourceOverride('forgejoToolkit.multiWindowLease')" class="field-description source-note">
+                    <span class="source-badge">{{ sourceOverride('forgejoToolkit.multiWindowLease')?.level }}</span>
+                    {{ sourceOverride('forgejoToolkit.multiWindowLease')?.sentence }}
+                    <button type="button" class="link-button" @click="openNativeSettings">
+                      {{ t('settings.header.openNativeSettings') }}
+                    </button>
+                  </p>
                 </div>
               </div>
 
@@ -3633,6 +3805,13 @@ defineExpose({
                 </vscode-checkbox>
                 <p class="field-description">{{ t('settings.mcp.enabledDefault') }}</p>
                 <p v-if="!mcpEnabledValue" class="field-description">{{ t('settings.mcp.disabledHint') }}</p>
+                <p v-if="sourceOverride('forgejoToolkit.mcpEnabled')" class="field-description source-note">
+                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.mcpEnabled')?.level }}</span>
+                  {{ sourceOverride('forgejoToolkit.mcpEnabled')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <div class="settings-group">
@@ -3647,6 +3826,18 @@ defineExpose({
                   >
                     {{ t('settings.mcp.writeTools.createIssueComment') }}
                   </vscode-checkbox>
+                  <p
+                    v-if="sourceOverride('forgejoToolkit.mcpWriteTools.createIssueComment')"
+                    class="field-description source-note"
+                  >
+                    <span class="source-badge">{{
+                      sourceOverride('forgejoToolkit.mcpWriteTools.createIssueComment')?.level
+                    }}</span>
+                    {{ sourceOverride('forgejoToolkit.mcpWriteTools.createIssueComment')?.sentence }}
+                    <button type="button" class="link-button" @click="openNativeSettings">
+                      {{ t('settings.header.openNativeSettings') }}
+                    </button>
+                  </p>
                 </div>
                 <div class="form-row checkbox-row">
                   <vscode-checkbox
@@ -3657,6 +3848,18 @@ defineExpose({
                   >
                     {{ t('settings.mcp.writeTools.submitPullReview') }}
                   </vscode-checkbox>
+                  <p
+                    v-if="sourceOverride('forgejoToolkit.mcpWriteTools.submitPullReview')"
+                    class="field-description source-note"
+                  >
+                    <span class="source-badge">{{
+                      sourceOverride('forgejoToolkit.mcpWriteTools.submitPullReview')?.level
+                    }}</span>
+                    {{ sourceOverride('forgejoToolkit.mcpWriteTools.submitPullReview')?.sentence }}
+                    <button type="button" class="link-button" @click="openNativeSettings">
+                      {{ t('settings.header.openNativeSettings') }}
+                    </button>
+                  </p>
                 </div>
                 <div class="form-row checkbox-row">
                   <vscode-checkbox
@@ -3667,6 +3870,18 @@ defineExpose({
                   >
                     {{ t('settings.mcp.writeTools.cancelActionRun') }}
                   </vscode-checkbox>
+                  <p
+                    v-if="sourceOverride('forgejoToolkit.mcpWriteTools.cancelActionRun')"
+                    class="field-description source-note"
+                  >
+                    <span class="source-badge">{{
+                      sourceOverride('forgejoToolkit.mcpWriteTools.cancelActionRun')?.level
+                    }}</span>
+                    {{ sourceOverride('forgejoToolkit.mcpWriteTools.cancelActionRun')?.sentence }}
+                    <button type="button" class="link-button" @click="openNativeSettings">
+                      {{ t('settings.header.openNativeSettings') }}
+                    </button>
+                  </p>
                 </div>
                 <!-- One line for all three: the model is "off by default, one gate per tool". -->
                 <p class="field-description">{{ t('settings.mcp.writeTools.default') }}</p>
@@ -3685,6 +3900,13 @@ defineExpose({
                   </vscode-checkbox>
                   <p class="field-description">{{ t('settings.mcp.audit.default') }}</p>
                   <p v-if="mcpAuditToFile" class="field-description">{{ t('settings.mcp.audit.file') }}</p>
+                  <p v-if="sourceOverride('forgejoToolkit.mcpWriteAuditToFile')" class="field-description source-note">
+                    <span class="source-badge">{{ sourceOverride('forgejoToolkit.mcpWriteAuditToFile')?.level }}</span>
+                    {{ sourceOverride('forgejoToolkit.mcpWriteAuditToFile')?.sentence }}
+                    <button type="button" class="link-button" @click="openNativeSettings">
+                      {{ t('settings.header.openNativeSettings') }}
+                    </button>
+                  </p>
                 </div>
               </div>
 
@@ -3766,6 +3988,13 @@ defineExpose({
             being off means for them instead of disabling them.
           -->
                 <p v-if="!preReviewEnabled" class="field-description">{{ t('settings.aiPreReview.disabledHint') }}</p>
+                <p v-if="sourceOverride('forgejoToolkit.aiPreReview')" class="field-description source-note">
+                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.aiPreReview')?.level }}</span>
+                  {{ sourceOverride('forgejoToolkit.aiPreReview')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <!--
@@ -3790,6 +4019,13 @@ defineExpose({
                 </vscode-single-select>
                 <p class="field-description">{{ t('settings.aiPreReview.scopeDescription') }}</p>
                 <p class="field-description">{{ t('settings.aiPreReview.scopeDefault') }}</p>
+                <p v-if="sourceOverride('forgejoToolkit.aiPreReviewPromptScope')" class="field-description source-note">
+                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.aiPreReviewPromptScope')?.level }}</span>
+                  {{ sourceOverride('forgejoToolkit.aiPreReviewPromptScope')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <!--
@@ -3894,6 +4130,13 @@ defineExpose({
                 <p v-if="!prDescriptionEnabled" class="field-description">
                   {{ t('settings.prDescription.disabledHint') }}
                 </p>
+                <p v-if="sourceOverride('forgejoToolkit.prDescription')" class="field-description source-note">
+                  <span class="source-badge">{{ sourceOverride('forgejoToolkit.prDescription')?.level }}</span>
+                  {{ sourceOverride('forgejoToolkit.prDescription')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <div class="form-row">
@@ -3911,6 +4154,18 @@ defineExpose({
                 </vscode-single-select>
                 <p class="field-description">{{ t('settings.prDescription.scopeDescription') }}</p>
                 <p class="field-description">{{ t('settings.prDescription.scopeDefault') }}</p>
+                <p
+                  v-if="sourceOverride('forgejoToolkit.prDescriptionPromptScope')"
+                  class="field-description source-note"
+                >
+                  <span class="source-badge">{{
+                    sourceOverride('forgejoToolkit.prDescriptionPromptScope')?.level
+                  }}</span>
+                  {{ sourceOverride('forgejoToolkit.prDescriptionPromptScope')?.sentence }}
+                  <button type="button" class="link-button" @click="openNativeSettings">
+                    {{ t('settings.header.openNativeSettings') }}
+                  </button>
+                </p>
               </div>
 
               <div
@@ -4896,33 +5151,32 @@ vscode-single-select {
 }
 
 /*
- * A "more settings" pointer row (`docs/design/settings-page.md` §2.2): the full
- * native setting id, one sentence about what it controls, and the action that
- * opens the filtered settings editor. The whole row is one button — it is a link
- * to another surface, so the click target is the sentence, not a word inside it —
- * and it wraps because the id is a single unbreakable run (`overflow-wrap` comes
- * from the prose rule below).
+ * A source note (`docs/design/settings-page.md` §3.5): the marker plus the
+ * sentence a control carries when the level that holds its effective value is not
+ * the user's own, and the action that opens the filtered settings editor so the
+ * reader can go and change the copy that wins. It reads as a `field-description`
+ * — it is one more line under the control it is about, not a second control — and
+ * its action is a link, the same shape as the page's other navigational controls.
  */
-.pointer-row {
+.source-note {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px;
-  text-align: left;
-  font-size: 0.85em;
 }
 
-.pointer-id {
-  font-family: var(--vscode-editor-font-family), monospace;
-  font-size: 0.95em;
-}
-
-.pointer-note {
-  color: var(--vscode-descriptionForeground);
-}
-
-.pointer-action {
-  color: var(--vscode-textLink-foreground);
+/*
+ * The level's own name, in the editor's badge colours: the same small tag VS Code
+ * itself puts next to a setting it has something to say about, and the tokens
+ * every other badge in this webview uses.
+ */
+.source-badge {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
 }
 
 /*
@@ -5011,7 +5265,7 @@ h2 {
 .status,
 .provider-fact,
 .rejected-list li,
-.pointer-row {
+.source-note {
   overflow-wrap: anywhere;
 }
 

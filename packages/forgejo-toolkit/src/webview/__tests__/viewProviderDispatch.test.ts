@@ -410,7 +410,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     // alone: reset, then restore an equivalent default.
     vi.mocked(vscode.workspace.getConfiguration)
       .mockReset()
-      .mockReturnValue({ get: vi.fn(), update: vi.fn() } as never);
+      // `inspect` answers which configuration level a value comes from, which the
+      // settings page's own surface reads (`docs/design/settings-page.md` §3.5):
+      // no level set anything is the state this default models.
+      .mockReturnValue({ get: vi.fn(), update: vi.fn(), inspect: vi.fn() } as never);
     vi.mocked(vscode.window.showErrorMessage).mockClear();
     proxyMocks.getProxyFetch.mockReset();
     context = createFakeContext();

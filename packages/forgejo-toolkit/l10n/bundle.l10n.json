@@ -447,6 +447,7 @@
   "Remove the AI endpoint \"{0}\" and its stored secrets?": "Remove the AI endpoint \"{0}\" and its stored secrets?",
   "That setting cannot be written from this page.": "That setting cannot be written from this page.",
   "The setting \"{0}\" was not written: it takes on or off.": "The setting \"{0}\" was not written: it takes on or off.",
+  "The setting \"{0}\" was not written: it takes a number of seconds between {1} and {2}.": "The setting \"{0}\" was not written: it takes a number of seconds between {1} and {2}.",
   "The setting \"{0}\" was not written: it takes one of {1}.": "The setting \"{0}\" was not written: it takes one of {1}.",
   "The setting \"{0}\" was not written: {1}": "The setting \"{0}\" was not written: {1}",
   "Send the commits and the changed-file list": "Send the commits and the changed-file list",
