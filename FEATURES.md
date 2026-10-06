@@ -8,23 +8,14 @@
 
 ### AI 端点（OpenAI 兼容）
 
-- 除编辑器自己贡献的语言模型之外，可以自配 OpenAI 兼容端点并让 AI 功能跑在上面：页面的「AI 端点」区块列出每个端点（地址、认证方式、已声明模型、自定义请求头、密钥是否已存、哪些请求头被认证方式接管、明文 `http://` 提示），编辑器里填显示名与 id、地址、认证方式（Bearer / `api-key` 请求头 / 无需认证）、模型（id 与显示名）与请求头；id 与显示名留空时按地址生成，撞名自动加后缀，创建时明说 id 之后不能改（密钥按 id 归属）。
-- 密钥只进编辑器的密钥存储：API 密钥与每个请求头的 value 都不写进设置，页面只说已设置 / 未设置，清空是显式动作；端点相关设置全在机器级，工作区改不了它。请求地址进日志时去掉可能携带密钥的查询串。
-- 「测试连接」按端点运行并给出报告，报告写出它的地址（同样去掉查询串）；端点答 404 / 405 / 501 表示它没有 `/models`，这不是失败，报告直接说模型要手填。
-- 目的地分两层，默认值是主路径：设置页先给一条**默认端点与模型**（`forgejoToolkit.aiDefaultProvider` 与
-  `forgejoToolkit.aiDefaultModel`），配一次之后所有没有例外的 AI 功能都用它——`openai-compatible` 与 `auto` 的端点那一半说的
-  "已配置的端点"就是它；某个功能需要更强或更私密的模型时，才在「逐功能覆盖」里写一条
-  （`forgejoToolkit.aiModelBindings`，每行默认"不覆盖——跟随上面的默认值"）。覆盖是最具体的一句话：它点名的端点与
-  模型只压过那一个功能的默认值；覆盖要么完整要么不用，只给一半时运行点名缺的那一半，不猜。每次运行都在面板头部、诊断
-  与日志里写明这次由哪条传输、哪个端点、哪个地址、哪个模型服务。
-- 设置页的 AI 区块按当前传输方式呈现对应的配置：`vscode-lm` 只显示编辑器的聊天模型行、隐藏端点面（原位留一句说明它为什么
-  被隐藏、改哪个控件能拿回来），`openai-compatible` 只显示端点面、隐藏编辑器模型行，`auto` 两者都显示并写明优先级
-  （有可用的编辑器模型时优先用它，没有时才用已配置的默认端点）。请求超时与逐功能覆盖在任何取值下都可见可改。
-- 模型列表自动探测：地址、认证方式或凭据被改过、并停止输入约 800 ms 后，用当前输入发一次 `GET /models`（只列模型，从不发补全请求，保存之前不写任何配置），只补进还缺的模型行，不覆盖手写的列表；地址不是合法 URL、或 AI 总开关关着时一个字节都不发，继续输入即取消本次，失败或被拒都在模型行下面与报告卡上说清，报告卡自己标明来自哪一边；探测成功时那行状态文字旁边再说一句这不是同意——它只读了模型列表，是否会真的发出内容由 AI 总开关与各功能自己的同意询问决定。
-- 用不用 AI、哪个功能用，分三层：设置页顶部的 **AI 总开关**（`forgejoToolkit.aiEnabled`，默认**开**）说"完全不要用 AI"——关掉它，没有任何 AI 功能会运行，也不向任何模型取答案（编辑器自己提供的与已配置的都不问）；每个功能自己的开关（AI 预评审、PR 描述生成）说"这个功能是开的"，仍然默认关；真正决定内容是否离开本机、离开多少的是各功能自己那一次同意询问。配好的端点不再另有一道"允许发请求"的闸门：配置端点这个动作本身就说明你要用它，不想用就把它删掉。选定的路不会中途换掉：端点失败就按端点自己的原因报错，不会改用编辑器提供的模型，反之亦然。
-- 端点配置随实例与其余设置一起导出 / 导入：导出文件里是一段非密的 `ai` 配置（端点显示名、地址、认证方式、已声明模型、请求头**名字**、逐功能绑定与传输方式），API 密钥与每个请求头的 value 只有选了「加密」才会随文件走，明文的导出会在导出前的提示与导出文件里都不含它们；导入时先在同一套「导入预览」里列出这些端点、标出 id 已存在的三选一（保留已配置的 / 换个新 id 一并导入 / 替换）与明文 `http://` 地址，并直说这个文件有没有带凭据（没加密的文件带不了，得之后自己补）；确认后才写入，凭据进编辑器的密钥存储而不是设置。**导入永不打开全局开关或任何功能开关**（也不关它们）：它不写 `forgejoToolkit.aiEnabled`、不打开任何 AI 功能、也不改你选定的传输方式，所以导入之后每个功能仍会照旧先问一次"发什么出去"。
-
-- 添加、删除、测试连接多个 Forgejo/Codeberg 实例。
+- 除编辑器自己贡献的语言模型之外，可以自配 OpenAI 兼容端点并让 AI 功能跑在上面：填显示名与 id、地址、认证方式、模型与请求头；id 与显示名留空时按地址生成、撞名自动加后缀，创建时明说 id 之后不能改。规则见 `docs/design/settings-page.md` §5。
+- API 密钥与每个自定义请求头的 value 都只进编辑器的密钥存储、不写进设置，页面只说"已设置"不回显；端点相关设置全在机器级，工作区改不了它。见 `docs/design/ai-model-transport.md` §8.2 与 `docs/design/settings-page.md` §3.1。
+- 「测试连接」按端点运行并给出报告；端点答 404 / 405 / 501 表示它没有 `/models`，这不是失败，报告直接说模型要手填。见该记录 §8.7。
+- 目的地分两层：先在设置页配一条**默认端点与模型**（`forgejoToolkit.aiDefaultProvider` / `aiDefaultModel`），没有例外的功能都用它；某个功能要更强或更私密的模型时才在「逐功能覆盖」（`forgejoToolkit.aiModelBindings`）里写一条。见该记录 §8.4。
+- 设置页的 AI 区块按当前传输方式呈现：`vscode-lm` 只显示编辑器的聊天模型行、`openai-compatible` 只显示端点面、`auto` 两者都显示并写明优先级，被裁掉的一半原位留说明与拿回控件。见 `docs/design/settings-page.md` §8。
+- 模型列表自动探测：地址或凭据改过后，用当前输入发一次 `GET /models`，只补进还缺的模型行、不覆盖手写的列表；失败或被拒都在模型行下面与报告卡上说清，并说明这不是同意出网。见 `docs/design/settings-page.md` §4。
+- 用不用 AI、哪个功能用，分三层：**AI 总开关**（`forgejoToolkit.aiEnabled`，默认开）说"完全不要用 AI"；每个功能自己的开关仍然默认关；内容是否离开本机、离开多少由各功能自己那一次同意询问决定。见 `docs/design/ai-model-transport.md` §8.3。
+- 端点配置的导出 / 导入：明文导出不含密钥与请求头的 value，只有选「加密」才随文件走；导入时在同一套「导入预览」里列出端点、标出 id 冲突的三选一与明文 `http://` 地址。导入永不打开任何 AI 开关。见 `docs/design/ai-model-transport.md` §10。
 
 ### Dashboard 面板
 
@@ -33,7 +24,7 @@
 - 仓库卡片：名称、描述、默认分支、star/fork、右侧图标支持在浏览器打开和复制克隆地址。
 - Issue / PR 卡片：编号、标题、状态、仓库名、复制链接图标。
 - 仓库详情页：README、分支列表、最近 commits、返回 Dashboard。
-- 侧边栏视图标题栏的刷新图标刷新的是**你正在看的这一页**的数据，提示文字随页面一起变：仪表板刷新实例与仓库（每个实例的仓库、我的 Issue、我的 PR），仓库页（详情、Issue / PR 列表、单次 Actions 运行）刷新这个仓库的数据，Issue 详情页刷新这个 Issue 及其时间线与追踪时间，PR 详情页刷新这个 PR 及其文件、时间线与提交，通知页按当前筛选刷新通知列表；同一时刻只出现一个刷新图标，命令面板里同样只列当前页面对应的那一条。刷新没有意义的页面它**不出现**：还没有实例时的仪表板首屏（那里只有引导入口）与全局搜索页（结果属于那个搜索框里的查询，页面的「搜索」就是它的刷新）；设置页、首次运行向导与其余编辑器区面板没有视图标题栏，因此也没有这个图标。
+- 侧边栏视图标题栏的刷新图标刷新的是**你正在看的这一页**的数据，提示文字随页面一起变；同一时刻只出现一个刷新图标，命令面板里同样只列当前页面对应的那一条。刷新没有意义的页面（还没有实例时的仪表板首屏、全局搜索页，以及没有视图标题栏的设置页与其余编辑器区面板）不出现它。逐页覆盖范围与它怎么认定当前页见 `docs/architecture/README.md` 的「Webview UI」一节。
 - 初次使用引导页：以编辑器页签形式打开，支持语言、服务器、worktree 配置。
 - 首次安装引导：Walkthrough 三步入门指南（添加实例 → 打开仪表板 → 发布/创建 PR，中英双语）；首次激活且无实例时自动打开引导页。
 
@@ -48,14 +39,14 @@
 
 ### 设置页
 
-- 设置页住在**编辑器区的一个标签页**里（一个窗口一个）：命令面板的「Open Settings」与侧边栏视图标题栏的齿轮都打开它，再打开一次是聚焦已开着的那个，关掉再打开是从头重读的新页面；打开它不会再动侧边栏（侧边栏那份应用里的设置页已退役，「打开扩展设置」入口仍在）。标签页重新显示时会重新读一遍当前读数，不带着旧快照回来。
-- 页内分**六组**（通用、实例、通知、MCP、AI、Git / Worktree），默认停在「通用」：标签页够宽时是左侧一列竖向分组导航（键盘可上下移动），被拖窄或落进分割编辑器一格时改成一个吸顶的分组选择器，两种形态都不新增设置项；每一组的内容里还有该组自己的标题。切换分组不改变任何控件的可见性与可写性——只有本页能写的设置始终可达。
+- 设置页住在**编辑器区的一个标签页**里（一个窗口一个）：命令面板的「Open Settings」与侧边栏视图标题栏的齿轮都打开它，再打开一次是聚焦已开着的那个，关掉再打开是从头重读的新页面；打开它不动侧边栏（侧边栏那份应用里的设置页已退役，「打开扩展设置」入口仍在）。
+- 页内分**六组**（通用、实例、通知、MCP、AI、Git / Worktree），默认停在「通用」：标签页宽时是左侧一列竖向分组导航，被拖窄或落进分割编辑器一格时改成吸顶的分组选择器，两种形态都不新增设置项；切换分组不改变控件的可见性与可写性。
 - 语言切换、调试日志开关。
 - 添加 / 删除 / 修改 Forgejo 实例，测试连接。
-- 手动声明服务器版本：在实例表单里填写或清空该实例的 Forgejo 版本（如 `16.0.2`、`16.0.2+gitea-1.22.0`），留空即回到自动探测；填写的值解析不了会被拒绝并给出可读提示，不会存下来后被悄悄忽略。声明优先于自动探测与缓存（含 60 秒过期与跨窗口合并写），Actions 等版本闸门按声明值判定——窗口里是这样，Agents 窗口从静态 `mcp.json` 启动、自己建客户端的 MCP server 也是这样；声明值低于最低支持版本时，提示与拒绝信息都会点名是你声明的版本。
+- 手动声明服务器版本：填写的值优先于自动探测与缓存，Actions 等版本闸门按它判定；解析不了会被拒绝并给出可读提示，留空即回到自动探测。见 `docs/architecture/window-coordination.md` 的「The declared version comes first」一节。
 - 配置 PR worktree 打开方式和缓存目录，支持文件夹选择器。
 - 列出已创建的 worktree。
-- 页面上还承载这些设置：通知轮询开关、**轮询间隔**（数字字段，接受 60–3600 秒、默认 300，范围外的值被拒绝并说明原因）与「多窗口」租约、MCP 总开关与三条写工具开关和审计落盘开关、**AI 总开关**（`forgejoToolkit.aiEnabled`，默认开）、AI 预评审开关与提示词范围、PR 描述开关与提示词范围、模型传输方式（`auto` / `vscode-lm` / `openai-compatible`，改选即写，并且决定 AI 区块呈现哪一半配置），以及默认端点与模型、逐功能覆盖两行，还有「开发者」里的 **mock API 开关**（打开后每一个 Forgejo 请求都由本构建自带的样本数据回答，界面里的改动只留在内存里；扩展启动时只读一次，所以要重载窗口才生效，而开发构建之外这个开关不起作用）。每条都在行内写明默认值（轮询、租约、MCP 总开关与 AI 总开关默认开，三条写工具、审计落盘与 mock API 默认关，AI 预评审与 PR 描述默认关、各自的提示词范围默认 `ask`，传输方式默认 `auto`，默认端点与模型默认为空），一次改动只写变化的那一条设置，被编辑器拒绝时把已存的值弹回控件并说明宿主给的原因。
+- 页面上还承载这些设置：通知轮询与「多窗口」租约、MCP 总开关与三条写工具开关和审计落盘、AI 总开关与两个 AI 功能的开关和范围、模型传输方式与默认端点/逐功能覆盖、worktree 与「开发者」里的 mock API 开关；每条都在行内写明默认值，一次改动只写变化的那一条，被编辑器拒绝时把已存值弹回控件并说明原因。完整清单与逐条归类见 `docs/design/settings-page.md` §1.3。
 
 ### 国际化
 
@@ -163,24 +154,24 @@
 - Actions 运行详情页：展示 job 列表、job 日志、制品列表。
 - Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
 - Actions 运行详情页支持取消正在运行的记录。
-- Actions 远程触发 workflow：表单读取所选 ref 上 workflow 文件声明的 `on.workflow_dispatch.inputs`（依次查找 `.forgejo/workflows`、`.gitea/workflows`、`.github/workflows`），按声明渲染控件——`string` 文本框、`boolean` 复选框、`choice` 用 `options` 生成下拉框，其他类型（如 `number`、`environment`）退化为文本框——并显示输入名与 `description`、预填 `default`、标出 `required` 且在必填为空时拒绝提交。文件读取或解析失败（私有路径、不支持的写法、没有 `inputs`、接口报错）时回退到原始键值对输入、在界面上说明当前模式，且切换模式不会丢弃已填写的值；触发后轮询展示运行状态。
+- Actions 远程触发 workflow：表单读取所选 ref（分支或标签）上 workflow 声明的输入并渲染对应控件，标出必填、预填默认值；读不到或解析不了时退回原始键值对输入、已填的值不丢，触发后展示该次运行的状态并轮询刷新。输入映射与回退细节见两份 `CHANGELOG`。
 
 ### MCP Server
 
-- 通过 VS Code `contributes.mcpServerDefinitionProviders` 将每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition，label 为 `Forgejo: <实例名>`；两个实例的 label 相同时——同名，或同一主机上的两个账号——只给相撞的那些追加 `<用户名或实例 id>` 判别符，保证列表里可区分），供 Copilot agent mode 等 MCP 客户端使用，零配置（VS Code ≥ 1.102）。
-- 工作区 → 仓库映射工具 `get_workspace_repository`：宿主把当前工作区链接到的仓库按窗口写入 `globalStorage/mcp-workspace-<pid>-<nonce>.json`（复用检测的共享扫描缓存，串行化的原子写入，不含凭据），路径经 `FORGEJO_MCP_STATE_FILE` 传给 MCP 子进程；子进程每次调用实时重读，按实例 id（旧版宿主回退到实例 URL）过滤，并能把属于其他实例的仓库指向对应的服务器。AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。
-- Phase 1 只读工具集（全部标记 `readOnlyHint`，大字段截断保护上下文）：
+- 把每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition），供 Copilot agent mode 等 MCP 客户端零配置使用（VS Code ≥ 1.102）；两个实例的 label 相撞时自动加判别符，保证列表里可区分。见 `docs/architecture/mcp-server.md` 的「Zero-configuration launch」一节。
+- 工作区 → 仓库映射工具 `get_workspace_repository`：把当前工作区链接到的仓库交给 MCP 子进程（只读、不含凭据），AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。见该记录的「Workspace context」一节。
+- Phase 1 只读工具集（标记 `readOnlyHint`，大字段截断以保护上下文；清单见 `docs/architecture/mcp-server.md` 的「Tool surface」一节）：
   - 基础工具：Issue / PR / 时间线 / 通知 / 仓库信息 / 全局搜索。
   - Actions 扩展：运行历史、job 列表、job 日志、制品列表。
   - 代码读取扩展：文件内容、目录列表、分支、标签、提交、文件历史、仓库内文件搜索、PR diff。
   - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
-- MCP Prompts：三个只读提示模板 `review-pull-request` / `analyze-ci-failure` / `triage-issue`，把工具按固定顺序串成工作流并规定回答结构（评审意见、CI 根因、issue 分诊建议）。参数全部可选：缺省 owner/repo 时指引先调 `get_workspace_repository`，缺省编号时指引先用对应的列表工具解析。提示模板本身无副作用，不改动只读工具面与安全模型。
-- 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
-- 面向 agent 上下文预算的 PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部（标题/状态/作者/基头分支/合并阻塞）、diff 统计（文件数与总增删行，外加按文件的增删行表——不含 diff 文本）、每个 reviewer 的最新结论与汇总判断、以及未解决的 inline 评审评论（path/line/作者/时间/正文），替代评审起步时的 `get_pull_request` + `get_pr_diff` + `get_pr_timeline` + `list_pull_reviews` 四次调用；描述注明 diff 文本、描述、commit 与时间线仍需按需回退原工具。评论按 review 逐条读取（上游没有一次取全的端点），以 4 并发有界扇出，单个 review 读取失败只计入 `unreadableReviewCount`；被解决的会话按 Forgejo 只写在首条评论上的 `resolver` 整体排除。各段预分片（文件表 100 行/16 KB，评论 50 条/24 KB、单条正文 1 KB），`truncated`/`truncatedBy`/`bodyTruncated` 标注每处裁剪且总数保持精确，不依赖 `truncateLargeStrings` 兜底。
-- Phase 2 写工具（三个，均默认关闭、各自独立开关）：`create_issue_comment` 在 Issue / PR 下新增一条评论；`submit_pull_review` 提交一个已存在的待处理（pending）评审，结论为 `COMMENT` / `APPROVED` / `REQUEST_CHANGES`（拼写与 Forgejo 的 `ReviewStateType` 一致，非法取值发请求前即被拒），`APPROVED` 可能满足分支保护要求，且它与 `REQUEST_CHANGES` 必须有非空正文；`cancel_action_run` 取消一条待处理或运行中的 Actions workflow 运行记录（停止已在跑的工作，且服务端对已完成的 run 也返回 204，故结果只说「接受了取消请求」，状态以 `list_action_runs` 为准）。两道闸门：VS Code 每次调用弹确认框，并且要在设置里**按工具**开启（`forgejoToolkit.mcpWriteTools.createIssueComment` / `submitPullReview` / `cancelActionRun`）；只有**由扩展宿主建立的会话**才能写，只带你自己配置里 token 的会话会被明确拒绝并指出该打开哪个设置。
-- 三个写工具都支持 dry-run（先给出计划，含目标与正文长度/摘要哈希，评审还会说明结论的含义）与幂等键（10 分钟内同一 key 的相同调用只发一次、直接回放上次结果）；每次调用都留下不含正文的审计记录（默认只进 `Forgejo Toolkit` Output Channel，可用 `forgejoToolkit.mcpWriteAuditToFile` 同时落盘，评审记录额外带 `reviewId`，无请求体的取消记录不带字节数与摘要字段）。设计与决定记录见 `docs/design/mcp-write-tools-confirmation.md`。
-- 设置 `forgejoToolkit.mcpEnabled`（默认开）：关闭后不注册 MCP server 定义、停掉本地 broker，已连接的客户端继续用已启动的进程直到重载窗口；运行时切换即刻生效。
-- Copilot 指令生成命令 `forgejoToolkit.writeCopilotInstructions`：在工作区仓库的 `<仓库根>/.github/copilot-instructions.md` 创建 / 追加 / 更新一段只读能力声明；标记不完整或重复时完全不写入并警告。
+- MCP Prompts：三个只读提示模板 `review-pull-request` / `analyze-ci-failure` / `triage-issue`，把工具串成固定工作流并规定回答结构；参数全部可选。见该记录的「Prompts」一节。
+- CI 失败摘要工具 `get_ci_failure_summary`：一次调用取回 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），含日志头部上限导致尾部不可见的情形；替代「先列 job 再逐个拉日志」的多次调用。见该记录。
+- PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部、diff 统计（含按文件的增删行）、每个 reviewer 的最新结论与未解决的 inline 评论，替代起步时的四次调用；diff 文本、描述、commit 与时间线仍按需回退原工具。见该记录。
+- Phase 2 写工具（三个，均默认关闭、各自独立开关）：`create_issue_comment` 新建评论；`submit_pull_review` 提交一个已存在的待处理评审，结论为评论 / 批准 / 要求修改；`cancel_action_run` 取消一条待处理或运行中的 workflow 运行。门槛与来源判定见 `docs/architecture/mcp-server.md` 与 `docs/design/mcp-write-tools-confirmation.md`。
+- 三个写工具都支持 dry-run（先给计划）与幂等键（10 分钟内同一 key 的重复调用直接回放上次结果）；每次调用都留下一条不含正文的审计记录，可同时落盘。见该记录。
+- 设置 `forgejoToolkit.mcpEnabled`（默认开）：关闭后不再注册 MCP server 定义并停掉本地 broker，运行时切换即刻生效；已连接的客户端继续用已启动的进程，直到重载窗口。
+- 命令 `forgejoToolkit.writeCopilotInstructions`：在工作区仓库的 `<仓库根>/.github/copilot-instructions.md` 创建 / 追加 / 更新一段只读能力声明；标记不完整或重复时完全不写入并警告。
 
 ### 多窗口轮询租约
 
