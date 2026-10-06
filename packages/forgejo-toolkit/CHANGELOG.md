@@ -326,6 +326,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The first-run wizard showed an empty strip under the buttons when it had
   nothing to report; the message area now stays invisible until it has
   something to say.
+- **Saving an issue or a pull request now closes the edit dialog, and a save that
+  fails says why.** The dialog used to stay open after a successful save with no
+  message at all, which read as "the save did nothing": the close waited for a
+  report the webview only produced when the host's reply happened to carry the
+  parsed issue (or pull request), and a success reply without it was silently
+  ignored. The save is now reported by the reply itself, so the dialog closes
+  whether or not that payload is there. A rejected save is unchanged in what it
+  keeps — the dialog stays open with everything you typed — and the reason is
+  shown on the form.
 - An AI pre-review against an endpoint that stopped at the endpoint's own output
   limit now says that, instead of only that the answer was not JSON. The message
   names the endpoint the way the consent question does, says the answer hit the

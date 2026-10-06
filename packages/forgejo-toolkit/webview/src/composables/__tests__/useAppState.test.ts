@@ -2873,6 +2873,92 @@ describe('useAppState', () => {
     });
   });
 
+  describe("the edit dialog's save signal", () => {
+    /**
+     * The dialogs close on `lastSavedIssue` / `lastSavedPullRequest`, and this is the
+     * signal the host's reply produces. It used to be written only when the reply
+     * carried the parsed `item`, which made "the edit was saved" depend on an optional
+     * field: a success reply without it closed nothing and said nothing, so the dialog
+     * stayed open with no error (found in the isolated dev host on 2026-10-06, on the
+     * plain manual-edit path).
+     */
+    it('reports the save on an issueUpdated reply that carries no parsed issue', async () => {
+      const { state } = await createState();
+
+      dispatchMessage({
+        command: 'issueUpdated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 7,
+      });
+      await nextTick();
+
+      expect(state.lastSavedIssue.value).toEqual({
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 7,
+      });
+    });
+
+    it('keeps the save signal untouched and reports the reason when the issue save failed', async () => {
+      const { state, mod } = await createState();
+
+      dispatchMessage({
+        command: 'issueUpdated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 7,
+        error: 'API down',
+      });
+      await nextTick();
+
+      // No signal means the dialog stays open with what was typed, and the sentence
+      // lands on the form's own key so the reader is told why.
+      expect(state.lastSavedIssue.value).toBeUndefined();
+      expect(state.errors.get(mod.issueFormKey('inst-1', 'owner', 'alpha', 7))).toBe('API down');
+    });
+
+    it('reports the save on a pullRequestUpdated reply that carries no parsed pull request', async () => {
+      const { state } = await createState();
+
+      dispatchMessage({
+        command: 'pullRequestUpdated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 3,
+      });
+      await nextTick();
+
+      expect(state.lastSavedPullRequest.value).toEqual({
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 3,
+      });
+    });
+
+    it('keeps the pull request save signal untouched when the save failed', async () => {
+      const { state, mod } = await createState();
+
+      dispatchMessage({
+        command: 'pullRequestUpdated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 3,
+        error: 'API down',
+      });
+      await nextTick();
+
+      expect(state.lastSavedPullRequest.value).toBeUndefined();
+      expect(state.errors.get(mod.pullRequestFormKey('inst-1', 'owner', 'alpha', 3))).toBe('API down');
+    });
+  });
+
   describe('repository-scoped invalidation', () => {
     it('a saved issue invalidates only its own repository and lets the list refetch', async () => {
       const { state, mod } = await createState();

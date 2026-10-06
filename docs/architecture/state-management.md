@@ -116,6 +116,21 @@ State changes through three routes:
   may block on a human decision: the host-confirmed attachment deletes and the
   `showInputBox`/`showConfirm` native dialogs.
 
+**A save's outcome is reported, not inferred** (`handleIssueSaved` /
+`handlePullRequestSaved`, 2026-10-06). The host answers `issueUpdated` /
+`pullRequestUpdated` with **no error exactly when the edit was accepted**, and that is
+what the edit dialogs act on: `IssueDetail.vue` and `PullRequestDetail.vue` each watch
+their own `lastSavedIssue` / `lastSavedPullRequest` signal, and the view that owns the
+saved target closes its dialog (and, when it has marked attachments, deletes them). The
+parsed `item` the reply may also carry is **not** the outcome: it is what the
+repository's issue/pull-request lists refresh from, so it only decides the list
+invalidation. The two used to be the same condition, which made a success reply without
+that payload close nothing and say nothing — the dialog stayed open with no error, which
+is what the isolated dev host showed on the plain manual-edit path. A reply **with** an
+error is the other half of the rule: it writes that sentence onto the form's own key and
+leaves the save signal alone, so the dialog stays open with everything the reader typed
+and the form shows the reason — never silently.
+
 The request/reply protocol itself is documented in
 [communication.md](./communication.md).
 

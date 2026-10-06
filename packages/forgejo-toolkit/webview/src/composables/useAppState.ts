@@ -3405,6 +3405,18 @@ function createAppState() {
       return;
     }
     errors.delete(formKey);
+    // **The save is reported, not inferred.** The host answers `issueUpdated` (or
+    // `issueCreated`) with no error exactly when the edit was accepted, and the edit
+    // dialog closes on this signal — `IssueDetail.vue` watches `lastSavedIssue` and
+    // closes the dialog it owns once the reply lands. It used to be written only inside
+    // the `data.item` branch below, which made "the edit was saved" depend on an
+    // optional field: a success reply that carried no parsed issue closed nothing and
+    // said nothing, so the dialog stayed open with no error at all (found in the dev
+    // host on 2026-10-06, on the plain manual-edit path).
+    //
+    // `item` still decides the **list** invalidation below — it is the parsed issue the
+    // lists refresh from — but the outcome of the save is the absence of an error.
+    lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
     if (data.item) {
       // Scope the invalidation to the repository that changed: clearing every
       // list would drop other repositories' payloads and, because it skipped the
@@ -3412,7 +3424,6 @@ function createAppState() {
       invalidateRepoIssueLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
       myIssues.value.clear();
       myIssuesCache.clear();
-      lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
     }
   }
 
@@ -3763,18 +3774,22 @@ function createAppState() {
       return;
     }
     errors.delete(formKey);
+    // **Reported, not inferred**, for the same reason and with the same history as
+    // `handleIssueSaved`: the pull request's edit dialog closes on this signal
+    // (`PullRequestDetail.vue` watches it), and tying it to the optional `item` left a
+    // success reply without one closing nothing and saying nothing.
+    lastSavedPullRequest.value = {
+      instanceId: data.instanceId,
+      owner: data.owner,
+      repo: data.repo,
+      index: data.index,
+    };
     if (data.item) {
       // Repository-scoped, like handleIssueSaved: only this repository's pull
       // request lists (and their fresh marks) changed.
       invalidateRepoPullRequestLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
       myPullRequests.value.clear();
       myPullRequestsCache.clear();
-      lastSavedPullRequest.value = {
-        instanceId: data.instanceId,
-        owner: data.owner,
-        repo: data.repo,
-        index: data.index,
-      };
     }
   }
 
