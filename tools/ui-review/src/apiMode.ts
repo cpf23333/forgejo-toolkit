@@ -56,7 +56,7 @@ export const MOCK_BUILD_MARKERS: readonly string[] = [
   '[mocks] no handler matched',
   '(a test must never reach the real network).',
   'A demo repository for offline development.',
-  'Demonstrates API failure states: changed-files fetches fail with 500.',
+  'Demonstrates API failure states: changed-files fetches and edits fail with 500.',
 ];
 
 /**

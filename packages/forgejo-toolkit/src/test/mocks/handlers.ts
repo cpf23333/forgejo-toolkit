@@ -129,6 +129,28 @@ export const MOCK_EMPTY_REPO = 'empty-repo';
 export const MOCK_LABEL_FREE_REPO = 'another-repo';
 
 /**
+ * The repository whose **edit endpoints fail**: saving an issue or a pull request in it
+ * answers {@link MOCK_EDIT_FAILURE_MESSAGE} with a 500 instead of 200.
+ *
+ * It is `broken-repo`, the repository the mock already reserves for "things go wrong
+ * here" (its other switch is the changed-files fetch, see the handler below), and that
+ * is deliberate: it is already an entry in the mock repository list, so the
+ * **save-failure arm of the edit dialogs** can be walked in the isolated dev host —
+ * open one of its issues or pull requests, press Save, and the form is expected to show
+ * that sentence — without inventing a repository the list does not carry and without
+ * changing any other repository's behaviour.
+ */
+export const MOCK_EDIT_FAILURE_REPO = mockRepositoryFail.name;
+
+/**
+ * What the failing edit endpoints answer with, in the Forgejo error shape
+ * (`{ message }`) the client reads the user-facing sentence out of
+ * (`extractApiErrorMessage`), so a walkthrough can compare the sentence the form shows
+ * with the response body it came from.
+ */
+export const MOCK_EDIT_FAILURE_MESSAGE = 'Mock failure: broken-repo rejects edits';
+
+/**
  * Comment bodies the mocked issue indexer matches, keyed by issue/PR number,
  * plus a keyword that appears *only* in one of them. Forgejo's issue indexer
  * searches `title`, `content` and `comments` (see the bleve mapping in
@@ -335,7 +357,14 @@ export const handlers = [
     );
   }),
 
-  http.patch('*://*/api/v1/repos/:owner/:repo/issues/:index', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/issues/:index', async ({ request, params }) => {
+    // Walkthrough failure switch: the issue edit endpoints answer a readable error for
+    // {@link MOCK_EDIT_FAILURE_REPO}, so the edit dialog's save-failure arm can be
+    // walked live (every other repository still saves). The response body's `message` is
+    // the sentence the form shows, which is what a walkthrough compares it against.
+    if (params.repo === MOCK_EDIT_FAILURE_REPO) {
+      return json({ message: MOCK_EDIT_FAILURE_MESSAGE }, 500);
+    }
     const body = (await request.json()) as Record<string, unknown>;
     issueEdits = {
       title: body.title !== undefined ? String(body.title) : (issueEdits?.title ?? mockIssueDetail.title),
@@ -347,7 +376,13 @@ export const handlers = [
 
   http.delete('*://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 204 })),
 
-  http.put('*://*/api/v1/repos/:owner/:repo/issues/:index/labels', async ({ request }) => {
+  http.put('*://*/api/v1/repos/:owner/:repo/issues/:index/labels', async ({ request, params }) => {
+    // The same switch, because the form's payload decides whether the host reaches this
+    // call at all (it runs after a successful PATCH when the edit carried a label list):
+    // failing both keeps "saving in this repository fails" true for every payload shape.
+    if (params.repo === MOCK_EDIT_FAILURE_REPO) {
+      return json({ message: MOCK_EDIT_FAILURE_MESSAGE }, 500);
+    }
     const body = (await request.json()) as { labels?: number[] };
     return json(
       (body.labels ?? []).map((id) => ({
@@ -492,7 +527,13 @@ export const handlers = [
     );
   }),
 
-  http.patch('*://*/api/v1/repos/:owner/:repo/pulls/:index', async ({ request }) => {
+  http.patch('*://*/api/v1/repos/:owner/:repo/pulls/:index', async ({ request, params }) => {
+    // The pull-request half of the walkthrough save-failure switch
+    // ({@link MOCK_EDIT_FAILURE_REPO}): the pull request edit dialog must be able to show
+    // a failed save live, exactly like the issue one.
+    if (params.repo === MOCK_EDIT_FAILURE_REPO) {
+      return json({ message: MOCK_EDIT_FAILURE_MESSAGE }, 500);
+    }
     const body = (await request.json()) as Record<string, unknown>;
     pullEdits = {
       title: body.title !== undefined ? String(body.title) : (pullEdits?.title ?? mockPullRequestDetail.title),

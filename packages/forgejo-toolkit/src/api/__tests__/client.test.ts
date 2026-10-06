@@ -30,13 +30,20 @@ import {
 } from '../client';
 import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ApiError } from '../errors';
+import { extractApiErrorMessage } from '../errors-core';
 import { clearServerVersions, setDeclaredServerVersionResolver, setServerVersion } from '../serverVersion';
 import { SERVER_VERSION_CACHE_TTL_MS, setServerVersionCacheStorage } from '../serverVersionCache';
 import { makeMemoryVersionCacheStore, type MemoryVersionCacheStore } from './serverVersionCacheTestHelpers';
 import { removeTempDir } from '../../__tests__/tempDir';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
-import { MOCK_EMPTY_REPO, MOCK_LABEL_FREE_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
+import {
+  MOCK_EMPTY_REPO,
+  MOCK_EDIT_FAILURE_MESSAGE,
+  MOCK_EDIT_FAILURE_REPO,
+  MOCK_LABEL_FREE_REPO,
+  MOCK_SERVER_VERSION,
+} from '../../test/mocks/handlers';
 import {
   mockUser,
   mockRepository,
@@ -2835,6 +2842,73 @@ describe('ForgejoClient with MSW', () => {
     it('fails the changed-files fetch for broken-repo (walkthrough failure switch)', async () => {
       const client = createClient();
       await expect(client.getPullRequestFiles('demo-user', mockRepositoryFail.name, 2)).rejects.toThrow(/500/);
+    });
+
+    it('serves the save-failure switch with the permissions that put the edit button on the page', async () => {
+      // Reachability, not just the failing endpoint: the edit entry points are gated on
+      // being the issue's/PR's author or holding `admin`/`push`, the isolated dev host
+      // runs as `user1`, and the mocked issue and pull request belong to `demo-user`.
+      // `mockRepositoryFail` therefore carries `mockRepository`'s permissions — without
+      // them both pages render with no 编辑 button, and the readable failure this switch
+      // serves can never be opened, which is exactly how its first version was
+      // unreachable.
+      const client = createClient();
+      const issue = await client.getIssueDetail('demo-user', MOCK_EDIT_FAILURE_REPO, 1);
+      expect(issue.repoPermissions).toEqual({ admin: true, push: true, pull: true });
+
+      const pullRequest = await client.getPullRequestDetail('demo-user', MOCK_EDIT_FAILURE_REPO, 2);
+      expect(pullRequest.repoPermissions).toEqual({ admin: true, push: true, pull: true });
+    });
+
+    it('fails the issue edit for the save-failure switch, with the sentence the form shows', async () => {
+      // `MOCK_EDIT_FAILURE_REPO` exists so the edit dialog's **save-failure arm** can be
+      // walked live: a successful save closes the dialog, a failed one must keep it and
+      // show this sentence. Pinning both halves here — that the endpoint fails, and that
+      // the reason is the readable `message` in the response body
+      // (`extractApiErrorMessage` is what turns it into the reader-facing sentence) —
+      // keeps the switch from rotting silently.
+      const client = createClient();
+      const failure = await client
+        .editIssue('demo-user', MOCK_EDIT_FAILURE_REPO, 1, { title: 'edited' } as unknown as EditIssueOption)
+        .then(
+          () => undefined,
+          (error: Error) => error,
+        );
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(String(failure?.message)).toContain('Forgejo API error 500');
+      expect(extractApiErrorMessage(String(failure?.message))).toBe(MOCK_EDIT_FAILURE_MESSAGE);
+    });
+
+    it('fails the issue label write for the save-failure switch, and leaves every other repository saving', async () => {
+      // The label write is the edit path's second call: it only happens when the edit
+      // carried a label list, so it fails under the switch too.
+      const client = createClient();
+      await expect(client.replaceIssueLabels('demo-user', MOCK_EDIT_FAILURE_REPO, 1, [1])).rejects.toThrow(
+        MOCK_EDIT_FAILURE_MESSAGE,
+      );
+
+      // The switch is one repository: the shared fixtures still save.
+      const issue = await client.editIssue('demo-user', 'demo-repo', 1, {
+        title: 'edited after the switch',
+      } as unknown as EditIssueOption);
+      expect(issue.title).toBe('edited after the switch');
+      const labels = await client.replaceIssueLabels('demo-user', 'demo-repo', 1, [1, 2]);
+      expect(labels).toHaveLength(2);
+    });
+
+    it('fails the pull request edit for the save-failure switch, and leaves every other repository saving', async () => {
+      const client = createClient();
+      await expect(
+        client.editPullRequest('demo-user', MOCK_EDIT_FAILURE_REPO, 2, {
+          title: 'edited',
+        } as unknown as EditPullRequestOption),
+      ).rejects.toThrow(MOCK_EDIT_FAILURE_MESSAGE);
+
+      const pull = await client.editPullRequest('demo-user', 'demo-repo', 2, {
+        title: 'edited after the switch',
+      } as unknown as EditPullRequestOption);
+      expect(pull.title).toBe('edited after the switch');
     });
 
     it('normalizes the deleted file status to removed', async () => {

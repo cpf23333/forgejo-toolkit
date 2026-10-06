@@ -365,6 +365,17 @@ the isolated dev host:
 - **A mock instance the launcher refuses to run with can sit in the profile, and
   `pnpm kill` does not remove it.** See "Pruning an instance the launcher refuses"
   below.
+- **Fixture text can be a build-detection marker, so reword it and move the marker in
+  the same change.** `MOCK_BUILD_MARKERS` (`src/apiMode.ts`) holds literals that must
+  survive in `src/test/mocks/`, and one of them is `broken-repo`'s repository
+  description. Rewording that description for a walkthrough
+  (`… changed-files fetches fail with 500.` became
+  `… changed-files fetches and edits fail with 500.`, 2026-10-06) therefore turns every
+  build into "no mocks": the launcher's gate reads the built chunks for those literals
+  and refuses a mock-backed run, and the harness suite fails on
+  `every detection marker still exists in the mock sources` — whose message names the
+  file and says to update the literal. Move it with the text, or the trap costs the
+  next walker a launch.
 
 ## Mock-backed runs and the real-API opt-in
 
@@ -1249,6 +1260,39 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   to be a **static function body** handed to the frame (`frame.evaluate(() => { … })`,
   compiled by the CDP client's own context rather than by the page). `ui eval` is not
   affected: it evaluates in the workbench page, whose CSP is not the guest's.
+- **A markdown-preview editor is a second `#active-frame` shell, so "the frame that is
+  not the main frame" is ambiguous while one is open.** Measured 2026-10-06 in the
+  isolated dev host: with `预览 README.md` open in the editor area, `page.frames()`
+  yields **two** shells that both carry `#active-frame` — the sidebar (49,68) and the
+  preview (745,69) — so a driver that takes the first match as "the dashboard" reads
+  and clicks the preview instead. The preview's guest body is the tell
+  (`document.body.classList.contains('vscode-body')`); the extension's own surfaces are
+  the ones that do not, and the sidebar is the left-hand frame. A run in that state
+  produced measurements that had to be thrown away and re-taken in a fresh window after
+  the driver learned the difference, so before believing a click or a read, check
+  **which shell** it came from, not only which selector it used.
+- **An open observation, not a product defect** (2026-10-06, isolated dev host). In the
+  window launched at 16:09 three successful saves — an issue edit and two pull-request
+  edits, each `200` on the wire with no host-side failure line — left the edit dialog
+  open with no sentence at all, and in the last of them the guest demonstrably received
+  `pullRequestUpdated` carrying the parsed `item` and no `error`: the reply arrived, yet
+  no `getIssueDetail` / `getPullRequestDetail` re-read followed and the dialog was still
+  genuinely modal (a click on the page behind it was swallowed). Four saves after
+  `pnpm kill` and a relaunch — one of them repeating the same navigation path — all
+  closed the dialog normally, and the component tests pin both arms. **Reproduced the
+  same day, with its precondition**: in one window, after the route had moved from
+  `demo-user/broken-repo#1` to `demo-user/demo-repo#1`, the demo-repo save (`200`, no
+  host-side failure) again left the dialog open with no sentence and no re-read, while
+  the same save in a fresh window that went **straight** to `demo-repo#1` closed it
+  normally. The shape is a view whose captured ownership key still belongs to the issue
+  it was first opened for, so a reply for the issue it now shows does not match and the
+  watcher returns early — a product question being fixed separately, recorded here
+  because a walker has to recognise the precondition (one view reused across
+  repositories) before calling it a regression. A future run that sees a dialog stay
+  open after a `200` save should capture the guest's inbound messages (a `message`
+  listener installed in the guest records them, and the host's own
+  `Received message from webview: …` lines show what it received) and compare the
+  reply's `instanceId`/`owner`/`repo`/`index` with the view's own route.
 - **Native OS dialogs** (VS Code modal messages such as the dirty-form confirm)
   are separate Win32 windows and never appear in CDP screenshots:
 
