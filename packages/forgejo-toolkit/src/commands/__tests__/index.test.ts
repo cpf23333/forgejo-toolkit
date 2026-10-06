@@ -29,6 +29,7 @@ vi.mock('../../editor/todoCommentCodeAction', () => ({
 vi.mock('../createPullRequest', () => ({ createPrFromCurrentBranch: mocks.createPrFromCurrentBranch }));
 
 import { registerCommands, toLineNumber } from '../index';
+import { REFRESH_VIEW_COMMANDS } from '../../webview/activeView';
 
 async function flushAsync() {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -36,6 +37,15 @@ async function flushAsync() {
 }
 
 function registerHandlers() {
+  return registerHandlersWithProvider().handlers;
+}
+
+/**
+ * The same registration, keeping the provider the commands were handed: the
+ * view-title refresh commands share one handler on it, and "they all refresh the
+ * view the reader is on" is only observable through that provider.
+ */
+function registerHandlersWithProvider() {
   const controller = {
     addComment: mocks.addComment,
     deleteComment: mocks.deleteComment,
@@ -49,13 +59,17 @@ function registerHandlers() {
   // (`setAiPreReviewRunner`) and the create form's "Generate description" control
   // (`setPrDescriptionRunner`) — so even this suite, which never dispatches a
   // webview message, has to pass a provider that accepts both handovers.
-  const viewProvider = { setAiPreReviewRunner: vi.fn(), setPrDescriptionRunner: vi.fn() };
+  const viewProvider = {
+    refresh: vi.fn(),
+    setAiPreReviewRunner: vi.fn(),
+    setPrDescriptionRunner: vi.fn(),
+  };
   registerCommands(context as never, {} as never, {} as never, viewProvider as never, controller as never);
   const handlers = new Map<string, (...args: unknown[]) => void>();
   for (const [name, callback] of vi.mocked(vscode.commands.registerCommand).mock.calls) {
     handlers.set(name, callback as (...args: unknown[]) => void);
   }
-  return handlers;
+  return { handlers, viewProvider };
 }
 
 interface FakeSelection {
@@ -498,5 +512,163 @@ describe('package.json contributions', () => {
     expect(menuItem('comments/comment/context', 'forgejoToolkit.deletePullReviewComment')?.when).toBe(
       'commentController == forgejo-pull-review-comments && comment =~ /^forgejo:/',
     );
+  });
+});
+
+/**
+ * The view-title refresh: one icon and one handler, with one item per target
+ * whose `when` clause names the view it belongs to.
+ *
+ * A command's title is static, so the tooltip that says the true thing has to be
+ * a command of its own (see the Webview UI section of
+ * `docs/architecture/README.md`). These assertions read the manifest the way VS
+ * Code evaluates it — every item's clause is matched against every value the host
+ * can store under `forgejoToolkit.activeView` — so an item that overlaps another,
+ * one that claims a view it does not refresh, or a second refresh entry in the
+ * palette fails here instead of on screen.
+ */
+describe('the view-title refresh items', () => {
+  const manifest = JSON.parse(
+    readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json'), 'utf8'),
+  ) as {
+    contributes: {
+      commands: Array<{ command: string; title?: string; icon?: string }>;
+      menus: Record<string, Array<{ command: string; when?: string }>>;
+    };
+  };
+  const readNls = (file: string) =>
+    JSON.parse(
+      readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', file), 'utf8'),
+    ) as Record<string, string>;
+
+  /** The command each reported view has to offer, and the views that offer none. */
+  const EXPECTED_ITEM: Record<string, string> = {
+    dashboard: 'forgejoToolkit.refreshInstances',
+    repoDetail: 'forgejoToolkit.refreshRepository',
+    repoIssues: 'forgejoToolkit.refreshRepository',
+    repoPullRequests: 'forgejoToolkit.refreshRepository',
+    actionRunDetail: 'forgejoToolkit.refreshRepository',
+    issueDetail: 'forgejoToolkit.refreshIssue',
+    pullRequestDetail: 'forgejoToolkit.refreshPullRequest',
+    notifications: 'forgejoToolkit.refreshNotifications',
+    // The only sidebar route deliberately without one: its results belong to the
+    // query in its own box, and re-running that query is what its Search control
+    // does.
+    globalSearch: '',
+  };
+
+  const refreshItems = (manifest.contributes.menus['view/title'] ?? []).filter((item) =>
+    (REFRESH_VIEW_COMMANDS as readonly string[]).includes(item.command),
+  );
+
+  /**
+   * The `forgejoToolkit.activeView` values a clause matches.
+   *
+   * Only the two shapes this extension writes are read — one equality, or one
+   * anchored alternation — so a clause that tests the key another way (a
+   * negation, which would make an item visible where it must not be) is reported
+   * as unreadable rather than silently counted as no match.
+   */
+  function matchedActiveViews(when: string | undefined): string[] | undefined {
+    if (typeof when !== 'string') {
+      return undefined;
+    }
+    const equality = /forgejoToolkit\.activeView == ([a-zA-Z]+)/.exec(when);
+    if (equality) {
+      return [equality[1]];
+    }
+    const alternation = /forgejoToolkit\.activeView =~ \/\^\(([a-zA-Z|]+)\)\$\//.exec(when);
+    return alternation ? alternation[1].split('|') : undefined;
+  }
+
+  /** Every refresh item a reported view would show, `view == forgejoToolkitView` included. */
+  function itemsForView(view: string): string[] {
+    return refreshItems
+      .filter((item) => item.when?.includes('view == forgejoToolkitView'))
+      .filter((item) => matchedActiveViews(item.when)?.includes(view))
+      .map((item) => item.command);
+  }
+
+  it('contributes one item per refresh command, all sharing the refresh icon', () => {
+    const withRefreshIcon = manifest.contributes.commands.filter((entry) => entry.icon === '$(refresh)');
+    expect(withRefreshIcon.map((entry) => entry.command).sort()).toEqual([...REFRESH_VIEW_COMMANDS].sort());
+    for (const id of REFRESH_VIEW_COMMANDS) {
+      expect(
+        refreshItems.filter((item) => item.command === id),
+        id,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('shows exactly one item, for the view the sidebar reported', () => {
+    for (const [view, expected] of Object.entries(EXPECTED_ITEM)) {
+      expect(itemsForView(view), view).toEqual(expected ? [expected] : []);
+    }
+    // A report of "nothing to refresh" — the dashboard of an installation with
+    // no instance — has to leave the icon away, and so has a value the host
+    // refuses (which it stores as no view at all).
+    expect(itemsForView('none')).toEqual([]);
+    expect(itemsForView('someFutureView')).toEqual([]);
+  });
+
+  it('gates every item on the sidebar view, which no panel reports', () => {
+    // The settings tab, the setup wizard and the three editor-area panels are
+    // separate documents with no view title bar, and none of them mounts the
+    // sidebar's shell, so none of them ever reports a view. The `view` half of the
+    // clause is what keeps an item out of any other view a contribution could
+    // reach.
+    for (const item of refreshItems) {
+      expect(matchedActiveViews(item.when), `${item.command} has no readable activeView clause`).toBeDefined();
+      expect(item.when, item.command).toContain('view == forgejoToolkitView');
+    }
+  });
+
+  it('gives each item its own tooltip, in both languages', () => {
+    const titles = REFRESH_VIEW_COMMANDS.map(
+      (id) => manifest.contributes.commands.find((entry) => entry.command === id)?.title ?? '',
+    );
+    for (const [index, title] of titles.entries()) {
+      expect(title, REFRESH_VIEW_COMMANDS[index]).toMatch(/^%command\.[a-zA-Z]+\.title%$/);
+    }
+    // The wording differences are the point: five items that all said "Refresh"
+    // would leave the reader guessing which one they are looking at.
+    expect(new Set(titles).size).toBe(titles.length);
+
+    const en = readNls('package.nls.json');
+    const zh = readNls('package.nls.zh-cn.json');
+    for (const title of titles) {
+      const key = title.slice(1, -1);
+      expect(en[key], `en: ${key}`).toBeTruthy();
+      expect(zh[key], `zh: ${key}`).toBeTruthy();
+      expect(zh[key], key).not.toBe(en[key]);
+    }
+  });
+
+  it('keeps the palette to the one refresh that matches the sidebar', () => {
+    // Every contributed command is in the palette unless a `commandPalette` entry
+    // says otherwise, so ungated entries would list five refresh actions whose
+    // titles only one of them can honour.
+    const palette = (manifest.contributes.menus.commandPalette ?? []).filter((item) =>
+      (REFRESH_VIEW_COMMANDS as readonly string[]).includes(item.command),
+    );
+    expect(palette.map((item) => item.command).sort()).toEqual([...REFRESH_VIEW_COMMANDS].sort());
+    for (const item of palette) {
+      const itemWhen = refreshItems.find((viewItem) => viewItem.command === item.command)?.when;
+      expect(matchedActiveViews(item.when), item.command).toEqual(matchedActiveViews(itemWhen));
+      // `view` is not set in the palette, so the clause may not test it there.
+      expect(item.when, item.command).not.toContain('view ==');
+    }
+  });
+
+  it('registers every refresh command on the one handler', () => {
+    const { handlers, viewProvider } = registerHandlersWithProvider();
+    for (const id of REFRESH_VIEW_COMMANDS) {
+      const handler = handlers.get(id);
+      expect(handler, `${id} is not registered`).toBeDefined();
+      handler!();
+    }
+    // One implementation, several items: the press is routed by the webview
+    // (`refreshActiveView`), which is the only side that knows its own route.
+    expect(viewProvider.refresh).toHaveBeenCalledTimes(REFRESH_VIEW_COMMANDS.length);
   });
 });

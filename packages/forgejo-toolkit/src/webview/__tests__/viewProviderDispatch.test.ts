@@ -184,6 +184,7 @@ import {
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
+import { ACTIVE_VIEW_CONTEXT_KEY } from '../activeView';
 import type { StalePrWorktreeInfo } from '../../worktree/gitOperations';
 import { OnboardingWebviewPanel } from '../onboardingPanel';
 import { PullReviewCommentPanel } from '../../comments/pullReviewCommentPanel';
@@ -442,6 +443,77 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(typeof fallback?.error).toBe('string');
     // The specific reply was never sent.
     expect(messages.some((m) => m.command === 'issueCreated')).toBe(false);
+  });
+
+  describe('the sidebar view the webview reports', () => {
+    /**
+     * The view-title refresh items are gated on `forgejoToolkit.activeView`
+     * (`contributes.menus`) and only the host can set a context key, so the
+     * sidebar's webview — the one side that knows its route — reports it. Every
+     * assertion below reads the key's own calls only: the host sets other context
+     * keys from git scans that run on their own timers.
+     */
+    function activeViewContextCalls(): unknown[][] {
+      return vi
+        .mocked(vscode.commands.executeCommand)
+        .mock.calls.filter(([command, key]) => command === 'setContext' && key === ACTIVE_VIEW_CONTEXT_KEY);
+    }
+
+    it('publishes the reported view under the context key', async () => {
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      fake.send({ command: 'setActiveView', view: 'pullRequestDetail' });
+      await flushDispatches();
+
+      expect(activeViewContextCalls()).toEqual([['setContext', ACTIVE_VIEW_CONTEXT_KEY, 'pullRequestDetail']]);
+    });
+
+    it('passes the "nothing to refresh" report through as itself', async () => {
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      fake.send({ command: 'setActiveView', view: 'none' });
+      await flushDispatches();
+
+      // No item tests this value, which is how the dashboard of an installation
+      // with no instance keeps the refresh icon away.
+      expect(activeViewContextCalls()).toEqual([['setContext', ACTIVE_VIEW_CONTEXT_KEY, 'none']]);
+    });
+
+    it('treats a value it does not contribute as no view at all', async () => {
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      fake.send({ command: 'setActiveView', view: 'someOtherExtensionsView' });
+      await flushDispatches();
+
+      // The webview is untrusted: a forged value must not make an item visible
+      // for a page the host cannot name, so it is stored as the absence of a view.
+      expect(activeViewContextCalls()).toEqual([['setContext', ACTIVE_VIEW_CONTEXT_KEY, undefined]]);
+    });
+
+    it('forgets the view when the webview is gone', async () => {
+      fake.send({ command: 'setActiveView', view: 'issueDetail' });
+      await flushDispatches();
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      fake.dispose();
+
+      // An item left on screen for a webview that no longer exists would refresh
+      // nothing at all, so the key goes back to "no view".
+      expect(activeViewContextCalls()).toEqual([['setContext', ACTIVE_VIEW_CONTEXT_KEY, undefined]]);
+    });
+
+    it('forgets the view when a new webview is resolved', async () => {
+      // Showing the sidebar again resolves a fresh webview, and the same happens
+      // when instance origins change and the HTML is regenerated: that page boots
+      // on its own first route, not on the one the previous page reported.
+      fake.send({ command: 'setActiveView', view: 'issueDetail' });
+      await flushDispatches();
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      provider.resolveWebviewView(fake.view as never, {} as never, {} as never);
+
+      expect(activeViewContextCalls()).toEqual([['setContext', ACTIVE_VIEW_CONTEXT_KEY, undefined]]);
+    });
   });
 
   describe('search truncation and attachment-availability reporting', () => {

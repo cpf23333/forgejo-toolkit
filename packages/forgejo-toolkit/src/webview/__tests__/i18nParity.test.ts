@@ -298,6 +298,14 @@ describe('manifest nls pairs', () => {
       // entry whose title must not read like the existing "Open Settings" one,
       // which opens this page.
       'command.openNativeSettings.title',
+      // The view-title refresh items: the icon is all a menu shows, so the
+      // command's title *is* the tooltip that says what a press re-reads, and
+      // each of the five names a different target.
+      'command.refreshInstances.title',
+      'command.refreshRepository.title',
+      'command.refreshIssue.title',
+      'command.refreshPullRequest.title',
+      'command.refreshNotifications.title',
     ];
     for (const key of names) {
       expect(en.get(key), `en: ${key}`).toBeTruthy();

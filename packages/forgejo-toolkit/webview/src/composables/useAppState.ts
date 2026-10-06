@@ -299,6 +299,8 @@ import type {
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { createTimedCache } from '../utils/createTimedCache';
+import { activeViewForRoute } from '../utils/activeView';
+import { requestViewRefresh } from './viewRefresh';
 
 export interface MentionUser {
   value: string;
@@ -475,6 +477,23 @@ function notificationRequestCursor(before?: string): string {
 function isFirstPageCursor(value: unknown): boolean {
   return typeof value === 'string' && value.startsWith(NOTIFICATION_FIRST_PAGE_CURSOR_PREFIX);
 }
+
+/**
+ * The routes whose own view re-reads itself on a refresh (the handover is
+ * `requestViewRefresh`; each view answers it through `useViewRefresh`).
+ *
+ * They are the views that own inputs only they can see. The dashboard and the
+ * repository issue/PR lists are deliberately absent: the dashboard is refreshed
+ * by `refreshInstanceData`, and those two lists are replayed from the requests
+ * the composable already holds for them.
+ */
+const REFRESH_VIEW_ROUTES = new Set<string>([
+  'repoDetail',
+  'issueDetail',
+  'pullRequestDetail',
+  'actionRunDetail',
+  'notifications',
+]);
 
 function createAppState() {
   const router = useAppRouter();
@@ -1252,6 +1271,10 @@ function createAppState() {
     switch (message.command) {
       case 'initialState':
         instances.value = message.instances ?? [];
+        // The configured instances are half of what the host's view-title
+        // refresh items are gated on: the dashboard of an installation with none
+        // has nothing to refresh (see `reportActiveView`).
+        reportActiveView();
         void setLocale(message.locale);
         debug.value = message.debug;
         aiPreReview.value = message.aiPreReview === true;
@@ -1296,6 +1319,10 @@ function createAppState() {
         const surviving = new Set(next.map((instance) => instance.id));
         const removed = instances.value.filter((instance) => !surviving.has(instance.id));
         instances.value = next;
+        // An add or a removal can be what makes the dashboard refreshable (or
+        // stop it being), so the report is renewed with the list (see
+        // `reportActiveView`).
+        reportActiveView();
         for (const instanceId of changed) {
           // Any outstanding notification request was sent for the server this
           // edit replaced and its reply can still be in flight: the epoch makes
@@ -1316,7 +1343,7 @@ function createAppState() {
         break;
       }
       case 'refreshData':
-        refreshInstanceData();
+        refreshActiveView();
         break;
       case 'requestError': {
         const { _requestId, error } = message as { _requestId?: unknown; error?: unknown };
@@ -6660,7 +6687,39 @@ function createAppState() {
     if (previous && previous !== scope) {
       clearRepoPayloads(previous);
     }
+    // The same hook carries the other fact the host cannot read for itself: which
+    // view is on screen. It is the sidebar's route, and the view-title refresh
+    // items VS Code contributes are gated on it (see `reportActiveView`).
+    reportActiveView(to.name);
   });
+
+  /**
+   * Tells the host which view the sidebar is showing.
+   *
+   * The host contributes the view-title refresh commands and gates them on the
+   * context key `forgejoToolkit.activeView`, but VS Code cannot see a webview's
+   * route — this report is the only way an item can name the page the reader is
+   * looking at (`activeViewForRoute` decides the value).
+   *
+   * The report is only made when this webview has a router at all: the standalone
+   * panels (the settings tab, the setup wizard, the review-comment editor, the AI
+   * pre-review panel) mount this composable without one, and they are separate
+   * documents whose messages reach the same host dispatcher — a panel reporting
+   * "no view" would hide the sidebar's items.
+   */
+  function reportActiveView(routeName: unknown = router?.currentRoute.value.name) {
+    if (!router) {
+      return;
+    }
+    postMessage({ command: 'setActiveView', view: activeViewForRoute(routeName, instances.value.length) });
+  }
+
+  // The hook above is installed from a view's setup, which runs after the router
+  // has resolved its first navigation — that navigation's `afterEach` has already
+  // fired by then, so the first report has to be made here. It is made as soon as
+  // a sidebar view exists, which is before the dashboard's own list requests: the
+  // host hides every refresh item until it arrives.
+  reportActiveView();
 
   /**
    * Releases every payload and TTL cache held for one instance.
@@ -6820,6 +6879,34 @@ function createAppState() {
       }
     }
     return [...scopes];
+  }
+
+  /**
+   * The host's refresh: re-read the data of what the reader is currently looking
+   * at.
+   *
+   * One entry point, one message, two ways of honouring it. The dashboard and the
+   * repository issue/PR lists drop their instance-level TTL caches and reload
+   * from here (`refreshInstanceData`), exactly as a refresh always did. The other
+   * views own inputs this composable cannot see — a repository's selected branch,
+   * an action run's expanded job logs, the notification filters on screen — so the
+   * press is handed to the view on screen through `requestViewRefresh()`, and
+   * that view re-issues the same loads it issues for itself, under its own route
+   * guard (`composables/viewRefresh.ts`).
+   *
+   * The global search is the one sidebar route with no target: its results belong
+   * to the query in its own box, and re-running that query is what its Search
+   * button does, so the host contributes no refresh item for it. A route this
+   * build does not know (and a `refreshData` that arrives with no route at all)
+   * keeps the old dashboard behaviour rather than doing nothing.
+   */
+  function refreshActiveView() {
+    const routeName = router?.currentRoute.value.name;
+    if (typeof routeName === 'string' && REFRESH_VIEW_ROUTES.has(routeName)) {
+      requestViewRefresh();
+      return;
+    }
+    refreshInstanceData();
   }
 
   /**

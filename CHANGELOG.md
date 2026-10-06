@@ -151,6 +151,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The sidebar's refresh action re-reads the page you are on.** It used to refresh
+  the instance list wherever you were, so pressing it while reading a pull request,
+  an issue or a notification refreshed something you were not looking at. Each page
+  now has its own refresh whose tooltip says what it does — the dashboard's
+  instances and repositories, this repository, this issue, this pull request, or
+  the notifications under the filters on screen — and only one of them is ever
+  present. Where refreshing would mean nothing the icon is not offered at all: on
+  the dashboard before the first instance is configured, and on the global search
+  page, whose own Search control is what re-runs its query.
+- Right-clicking a row, a card or a log line no longer shows the editor's
+  cut/copy/paste menu, which had nothing to act on there; fields and selected
+  text keep it.
 - **The settings page is an editor tab of its own now, divided into six groups.**
   It used to be a route inside the sidebar — which meant opening settings replaced
   whatever you were reading there, in a column about 300 px wide, as eleven
@@ -187,6 +199,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The first-run wizard showed an empty strip under the buttons when it had
+  nothing to report; the message area now stays invisible until it has
+  something to say.
 - An AI pre-review against an endpoint that stopped at the endpoint's own output
   limit now says that, instead of only that the answer was not JSON. The message
   names the endpoint the way the consent question does, says the answer hit the

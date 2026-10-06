@@ -58,9 +58,15 @@ attachment calls (`createIssue`, `createIssueComment`, `createPullRequest`,
 `showInputBox` → `showInputBoxResult`.
 
 Every other webview-to-host message is either fire-and-forget (`openSettings`,
-`openDashboard`, `setLocale`, `setDebug`, `openExternal`, …) or a loader whose
-reply is routed by the fields it echoes rather than by an id (`getRepoIssues` →
-`repoIssues`, which carries `instanceId`/`owner`/`repo`/`state`).
+`openDashboard`, `setLocale`, `setDebug`, `setActiveView`, `openExternal`, …) or a
+loader whose reply is routed by the fields it echoes rather than by an id
+(`getRepoIssues` → `repoIssues`, which carries `instanceId`/`owner`/`repo`/`state`).
+
+`setActiveView` is the sidebar's report of the route it is showing: the host stores
+it under the context key `forgejoToolkit.activeView`, which gates the view-title
+refresh commands (see [README.md](./README.md), the Webview UI section). It is a
+plain report, not a setting: it changes nothing on the host side but that key, and
+the host ignores a value it does not contribute.
 
 ## Error handling
 

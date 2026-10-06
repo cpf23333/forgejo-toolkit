@@ -93,6 +93,7 @@ import {
   writeAiProviderSecret,
 } from './aiProviderSettings';
 import { readSettingsSurface, writeSettingsSurfaceValue } from './settingsSurface';
+import { ACTIVE_VIEW_CONTEXT_KEY, parseActiveView } from './activeView';
 import { SettingsWebviewPanel, settingsLocale, type WebviewReplySink } from './settingsPanel';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { aiProviderDraftTestReport } from '../ai/testProvider';
@@ -541,6 +542,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   private _view?: vscode.WebviewView;
   private _pendingMessages: HostToWebviewMessage[] = [];
+  /**
+   * The view the sidebar last reported (`setActiveView`), which the view-title
+   * refresh items are gated on.
+   *
+   * It is the report, not a guess: VS Code cannot see the sidebar's route, so
+   * the webview — the only side that knows — names it, and the host stores the
+   * answer under `ACTIVE_VIEW_CONTEXT_KEY`. `undefined` means "no report", which
+   * hides every item: an item that fired before the webview had reported could
+   * refresh a page the host cannot name.
+   */
+  private _reportedActiveView: string | undefined;
   /** Request ids currently being handled; a reply removes the id (see `_reply`). */
   private readonly _unansweredRequests = new Set<string>();
   /**
@@ -765,6 +777,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken,
   ) {
     this._view = webviewView;
+    // A freshly created webview has reported nothing yet, and the page it boots
+    // on is not the one the previous instance left behind: the refresh items
+    // stay hidden until this webview names its own route (see `_handleMessage`'s
+    // `setActiveView` case).
+    this._forgetActiveView();
 
     // Codicons ship inside the webview bundle (imported in webview/src/main.ts
     // with the font inlined), so there is nothing to resolve from node_modules
@@ -781,6 +798,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       if (this._view === webviewView) {
         this._view = undefined;
       }
+      // The view that named its route is gone; leaving the key at its last value
+      // would keep a refresh item on screen for a webview that no longer exists.
+      this._forgetActiveView();
       // The import preview's stash holds the file's tokens in plaintext, and the
       // webview that could still confirm it is gone: without this it would
       // outlive the panel until the next preview overwrote it or the window
@@ -834,6 +854,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const key = JSON.stringify(toInstanceOrigins(this._config.getInstances().map((i) => i.url)).sort());
     if (key !== this._webviewInstanceOriginsKey) {
       this._view.webview.html = this._renderWebviewHtml(this._view.webview);
+      // That reload boots a new page, which starts on its own first route rather
+      // than the one it left behind: until it reports (see `_handleMessage`'s
+      // `setActiveView`), the host cannot name a view and hides every refresh
+      // item instead of offering the previous page's.
+      this._forgetActiveView();
     }
   }
 
@@ -1050,6 +1075,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }
       case 'getLinkedRepository': {
         this._detectAndSendLinkedRepository();
+        return;
+      }
+
+      case 'setActiveView': {
+        // The sidebar tells the host which of its routes is on screen, because
+        // that is the only side that knows: the view-title refresh items are
+        // contributed by the host and their `when` clauses can only test a
+        // context key. The value is validated rather than trusted (the webview
+        // is untrusted), and anything unrecognised hides every item.
+        this._reportedActiveView = parseActiveView(message.view);
+        this._applyActiveViewContext();
         return;
       }
 
@@ -5334,6 +5370,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     status?: string,
   ): vscode.Uri {
     return buildForgejoPrDiffUri({ instanceId, owner, repo, index, ref, filepath, isBase, status });
+  }
+
+  /**
+   * Publishes the sidebar's reported view under the context key the
+   * `view/title` refresh items test (`contributes.menus`, gated on
+   * `forgejoToolkit.activeView`).
+   *
+   * A missing report is pushed as `undefined` rather than skipped: the key has
+   * to *stop* matching when the webview that named the view is replaced or
+   * disposed, or an item would stay on screen for a page the host cannot name.
+   */
+  private _applyActiveViewContext(): void {
+    void vscode.commands.executeCommand('setContext', ACTIVE_VIEW_CONTEXT_KEY, this._reportedActiveView);
+  }
+
+  /** Drops the reported view and hides every refresh item until one is reported again. */
+  private _forgetActiveView(): void {
+    this._reportedActiveView = undefined;
+    this._applyActiveViewContext();
   }
 
   private _updateViewTitle(locale: 'en' | 'zh') {

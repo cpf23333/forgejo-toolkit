@@ -419,6 +419,30 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "forgejoToolkit.refreshRepository",
+        "title": "%command.refreshRepository.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "forgejoToolkit.refreshIssue",
+        "title": "%command.refreshIssue.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "forgejoToolkit.refreshPullRequest",
+        "title": "%command.refreshPullRequest.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "forgejoToolkit.refreshNotifications",
+        "title": "%command.refreshNotifications.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "forgejoToolkit.copyPermalink",
         "title": "%command.copyPermalink.title%",
         "category": "Forgejo Toolkit",
@@ -589,6 +613,26 @@
         {
           "command": "forgejoToolkit.aiPreReviewProbeChatModels",
           "when": "config.forgejoToolkit.debug && config.forgejoToolkit.aiPreReview"
+        },
+        {
+          "command": "forgejoToolkit.refreshInstances",
+          "when": "forgejoToolkit.activeView == dashboard"
+        },
+        {
+          "command": "forgejoToolkit.refreshRepository",
+          "when": "forgejoToolkit.activeView =~ /^(repoDetail|repoIssues|repoPullRequests|actionRunDetail)$/"
+        },
+        {
+          "command": "forgejoToolkit.refreshIssue",
+          "when": "forgejoToolkit.activeView == issueDetail"
+        },
+        {
+          "command": "forgejoToolkit.refreshPullRequest",
+          "when": "forgejoToolkit.activeView == pullRequestDetail"
+        },
+        {
+          "command": "forgejoToolkit.refreshNotifications",
+          "when": "forgejoToolkit.activeView == notifications"
         }
       ],
       "comments/commentThread/context": [
@@ -649,7 +693,27 @@
         },
         {
           "command": "forgejoToolkit.refreshInstances",
-          "when": "view == forgejoToolkitView",
+          "when": "view == forgejoToolkitView && forgejoToolkit.activeView == dashboard",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.refreshRepository",
+          "when": "view == forgejoToolkitView && forgejoToolkit.activeView =~ /^(repoDetail|repoIssues|repoPullRequests|actionRunDetail)$/",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.refreshIssue",
+          "when": "view == forgejoToolkitView && forgejoToolkit.activeView == issueDetail",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.refreshPullRequest",
+          "when": "view == forgejoToolkitView && forgejoToolkit.activeView == pullRequestDetail",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.refreshNotifications",
+          "when": "view == forgejoToolkitView && forgejoToolkit.activeView == notifications",
           "group": "navigation@3"
         }
       ],

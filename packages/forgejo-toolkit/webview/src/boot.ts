@@ -2,6 +2,7 @@ import { createApp, type App, type Component } from 'vue';
 import { createI18nInstance, defaultLocale, loadLocaleMessage, localeTag, type Locale } from './i18n';
 import './types/config';
 import './styles/global.css';
+import { installNativeContextMenuPolicy } from './utils/nativeContextMenu';
 
 /**
  * The locale one webview surface boots in.
@@ -22,11 +23,12 @@ export function surfaceLocale(): Locale {
  *
  * Every surface (the sidebar dashboard and each standalone panel) goes through
  * here, so the boot contract lives in one place: the `locale` the host put in
- * `__FORGEJO_TOOLKIT_CONFIG__`, the `<html lang>` that has to follow it, and the
- * global stylesheet. `setup` is the surface's own extras — the dashboard
- * installs the router and provides it to `useAppRouter()`; the panels install
- * nothing, which is what keeps `App.vue` and the router out of their entry
- * bundles.
+ * `__FORGEJO_TOOLKIT_CONFIG__`, the `<html lang>` that has to follow it, the
+ * global stylesheet, and the context-menu policy every surface answers right
+ * clicks with (`utils/nativeContextMenu.ts`). `setup` is the surface's own
+ * extras — the dashboard installs the router and provides it to
+ * `useAppRouter()`; the panels install nothing, which is what keeps `App.vue`
+ * and the router out of their entry bundles.
  *
  * The surface's own catalog is loaded before the app mounts. Only the base
  * catalog ships in the bundle (see `./i18n/locales.ts`), so a panel the host
@@ -35,6 +37,9 @@ export function surfaceLocale(): Locale {
  * the base catalog instead of not mounting at all.
  */
 export async function mountSurface(component: Component, setup?: (app: App) => void): Promise<void> {
+  // Installed before anything is mounted, so the surface is covered from its
+  // first frame. It is per surface, not per view: no view has to remember it.
+  installNativeContextMenuPolicy(window);
   const locale = surfaceLocale();
   await loadLocaleMessage(locale);
   // The HTML ships `lang="en"`; screen readers and the browser pick their

@@ -773,10 +773,50 @@ export interface AiPreReviewPanelPayload {
   candidates: AiPreReviewPanelCandidate[];
 }
 
+/**
+ * The sidebar views a view-title action can be looking at.
+ *
+ * The sidebar is **one** webview view with a router inside it, so VS Code cannot
+ * see which page the reader is on and a `when` clause can only test what the
+ * webview reported. The names are the webview's own route names
+ * (`packages/forgejo-toolkit/webview/src/router/index.ts`), and they live here
+ * because both sides have to agree on them: the webview reports one of these
+ * (see `setActiveView`), and the host refuses anything else, since the report
+ * comes from an untrusted webview.
+ */
+export const FORGEJO_ACTIVE_VIEWS = [
+  'dashboard',
+  'globalSearch',
+  'notifications',
+  'repoDetail',
+  'repoIssues',
+  'repoPullRequests',
+  'issueDetail',
+  'pullRequestDetail',
+  'actionRunDetail',
+] as const;
+
+/** One value of {@link FORGEJO_ACTIVE_VIEWS}. */
+export type ForgejoActiveView = (typeof FORGEJO_ACTIVE_VIEWS)[number];
+
+/**
+ * What the sidebar reports when the view it is showing has nothing to retrieve
+ * — the dashboard of an installation that has no instance yet, which is also
+ * the sidebar's first-run state.
+ *
+ * It is a value rather than silence so the host can tell "this view has nothing
+ * to refresh" from "no report has arrived": no view-title item matches it, which
+ * is how the refresh icon stays away where pressing it would do nothing
+ * unexplained.
+ */
+export const FORGEJO_NO_ACTIVE_VIEW = 'none';
+
 export type HostToWebviewMessage =
   | { command: 'instances'; data: PublicForgejoInstance[] }
-  // Sent by the "refresh instances" command: the webview should drop its
-  // instance-level TTL caches and reload the dashboard lists.
+  // Sent by the view-title refresh commands: the webview re-reads the data of
+  // the route it is on — the dashboard and the repository issue/PR lists drop
+  // their instance-level TTL caches and reload, and every other view re-issues
+  // the loads it owns (see `refreshActiveView` in `useAppState`).
   | { command: 'refreshData' }
   | {
       command: 'initialState';
@@ -1952,6 +1992,22 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | { command: 'getInitialState' }
+  /**
+   * The view the sidebar is showing, reported on every route change (and once
+   * the webview knows its first route).
+   *
+   * The sidebar's own router is the only thing that knows which page the reader
+   * is on, and the host needs that answer to gate the view-title actions it
+   * contributes: it stores the reported value under the context key
+   * `forgejoToolkit.activeView`, which is what those items' `when` clauses test.
+   * There is deliberately no second channel: the report comes from the same
+   * place the sidebar tracks its route for its own caches.
+   *
+   * `view` is one of `FORGEJO_ACTIVE_VIEWS` or `FORGEJO_NO_ACTIVE_VIEW`; the host
+   * validates it and treats anything else as "no view", so a compromised webview
+   * cannot make an item visible for a view it is not showing.
+   */
+  | { command: 'setActiveView'; view: ForgejoActiveView | typeof FORGEJO_NO_ACTIVE_VIEW }
   | { command: 'getLinkedRepository' }
   | { command: 'testConnection'; url: string; token: string; instanceId?: string }
   | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }

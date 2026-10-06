@@ -18,6 +18,7 @@ import { registerPrDescriptionCommand } from '../prDescription';
 import { registerAiTestProviderCommand } from '../ai/testProvider';
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
+import { REFRESH_VIEW_COMMANDS } from '../webview/activeView';
 
 // Module-level double-click guard for the publish command: the flow mixes
 // input boxes, repository creation and git pushes, so a second invocation
@@ -115,9 +116,13 @@ export function registerCommands(
   pullReviewCommentController: PullReviewCommentController,
 ) {
   context.subscriptions.push(
-    vscode.commands.registerCommand('forgejoToolkit.refreshInstances', () => {
-      viewProvider.refresh();
-    }),
+    // The view-title refresh, one command per target and one handler for all of
+    // them: a command's title is static, so the item whose tooltip names the
+    // true target has to be a separate contribution per target, and only the
+    // `when` clauses differ (`activeView.ts`, and the Webview UI section of
+    // `docs/architecture/README.md`). What the press does is decided by the
+    // webview, which routes `refreshData` to the route the reader is on.
+    ...REFRESH_VIEW_COMMANDS.map((command) => vscode.commands.registerCommand(command, () => viewProvider.refresh())),
 
     vscode.commands.registerCommand('forgejoToolkit.openSettings', () => {
       viewProvider.openSettings();

@@ -43,6 +43,7 @@ import {
   issueDependenciesKey,
   issueReactionsKey,
 } from '../composables/useAppState';
+import { useViewRefresh } from '../composables/viewRefresh';
 import { canDeleteTrackedTime, findStopwatchElsewhere, isTrackedTimeTotal } from '../utils/trackedTime';
 import type { ForgejoIssueAttachment, MergeBlocker } from '../types/api';
 
@@ -268,22 +269,22 @@ const prReference = computed(() => {
 // route. Guard all route-driven loading on isActive.
 const isActive = ref(true);
 
-function loadPullRequestData() {
-  state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
-  state.loadRepoLabels(instanceId.value, owner.value, repo.value);
-  state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
-  state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
-  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
-  state.loadUserStopwatches(instanceId.value);
+function loadPullRequestData(force = false) {
+  state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadRepoLabels(instanceId.value, owner.value, repo.value, force);
+  state.loadRepoAssignees(instanceId.value, owner.value, repo.value, force);
+  state.loadRepoMilestones(instanceId.value, owner.value, repo.value, force);
+  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadUserStopwatches(instanceId.value, force);
   // A fresh load owns the dependency key from here on: a reason it reports is the
   // load's, not a previous change's (see dependencyActionWasChange).
   dependencyActionWasChange.value = false;
-  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
-  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value, force);
 }
 
-function loadDetailDependentData() {
+function loadDetailDependentData(force = false) {
   if (detail.value) {
     state.loadPullRequestFiles(
       instanceId.value,
@@ -292,11 +293,24 @@ function loadDetailDependentData() {
       index.value,
       detail.value.merge_base ?? detail.value.base?.sha,
       detail.value.head?.sha,
+      force,
     );
-    state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
-    state.loadPullRequestCommits(instanceId.value, owner.value, repo.value, index.value);
+    state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, force);
+    state.loadPullRequestCommits(instanceId.value, owner.value, repo.value, index.value, force);
   }
 }
+
+/**
+ * The host's refresh (`refreshData`), for the view the reader is looking at: this
+ * page re-issues everything it loads for itself, the pull request first and the
+ * files, timeline and commits the payload names — which is exactly why the
+ * composable hands the press over instead of refreshing it: the diff range those
+ * three are keyed by only exists here.
+ */
+useViewRefresh(route, 'pullRequestDetail', () => {
+  loadPullRequestData(true);
+  loadDetailDependentData(true);
+});
 
 onActivated(() => {
   isActive.value = true;

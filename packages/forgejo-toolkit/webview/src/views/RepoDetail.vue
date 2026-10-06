@@ -3,6 +3,7 @@ import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
+import { useViewRefresh } from '../composables/viewRefresh';
 import RepoActions from '../components/RepoActions.vue';
 import RepoFileBrowser from '../components/RepoFileBrowser.vue';
 import RepoRefs from '../components/RepoRefs.vue';
@@ -185,6 +186,24 @@ function reloadBranchCommits() {
   }
   state.loadRepoBranchCommits(instanceId.value, owner.value, repo.value, selectedBranch.value, true);
 }
+
+/**
+ * The host's refresh (`refreshData`), for the view the reader is looking at.
+ *
+ * It re-reads the page's own parts with `force`: the repository summary, the
+ * commits of the branch on screen, and — only while the Refs tab is the one
+ * showing — the branch/tag/release list, which is the one section here with no
+ * control of its own. The Files and Actions tabs own their data and are left
+ * alone: `RepoFileBrowser` re-reads the directory it renders when it is mounted
+ * again, and `RepoActions` has its own refresh control.
+ */
+useViewRefresh(route, 'repoDetail', () => {
+  state.loadRepoDetail(instanceId.value, owner.value, repo.value, true);
+  reloadBranchCommits();
+  if (activeTab.value === 'refs') {
+    state.loadRepoRefs(instanceId.value, owner.value, repo.value, true);
+  }
+});
 </script>
 
 <template>

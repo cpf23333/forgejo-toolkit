@@ -721,6 +721,45 @@ watch(
   background-color: var(--vscode-editor-inactiveSelectionBackground);
 }
 
+/*
+ * A status region with nothing to say is not a message, and the band — padding
+ * plus background plus the corner radius — is what it has to lose while it is
+ * silent. Left painted, the always-present region between the Test/Add buttons
+ * and the Previous/Next row read as a full-width empty band (measured at a
+ * 600 px column: 600x16 px, `padding: 8px 12px`, radius 4 px, filled with
+ * `--vscode-editor-inactiveSelectionBackground`), and it pushed the navigation
+ * 16 px down — the gap from the buttons to that row was 48 px, against the
+ * wizard's own 32 px once the band is gone.
+ *
+ * `Settings.vue` already states this rule for its own two regions; scoped styles
+ * do not reach across components, so this view — which carries its own copy of
+ * the `.status` band — has to state it too. The two rules are meant to stay the
+ * same shape (`Settings.statusRegion.test.ts` is the other one's guard).
+ *
+ * It stays in the document rather than being dropped with `v-if`: a live region
+ * that appears at the same moment as its first text is one assistive technology
+ * is allowed to miss, which is why the region is always rendered to begin with.
+ * `display: none` would be that same mistake spelled differently — a region
+ * hidden at announcement time is not announced either — so the empty state is
+ * taken out of the *flow* instead: `position: absolute` with no offsets keeps
+ * the element rendered and in the accessibility tree, and removing it from the
+ * section's flow is what collapses the 16 px it would otherwise add above the
+ * navigation (re-measured: 0x0 px and transparent while empty, and the full
+ * 600x36 px band the moment a message lands in it; the container reports no
+ * horizontal overflow either way, so this was never a scrollbar).
+ *
+ * `:empty` is what tells the two apart, and it is what the real DOM gives: Vue
+ * compiles `{{ connectionStatus }}` to a `textContent` write, so an empty status
+ * leaves no text node (and no comment anchor) behind and the region matches
+ * `:empty` exactly while it holds no message.
+ */
+.status:empty {
+  position: absolute;
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+}
+
 .status.success {
   color: var(--vscode-testing-iconPassed);
 }

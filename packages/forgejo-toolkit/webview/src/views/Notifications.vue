@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onActivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAppState, notificationsKey } from '../composables/useAppState';
+import { useViewRefresh } from '../composables/viewRefresh';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 import IconActionButton from '../components/IconActionButton.vue';
@@ -10,6 +11,7 @@ import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeR
 
 const { t } = useI18n();
 const state = useAppState();
+const route = useRoute();
 const router = useRouter();
 
 const statusFilter = ref<'unread' | 'read' | 'all'>('unread');
@@ -317,6 +319,13 @@ watch([statusFilter, typeFilter], () => {
 onActivated(() => {
   loadAll();
 });
+
+/**
+ * The host's refresh (`refreshData`), for the view the reader is looking at: this
+ * page re-reads the list with the filters on screen — the same call it makes for
+ * itself, and the one its own refresh button makes.
+ */
+useViewRefresh(route, 'notifications', loadAll);
 
 // `keep-alive :max="10"` evicts the least recently used view once the cache is
 // full, which unmounts it. A debounce armed just before that would still fire

@@ -12,6 +12,7 @@ import {
   actionRunDeleteKey,
   actionArtifactDownloadKey,
 } from '../composables/useAppState';
+import { useViewRefresh } from '../composables/viewRefresh';
 import {
   actionStatusClass as statusClass,
   actionStatusIcon as statusIcon,
@@ -385,6 +386,20 @@ function reloadJobLog(jobId?: number) {
   }
   state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, true);
 }
+
+/**
+ * The host's refresh (`refreshData`), for the view the reader is looking at: the
+ * run, its jobs and its artifacts — the three this page loads for itself — plus
+ * the logs of the jobs that are expanded, which only this view knows. The
+ * per-section refresh buttons stay what they are: they reload one section the
+ * user is looking at, this reloads the whole page.
+ */
+useViewRefresh(route, 'actionRunDetail', () => {
+  reloadRun();
+  reloadJobs();
+  reloadArtifacts();
+  loadExpandedJobLogs(true);
+});
 
 function artifactDownloadLoading(artifactId?: number): boolean {
   if (artifactId === undefined) {

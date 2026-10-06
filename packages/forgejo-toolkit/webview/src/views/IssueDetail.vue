@@ -38,6 +38,7 @@ import {
   issueDueDateKey,
   startWorkKey,
 } from '../composables/useAppState';
+import { useViewRefresh } from '../composables/viewRefresh';
 import { canDeleteTrackedTime, findStopwatchElsewhere, isTrackedTimeTotal } from '../utils/trackedTime';
 import type { ForgejoIssueAttachment } from '../types/api';
 
@@ -208,21 +209,29 @@ const issueReference = computed(() => {
 // route. Guard all route-driven loading on isActive.
 const isActive = ref(true);
 
-function loadIssueData() {
-  state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
-  state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
-  state.loadRepoLabels(instanceId.value, owner.value, repo.value);
-  state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
-  state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
-  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
-  state.loadUserStopwatches(instanceId.value);
+function loadIssueData(force = false) {
+  state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadRepoLabels(instanceId.value, owner.value, repo.value, force);
+  state.loadRepoAssignees(instanceId.value, owner.value, repo.value, force);
+  state.loadRepoMilestones(instanceId.value, owner.value, repo.value, force);
+  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadUserStopwatches(instanceId.value, force);
   // A fresh load owns the dependency key from here on: a reason it reports is the
   // load's, not a previous change's (see dependencyActionWasChange).
   dependencyActionWasChange.value = false;
-  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
-  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value, force);
+  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value, force);
 }
+
+/**
+ * The host's refresh (`refreshData`), for the view the reader is looking at: this
+ * page re-issues every load it issues for itself, with `force`. The dashboard's
+ * own refresh cannot stand in — it would drop the payloads this page renders
+ * without asking for them back.
+ */
+useViewRefresh(route, 'issueDetail', () => loadIssueData(true));
 
 onActivated(() => {
   isActive.value = true;
