@@ -148,6 +148,20 @@ jobs:
       - name: Documentation audit
         run: node tools/docs-audit/check.mjs
 
+      # The audits' own rule tests, which the checks above do not run: `check.mjs`
+      # gates a document, and a `*.test.mjs` beside it gates the audit. The glob is
+      # quoted because the bare directory form is not accepted by the test runner.
+      # Only the docs audit has tests today (`rules.test.mjs`); the tracking audit has
+      # none yet, so its glob runs only once such a file exists — and `ls` is the
+      # existence test rather than a bash-only builtin, since the runner picks the
+      # shell.
+      - name: Audit unit tests
+        run: |
+          node --test "tools/docs-audit/**/*.test.mjs"
+          if ls tools/tracking-audit/*.test.mjs > /dev/null 2>&1; then
+            node --test "tools/tracking-audit/**/*.test.mjs"
+          fi
+
       # packages/shared has its own suite (URL helpers, the request wrapper) that the
       # toolkit configs do not include, so it is run explicitly.
       - name: Test

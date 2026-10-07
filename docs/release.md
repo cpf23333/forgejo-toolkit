@@ -48,6 +48,13 @@ explain each step.
    already be recorded twice — an `## [Unreleased]` entry and a changeset; step 1 under
    "Release workflow" below states the rule and how to check the two lists against each
    other.
+   Renaming the heading also turns the section into a released one, which
+   `node tools/tracking-audit/check.mjs` fails on until its ledger is re-recorded
+   with `node tools/tracking-audit/check.mjs --record`. That command re-hashes every
+   released section of the root `CHANGELOG.md` and prints what it wrote. Run it only
+   as part of a release — it is a maintenance command rather than a check, and
+   re-recording is exactly how a change to an already-released section would become
+   invisible to the audit.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`,
    `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,mts,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual

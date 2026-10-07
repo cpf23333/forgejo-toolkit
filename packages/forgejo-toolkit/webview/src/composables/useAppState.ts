@@ -282,7 +282,6 @@ import type {
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
-  AiImportPreviewProvider,
   AiPreReviewChatModelOption,
   AiProviderDraftProbe,
   AiProviderSettingsSnapshot,
@@ -495,6 +494,51 @@ const REFRESH_VIEW_ROUTES = new Set<string>([
   'actionRunDetail',
   'notifications',
 ]);
+
+/** The `importInstancesPreview` payload the host sends. */
+type ImportPreviewPayload = Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>;
+
+/**
+ * The payload's fields the preview state deliberately does not carry: the command tag,
+ * and the cancel flag (the handler returns before assigning for a cancelled reply).
+ * Named once so the state type and the exhaustiveness assertion below cannot disagree
+ * about them — they did while this was being written, and the assertion below caught it.
+ */
+type ImportPreviewPayloadFieldsNotKept = 'command' | 'cancelled';
+
+/**
+ * The import preview this webview holds, **derived from the message payload** rather
+ * than written out beside it.
+ *
+ * Written out, the two drift: this state used to declare its own field list, the
+ * payload grew `encrypted`, and the handler's explicit assignment dropped the flag —
+ * so the preview rendered "plaintext" for an encrypted file while every test passed.
+ * Deriving the type (and spreading the payload in `handleMessage`) makes a payload
+ * field part of the state by construction; the three list fields are re-declared only
+ * because the handler defaults them.
+ */
+type ImportPreviewState = Omit<
+  ImportPreviewPayload,
+  ImportPreviewPayloadFieldsNotKept | 'instances' | 'existingIds' | 'tokenConflicts'
+> & {
+  instances: ImportPreviewInstance[];
+  existingIds: string[];
+  tokenConflicts: boolean[];
+};
+
+/**
+ * Compile-time exhaustiveness: every payload field must be a state field.
+ *
+ * `Exclude` answers `never` only when nothing is missing, and the annotation then
+ * requires `true`; a payload field the state does not carry makes the annotation
+ * `never` and the assignment a type error. This is what keeps a later hand-written
+ * field list from silently dropping the next flag.
+ */
+type MissingImportPreviewField = Exclude<
+  keyof ImportPreviewPayload,
+  keyof ImportPreviewState | ImportPreviewPayloadFieldsNotKept
+>;
+export const importPreviewCarriesEveryPayloadField: MissingImportPreviewField extends never ? true : never = true;
 
 function createAppState() {
   const router = useAppRouter();
@@ -913,48 +957,11 @@ function createAppState() {
   // not read the file (corrupt JSON, wrong password, no valid instances): the
   // preview is then empty and the views must show the failure instead of an
   // empty-list success state.
-  const importPreview = ref<
-    | {
-        instances: ImportPreviewInstance[];
-        existingIds: string[];
-        tokenConflicts?: boolean[];
-        settings?: ExportSettings;
-        /**
-         * The file's AI endpoint section, as the host read it
-         * (`docs/design/ai-model-transport.md` §10.1). Absent on a reply that
-         * predates AI import and on a file with no `ai` section — which is the same
-         * statement as "this file carries no AI configuration", so the view shows
-         * no AI block rather than an empty one. No credential ever travels here.
-         */
-        ai?: {
-          providers: AiImportPreviewProvider[];
-          bindings: Array<{ feature: string; providerId: string; modelId: string }>;
-          transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-          /**
-           * Whether the file carried a `secrets` block (credentials present). Not a
-           * statement that the file is encrypted — see `encrypted` below.
-           */
-          secretsIncluded: boolean;
-        };
-        /**
-         * The file's own encryption flag, from the envelope the host read. The
-         * credentials note keys its "encrypted" wording on this and not on
-         * `ai.secretsIncluded`: a plaintext file can carry a `secrets` block, and
-         * calling it encrypted was the defect this field exists to fix
-         * (`docs/design/ai-model-transport.md` §10.2). An absent flag reads as
-         * "not encrypted", never as "assume encrypted".
-         */
-        encrypted?: boolean;
-        error?: string;
-        /**
-         * How many entries in the file the host could not use (missing or wrongly
-         * typed required fields). Absent on replies that predate the field, which
-         * means "nothing was reported dropped" rather than a known zero.
-         */
-        dropped?: number;
-      }
-    | undefined
-  >(undefined);
+  //
+  // The type is `ImportPreviewState` (see its own comment): derived from the message
+  // payload, so the fields — `ai`, `encrypted`, `dropped` — are the payload's and
+  // cannot drift apart from it.
+  const importPreview = ref<ImportPreviewState | undefined>(undefined);
   // The host does not echo request ids for these single-slot request/response
   // pairs. To keep rapid consecutive operations from landing out of order,
   // only one request per slot is in flight at a time: while one is pending,
@@ -1350,9 +1357,11 @@ function createAppState() {
         loadLinkedRepository();
         break;
       case 'linkedRepository': {
-        const payload = message as { linked?: LinkedRepository; all?: LinkedRepository[] };
-        linkedRepository.value = payload.linked;
-        linkedRepositories.value = payload.all ?? (payload.linked ? [payload.linked] : []);
+        // `message` is already the payload type here (the switch narrows it), and that
+        // is deliberate: a hand-written cast beside it would hide a field the payload
+        // grows from this handler the same way an explicit list does.
+        linkedRepository.value = message.linked;
+        linkedRepositories.value = message.all ?? (message.linked ? [message.linked] : []);
         // A manual selection is only meaningful while its repository is
         // still linked; otherwise fall back to host attribution.
         if (
@@ -2557,51 +2566,19 @@ function createAppState() {
           // The user dismissed the file picker; free the slot without navigating.
           break;
         }
-        const previewMessage = message as {
-          instances?: ImportPreviewInstance[];
-          existingIds?: string[];
-          tokenConflicts?: boolean[];
-          settings?: ExportSettings;
-          ai?: {
-            providers: AiImportPreviewProvider[];
-            bindings: Array<{ feature: string; providerId: string; modelId: string }>;
-            transport: 'auto' | 'vscode-lm' | 'openai-compatible';
-            secretsIncluded: boolean;
-          };
-          /**
-           * The file's own encryption flag. It has to be listed **and** copied
-           * below: this handler rebuilds the state from an explicit field list, so a
-           * field the payload grew and this cast did not is dropped here and reaches
-           * no view — which is exactly how the preview went on calling every file
-           * with a `secrets` block "encrypted" after the payload had been fixed.
-           * A field added to the payload belongs in this list in the same change.
-           */
-          encrypted?: boolean;
-          error?: string;
-          dropped?: number;
-        };
+        // The payload is **spread**, not listed: an explicit field list is what
+        // dropped `encrypted` (the payload carried it, this assignment did not, and
+        // the view saw `undefined` with the whole suite green). Spreading means a
+        // payload field is carried by construction; the three list fields are
+        // re-stated only to default them, and the command tag stays out of the state
+        // (`ImportPreviewState`). `cancelled` cannot arrive: a cancelled reply returns
+        // above.
+        const { command: _command, ...previewPayload } = message;
         importPreview.value = {
-          instances: previewMessage.instances ?? [],
-          existingIds: previewMessage.existingIds ?? [],
-          tokenConflicts: previewMessage.tokenConflicts ?? [],
-          settings: previewMessage.settings,
-          // Absent stays absent: a host build without AI import, or a file with no
-          // `ai` section, is not a file whose AI configuration is empty — it is one
-          // that has none to show.
-          ai: previewMessage.ai,
-          // The encryption flag travels with the file's other facts. Absent stays
-          // absent rather than being defaulted to `true` here: the view reads
-          // "not encrypted" from an absent flag, so a reply that never mentioned one
-          // cannot make it claim a wrapper it was not told about.
-          encrypted: previewMessage.encrypted,
-          // A failed read arrives with empty arrays; keep the error so the
-          // preview view can explain the failure instead of looking empty.
-          error: previewMessage.error,
-          // Entries the host had to skip never appear in `instances`, so without
-          // this the preview silently looked complete. Absent stays absent: an
-          // old host did not report a count, and the view treats a missing count
-          // as "nothing to warn about".
-          dropped: previewMessage.dropped,
+          ...previewPayload,
+          instances: message.instances ?? [],
+          existingIds: message.existingIds ?? [],
+          tokenConflicts: message.tokenConflicts ?? [],
         };
         break;
       }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
+import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
 import { routes } from '../../router';
 import type {
@@ -238,6 +239,87 @@ describe('useAppState', () => {
       expect(state.worktreeOpenMode.value).toBe('newWindow');
       expect(state.worktreeCacheDirectory.value).toBe('/tmp/wt');
       expect(state.worktreeCacheDirectoryDefault.value).toBe('/tmp/default');
+    });
+
+    /**
+     * Every field the `initialState` payload declares, in the order the message type
+     * states them.
+     *
+     * The exhaustive test below projects the state through this list and compares it
+     * with the **whole** payload, so a field the payload grows has to be listed here.
+     * Two type-level devices keep the list from lagging behind the payload:
+     * `InitialStatePayload` is the message type itself (so `Required<…>` on the fixture
+     * makes a new optional field a compile error too), and
+     * `everyInitialStateFieldIsListed` fails to compile while a payload field is
+     * missing from this list.
+     */
+    const INITIAL_STATE_FIELDS = [
+      'instances',
+      'locale',
+      'debug',
+      'aiPreReview',
+      'prDescription',
+      'prDescriptionCreateForm',
+      'issueTriage',
+      'issueTriageLabelsAvailable',
+      'minSupportedServerVersion',
+      'worktrees',
+      'worktreeOpenMode',
+      'worktreeCacheDirectory',
+      'worktreeCacheDirectoryDefault',
+    ] as const;
+    type InitialStatePayload = Extract<HostToWebviewMessage, { command: 'initialState' }>;
+    type InitialStateUnlistedField = Exclude<
+      keyof InitialStatePayload,
+      (typeof INITIAL_STATE_FIELDS)[number] | 'command'
+    >;
+    const everyInitialStateFieldIsListed: InitialStateUnlistedField extends never ? true : never = true;
+
+    it('carries every field of a fully populated initialState payload into the state', async () => {
+      // `initialState` is the same hazard as the import preview's payload, and the
+      // larger one: it writes each field into its own ref **with a coercion**
+      // (`=== true`, `!== false`, `?? ''`), so a field the payload grows and this
+      // handler ignores is not a type error anywhere — the page simply keeps rendering
+      // the value that never arrived. Every value below differs from the ref's default
+      // on purpose, so an assignment that quietly disappears changes the comparison.
+      const { state } = await createState();
+      const payload: Required<Omit<InitialStatePayload, 'command'>> = {
+        instances: [
+          {
+            id: 'inst-1',
+            url: 'https://***@forgejo.example.com/',
+            functionalUrl: 'https://forgejo.example.com/',
+            name: 'one',
+            username: 'demo-user',
+          },
+        ],
+        locale: 'zh',
+        debug: true,
+        aiPreReview: true,
+        prDescription: true,
+        prDescriptionCreateForm: true,
+        issueTriage: true,
+        // `false` and not `true`: this ref reads `!== false`, so it starts truthy — the
+        // one value that would survive a dropped assignment is the one not used here.
+        issueTriageLabelsAvailable: false,
+        minSupportedServerVersion: '1.21.0',
+        worktrees: [{ id: 'wt-1', worktreePath: '/tmp/wt-1' }],
+        worktreeOpenMode: 'newWindow',
+        worktreeCacheDirectory: '/tmp/wt',
+        worktreeCacheDirectoryDefault: '/tmp/default',
+      };
+
+      dispatchMessage({ command: 'initialState', ...payload });
+      // `setLocale` is awaited inside the handler (`void setLocale(...)`), so the
+      // locale ref settles a microtask later.
+      await flushPromises();
+
+      const carried = Object.fromEntries(INITIAL_STATE_FIELDS.map((field) => [field, state[field].value]));
+      // One equality against the whole payload rather than a spot check per field: a
+      // field with no assignment is a missing key, a wrong coercion is a different
+      // value, and neither can hide behind the fields someone remembered to name.
+      expect(carried).toEqual(payload);
+      expect(everyInitialStateFieldIsListed).toBe(true);
     });
 
     it('requests initial state on mount', async () => {
@@ -936,6 +1018,50 @@ describe('useAppState', () => {
       localPath: '/ws/b',
       remoteUrl: 'https://forgejo.example.com/alice/repo-b.git',
     };
+
+    /**
+     * Every field the `linkedRepository` payload declares, and the ref each one lands
+     * in. Two fields, one message — and the same two compile-time ties the
+     * `initialState` guard uses, so a field this payload grows cannot slip through:
+     * `Required<Omit<…>>` on the fixture below makes it a compile error, and
+     * `everyLinkedRepositoryFieldIsListed` does the same for this list. The map is a
+     * `Record` over the list, so a new field needs an entry there as well.
+     */
+    const LINKED_REPOSITORY_STATE_REF: Record<'linked' | 'all', 'linkedRepository' | 'linkedRepositories'> = {
+      linked: 'linkedRepository',
+      // `all` is a different ref name, which is exactly the kind of rename a
+      // hand-written list gets wrong.
+      all: 'linkedRepositories',
+    };
+    const LINKED_REPOSITORY_FIELDS = Object.keys(LINKED_REPOSITORY_STATE_REF) as Array<
+      keyof typeof LINKED_REPOSITORY_STATE_REF
+    >;
+    type LinkedRepositoryPayload = Extract<HostToWebviewMessage, { command: 'linkedRepository' }>;
+    type LinkedRepositoryUnlistedField = Exclude<
+      keyof LinkedRepositoryPayload,
+      (typeof LINKED_REPOSITORY_FIELDS)[number] | 'command'
+    >;
+    const everyLinkedRepositoryFieldIsListed: LinkedRepositoryUnlistedField extends never ? true : never = true;
+
+    it('carries every field of a fully populated linkedRepository payload into the state', async () => {
+      // The same class as `initialState` and the import preview: this handler writes
+      // the payload into refs by hand, so a field added to the payload is silently
+      // ignored — nothing about the state would change and nothing would fail. The
+      // message is dispatched through the real handler and the projection is compared
+      // with the **whole** payload, so neither a missing assignment nor a renamed ref
+      // can hide behind the two names someone remembered.
+      const { state } = await createState();
+      const payload: Required<Omit<LinkedRepositoryPayload, 'command'>> = { linked: repoB, all: [repoA, repoB] };
+
+      dispatchMessage({ command: 'linkedRepository', ...payload });
+      await nextTick();
+
+      const carried = Object.fromEntries(
+        LINKED_REPOSITORY_FIELDS.map((field) => [field, state[LINKED_REPOSITORY_STATE_REF[field]].value]),
+      );
+      expect(carried).toEqual(payload);
+      expect(everyLinkedRepositoryFieldIsListed).toBe(true);
+    });
 
     it('stores the full list and the host-attributed repository', async () => {
       const { state } = await createState();
@@ -2391,21 +2517,50 @@ describe('useAppState', () => {
       expect(state.importPreview.value?.instances).toHaveLength(1);
     });
 
-    it('carries the file’s encryption flag into the preview state', async () => {
-      // The handler rebuilds the preview from an explicit field list, so a field the
-      // payload grew and this list did not is silently dropped — which is how the
-      // view went on calling an encrypted file plaintext after the payload was
-      // fixed. This test goes through the same message path the views do, rather
-      // than assigning `importPreview.value` directly: that shortcut is what left
-      // the defect live with a green suite.
+    it('carries every field of a fully populated preview payload into the state', async () => {
+      // The handler used to rebuild the preview from an explicit field list, so a
+      // field the payload grew and that list did not was silently dropped — which is
+      // how `encrypted` reached the webview and died here while the whole suite stayed
+      // green. This goes through the same message path the views do (`dispatchMessage`
+      // → `handleMessage`, not a direct `importPreview.value` assignment) with every
+      // field the payload declares populated, so a dropped field fails here.
       const { state } = await createState();
       vscodePostMessage().mockClear();
 
+      const payload = {
+        instances: [{ id: 'inst-2', url: 'https://forgejo.example.com', token: '' }],
+        existingIds: ['inst-1'],
+        tokenConflicts: [true],
+        settings: { debug: false },
+        ai: {
+          providers: [
+            {
+              id: 'ollama-local',
+              name: 'Ollama (this machine)',
+              baseUrl: 'http://localhost:11434/v1',
+              auth: 'bearer' as const,
+              models: ['qwen3:8b'],
+              headers: ['api-version'],
+              existing: false,
+              insecure: true,
+            },
+          ],
+          bindings: [{ feature: 'aiPreReview', providerId: 'ollama-local', modelId: 'qwen3:8b' }],
+          transport: 'openai-compatible' as const,
+          secretsIncluded: true,
+        },
+        encrypted: true,
+        error: 'a note the host carried',
+        dropped: 2,
+      };
+
       state.previewImportInstances();
-      dispatchMessage({ command: 'importInstancesPreview', instances: [], existingIds: [], encrypted: true });
+      dispatchMessage({ command: 'importInstancesPreview', ...payload });
       await nextTick();
 
-      expect(state.importPreview.value?.encrypted).toBe(true);
+      // `toEqual` and not a field-by-field list: the assertion has to fail when the
+      // state is missing a field, which is exactly the failure mode being guarded.
+      expect(state.importPreview.value).toEqual(payload);
     });
 
     it('reads a missing encryption flag as absent, not as encrypted', async () => {

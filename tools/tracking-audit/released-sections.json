@@ -1,0 +1,9 @@
+{
+  "note": "Frozen released sections of CHANGELOG.md. A section is hashed as its body: the heading line through the line before the next `## ` heading, trailing blank lines dropped, LF-joined. Rewrite with `node tools/tracking-audit/check.mjs --record` at a release cut (the renamed section is new) or when a release note is amended on purpose.",
+  "sections": {
+    "0.2.0": "755d78d25fea5bb6073b4352ba13cbd97af98ae80683004bbde67948cd97a6b5",
+    "0.1.1": "3f82c149bada22cad298aff5dfa6295d1a795301b080814867115c8a6c21d78f",
+    "0.1.0": "4a4099d72ac570b6b18dfa2709fcea2642bcb9a6e159ad34dc52477a46afac64",
+    "0.0.1": "a2c1891a9a14cec58bb5c01409ac1ad1ff20baaa2f0c8bb23a98ca2844001e6e"
+  }
+}

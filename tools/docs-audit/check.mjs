@@ -10,10 +10,22 @@
 //      must match a heading in the target;
 //   3. a backticked `X.md` + 「heading」 reference — and its paragraph-scoped
 //      variant, a 「heading」一节/条目/小节 whose file is named earlier in the
-//      same paragraph — must name a heading that actually exists in X (the
-//      mistake that survived two renames unnoticed);
-//   4. paired language files (foo.md / foo.zh.md) must keep the same structure;
+//      same paragraph — must name a heading or list-entry title that actually
+//      exists in X. There is deliberately no length limit: a long citation rots
+//      exactly like a short one (a dangling 45-character reference to a removed
+//      tracking entry survived here until it was found by hand), and the only
+//      accepted abbreviation is an explicit ellipsis, which must still match a
+//      real title by prefix;
+//   4. paired language files (foo.md / foo.zh.md) must keep the same structure
+//      **in order**: the four totals, and then — while both files introduce the
+//      same number of sections — the heading level sequence plus each section's
+//      own shape (`lists/fences/tables` inside it). That positional half is
+//      what catches two sections that were swapped while every total and every
+//      heading level stayed equal;
 //   5. no duplicate headings, and no heading-level jumps inside a file.
+//
+// The pure half of rules 3 and 4 lives in `rules.mjs`, covered by
+// `rules.test.mjs` (`node --test "tools/docs-audit/**/*.test.mjs"`).
 //
 // Usage: node tools/docs-audit/check.mjs
 // Exit code 1 when a rule is violated, like the api and tracking audits.
@@ -21,6 +33,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { comparePairStructure, headingsOfLines, namesTitleIn, titlesOfLines } from './rules.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 // Vendored content, build output, and scratch data are not ours to police.
@@ -125,63 +139,13 @@ const slug = (heading) =>
     .trim()
     .replace(/\s+/g, '-');
 
-/** Every name a document may cite: headings, and the title of a list entry. */
-function titlesOf(path) {
-  const found = new Set();
-  for (const { text: trimmed } of headingsOf(path).map((heading) => ({ text: heading.text }))) {
-    found.add(trimmed.replace(/^#{1,6}\s*/, '').trim());
-  }
-  let fenced = false;
-  for (const row of lines(path)) {
-    const trimmed = row.trim();
-    if (/^(```|~~~)/.test(trimmed)) {
-      fenced = !fenced;
-      continue;
-    }
-    if (fenced) continue;
-    // `- **Title**`, `- [ ] **Title**`, `- [ ] **P4** Title：…` and
-    // `- [ ] **P4 Title**：…` (the number may sit inside or outside the bold).
-    const entry = /^[-*]\s+(?:\[[ x]\]\s+)?(?:\*\*(.+?)\*\*\s*)?(.*)$/.exec(trimmed);
-    if (!entry) continue;
-    const [, bold, rest] = entry;
-    const add = (name) => {
-      const clean = (name ?? '').trim();
-      if (!clean) return;
-      found.add(clean);
-      const withoutLabel = clean.replace(/^P\d+\s+/, '').trim();
-      if (withoutLabel !== clean) found.add(withoutLabel);
-    };
-    add(rest.split(/[：:（(]/)[0]);
-    add(bold);
-    // `**P2** PR 描述生成` may be cited with the label glued on.
-    if (/^P\d+$/.test((bold ?? '').trim())) {
-      add(`${bold.trim()} ${rest.split(/[：:（(]/)[0].trim()}`);
-    }
-  }
-  // A heading whose title carries a parenthetical may be cited without it.
-  for (const title of [...found]) {
-    const short = title
-      .replace(/（[^）]*）$/, '')
-      .replace(/\s*\([^)]*\)$/, '')
-      .trim();
-    if (short !== title) found.add(short);
-  }
-  return found;
-}
-
 /**
  * Whether a 「name」 citation resolves against a document's headings and list
- * entry titles. A trailing ellipsis means the citation is an abbreviated prefix.
+ * entry titles. The rule itself — no length limit, and an explicit trailing
+ * ellipsis meaning a prefix match — lives in `rules.mjs`, together with the
+ * title collection it resolves against (`titlesOfLines`).
  */
-function namesTitle(path, rawName) {
-  const ellipsis = /[…]+$/.test(rawName);
-  const name = rawName
-    .replace(/[…]+$/, '')
-    .replace(/[.。:：]+$/, '')
-    .trim();
-  const titles = titlesOf(path);
-  return ellipsis ? [...titles].some((title) => title.startsWith(name)) : titles.has(name);
-}
+const namesTitle = (path, rawName) => namesTitleIn(titlesOfLines(lines(path)), rawName);
 
 /**
  * Path prefixes that belong to another repository. Several documents cite the
@@ -198,21 +162,8 @@ const externalPrefixes = [
   'templates/',
 ];
 
-function headingsOf(path) {
-  const found = [];
-  let fenced = false;
-  lines(path).forEach((line, index) => {
-    const trimmed = line.trim();
-    if (/^(```|~~~)/.test(trimmed)) {
-      fenced = !fenced;
-      return;
-    }
-    // `# Install dependencies` inside a shell block is a comment, not a heading.
-    if (fenced) return;
-    if (/^#{1,6} /.test(trimmed)) found.push({ line: index + 1, text: trimmed });
-  });
-  return found;
-}
+/** Headings in document order (`# Install dependencies` in a shell block is not one). */
+const headingsOf = (path) => headingsOfLines(lines(path));
 
 console.log(`auditing ${files.length} markdown files\n`);
 
@@ -297,7 +248,10 @@ for (const file of files) {
   // `*.md` named in the same paragraph. A blank line ends a prose paragraph and a
   // table row is its own context, so a heading quoted far from any file name is
   // not checked. Only title-shaped names are checked: an arrow, an equation or a
-  // list inside the quotes is prose, not a heading.
+  // list inside the quotes is prose, not a heading. Length is deliberately *not*
+  // a filter: a long name must resolve like a short one, because the 40-character
+  // cap that used to sit here is exactly what let a dangling reference to a
+  // removed tracking entry survive unnoticed.
   const sectionRef = /「([^」]+)」\s*(?:一节|条目|小节)|`([\w./@-]+\.md)`/g;
   const notATitle = /[→≤=、;]/;
   // The citation and its suffix may wrap over several lines, so the search runs
@@ -352,7 +306,7 @@ for (const file of files) {
         contextFile = cited;
         continue;
       }
-      if (!contextFile || notATitle.test(rawName) || rawName.length > 40) continue;
+      if (!contextFile || notATitle.test(rawName)) continue;
       const target = resolvePath(contextFile, file);
       // The name may belong to another repository, or to no file at all: rule 1
       // already reports a citation that does not resolve.
@@ -367,26 +321,13 @@ for (const file of files) {
     }
   }
 
-  // 4. Paired language file structure (foo.md <-> foo.zh.md).
+  // 4. Paired language file structure (foo.md <-> foo.zh.md), compared in order.
   const zhMatch = /^(.*)\.zh\.md$/.exec(self);
   if (zhMatch) {
     const counterpart = join(root, `${zhMatch[1]}.md`);
     try {
-      const [en, zh] = [lines(counterpart), text];
-      const count = (rows, pattern) => rows.filter((row) => pattern.test(row.trim())).length;
-      const shape = (rows) => ({
-        headings: count(rows, /^#{1,6} /),
-        lists: count(rows, /^([-*+]|\d+\.)\s/),
-        fences: count(rows, /^```/),
-        tables: count(rows, /^\|/),
-      });
-      const enShape = shape(en);
-      const zhShape = shape(zh);
-      for (const key of Object.keys(enShape)) {
-        if (enShape[key] !== zhShape[key]) {
-          failures.push(`${self} and ${rel(counterpart)} differ in ${key}: ${enShape[key]} vs ${zhShape[key]}`);
-        }
-      }
+      const compare = comparePairStructure(rel(counterpart), self, lines(counterpart), text);
+      for (const finding of compare) failures.push(finding);
       notes.push(`paired: ${rel(counterpart)} <-> ${self}`);
     } catch {
       failures.push(`${self} has no English counterpart (${rel(counterpart)} is missing)`);
