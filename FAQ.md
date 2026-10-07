@@ -138,6 +138,18 @@ Check the `Forgejo Toolkit` Output Channel for errors. Common causes:
 
 Open the Developer Tools in VS Code and look for JavaScript errors. Common causes include failed message initialization or a runtime error during the first render.
 
+### Why can't I write a setting that a new version added?
+
+Configuration keys are registered when a window starts, from the manifest of the extension version that window loaded. A window that was already open when the extension updated is therefore still serving the previous manifest: a key the new version adds is unknown there, and writing that setting fails with a message saying the configuration is not registered, so the value cannot be written to user settings. **Reloading the window makes it writable — this is not a defect.**
+
+Before reloading, you can confirm that this is what you are looking at:
+
+- In the **Extensions** view, the extension shows the new version; if it also offers **Reload Required**, accept it.
+- Search for the setting id in VS Code's own settings UI: if nothing matches, that window is still running the old manifest.
+- In a terminal, `code --list-extensions --show-versions` corroborates the installed version.
+
+Then run **Developer: Reload Window** (or restart the editor) and write the setting again.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution guidelines. Report bugs or ask questions on [Codeberg Issues](https://codeberg.org/cpf23333/forgejo-toolkit/issues).

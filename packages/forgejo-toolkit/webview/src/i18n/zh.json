@@ -640,6 +640,10 @@
       "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",
       "enable": "启用调试日志"
     },
+    "data": {
+      "title": "设置与数据",
+      "description": "把本扩展的整份配置导出成一个文件、或从文件导入——包含已保存的实例与 AI 那一段（传输方式、端点、默认端点与模型、逐功能覆盖）。访问令牌始终留在 VS Code 的 SecretStorage 里，不会被写进这个文件。"
+    },
     "notifications": {
       "title": "通知",
       "description": "本窗口如何监视各实例的未读通知。",
@@ -944,7 +948,7 @@
     "disabled": "关闭",
     "importPreview": {
       "title": "导入预览",
-      "backToList": "返回实例列表",
+      "backToList": "返回设置与数据",
       "selectAll": "全选",
       "deselectAll": "取消全选",
       "empty": "没有可导入的实例。",

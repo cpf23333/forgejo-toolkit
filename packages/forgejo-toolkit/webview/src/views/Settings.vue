@@ -3054,9 +3054,11 @@ defineExpose({
       `importPreview` watcher in the script is what puts focus back on the Import
       button that opened it.
 
-      That return control is this page's, not the preview's: its destination is
-      this page's list, its guard is this page's discard question, and the preview
-      hands over the two facts it alone has (`requestLeave`). It is a text link
+      That return control is this page's, not the preview's: its destination is the
+      group the preview was opened from — 通用, where the export/import entry lives
+      since the 2026-10-06 move (§9.2) and which is why its label names 「设置与数据」
+      rather than the instance list — its guard is this page's discard question, and
+      the preview hands over the two facts it alone has (`requestLeave`). It is a text link
       rather than the two editor headings' `.editor-band-back` band control — the
       preview's own heading is the component's, and its shape is unchanged — but
       it keeps the same wording shape and the same place in the reading order, so
@@ -3656,6 +3658,41 @@ defineExpose({
                   {{ t('settings.debug.enable') }}
                 </vscode-checkbox>
               </div>
+            </section>
+
+            <!--
+        「设置与数据」: the export/import entry (moved here from 「实例」, maintainer's
+        ruling of 2026-10-06, `docs/design/settings-page.md` §9.2). One entry, not two:
+        what is written and read is the **whole configuration file** — the instances
+        and the `ai` section (transport, endpoints, default endpoint and model, the
+        per-feature bindings) — so it belongs to no subsystem and lives in 通用. The
+        controls themselves are unchanged: the same buttons, the same export dialog
+        with its per-instance selection, the same import preview with its per-item
+        choices. Tokens stay in SecretStorage; an import never turns egress on.
+      -->
+            <section class="setting-section">
+              <h2>{{ t('settings.data.title') }}</h2>
+              <p class="description">{{ t('settings.data.description') }}</p>
+              <div class="section-actions">
+                <vscode-button
+                  v-if="state.instances.value.length > 0"
+                  secondary
+                  icon="desktop-download"
+                  @click="handleExportInstances"
+                >
+                  {{ t('settings.exportInstances') }}
+                </vscode-button>
+                <vscode-button
+                  :ref="importInstancesButtonRef"
+                  icon="file-directory"
+                  @click="handleImportInstances"
+                  secondary
+                >
+                  {{ t('settings.importInstances') }}
+                </vscode-button>
+              </div>
+              <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
+              <div v-if="importStatus" :class="['status', importStatus.type]">{{ importStatus.message }}</div>
             </section>
 
             <!--
@@ -4726,26 +4763,8 @@ defineExpose({
                   <vscode-button :ref="addInstanceButtonRef" icon="add" @click="openNewEditor">
                     {{ t('settings.addInstance') }}
                   </vscode-button>
-                  <vscode-button
-                    v-if="state.instances.value.length > 0"
-                    secondary
-                    icon="desktop-download"
-                    @click="handleExportInstances"
-                  >
-                    {{ t('settings.exportInstances') }}
-                  </vscode-button>
-                  <vscode-button
-                    :ref="importInstancesButtonRef"
-                    icon="file-directory"
-                    @click="handleImportInstances"
-                    secondary
-                  >
-                    {{ t('settings.importInstances') }}
-                  </vscode-button>
                 </div>
               </div>
-              <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
-              <div v-if="importStatus" :class="['status', importStatus.type]">{{ importStatus.message }}</div>
               <!-- The Save outcome lands here, where the editor closed back to. -->
               <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
               <ul v-if="state.instances.value.length > 0" class="saved-list">

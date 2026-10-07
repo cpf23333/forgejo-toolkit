@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Export and import moved to the settings page's General → Settings and Data block.**
+  They used to sit in the instances section, which read as "this exports your
+  instances"; the file they write and read is the whole configuration — the saved
+  instances **and** the AI section (transport, endpoints, the default endpoint and
+  model, the per-feature bindings) — so they now live in General, which is where the
+  settings page keeps the things that belong to the page itself rather than to one
+  subsystem. Nothing else about them moved: still one export entry rather than a
+  split pair, the same export dialog with its per-instance selection, the same import
+  preview with its per-item choices, tokens still stay in VS Code's SecretStorage, and
+  an import still never turns an AI feature or its egress on.
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

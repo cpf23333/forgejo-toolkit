@@ -301,13 +301,16 @@ describe('Settings: the import preview returns to where it was opened from', () 
   it('draws the return path in the preview’s heading, above the list', async () => {
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     const back = backControl(wrapper);
     // The label is the page's own key, in both catalogs (`en.json`/`zh.json`), and
-    // it names the destination the way the two editors' do.
-    expect(back.text()).toBe('Back to the instance list');
+    // it names the destination the way the two editors' do: the block the preview
+    // was opened from, 「设置与数据」 in 通用 (`settings.data.title`), not the
+    // instance list — the entry moved there on 2026-10-06 (§9.2), which is why this
+    // literal changed with it.
+    expect(back.text()).toBe('Back to Settings and Data');
     // A real `<button>`, so Enter and Space activate it without a pointer — the
     // same contract the editors' return path keeps.
     expect(back.element.tagName).toBe('BUTTON');
@@ -322,10 +325,10 @@ describe('Settings: the import preview returns to where it was opened from', () 
     wrapper.unmount();
   });
 
-  it('returns to the instances group with focus back on the Import button', async () => {
+  it('returns to the general group with focus back on the Import button', async () => {
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     // The preview covers the whole page: the list state, its panes and the group
@@ -342,8 +345,8 @@ describe('Settings: the import preview returns to where it was opened from', () 
     // default group, which is where a plain "leave" would land.
     expect(wrapper.find('.import-preview').exists()).toBe(false);
     expect(wrapper.find('.settings-list').exists()).toBe(true);
-    expect(isVisible(paneFor(wrapper, 'instances'))).toBe(true);
-    expect(isVisible(paneFor(wrapper, 'general'))).toBe(false);
+    expect(isVisible(paneFor(wrapper, 'general'))).toBe(true);
+    expect(isVisible(paneFor(wrapper, 'instances'))).toBe(false);
     // Leaving drops the host's stash of the file: no preview is on screen to
     // confirm it from, and the entries it holds carry tokens.
     expect(stateMock.cancelImportInstances).toHaveBeenCalledTimes(1);
@@ -362,7 +365,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
     // a second, silent way to lose the reader's choices.
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
     await buttonByLabel(wrapper, 'Deselect all').trigger('click');
     await nextTick();
@@ -381,7 +384,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
     await flushFocusHandoff();
 
     expect(wrapper.find('.import-preview').exists()).toBe(false);
-    expect(isVisible(paneFor(wrapper, 'instances'))).toBe(true);
+    expect(isVisible(paneFor(wrapper, 'general'))).toBe(true);
     expect(stateMock.cancelImportInstances).toHaveBeenCalledTimes(1);
     const returnedTo = importButton(wrapper).element as HTMLElement;
     expect(focusedElements.map((element) => (element as HTMLElement).outerHTML)).toContain(returnedTo.outerHTML);
@@ -391,7 +394,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
   it('asks before discarding a choice the reader made, and stays when declined', async () => {
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     // The reader changes what will be imported: the arriving state is "everything
@@ -420,7 +423,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
   it('leaves without asking when the reader has not chosen anything', async () => {
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     // Untouched: every instance is selected and every conflict answer is still the
@@ -441,7 +444,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
     // reader's, not a default.
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper, {
       ai: {
         providers: [
@@ -476,10 +479,10 @@ describe('Settings: the import preview returns to where it was opened from', () 
     wrapper.unmount();
   });
 
-  it('lands in the instances list after a successful import, without navigating', async () => {
+  it('lands back on the page after a successful import, without navigating', async () => {
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     focusedElements.length = 0;
@@ -491,24 +494,25 @@ describe('Settings: the import preview returns to where it was opened from', () 
     // again and the stash is not cancelled — the import consumed it.
     expect(stateMock.confirmImportInstances).toHaveBeenCalledWith(['inst-a', 'inst-b'], undefined, {});
 
-    // The list state, in the group the preview was opened from.
+    // The list state, in the group the preview was opened from — 通用, where the
+    // export/import entry lives since the 2026-10-06 move (§9.2).
     expect(wrapper.find('.import-preview').exists()).toBe(false);
     expect(wrapper.find('.settings-list').exists()).toBe(true);
-    expect(isVisible(paneFor(wrapper, 'instances'))).toBe(true);
+    expect(isVisible(paneFor(wrapper, 'general'))).toBe(true);
     expect(stateMock.cancelImportInstances).not.toHaveBeenCalled();
 
     await flushFocusHandoff();
     const returnedTo = importButton(wrapper).element as HTMLElement;
     expect(focusedElements.map((element) => (element as HTMLElement).outerHTML)).toContain(returnedTo.outerHTML);
 
-    // The host's outcome is reported in the list it happened in, and the page is
+    // The host's outcome is reported by the control that started it, and the page is
     // still the tab's page: nothing pushed a route, because this surface has none.
     state.importInstancesResult.value = { success: true, count: 2 };
     await nextTick();
     expect(wrapper.text()).toContain('Imported 2 instance(s)');
     expect(wrapper.find('.settings').exists()).toBe(true);
     expect(wrapper.find('.import-preview').exists()).toBe(false);
-    expect(isVisible(paneFor(wrapper, 'instances'))).toBe(true);
+    expect(isVisible(paneFor(wrapper, 'general'))).toBe(true);
     wrapper.unmount();
   });
 
@@ -520,7 +524,7 @@ describe('Settings: the import preview returns to where it was opened from', () 
     // move together.
     const wrapper = mountView();
     await nextTick();
-    await selectGroup(wrapper, 'instances');
+    await selectGroup(wrapper, 'general');
     await openPreview(wrapper);
 
     await wrapper.find('.import-preview').trigger('keydown', { key: 'Escape' });

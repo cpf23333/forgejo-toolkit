@@ -640,6 +640,10 @@
       "description": "Enable request/response logging to the Forgejo Toolkit output channel.",
       "enable": "Enable debug logging"
     },
+    "data": {
+      "title": "Settings and Data",
+      "description": "Export and import this extension's whole configuration — the saved instances and the AI section (transport, endpoints, default endpoint and model, per-feature bindings) — as one file. Access tokens stay in VS Code's SecretStorage and are never written into it."
+    },
     "notifications": {
       "title": "Notifications",
       "description": "How this window watches your instances for unread notifications.",
@@ -944,7 +948,7 @@
     "disabled": "Off",
     "importPreview": {
       "title": "Import Preview",
-      "backToList": "Back to the instance list",
+      "backToList": "Back to Settings and Data",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
       "empty": "No instances to import.",

@@ -69,15 +69,24 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     // last block is the developer passage `forgejoToolkit.useMockApi` lives in
     // (§1.3, §3.2) — a page-level setting with no other section to belong to, so
     // it is its own block here rather than a seventh group.
-    blocks: ['settings.language', 'settings.debug.title', 'settings.developer.title'],
+    //
+    // 「设置与数据」 (export/import) is the reasoning that grouping follows the
+    // **subsystem a thing acts on**, not the shape of its payload: the file is the
+    // whole configuration (v3 carries the `ai` section too), it belongs to no
+    // subsystem, and under 「实例」 a reader would reasonably expect instances only
+    // (maintainer's ruling, 2026-10-06). It sits before the developer passage so
+    // the dev-only switch stays last.
+    blocks: ['settings.language', 'settings.debug.title', 'settings.data.title', 'settings.developer.title'],
     settingIds: ['forgejoToolkit.locale', 'forgejoToolkit.debug', 'forgejoToolkit.useMockApi'],
   },
   {
     id: 'instances',
     labelKey: 'settings.groups.instances',
-    // The list, its Add/Export/Import controls and its editor state — the editor
-    // is a state of the page rather than a block, so it is named by the block it
-    // is opened from and returns to (§9.4 rule 3).
+    // The list, its Add control and its editor state — the editor is a state of the
+    // page rather than a block, so it is named by the block it is opened from and
+    // returns to (§9.4 rule 3). Export/import used to live in this block's header;
+    // it moved to 「通用」 → 「设置与数据」 (2026-10-06) because what it writes is the
+    // whole configuration file, not instances.
     blocks: ['settings.savedInstances'],
     settingIds: [],
   },

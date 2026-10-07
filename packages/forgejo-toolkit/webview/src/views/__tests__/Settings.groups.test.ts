@@ -252,8 +252,36 @@ describe('Settings groups: the mapping', () => {
     // passage `useMockApi` lives in — a twelfth block inside the existing 通用 group
     // rather than a seventh group (§9.2) — plus issue triage's own block, which is a
     // feature of its own with its own switch and scope (§3.2 of the issue-triage
-    // record), here rather than in the group's master switch.
-    expect(blocks).toHaveLength(13);
+    // record), here rather than in the group's master switch, plus 「设置与数据」
+    // (export/import) which moved out of 「实例」 into 通用 because what it writes is
+    // the whole configuration file, not instances (maintainer's ruling, 2026-10-06).
+    expect(blocks).toHaveLength(14);
+  });
+
+  it('keeps export/import in 通用 and out of 实例', async () => {
+    // The placement is the change: the entry acts on the whole configuration file
+    // (instances **and** the `ai` section), so it belongs to no subsystem. Reading it
+    // off the rendered page is what keeps a later "tidy-up" from moving it back.
+    const wrapper = mountView();
+    await nextTick();
+
+    const general = paneFor(wrapper, 'general');
+    expect(general.findAll('h2').map((heading) => heading.text())).toContain(labelOf('settings.data.title'));
+    const generalButtons = general.findAll('vscode-button').map((button) => button.text().trim());
+    // One entry each way, reachable from the group the page opens on — not two
+    // exports (the panel's Import and the export dialog's own controls are the same
+    // controls they always were).
+    expect(generalButtons).toContain('Import');
+    expect(generalButtons).toContain('Export');
+
+    const instances = paneFor(wrapper, 'instances');
+    const instancesButtons = instances.findAll('vscode-button').map((button) => button.text().trim());
+    expect(instancesButtons).not.toContain('Export');
+    expect(instancesButtons).not.toContain('Import');
+    // 「实例」 keeps its own block and its own way in.
+    expect(instances.findAll('h2').map((heading) => heading.text())).toContain(labelOf('settings.savedInstances'));
+    expect(instancesButtons).toContain('Add Instance');
+    wrapper.unmount();
   });
 
   it('renders every block inside the pane of the group that claims it', () => {
