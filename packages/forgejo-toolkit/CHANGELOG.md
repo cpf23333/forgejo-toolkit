@@ -32,6 +32,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preview with its per-item choices, tokens still stay in VS Code's SecretStorage, and
   an import still never turns an AI feature or its egress on.
 
+### Fixed
+
+- **The import preview no longer calls a plaintext file encrypted.** The credentials
+  line asked whether the file carried a `secrets` block, and a hand-written or
+  hostile plaintext file can carry one: such a file was described as "this encrypted
+  file carries the credentials for its N endpoints" even though nothing about it was
+  encrypted — and import is exactly where a file from elsewhere enters. The sentence
+  now follows the file's own encryption flag, which the host reports and the preview
+  carries through its message handler to the view, so a plaintext file that still
+  carries credentials is described as one, and an encrypted file that carries none no
+  longer claims it was not encrypted. Nothing else about import changed: the
+  credentials go to the editor's secret storage either way, the per-item choices and
+  conflict answers are as they were, and importing still turns no AI switch and no
+  egress on. The preview also now says in its own words that importing never changes
+  your model transport setting, which is what it always did.
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

@@ -6010,7 +6010,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      const { instances, settings, dropped, ai } = await readExportDataFromUri(uris[0]);
+      const { instances, settings, dropped, ai, encrypted } = await readExportDataFromUri(uris[0]);
       // Stash the full entries host-side; the webview only receives a
       // token-less copy and later confirms by id, so token values never
       // cross into the webview process in either direction. The AI half is
@@ -6032,6 +6032,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         tokenConflicts,
         settings,
         ...(aiPreview === undefined ? {} : { ai: aiPreview.ai }),
+        // The file's own encryption flag, so the preview's credentials note describes
+        // the file it was actually given: a plaintext file that happens to carry a
+        // `secrets` block must not be called encrypted (§10.2).
+        encrypted,
         // The dropped entries never appear in `instances`, so without the count
         // the preview looks complete. Only when something was dropped: an
         // absent field is what a host build without the count sends, and the

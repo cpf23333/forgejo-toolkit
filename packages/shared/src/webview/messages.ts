@@ -1985,13 +1985,24 @@ export type HostToWebviewMessage =
         bindings: Array<{ feature: string; providerId: string; modelId: string }>;
         transport: 'auto' | 'vscode-lm' | 'openai-compatible';
         /**
-         * Whether the file carried credentials at all — i.e. whether it was
-         * encrypted (§10.2). Stated plainly in the preview, because a plaintext
-         * export contains no API key and no header value, and the endpoints it
-         * carries will therefore have no credential until the user adds one.
+         * Whether the file carried a `secrets` block — i.e. whether credentials are
+         * in it, which the preview states plainly. It is **not** a statement that the
+         * file is encrypted: a hand-written or hostile file can carry `secrets`
+         * without being encrypted, which is why that claim is keyed on the payload's
+         * own `encrypted` flag (§10.2) rather than inferred from this one.
          */
         secretsIncluded: boolean;
       };
+      /**
+       * The file's own encryption flag: the envelope's `encrypted: true`
+       * (`docs/design/ai-model-transport.md` §10.2), which the export writes when the
+       * user chose a password. Reported so the preview's sentence matches the payload:
+       * the credentials note used to call any file with a `secrets` block "encrypted",
+       * which a plaintext file with that block made false. An absent flag means "not
+       * encrypted" (never "unknown"), so a consumer cannot claim encryption it was not
+       * told about — the same reading an older host build's reply gets.
+       */
+      encrypted?: boolean;
       error?: string;
       /**
        * How many entries of the import file the host had to skip. Present only

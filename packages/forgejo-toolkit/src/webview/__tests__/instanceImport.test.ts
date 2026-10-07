@@ -153,6 +153,9 @@ describe('readExportDataFromUri', () => {
       instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
       settings: undefined,
       dropped: 0,
+      // The envelope carries no `encrypted: true`, which is the fact the preview's
+      // credentials sentence is keyed on — a plaintext file, stated as such.
+      encrypted: false,
     });
   });
 
@@ -208,6 +211,37 @@ describe('readExportDataFromUri', () => {
     const data = await readExportDataFromUri(vscode.Uri.file(file));
     expect(data.instances).toHaveLength(1);
     expect(data.instances[0].token).toBe('tok');
+    // The envelope's flag is reported as the fact it is: this one really was encrypted.
+    expect(data.encrypted).toBe(true);
+  });
+
+  it('reports a plaintext file that carries a secrets block as not encrypted', async () => {
+    // The verifier's defect, at the level where the facts are read: a plaintext
+    // payload can carry `ai.secrets` — nothing about the file stops it — so
+    // "the section has credentials" and "the file is encrypted" are two different
+    // statements, and the preview's sentence is keyed on the second one.
+    const file = writeExportFile({
+      version: 3,
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
+      ai: {
+        providers: [
+          {
+            id: 'ollama-local',
+            name: 'Ollama (this machine)',
+            baseUrl: 'http://localhost:11434/v1',
+            models: [],
+            auth: 'bearer',
+            headers: [{ name: 'api-version' }],
+          },
+        ],
+        transport: 'auto',
+        secrets: { keys: { 'ollama-local': 'plaintext-but-claims-a-wrapper' }, headerValues: {} },
+      },
+    });
+
+    const data = await readExportDataFromUri(vscode.Uri.file(file));
+    expect(data.encrypted).toBe(false);
+    expect(data.ai?.secretsIncluded).toBe(true);
   });
 
   it('drops unshipped settings values so the preview cannot render a raw i18n key', async () => {

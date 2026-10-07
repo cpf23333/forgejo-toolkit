@@ -81,6 +81,18 @@ const droppedCount = computed(() => preview.value?.dropped ?? 0);
 const aiConfig = computed(() => preview.value?.ai);
 const aiProviders = computed(() => aiConfig.value?.providers ?? []);
 /**
+ * Whether the **file** is encrypted, which is the envelope's own flag and not the
+ * presence of a `secrets` block.
+ *
+ * The two are different questions: the exporter only writes `secrets` inside the
+ * encrypted wrapper, but a hand-written or hostile plaintext file can carry that
+ * block too — and import is exactly where a file from elsewhere enters. Reading
+ * "encrypted" off `secretsIncluded` therefore called such a file encrypted, which is
+ * the defect `docs/design/ai-model-transport.md` §10.2 now records; an absent flag
+ * reads as "not encrypted" rather than as "assume encrypted".
+ */
+const fileIsEncrypted = computed(() => preview.value?.encrypted === true);
+/**
  * Per-provider collision decision, keyed by the id the **file** declared.
  *
  * `keep` is the default for an entry whose id is already configured: it is the
@@ -363,12 +375,31 @@ watch(
       <div v-if="aiConfig && aiProviders.length > 0" class="ai-summary">
         <h3 class="settings-summary-title">{{ t('settings.importPreview.ai.title') }}</h3>
         <p class="ai-note">{{ t('settings.importPreview.ai.policyNote') }}</p>
+        <!-- Two independent facts, one sentence each: whether credentials are in the
+             file (`aiConfig.secretsIncluded`) decides the branch — credentials present
+             is a plain note, credentials absent is the warning that says how to add
+             them — and whether the file is **encrypted** (`fileIsEncrypted`) only
+             picks the wording inside that branch. The encryption claim therefore
+             always matches the payload: a plaintext file with a `secrets` block is
+             described as a plaintext file that carries credentials. -->
         <p v-if="aiConfig.secretsIncluded" class="ai-note">
-          {{ t('settings.importPreview.ai.secretsIncluded', { count: aiProviders.length }) }}
+          {{
+            t(
+              fileIsEncrypted
+                ? 'settings.importPreview.ai.secretsIncluded'
+                : 'settings.importPreview.ai.secretsIncludedPlaintext',
+              { count: aiProviders.length },
+            )
+          }}
         </p>
         <p v-else class="ai-note ai-note-warning">
           <vscode-icon name="warning" />
-          <span>{{ t('settings.importPreview.ai.noSecrets', { count: aiProviders.length }) }}</span>
+          <span>{{
+            t(
+              fileIsEncrypted ? 'settings.importPreview.ai.noSecretsEncrypted' : 'settings.importPreview.ai.noSecrets',
+              { count: aiProviders.length },
+            )
+          }}</span>
         </p>
         <p v-if="aiInsecureCount > 0" class="ai-note ai-note-warning">
           <vscode-icon name="warning" />

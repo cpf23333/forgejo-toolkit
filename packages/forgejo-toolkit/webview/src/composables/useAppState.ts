@@ -930,8 +930,21 @@ function createAppState() {
           providers: AiImportPreviewProvider[];
           bindings: Array<{ feature: string; providerId: string; modelId: string }>;
           transport: 'auto' | 'vscode-lm' | 'openai-compatible';
+          /**
+           * Whether the file carried a `secrets` block (credentials present). Not a
+           * statement that the file is encrypted — see `encrypted` below.
+           */
           secretsIncluded: boolean;
         };
+        /**
+         * The file's own encryption flag, from the envelope the host read. The
+         * credentials note keys its "encrypted" wording on this and not on
+         * `ai.secretsIncluded`: a plaintext file can carry a `secrets` block, and
+         * calling it encrypted was the defect this field exists to fix
+         * (`docs/design/ai-model-transport.md` §10.2). An absent flag reads as
+         * "not encrypted", never as "assume encrypted".
+         */
+        encrypted?: boolean;
         error?: string;
         /**
          * How many entries in the file the host could not use (missing or wrongly
@@ -2555,6 +2568,15 @@ function createAppState() {
             transport: 'auto' | 'vscode-lm' | 'openai-compatible';
             secretsIncluded: boolean;
           };
+          /**
+           * The file's own encryption flag. It has to be listed **and** copied
+           * below: this handler rebuilds the state from an explicit field list, so a
+           * field the payload grew and this cast did not is dropped here and reaches
+           * no view — which is exactly how the preview went on calling every file
+           * with a `secrets` block "encrypted" after the payload had been fixed.
+           * A field added to the payload belongs in this list in the same change.
+           */
+          encrypted?: boolean;
           error?: string;
           dropped?: number;
         };
@@ -2567,6 +2589,11 @@ function createAppState() {
           // `ai` section, is not a file whose AI configuration is empty — it is one
           // that has none to show.
           ai: previewMessage.ai,
+          // The encryption flag travels with the file's other facts. Absent stays
+          // absent rather than being defaulted to `true` here: the view reads
+          // "not encrypted" from an absent flag, so a reply that never mentioned one
+          // cannot make it claim a wrapper it was not told about.
+          encrypted: previewMessage.encrypted,
           // A failed read arrives with empty arrays; keep the error so the
           // preview view can explain the failure instead of looking empty.
           error: previewMessage.error,

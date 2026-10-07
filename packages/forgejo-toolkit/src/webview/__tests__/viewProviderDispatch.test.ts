@@ -2901,6 +2901,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       secrets.clear();
 
       const preview = await previewAi(file, 'pw');
+      // The envelope's own flag, and the fact the credentials sentence is keyed on:
+      // "this file is encrypted" is a statement about the wrapper, not about the
+      // `secrets` block being present.
+      expect(preview).toMatchObject({ encrypted: true });
       expect(preview?.ai).toMatchObject({
         secretsIncluded: true,
         transport: 'openai-compatible',
@@ -2973,6 +2977,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       secrets.set('forgejoToolkit.aiProviderKey.ollama-local', 'sk-existing-local-key');
 
       const preview = await previewAi(file);
+      expect(preview).toMatchObject({ encrypted: false });
       expect(preview?.ai).toMatchObject({ secretsIncluded: false });
       const ai = preview?.ai as { providers: Array<Record<string, unknown>> } | undefined;
       const aiProviders = ai?.providers ?? [];
@@ -2983,6 +2988,32 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const reply = await confirm({ 'ollama-local': 'keep' });
       expect(reply).toMatchObject({ success: true, count: 1 });
       expect(storedSecret('forgejoToolkit.aiProviderKey.ollama-local')).toBe('sk-existing-local-key');
+    });
+
+    it('reports a plaintext file that carries a secrets block as plaintext', async () => {
+      // The defect the verifier walked, at the seam the sentence reads: nothing
+      // about a plaintext payload stops it from carrying a `secrets` block — a
+      // hand-written file is exactly that, and import is where a file from
+      // elsewhere enters. The preview must therefore report both facts as they
+      // are: the envelope is not encrypted, and the section does carry credentials.
+      const file = writeInstancesFile({
+        ai: aiSection({
+          secrets: {
+            keys: { 'ollama-local': IMPORTED_AI_KEY },
+            headerValues: { 'ollama-local': { 'api-version': IMPORTED_AI_HEADER_VALUE } },
+          },
+        }),
+      });
+
+      const preview = await previewAi(file);
+      expect(preview).toMatchObject({ encrypted: false });
+      expect(preview?.ai).toMatchObject({ secretsIncluded: true });
+
+      // The credentials are still stashed for the confirmation, and still never
+      // reach the webview: what changed is only what the file is called.
+      expect(JSON.stringify(preview)).not.toContain(IMPORTED_AI_KEY);
+      expect(JSON.stringify(preview)).not.toContain(IMPORTED_AI_HEADER_VALUE);
+      expect(provider.hasPendingImportAiForTest()).toBe(true);
     });
 
     it('does not turn AI on: the import leaves the switches and the transport alone', async () => {

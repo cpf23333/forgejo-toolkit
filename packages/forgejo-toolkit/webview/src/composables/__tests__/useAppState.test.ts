@@ -2390,6 +2390,38 @@ describe('useAppState', () => {
       expect(state.importPreview.value?.error).toBeUndefined();
       expect(state.importPreview.value?.instances).toHaveLength(1);
     });
+
+    it('carries the file’s encryption flag into the preview state', async () => {
+      // The handler rebuilds the preview from an explicit field list, so a field the
+      // payload grew and this list did not is silently dropped — which is how the
+      // view went on calling an encrypted file plaintext after the payload was
+      // fixed. This test goes through the same message path the views do, rather
+      // than assigning `importPreview.value` directly: that shortcut is what left
+      // the defect live with a green suite.
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.previewImportInstances();
+      dispatchMessage({ command: 'importInstancesPreview', instances: [], existingIds: [], encrypted: true });
+      await nextTick();
+
+      expect(state.importPreview.value?.encrypted).toBe(true);
+    });
+
+    it('reads a missing encryption flag as absent, not as encrypted', async () => {
+      // A reply from a host build that predates the field: the view keyed on this
+      // must see "no claim of encryption" rather than a default it can mistake for
+      // one. Absent stays absent in the state, exactly like `dropped`.
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.previewImportInstances();
+      dispatchMessage({ command: 'importInstancesPreview', instances: [], existingIds: [] });
+      await nextTick();
+
+      expect(state.importPreview.value).toBeDefined();
+      expect(state.importPreview.value?.encrypted).toBeUndefined();
+    });
   });
 
   describe('loadNotifications intent replay', () => {

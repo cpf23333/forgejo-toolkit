@@ -87,6 +87,8 @@ describe('ImportPreview AI endpoints', () => {
   });
 
   it('says an unencrypted file carries no credentials, and names how many endpoints it has', async () => {
+    // The flag is absent, which reads as "not encrypted" — the direction that may
+    // never claim a wrapper it was not told about.
     setPreview({ ai: aiSection([PROVIDER], { secretsIncluded: false }) });
     const wrapper = mountView();
     await nextTick();
@@ -100,7 +102,7 @@ describe('ImportPreview AI endpoints', () => {
   });
 
   it('says an encrypted file carries credentials, and where they will be stored', async () => {
-    setPreview({ ai: aiSection([PROVIDER], { secretsIncluded: true }) });
+    setPreview({ encrypted: true, ai: aiSection([PROVIDER], { secretsIncluded: true }) });
     const wrapper = mountView();
     await nextTick();
 
@@ -110,6 +112,38 @@ describe('ImportPreview AI endpoints', () => {
     // The "no credentials" warning is not also shown: the two statements are
     // mutually exclusive, and showing both would say nothing.
     expect(wrapper.find('.ai-note-warning').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('describes a plaintext file that carries a secrets block as what it is', async () => {
+    // The verifier's defect: the sentence was keyed on the `secrets` block, so a
+    // hand-written (or hostile) plaintext file that merely includes one was called
+    // an "encrypted file". The encryption claim follows the payload's own flag.
+    setPreview({ encrypted: false, ai: aiSection([PROVIDER], { secretsIncluded: true }) });
+    const wrapper = mountView();
+    await nextTick();
+
+    const text = wrapper.find('.ai-summary').text();
+    expect(text).toContain('This file is not encrypted, yet it carries the credentials');
+    expect(text).not.toContain('This encrypted file');
+    // The substance is unchanged: credentials still go to secret storage, and
+    // nothing here is a warning about the credentials' fate.
+    expect(text).toContain("editor's secret storage");
+    expect(wrapper.find('.ai-note-warning').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('does not call an encrypted file unencrypted when it carries no credentials', async () => {
+    // The mirror of the same mistake: `noSecrets` says "this file was not
+    // encrypted", which an encrypted file with no credentials would have made false.
+    setPreview({ encrypted: true, ai: aiSection([PROVIDER], { secretsIncluded: false }) });
+    const wrapper = mountView();
+    await nextTick();
+
+    const text = wrapper.find('.ai-summary').text();
+    expect(text).toContain('This encrypted file carries no API key and no header value');
+    expect(text).not.toContain('This file was not encrypted');
+    expect(wrapper.find('.ai-note-warning').exists()).toBe(true);
     wrapper.unmount();
   });
 
@@ -219,6 +253,12 @@ describe('ImportPreview AI endpoints', () => {
     const note = wrapper.find('.ai-summary .ai-note').text();
     expect(note).toContain('does not turn AI on');
     expect(note).toContain('does not turn any AI feature on');
+    // The policy note is also where the transport half is stated. The payload
+    // carries a transport value (`aiSection`'s own), and the preview has no row for
+    // it: what the reader is told is the rule — the import does not change the
+    // setting — rather than the file's value, which the parser cannot tell apart
+    // from the `auto` it substitutes when the field is absent.
+    expect(note).toContain('does not change your model transport setting either');
     wrapper.unmount();
   });
 });

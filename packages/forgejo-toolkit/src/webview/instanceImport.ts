@@ -69,6 +69,16 @@ export interface ExportData {
    */
   ai?: ParsedAiSection;
   /**
+   * The file's own encryption flag — the envelope's `encrypted: true`, which the
+   * exporter writes when the user chose a password (`_encryptExportData`), and
+   * which is what decides whether the file could carry credentials **in a wrapper**.
+   * It is reported separately from {@link ParsedAiSection.secretsIncluded} on
+   * purpose: that one is the presence of a `secrets` block, and a hand-written
+   * plaintext file can carry one, so the import preview must not call such a file
+   * encrypted (`docs/design/ai-model-transport.md` §10.2).
+   */
+  encrypted: boolean;
+  /**
    * How many entries of the file's `instances` array could not be used (not an
    * object, or a required field missing or wrongly typed). Reported so the
    * import preview can say the file held more than it shows instead of
@@ -295,5 +305,14 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
   // it can read. What a newer file adds is simply dropped, exactly like an
   // unknown field inside a section.
   const ai = parseAiImportedAiConfig(data.ai);
-  return { instances: validInstances, settings, ...(ai === undefined ? {} : { ai }), dropped };
+  return {
+    instances: validInstances,
+    settings,
+    // The envelope's flag, reported for the preview's wording: "was this file
+    // encrypted?" and "does its `ai` section carry a `secrets` block?" are two
+    // different questions, and only the first may be called encryption.
+    encrypted: parsed.encrypted === true,
+    ...(ai === undefined ? {} : { ai }),
+    dropped,
+  };
 }

@@ -52,9 +52,14 @@ import { saveAiProvider, validateAiProviderDraft, writeSettingValue } from './ai
  *    the provider list and the bindings — and never `forgejoToolkit.aiEnabled`,
  *    `forgejoToolkit.aiPreReview`, `forgejoToolkit.aiPreReviewPromptScope` or the
  *    PR-description pair, which are the keys that decide what leaves the machine.
- *    The transport value is shown in the preview but not applied, for the reason
- *    §7.4 gives: the opposite value on the receiving machine may be a working
- *    setup, and a file is the wrong thing to walk back.
+ *    The transport value is **not applied** — §7.4's reason: the opposite value on
+ *    the receiving machine may be a working setup, and a file is the wrong thing to
+ *    walk back — and the preview says that in as many words rather than displaying
+ *    the file's value (`ImportPreview.vue`'s policy note). Displaying it would need
+ *    a separate "the file declared one" flag: this parser substitutes `auto` when
+ *    the field is absent, so the value alone cannot tell a declared `auto` from a
+ *    substituted one, and a line that showed it would claim a declaration the file
+ *    never made.
  * 4. **A secret lands in `SecretStorage`, never in settings** (§8.2). The values
  *    travel inside the encrypted payload only and are written through
  *    `src/ai/providerSecrets.ts` — the same accessors the settings page uses, which
@@ -209,7 +214,16 @@ export function parsedAiProviderConfigs(parsed: ParsedAiSection): AiProviderConf
 /** The `ai` section of an import file, with its secrets kept apart. */
 export interface ParsedAiSection {
   config: ExportAiConfig;
-  /** The file's own claim that the `secrets` block was present (i.e. it was encrypted). */
+  /**
+   * Whether the section carried a `secrets` block, reported next to the values
+   * rather than inferred from them.
+   *
+   * This is **not** a statement that the file is encrypted: encryption is the
+   * envelope's own `encrypted` flag (`readExportDataFromUri`'s `ExportData.encrypted`),
+   * and a hand-written plaintext file can carry a `secrets` block. The preview's
+   * sentence about credentials is keyed on both, so a file that only *claims* a
+   * wrapper is described as what it is (`docs/design/ai-model-transport.md` §10.2).
+   */
   secretsIncluded: boolean;
   secrets: ExportAiSecrets;
 }
@@ -226,7 +240,9 @@ export interface ParsedAiSection {
  *
  * `secretsIncluded` is the block's presence, reported next to the values rather
  * than inferred from them, because the preview has to be able to say "this file
- * carried no secrets" for a plaintext export whose section is otherwise complete.
+ * carried no secrets" for a plaintext export whose section is otherwise complete —
+ * and, the other way round, must not call a file encrypted just because a
+ * `secrets` block is there.
  */
 export function parseAiImportedAiConfig(value: unknown): ParsedAiSection | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
