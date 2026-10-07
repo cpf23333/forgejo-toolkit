@@ -376,6 +376,18 @@ the isolated dev host:
   `every detection marker still exists in the mock sources` — whose message names the
   file and says to update the literal. Move it with the text, or the trap costs the
   next walker a launch.
+- **The import preview replaces the settings page's content, so a driver that
+  recognises the page by its own controls loses the shell while the preview is up.**
+  Measured 2026-10-07 in the isolated dev host: with the preview open, the settings
+  tab's guest document no longer contains the page's controls
+  (`#notification-polling-enabled`, `#settings-group-select`, the group tabs) — it
+  contains `.import-preview` instead — so a `shellOf('settings')` that keys on them
+  reports "no settings webview frame" and the walk stalls at the one moment the
+  preview is the thing to read. Key the classifier on either set (the preview and the
+  group nav are both markers of the same surface), and read focus from
+  `document.activeElement` in the same guest: on open it is the preview root
+  (`div.import-preview[tabindex="-1"]`), and after the return control or a successful
+  import it is the Import button again.
 
 ## Mock-backed runs and the real-API opt-in
 
@@ -1478,7 +1490,16 @@ Two harness limits worth knowing before planning a flow:
   the exact path (its on-screen text is visible in
   `src/win/shot.ps1 -Dialog`'s `PrintWindow` render). `^a` matters: pasting into a
   box that already holds text **appends** to it, which is how one run produced
-  `import-endpoint.jjsonjson` and an error box.
+  `import-endpoint.jjsonjson` and an error box. **Reproduced 2026-10-07** while walking
+  the settings-and-data import: `dialog.ps1 -Keys '%n<path>'` produced the same
+  `D:、浔得…` gibberish plus a second `#32770 :: 打开` error box beside the picker (its
+  list of two is why `dialog.ps1 -Title '打开'` then refuses as ambiguous), and the
+  documented route closed it cleanly in one step — `Set-Clipboard` the path, activate
+  the picker, send `^a` then `^v`, then `{ENTER}`; the dialog closed and the import
+  preview opened. Clicks into the picker's list, by contrast, selected nothing that
+  run: `fileDialog.ps1 -RowIndex 4` at the row position measured off the capture
+  (`PrintWindow`, name column) left the dialog open three times, while Escape and the
+  clipboard keystrokes both landed.
 - **The picker's own window title is the breadcrumb, and its error box shares that
   title.** The Open dialog's title is its own word — `打开` on the Chinese-locale
   dev host this was measured on 2026-10-05 — so the title tells you which dialog
