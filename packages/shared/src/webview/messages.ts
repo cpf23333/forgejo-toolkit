@@ -562,6 +562,115 @@ export type IssueTriagePromptScopeValue = (typeof ISSUE_TRIAGE_PROMPT_SCOPES)[nu
 export type IssueTriageStatedScopeValue = Exclude<IssueTriagePromptScopeValue, 'ask'>;
 
 /**
+ * The values of `forgejoToolkit.notificationSummaryPromptScope`, in the order the
+ * manifest's dropdown, the settings page's dropdown and the consent modal show them
+ * (`docs/design/notification-summary.md` §5).
+ *
+ * Its own enumeration for the reason the other features have theirs: this feature sends
+ * **someone else's prose**, which no other feature sends, and one value must mean one
+ * thing (`ai-model-transport.md` §7.6). The order is the order of how much leaves the
+ * machine: `ask` sends nothing on its own, `body-only` sends the first post and the
+ * skeleton, `body-and-comments` adds the comment bodies (the recommended tier — the
+ * smallest one that can summarise a discussion), and `body-comments-and-events` adds the
+ * timeline events' metadata as well.
+ */
+export const NOTIFICATION_SUMMARY_PROMPT_SCOPES = [
+  'ask',
+  'body-only',
+  'body-and-comments',
+  'body-comments-and-events',
+] as const;
+
+/** One value of `forgejoToolkit.notificationSummaryPromptScope`. */
+export type NotificationSummaryPromptScopeValue = (typeof NOTIFICATION_SUMMARY_PROMPT_SCOPES)[number];
+
+/** One **stated** summary scope — every value but `ask`, which is the question. */
+export type NotificationSummaryStatedScopeValue = Exclude<NotificationSummaryPromptScopeValue, 'ask'>;
+
+/** The model that answered a summary, as the panel's header names it. */
+export interface NotificationSummaryPanelModel {
+  name: string;
+  vendor: string;
+  family?: string;
+  id: string;
+}
+
+/** Where an answer came from, as the panel's header names it. */
+export interface NotificationSummaryPanelTransport {
+  id: string;
+  kind: 'vscode.lm' | 'openai-compatible';
+  provider: string;
+  address?: string;
+}
+
+/**
+ * What one run amounts to, as the panel says it.
+ *
+ * `answer` is the only outcome with prose. `too-long` is a refusal, not a shortened
+ * answer: the design forbids trimming an over-long reply and passing it off as a summary
+ * (`docs/design/notification-summary.md` §7). `empty` is "there was nothing to send", and
+ * no model was called for it. `no-scope` is the fail-closed gate: `ask` was not answered,
+ * so nothing was read, requested or written. `unavailable` points at the settings page and
+ * sent nothing.
+ */
+export type NotificationSummaryPanelOutcome =
+  | 'answer'
+  | 'unavailable'
+  | 'refused'
+  | 'empty'
+  | 'too-long'
+  | 'read-failed'
+  | 'no-scope'
+  | 'cancelled';
+
+/**
+ * One summary as the editor-area panel renders it.
+ *
+ * The header must be able to show three facts about **this** run — the model, the scope
+ * tier actually used, and whether anything was truncated — so each is a field rather than
+ * something the panel derives, and each is absent exactly when no run produced it (nothing
+ * was sent, so there is no model to name). `truncated` covers both directions the record
+ * names: the material was cut when the prompt was built, and the endpoint stopped the
+ * answer at its own output limit; the body repeats the fact so a reader who scrolled past
+ * the header still sees it.
+ */
+export interface NotificationSummaryPanelPayload {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  /** The notification's subject type: `issue` or `pull`. */
+  type: 'issue' | 'pull';
+  index: number;
+  title?: string;
+  outcome: NotificationSummaryPanelOutcome;
+  model?: NotificationSummaryPanelModel;
+  transport?: NotificationSummaryPanelTransport;
+  /** The scope tier this run actually used. Absent when nothing ran. */
+  scope?: NotificationSummaryStatedScopeValue;
+  /**
+   * Whether anything was cut, as the header's third fact. `false` is a run that made the
+   * claim and cut nothing; absent is "no run made it".
+   */
+  truncated?: boolean;
+  /**
+   * **Which** part of the run was cut, when `truncated` is true: the material the prompt
+   * was built from (`material`), the answer the endpoint stopped at its own output limit
+   * (`answer`), or both.
+   *
+   * The two are different promises and must not be merged into one sentence: a cut
+   * material means the model did not see the whole discussion, while a cut answer means
+   * the prose itself is incomplete — and `docs/design/notification-summary.md` §7 reserves
+   * that second claim for the endpoint's own `finish_reason: 'length'`. Absent means
+   * nothing was cut.
+   */
+  truncationReason?: 'material' | 'answer' | 'material-and-answer';
+  /** The prose, for `outcome: 'answer'`. */
+  answer?: string;
+  /** The complete sentence for every outcome that did not produce an answer. */
+  failure?: string;
+}
+
+/**
  * Why one of the model's triage entries was refused.
  *
  * A shared vocabulary rather than free text: the host counts them and the panel
@@ -668,6 +777,8 @@ export const SETTINGS_SURFACE_WRITABLE_KEYS = [
   'forgejoToolkit.prDescriptionPromptScope',
   'forgejoToolkit.issueTriage',
   'forgejoToolkit.issueTriagePromptScope',
+  'forgejoToolkit.notificationSummary',
+  'forgejoToolkit.notificationSummaryPromptScope',
 ] as const;
 
 /** One setting the settings page may write. */
@@ -743,6 +854,8 @@ export interface SettingsSurfaceSnapshot {
   issueTriage: boolean;
   /** `forgejoToolkit.issueTriagePromptScope`, read exactly as the run reads it. */
   issueTriagePromptScope: IssueTriagePromptScopeValue;
+  notificationSummary: boolean;
+  notificationSummaryPromptScope: NotificationSummaryPromptScopeValue;
   /**
    * The level each of those values comes from, one entry per writable key — the
    * whole record, not only the overridden keys, because "nothing is overridden"
@@ -1021,6 +1134,17 @@ export type HostToWebviewMessage =
        * refusal remains the gate.
        */
       issueTriage?: boolean;
+      /**
+       * Whether `forgejoToolkit.notificationSummary` is on, so the notifications list can
+       * offer its "summarize discussion" action on issue and pull request rows.
+       *
+       * The same contract as `aiPreReview` above, and the one that matters most: this
+       * action sends **someone else's prose**, so a missing value reads as **off** — an
+       * affordance must never be offered on the strength of a value that never arrived.
+       * The run's own switch check remains the gate; a hidden action is an affordance, not
+       * the guarantee.
+       */
+      notificationSummary?: boolean;
       /**
        * Whether the repository declares at least one label, when the host already
        * learned it.
@@ -2221,6 +2345,15 @@ export type HostToWebviewMessage =
       cancelled?: boolean;
       error?: string;
     }
+  // The notification-summary panel. The payload is also injected into the document config
+  // (like the pre-review panel's), so the first paint does not need a round trip; this
+  // message is what a re-render for the notification now selected uses.
+  | { command: 'notificationSummaryPanelPayload'; payload: NotificationSummaryPanelPayload }
+  // The feature's switch, pushed when it changes: the dashboard's action is an affordance
+  // gated on the switch, and a boolean read once at mount would leave the action describing
+  // the switch's previous state. A missing value reads as **off** — the action is what
+  // would send someone else's prose, so an absent answer must not offer it.
+  | { command: 'setNotificationSummary'; notificationSummary: boolean }
   // The AI pre-review panel. The payload is also injected into the document
   // config (like the review-comment editor's context), so the first paint does
   // not need a round trip; this message is what a rewritten payload would use.
@@ -3046,6 +3179,23 @@ export type WebviewToHostMessage =
   // this message and are still taken from the host's own payload.
   | { command: 'aiPreReviewPanelCreate'; entries: AiPreReviewPanelSelectedBody[] }
   | { command: 'aiPreReviewPanelCancel' }
+  // The notification-summary action, posted by the notifications list for an issue or pull
+  // request notification. The webview sends the identity only: the host holds the consent
+  // gate, reads the timeline itself and calls the model, so a modified message can name a
+  // different entity to summarise but cannot put content into the prompt.
+  | {
+      command: 'notificationSummary';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      type: 'issue' | 'pull';
+    }
+  // The panel's one action of its own: run the summary again for the entity it is showing
+  // (the consent gate, the reads and the model call all happen again; a panel is not a
+  // cache). Copying is the webview's own business, and reaching the settings page reuses
+  // `openNativeSettings`.
+  | { command: 'notificationSummaryRegenerate' }
   // The two non-decision actions: open one card's anchor in the diff, and reach
   // the pending review the run just created.
   | { command: 'aiPreReviewPanelOpenDiff'; index: number }

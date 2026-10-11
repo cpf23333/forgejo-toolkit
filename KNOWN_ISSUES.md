@@ -322,6 +322,14 @@ Why this is not fixed here: the excerpt is written by the server when the activi
 
 Workaround for a reply composed in the Forgejo web UI: type your answer above the quoted block before posting (the composer prefills the quote first), or read the reply on the pull request's timeline, where the full body always is.
 
+## The notification summary reads a trimmed discussion
+
+The notification summary is not written from the whole discussion. The material a run sends carries a total budget of 16 KiB, half of it assigned to the opening and half to the landing, with the entries in the middle skipped and their number declared; a per-entry cap of 1024 characters; and the leading `> ` quote block of a reply removed, because that block copies text that is usually already present. Every one of those cuts is declared inside the material the model receives, and the panel header says which kind of cut the run had: "The discussion only — this summary is not cut" when the material was trimmed and the answer was not, or "Yes — the answer stopped at the endpoint's output limit" when the model's own answer was cut. The summary is therefore faithful to the opening and the landing of a discussion, and may say nothing at all about what happened in the middle.
+
+Why: a discussion has no length bound, a model's context window does, and a summary has to fit into one request. Trimming is a property of this feature, not a defect.
+
+Workaround: read the summary as covering the two ends, and open the thread itself when the middle matters — the full discussion is always there. Losing nothing is a different feature rather than a setting: it is the incremental, agent-oriented reading tier parked in the feature inventory (`FEATURES.md`).
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

@@ -562,6 +562,8 @@
     "forgejoToolkit.prDescriptionPromptScope": "settings.prDescription.scope",
     "forgejoToolkit.issueTriage": "settings.issueTriage.enabled",
     "forgejoToolkit.issueTriagePromptScope": "settings.issueTriage.scope",
+    "forgejoToolkit.notificationSummary": "settings.notificationSummary.enabled",
+    "forgejoToolkit.notificationSummaryPromptScope": "settings.notificationSummary.scope",
     "forgejoToolkit.aiProviders": "settings.aiProviders.title",
     "forgejoToolkit.aiTransport": "settings.aiProviders.policy.transport",
     "forgejoToolkit.aiDefaultProvider": "settings.aiProviders.defaultModel.provider",
@@ -728,6 +730,20 @@
         "commits-and-diff": "Commits, changed-file list and the pull request's own diff — the same plus every changed file's added and removed lines with its file and hunk headers, as the server reports the diff, and no file's full text; offered only in an existing pull request's edit dialog",
         "commits-and-files": "Commits, changed files and their text — the same plus the full text of the changed files at the head branch"
       }
+    },
+    "notificationSummary": {
+      "title": "AI: Notification Summary",
+      "description": "Draft a read-only summary of an issue or pull request from the notifications list: a chat model reads that entity’s timeline and the summary is shown in an editor-area panel, naming the model, the scope tier actually used and whether anything was truncated.",
+      "enabled": "Offer \"Summarize discussion\" on issue and pull request notifications",
+      "enabledDefault": "Default off: nothing is read or sent until you turn this on.",
+      "disabledHint": "The prompt scope below is configuration; a run uses it only while this is on.",
+      "scope": "Prompt scope",
+      "scopeDescription": "What the run’s prompt may carry. This is the only place the answer is recorded.",
+      "scopeDefault": "Default: `ask` — the first run asks once and writes your answer here.",
+      "scopeOption.ask": "Ask before each run — nothing is requested, sent or written until you answer",
+      "scopeOption.body-only": "The opening post and the skeleton — what the discussion is about, with no comment at all",
+      "scopeOption.body-and-comments": "The opening post and the comments — the smallest tier that can summarise a discussion",
+      "scopeOption.body-comments-and-events": "The opening post, the comments and the events’ metadata"
     },
     "issueTriage": {
       "title": "AI: Issue Label Suggestions",
@@ -1049,5 +1065,35 @@
     "resultPartial": "Created {count} draft comment(s); the rest failed: {failure}",
     "resultFailed": "No draft comment could be created: {failure}",
     "openDraft": "Open the pull request"
+  },
+  "notificationSummary": {
+    "title": "Discussion summary",
+    "action": "Summarize discussion",
+    "model": "Model",
+    "scope": "Prompt scope",
+    "truncated": "Truncated",
+    "modelNone": "None — no model was asked.",
+    "scopeNone": "None — no run started.",
+    "notRecorded": "Not recorded",
+    "truncatedAnswer": "Yes — the answer stopped at the endpoint's output limit",
+    "truncatedMaterial": "The discussion only — this summary is not cut",
+    "truncatedBoth": "Yes — both the discussion and the answer were cut",
+    "truncatedUnknown": "Yes — part of the run was cut, but not which part",
+    "truncatedNo": "No",
+    "truncatedBodyAnswer": "This summary is incomplete: the endpoint stopped at its own output limit, so the answer is shown exactly as it arrived and ends where the model stopped.",
+    "truncatedBodyMaterial": "The model was shown a trimmed version of this discussion — entries skipped in the middle, quoted blocks removed, over-long entries cut, each of them declared in the material it read — so this summary is faithful to what it saw and is not itself cut.",
+    "truncatedBodyBoth": "Both happened: the model was shown a trimmed discussion (entries skipped in the middle, quoted blocks removed, over-long entries cut, each declared in the material), and the endpoint then stopped the answer at its own output limit. The summary is faithful to what the model saw, and the answer itself is incomplete where it stops.",
+    "truncatedBodyUnknown": "Part of this run was cut, and this build cannot say whether it was the discussion the model saw or the answer itself.",
+    "unavailable": "No AI model is available, so nothing was read and nothing was sent. Configure a model in Settings, then run the summary again.",
+    "refused": "The model or endpoint refused this request. Nothing was switched and nothing was retried.",
+    "empty": "There is nothing to summarize: this discussion has no body to send at the selected scope, so no model was called.",
+    "tooLong": "The model's answer was longer than this extension accepts, so it was refused rather than trimmed.",
+    "readFailed": "The discussion's timeline could not be read, so no model was called.",
+    "noScope": "No prompt scope has been chosen yet, so nothing was read, nothing was sent and nothing was written. Choose a scope in Settings, or run the summary again to answer the question.",
+    "cancelled": "The summary was cancelled before anything was read or sent, and nothing was written.",
+    "failed": "The summary could not be produced, and nothing was written.",
+    "regenerate": "Regenerate the summary",
+    "regenerated": "Regenerating…",
+    "readOnly": "Read-only: nothing is written back to the repository."
   }
 }

@@ -92,7 +92,7 @@ export const AI_MOCK_PROVIDER_NAME = 'Local mock endpoint (tools/ui-review)';
 export const AI_FEATURES_SOURCE = 'packages/forgejo-toolkit/src/ai/modelSettings.ts';
 
 /** The last-resort feature list, used only when {@link readDeclaredAiFeatures} cannot read the source. */
-const AI_FEATURES_FALLBACK: readonly string[] = ['aiPreReview', 'prDescription', 'issueTriage'];
+const AI_FEATURES_FALLBACK: readonly string[] = ['aiPreReview', 'prDescription', 'issueTriage', 'notificationSummary'];
 
 /**
  * The feature ids in one `AI_FEATURES` declaration.

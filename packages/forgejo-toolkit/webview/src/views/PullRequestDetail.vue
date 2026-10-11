@@ -1222,6 +1222,19 @@ watch(
 const aiPreReviewEnabled = computed(() => state.aiPreReview?.value === true);
 
 /**
+ * Whether `forgejoToolkit.notificationSummary` is on, which is the whole of what this
+ * page gates the "summarize the discussion" action on.
+ *
+ * The same `=== true` reading as `aiPreReviewEnabled` above and for the same reason:
+ * the shared message type documents the field as **optional**, so a host older than it
+ * sends nothing and a missing value treated as "on" would offer an action whose only
+ * outcome would be the run's own refusal. The action's placement is a second decision
+ * this flag does not carry: it sits with the timeline, not in this page's header, which
+ * already offers the two diff-level AI surfaces (pre-review and description).
+ */
+const notificationSummaryEnabled = computed(() => state.notificationSummary?.value === true);
+
+/**
  * The changed-file count the AI pre-review button's tooltip states, or
  * `undefined` while the view cannot know it.
  *
@@ -1266,6 +1279,20 @@ const aiPreReviewTooltip = computed(() => {
  */
 function handleAiPreReview() {
   state.startAiPreReview(instanceId.value, owner.value, repo.value, index.value);
+}
+
+/**
+ * Asks the host to summarise this pull request's discussion.
+ *
+ * The same message the notification row sends, with this page's own coordinates and
+ * `type: 'pull'` (`docs/design/notification-summary.md` §4, §5) — deliberately not
+ * the pre-review run above, which reads the diff. Nothing is read or sent from here:
+ * the host asks the consent question, picks the model, reads the timeline and opens
+ * (or re-renders) the summary panel, so this is a dispatch and the answer belongs to
+ * the panel rather than to this page.
+ */
+function requestNotificationSummary(): void {
+  state.summarizeNotification(instanceId.value, owner.value, repo.value, index.value, 'pull');
 }
 
 function handleOpenDiff(filename: string, status: string, previousFilename?: string) {
@@ -1810,7 +1837,27 @@ function reloadPullRequest() {
         </div>
 
         <div class="detail-section">
-          <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+          <!--
+            The action sits with the timeline it reads, not in the page header: the
+            header already offers the diff-level AI surfaces (pre-review and the
+            description draft), and a third AI button there would leave it unclear
+            whether this one reads the diff or the discussion.
+          -->
+          <div class="section-heading">
+            <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+            <vscode-button
+              v-if="notificationSummaryEnabled"
+              id="pull-request-summary-button"
+              class="summarize-discussion"
+              icon="sparkle"
+              secondary
+              :title="t('notificationSummary.action')"
+              :aria-label="t('notificationSummary.action')"
+              @click="requestNotificationSummary"
+            >
+              {{ t('notificationSummary.action') }}
+            </vscode-button>
+          </div>
           <div v-if="commentsLoading" class="loading">
             <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
             {{ t('dashboard.loading') }}
@@ -2500,6 +2547,19 @@ function reloadPullRequest() {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/*
+ * A section's heading row: the title and the actions that belong to that section.
+ * Adjacent rather than pushed to the far edge, so an action reads as belonging to
+ * the heading it sits beside; the row wraps when the pane is narrow. The heading's
+ * own type stays on `.detail-section h3` below.
+ */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .detail-section h3 {

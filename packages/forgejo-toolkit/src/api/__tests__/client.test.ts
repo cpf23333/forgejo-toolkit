@@ -39,6 +39,7 @@ import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import {
   MOCK_EMPTY_REPO,
+  MOCK_EMPTY_TIMELINE_REPO,
   MOCK_EDIT_FAILURE_MESSAGE,
   MOCK_EDIT_FAILURE_REPO,
   MOCK_LABEL_FREE_REPO,
@@ -700,6 +701,26 @@ describe('ForgejoClient with MSW', () => {
   it('marks a notification as read', async () => {
     const client = createClient();
     await expect(client.markNotificationRead(101)).resolves.toBeUndefined();
+  });
+
+  it('carries a notification for the repository whose discussion is empty', async () => {
+    // The notification summary's action lives on a notification row, so the
+    // empty-timeline fixture is only walkable if a real notification names it — and only
+    // if that row is an issue/pull subject, which is the only kind the action is offered
+    // on. Pinned here so the walk cannot lose its entry point.
+    const client = createClient();
+    const notifications = await client.getNotifications();
+    const quiet = notifications.items.find(
+      (notification) => notification.repository?.full_name === `demo-user/${MOCK_EMPTY_TIMELINE_REPO}`,
+    );
+    const htmlUrl = quiet?.subject?.html_url ?? '';
+
+    expect(quiet?.subject?.type).toBe('Issue');
+    expect(quiet?.unread).toBe(true);
+    expect(htmlUrl).toContain(`/demo-user/${MOCK_EMPTY_TIMELINE_REPO}/issues/`);
+    // The number the action derives from the URL's last segment must name an issue the
+    // mock actually serves, or the walk would post a request nothing answers.
+    expect(Number.parseInt(htmlUrl.split('/').at(-1) ?? '', 10)).toBe(1);
   });
 
   it('marks all notifications as read', async () => {
@@ -3044,6 +3065,23 @@ describe('ForgejoClient with MSW', () => {
       const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
       expect(comments).toHaveLength(1);
       expect(comments[0].id).toBe(mockTimelineComment.id);
+    });
+
+    it('answers with no timeline in the one repository whose discussion is empty', async () => {
+      // The fixture the notification summary's "nothing to summarize" arm is walked
+      // through against (`docs/design/notification-summary.md` §7): an empty timeline
+      // means there is nothing to summarise **even though this issue has a first post**,
+      // so the walk can see the panel say so with no model call. Pinned here so it cannot
+      // quietly start answering with a comment — which would make that walk unprovable —
+      // and so the other repositories keep their own row.
+      const client = createClient();
+      const empty = await client.getPullRequestCommentsAndTimeline('demo-user', MOCK_EMPTY_TIMELINE_REPO, 1);
+      expect(empty).toEqual([]);
+      expect(MOCK_EMPTY_TIMELINE_REPO).toBe('another-repo');
+
+      const other = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+      expect(other).toHaveLength(1);
+      expect(other[0].id).toBe(mockTimelineComment.id);
     });
 
     it('skips attachment requests for comments without attachment references', async () => {

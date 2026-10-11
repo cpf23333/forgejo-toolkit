@@ -991,7 +991,10 @@ describe('MCP server over InMemoryTransport', () => {
   it('round-trips list_notifications as a paged result', async () => {
     const result = await callTool('list_notifications', {});
     const page = resultJson(result) as { items: { id?: number }[] };
-    expect(page.items.map((n) => n.id)).toEqual([101, 102]);
+    // The default status filter is unread + pinned, so the read repository notification
+    // (103) is absent and the unread issue notification for the empty-timeline repository
+    // (104) is present.
+    expect(page.items.map((n) => n.id)).toEqual([101, 102, 104]);
   });
 
   it('round-trips get_repo', async () => {

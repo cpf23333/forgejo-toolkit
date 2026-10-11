@@ -6796,4 +6796,117 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(String(refusal?.error)).toContain('Nothing was sent');
     });
   });
+
+  describe("the notifications list's summary dispatch", () => {
+    /** The coordinates the notifications list posts for one issue notification. */
+    const target = { instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 9, type: 'issue' as const };
+
+    const PAYLOAD = {
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      type: 'issue' as const,
+      index: 9,
+      outcome: 'answer' as const,
+      answer: 'The discussion settled on a fix.',
+    };
+
+    it('hands the run the validated identity and the subject type, and answers nothing back', async () => {
+      const runner = vi.fn(async () => PAYLOAD);
+      provider.setNotificationSummaryRunner(runner);
+
+      fake.send({ command: 'notificationSummary', ...target });
+      await flushUntil(() => runner.mock.calls.length > 0);
+
+      // The identity and nothing else reaches the run: the consent question, the model,
+      // the timeline read and the panel all stay host-side.
+      expect(runner).toHaveBeenCalledWith({
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 9,
+        type: 'issue',
+      });
+      // This is a dispatch, not a request/response pair: the answer arrives in the panel
+      // the run opens, so no reply is posted and no request id is echoed.
+      const replies = postedMessages(fake.posted).filter((message) => message._requestId !== undefined);
+      expect(replies).toEqual([]);
+      expect(postedMessages(fake.posted).some((message) => message.command === 'requestError')).toBe(false);
+    });
+
+    it('refuses coordinates that do not name a usable entity, and a type it does not serve', async () => {
+      const runner = vi.fn(async () => PAYLOAD);
+      provider.setNotificationSummaryRunner(runner);
+
+      // `index` must be a positive integer, and only issue/pull notifications have a
+      // discussion to summarise (`docs/design/notification-summary.md` §8).
+      fake.send({ command: 'notificationSummary', ...target, index: 0 });
+      fake.send({ command: 'notificationSummary', ...target, index: 'nine' });
+      fake.send({ command: 'notificationSummary', ...target, type: 'repository' });
+      fake.send({ command: 'notificationSummary', ...target, owner: 'owner/../admin' });
+      await flushDispatches();
+
+      expect(runner).not.toHaveBeenCalled();
+    });
+
+    it('drops the dispatch when the run was never registered', async () => {
+      await expect(async () => {
+        fake.send({ command: 'notificationSummary', ...target });
+        await flushDispatches();
+      }).not.toThrow();
+    });
+
+    it('carries the feature switch in the initial state, off unless it is explicitly true', async () => {
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn(() => undefined),
+        update: vi.fn(),
+      } as never);
+
+      fake.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      const initialState = postedMessages(fake.posted).find((message) => message.command === 'initialState');
+      // The notifications list hides the action while it is off; a missing value reads
+      // as off there, which is the fail-closed direction for an action that would send
+      // someone else's prose.
+      expect(initialState?.notificationSummary).toBe(false);
+
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn((key: string) => (key === 'notificationSummary' ? true : undefined)),
+        update: vi.fn(),
+      } as never);
+      fake.send({ command: 'getInitialState' });
+      await flushUntil(
+        () => postedMessages(fake.posted).filter((message) => message.command === 'initialState').length > 1,
+      );
+
+      const later = postedMessages(fake.posted)
+        .filter((message) => message.command === 'initialState')
+        .at(-1);
+      expect(later?.notificationSummary).toBe(true);
+    });
+
+    it('pushes the switch into the webview when it changes outside the list', async () => {
+      // The switch can be changed in VS Code's Settings UI, which the webview never
+      // sees. Without the push the list would keep offering (or hiding) the action
+      // based on the state it was rendered with.
+      let enabled = false;
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () =>
+          ({ get: (key: string) => (key === 'notificationSummary' ? enabled : undefined), update: vi.fn() }) as never,
+      );
+
+      enabled = true;
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      expect(listener).toBeTypeOf('function');
+      listener?.({ affectsConfiguration: (key: string) => key === 'forgejoToolkit.notificationSummary' });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({ command: 'setNotificationSummary', notificationSummary: true }),
+      );
+    });
+  });
 });

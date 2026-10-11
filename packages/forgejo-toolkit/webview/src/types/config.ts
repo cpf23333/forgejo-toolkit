@@ -1,6 +1,7 @@
 import type {
   AiPreReviewPanelCandidate,
   AiPreReviewPanelPayload,
+  NotificationSummaryPanelPayload,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export interface PullReviewCommentContext {
@@ -27,11 +28,18 @@ export type { AiPreReviewPanelCandidate, AiPreReviewPanelPayload };
 export type AiPreReviewPanelConfig = AiPreReviewPanelPayload & { canOpenPullRequest?: boolean };
 
 export interface ForgejoToolkitWebviewConfig {
-  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
+  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings' | 'notificationSummary';
   locale?: 'en' | 'zh';
   vscodeVersion?: string;
   pullReviewComment?: PullReviewCommentContext;
   aiPreReview?: AiPreReviewPanelConfig;
+  /**
+   * The notification-summary panel's payload, injected the way `aiPreReview` is so
+   * the first paint shows the answer without a round trip. A re-render for another
+   * notification arrives as `notificationSummaryPanelPayload` instead (the panel
+   * only ever exists once; see `NotificationSummaryPanel.vue`).
+   */
+  notificationSummary?: NotificationSummaryPanelPayload;
 }
 
 declare global {

@@ -45,6 +45,12 @@ const SURFACES = [
     root: 'AiPreReviewPanel.vue',
   },
   {
+    kind: 'panel',
+    html: 'notificationSummary.html',
+    entry: 'src/entries/notificationSummary.ts',
+    root: 'NotificationSummaryPanel.vue',
+  },
+  {
     // The settings page: an editor-area tab of its own since §9.3, with its own
     // document so the sidebar shell is not in its graph. It carries the import
     // preview as well (`Settings.vue` renders `ImportPreview.vue` inline), which
@@ -61,6 +67,7 @@ const PANEL_ROOTS = [
   'OnboardingPanel.vue',
   'PullReviewCommentPanel.vue',
   'AiPreReviewPanel.vue',
+  'NotificationSummaryPanel.vue',
   'SettingsPanel.vue',
 ] as const;
 

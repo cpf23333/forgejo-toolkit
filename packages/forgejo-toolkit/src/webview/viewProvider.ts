@@ -84,8 +84,10 @@ import {
 } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionOfferedOnCreateForm } from '../prDescriptionSettings';
 import { isIssueTriageEnabled } from '../issueTriageSettings';
+import { isNotificationSummaryEnabled } from '../notificationSummarySettings';
 import { suggestableLabels } from '../issueTriageBrief';
 import type { IssueTriageRunResult } from '../issueTriage';
+import type { NotificationSummaryPanelPayload } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   readAiProviderSettings,
   removeAiProvider,
@@ -657,6 +659,26 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     | undefined;
 
   /**
+   * The function the notifications list's "summarise the discussion" action runs,
+   * registered by `src/notificationSummary.ts` for the same reason the three above are
+   * callbacks: the run owns the model, the consent question, the timeline read and the
+   * panel, and this provider owns only the webview message.
+   *
+   * The result type is imported as a **type only**, so this module never pulls the
+   * feature's runtime in: the feature imports this provider's type in turn, and a value
+   * import in either direction would make that pair a cycle.
+   */
+  private _notificationSummaryRunner:
+    | ((target: {
+        instanceId: string;
+        owner: string;
+        repo: string;
+        index: number;
+        type: 'issue' | 'pull';
+      }) => Promise<NotificationSummaryPanelPayload>)
+    | undefined;
+
+  /**
    * Whether each repository this window has read declares a label that could be
    * suggested, keyed `instanceId|owner|repo`.
    *
@@ -743,6 +765,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // limit: a stale boolean can only hide or show the issue page's control.
         if (event.affectsConfiguration('forgejoToolkit.issueTriage')) {
           this._reply('setIssueTriage', { issueTriage: isIssueTriageEnabled() });
+        }
+        // The notification-summary switch, pushed for the same reason and with the same
+        // limit: a stale boolean can only hide or show the notification list's action.
+        if (event.affectsConfiguration('forgejoToolkit.notificationSummary')) {
+          this._reply('setNotificationSummary', { notificationSummary: isNotificationSummaryEnabled() });
         }
         // The AI endpoint keys are listened to here for the same reason as the
         // switch above, and they are the five the settings page renders rather
@@ -1108,6 +1135,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           // page hides an action whose only outcome would be the run's own refusal,
           // and the run re-checks the setting either way.
           issueTriage: isIssueTriageEnabled(),
+          // The notifications list's own gate for its "summarise the discussion" action,
+          // read and pushed exactly like the switches above: the list hides an action
+          // whose only outcome would be the run's own refusal, and the run re-checks the
+          // setting either way. A missing value reads as off in the webview, which is the
+          // fail-closed direction for an action that would send someone else's prose.
+          notificationSummary: isNotificationSummaryEnabled(),
           // No issue is open yet, so the repository question has no answer: **available**
           // is the honest initial value (a page that has not learned that a repository
           // declares no label has no reason to hide the action), and the first issue
@@ -1633,6 +1666,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         await this._runIssueTriage(target, _requestId);
+        return;
+      }
+      // The notifications list's "summarise the discussion" action. The webview sends the
+      // notification's identity and its subject type; the run holds the consent gate,
+      // reads the timeline itself and calls the model, so a modified message can name a
+      // different entity to summarise but cannot put content into the prompt. Only
+      // `issue` and `pull` are ever offered (`docs/design/notification-summary.md` §8),
+      // and a message naming anything else is refused here rather than reaching the run.
+      //
+      // There is no `_requestId`: this is a dispatch, not a request/response pair — the
+      // answer arrives in the panel, which the run opens (or re-renders) itself.
+      case 'notificationSummary': {
+        const { instanceId, owner, repo, index, type } = message;
+        if (!this._notificationSummaryRunner) {
+          logger.error('notificationSummary arrived before the notification-summary run was registered');
+          return;
+        }
+        const target = parseWebviewIssueTarget({ instanceId, owner, repo, index });
+        if (!target || (type !== 'issue' && type !== 'pull')) {
+          logger.error('notificationSummary refused a message that does not name a usable issue or pull request');
+          return;
+        }
+        await this._notificationSummaryRunner({ ...target, type });
         return;
       }
       // The Settings page's AI pre-review model chooser. Both cases are pure
@@ -5357,6 +5413,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }) => Promise<IssueTriageRunResult>,
   ): void {
     this._issueTriageRunner = runner;
+  }
+
+  /**
+   * Hands this provider the notification-summary run, the same way and for the same
+   * reason `setIssueTriageRunner` does: the message carries the notification's identity,
+   * the run owns everything else — the consent question, the timeline read, the model
+   * call and the panel — and its result is the payload the panel was rendered with.
+   */
+  public setNotificationSummaryRunner(
+    runner: (target: {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      type: 'issue' | 'pull';
+    }) => Promise<NotificationSummaryPanelPayload>,
+  ): void {
+    this._notificationSummaryRunner = runner;
   }
 
   /**

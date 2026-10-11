@@ -1,5 +1,5 @@
 import type { ForgejoNotification } from '../../../api/types';
-import { mockRepository } from './repositories';
+import { mockRepository, mockRepository2 } from './repositories';
 
 /**
  * A notification's repository as the API reports it. `ToNotificationThread`
@@ -8,6 +8,7 @@ import { mockRepository } from './repositories';
  * describe a response the server cannot send.
  */
 const notificationRepository = { ...mockRepository, permissions: undefined };
+const notificationRepositoryWithoutReplies = { ...mockRepository2, permissions: undefined };
 
 /**
  * Notification threads, newest first, like the API orders them. `before` (the
@@ -63,5 +64,27 @@ export const mockNotifications: ForgejoNotification[] = [
     unread: false,
     updated_at: '2026-08-16T08:00:00Z',
     url: 'https://forgejo.example.com/api/v1/notifications/threads/103',
+  },
+  // The notification the notification summary's empty-timeline arm is walked through
+  // against: this repository's timeline answers nothing (`MOCK_EMPTY_TIMELINE_REPO`), so
+  // pressing "summarize the discussion" on this row must end with the panel saying there
+  // is nothing to summarise and no model call. It is an **issue** notification for the
+  // reason the feature offers the action on issue/pull subjects only, and it is appended
+  // last (oldest, still unread) so the list's order is the one it had; the two
+  // expectations that pin this fixture's id lists were extended with it.
+  {
+    id: 104,
+    pinned: false,
+    repository: notificationRepositoryWithoutReplies,
+    subject: {
+      title: 'Tidy the settings page',
+      type: 'Issue',
+      state: 'open',
+      html_url: 'https://forgejo.example.com/demo-user/another-repo/issues/1',
+      url: 'https://forgejo.example.com/api/v1/repos/demo-user/another-repo/issues/1',
+    },
+    unread: true,
+    updated_at: '2026-08-16T07:00:00Z',
+    url: 'https://forgejo.example.com/api/v1/notifications/threads/104',
   },
 ];

@@ -885,6 +885,17 @@ function createAppState() {
    */
   const issueTriage = ref<boolean>(false);
   /**
+   * Whether `forgejoToolkit.notificationSummary` is on, as the host last reported it.
+   *
+   * It exists for exactly one affordance: the "summarize the discussion" action on
+   * an issue or pull request notification, which is hidden while the feature is
+   * off (`docs/design/notification-summary.md` §6, §9). The same `=== true` reading
+   * and for the same reason as `aiPreReview` above — a host that predates the field
+   * sends nothing, and an undefined read as "on" would offer an action whose only
+   * outcome would be the run's refusal.
+   */
+  const notificationSummary = ref<boolean>(false);
+  /**
    * Whether the repository of the issue on screen declares a label that could be
    * suggested, as the host last read it.
    *
@@ -1346,6 +1357,7 @@ function createAppState() {
         prDescription.value = message.prDescription === true;
         prDescriptionCreateForm.value = message.prDescriptionCreateForm === true;
         issueTriage.value = message.issueTriage === true;
+        notificationSummary.value = message.notificationSummary === true;
         // The initial state carries the host's answer only when it has one; before any
         // issue view the honest reading is "available" (see the ref's own comment).
         issueTriageLabelsAvailable.value = message.issueTriageLabelsAvailable !== false;
@@ -1490,6 +1502,12 @@ function createAppState() {
         if (message.issueTriageLabelsAvailable !== undefined) {
           issueTriageLabelsAvailable.value = message.issueTriageLabelsAvailable;
         }
+        break;
+      case 'setNotificationSummary':
+        // Same contract again for the notifications list's action: only the
+        // affordance follows `forgejoToolkit.notificationSummary`, and the run reads
+        // the setting itself on the host.
+        notificationSummary.value = message.notificationSummary === true;
         break;
       case 'repositories':
         handleRepositories(
@@ -5688,6 +5706,26 @@ function createAppState() {
     postMessage({ command: 'aiPreReviewPullRequest', instanceId, owner, repo, index });
   }
 
+  /**
+   * Asks the host to summarise the discussion behind one notification.
+   *
+   * The message carries the coordinates and the subject type, and nothing else — no
+   * model, no scope, no prompt — because the host owns the flow
+   * (`docs/design/notification-summary.md` §4, §5): it asks the consent question,
+   * picks the model, reads the timeline and opens (or re-renders) the panel. There
+   * is no pending reply to track here, so this is a dispatch rather than a
+   * request/response pair, and rendering the action asks a model nothing.
+   */
+  function summarizeNotification(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    type: 'issue' | 'pull',
+  ) {
+    postMessage({ command: 'notificationSummary', instanceId, owner, repo, index, type });
+  }
+
   function uploadIssueAttachment(
     instanceId: string,
     owner: string,
@@ -7502,6 +7540,8 @@ function createAppState() {
     prDescriptionCreateForm,
     issueTriage,
     issueTriageLabelsAvailable,
+    notificationSummary,
+    summarizeNotification,
     minSupportedServerVersion,
     worktrees,
     worktreeOpenMode,

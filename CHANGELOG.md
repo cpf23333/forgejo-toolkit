@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Summarize a discussion from the notifications list or the issue / pull-request
+  detail page.** Both the notification and the issue or pull request itself now offer
+  **Summarize discussion**: a chat model reads that entity's timeline, and the
+  read-only summary opens in an editor-area panel whose header names the model, the
+  scope tier that run actually used, and whether anything was truncated. Nothing is
+  written back to the server and the summary is not stored. The feature is off until
+  you enable `forgejoToolkit.notificationSummary`; the first run then asks once which
+  scope may be sent (`body-only`, `body-and-comments` or `body-comments-and-events`)
+  and remembers your answer in `forgejoToolkit.notificationSummaryPromptScope`. Until
+  you answer, nothing is read, no model is called and no setting is written.
+
 ## [0.2.1] - 2026-10-07
 
 ### Changed

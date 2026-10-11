@@ -400,6 +400,17 @@ const issueTriageEnabled = computed(
   () => state.issueTriage?.value === true && state.issueTriageLabelsAvailable?.value !== false,
 );
 /**
+ * Whether `forgejoToolkit.notificationSummary` is on, which is the whole of what this
+ * page gates the "summarize the discussion" action on.
+ *
+ * `=== true` on the way out rather than a bare read, exactly like the notification
+ * row's own gate: the shared message type documents the field as **optional**, and a
+ * missing value treated as "on" would offer an action whose only outcome would be the
+ * run's own refusal. The run reads the setting itself on the host, so this only
+ * decides whether the action appears.
+ */
+const notificationSummaryEnabled = computed(() => state.notificationSummary?.value === true);
+/**
  * What the last triage run suggested, or `undefined` when there is nothing to show.
  *
  * It is display state only: the labels carry ids the host resolved, and nothing in this
@@ -666,6 +677,20 @@ async function handleSuggestIssueTriage(): Promise<void> {
   } finally {
     triageLoading.value = false;
   }
+}
+
+/**
+ * Asks the host to summarise this issue's discussion.
+ *
+ * The same message the notification row sends, with this page's own coordinates and
+ * `type: 'issue'` (`docs/design/notification-summary.md` §4, §5). Nothing is read or
+ * sent from here: the host asks the consent question, picks the model, reads the
+ * timeline and opens (or re-renders) the summary panel. There is no reply to track —
+ * the answer arrives at the panel, not at this page — so this is a dispatch, and
+ * merely rendering the page or the action asks a model nothing.
+ */
+function requestNotificationSummary(): void {
+  state.summarizeNotification(instanceId.value, owner.value, repo.value, index.value, 'issue');
 }
 
 /** Whether one suggested label is ticked. */
@@ -1397,7 +1422,27 @@ function reloadIssue() {
         <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
 
         <div class="detail-section">
-          <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+          <!--
+            The action sits with the discussion it reads, not in the page header: it
+            summaries the comments and timeline below, and the header's buttons are
+            about the issue itself (edit, close/reopen, triage). Same for the pull
+            request page, whose header already carries the diff-level AI surfaces.
+          -->
+          <div class="section-heading">
+            <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+            <vscode-button
+              v-if="notificationSummaryEnabled"
+              id="issue-summary-button"
+              class="summarize-discussion"
+              icon="sparkle"
+              secondary
+              :title="t('notificationSummary.action')"
+              :aria-label="t('notificationSummary.action')"
+              @click="requestNotificationSummary"
+            >
+              {{ t('notificationSummary.action') }}
+            </vscode-button>
+          </div>
           <div v-if="commentsLoading" class="loading">
             <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
             {{ t('dashboard.loading') }}
@@ -2012,6 +2057,19 @@ function reloadIssue() {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/*
+ * A section's heading row: the title and the actions that belong to that section.
+ * Adjacent rather than pushed to the far edge, so an action reads as belonging to
+ * the heading it sits beside; the row wraps when the pane is narrow. The heading's
+ * own type stays on `.detail-section h3` below.
+ */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .detail-section h3 {

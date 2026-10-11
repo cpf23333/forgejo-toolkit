@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import {
   AI_PRE_REVIEW_PROMPT_SCOPES,
   ISSUE_TRIAGE_PROMPT_SCOPES,
+  NOTIFICATION_SUMMARY_PROMPT_SCOPES,
   PR_DESCRIPTION_PROMPT_SCOPES,
   SETTINGS_SURFACE_WRITABLE_KEYS,
   type AiPreReviewPromptScopeValue,
   type IssueTriagePromptScopeValue,
+  type NotificationSummaryPromptScopeValue,
   type PrDescriptionPromptScopeValue,
   type SettingsSourceLevel,
   type SettingsSurfaceSnapshot,
@@ -19,6 +21,10 @@ import { aiEnabledSettingValue } from '../ai/modelSettings';
 import { aiPreReviewPromptScopeSettingValue, isAiPreReviewEnabled } from '../aiPreReviewSettings';
 import { isPrDescriptionEnabled, prDescriptionPromptScopeSettingValue } from '../prDescriptionSettings';
 import { isIssueTriageEnabled, issueTriagePromptScopeSettingValue } from '../issueTriageSettings';
+import {
+  isNotificationSummaryEnabled,
+  notificationSummaryPromptScopeSettingValue,
+} from '../notificationSummarySettings';
 import { enabledMcpWriteTools, isMcpWriteAuditToFileEnabled, MCP_WRITE_TOOLS_KEY } from '../mcpWriteSettings';
 import { isMcpServerEnabled } from '../mcpServerProvider';
 import { isMultiWindowLeaseEnabled } from '../lease/leaseSupervisor';
@@ -92,6 +98,8 @@ export const MACHINE_SCOPED_SETTING_KEYS: readonly string[] = [
   'forgejoToolkit.prDescriptionPromptScope',
   'forgejoToolkit.issueTriage',
   'forgejoToolkit.issueTriagePromptScope',
+  'forgejoToolkit.notificationSummary',
+  'forgejoToolkit.notificationSummaryPromptScope',
   'forgejoToolkit.aiProviders',
   'forgejoToolkit.aiTransport',
   'forgejoToolkit.aiDefaultProvider',
@@ -206,6 +214,8 @@ export function readSettingsSurface(deps: SettingsSurfaceReadDeps): SettingsSurf
     prDescriptionPromptScope: prDescriptionPromptScopeSettingValue(),
     issueTriage: isIssueTriageEnabled(),
     issueTriagePromptScope: issueTriagePromptScopeSettingValue(),
+    notificationSummary: isNotificationSummaryEnabled(),
+    notificationSummaryPromptScope: notificationSummaryPromptScopeSettingValue(),
     sources: readSettingSources(),
   };
 }
@@ -305,6 +315,21 @@ export async function writeSettingsSurfaceValue(
       }
       await writeSettingValue('prDescriptionPromptScope', scope as PrDescriptionPromptScopeValue);
       logger.info(`The settings page wrote "${key}" = "${scope}"`);
+      return { ok: true };
+    }
+    if (key === 'forgejoToolkit.notificationSummaryPromptScope') {
+      const scope = typeof rawValue === 'string' ? rawValue.trim() : '';
+      if (!(NOTIFICATION_SUMMARY_PROMPT_SCOPES as readonly string[]).includes(scope)) {
+        return {
+          ok: false,
+          error: vscode.l10n.t(
+            'The setting "{0}" was not written: it takes one of {1}.',
+            key,
+            NOTIFICATION_SUMMARY_PROMPT_SCOPES.join(', '),
+          ),
+        };
+      }
+      await writeSettingValue('notificationSummaryPromptScope', scope as NotificationSummaryPromptScopeValue);
       return { ok: true };
     }
     if (key === 'forgejoToolkit.issueTriagePromptScope') {

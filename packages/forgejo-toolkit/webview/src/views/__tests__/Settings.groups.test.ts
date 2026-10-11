@@ -252,10 +252,11 @@ describe('Settings groups: the mapping', () => {
     // passage `useMockApi` lives in — a twelfth block inside the existing 通用 group
     // rather than a seventh group (§9.2) — plus issue triage's own block, which is a
     // feature of its own with its own switch and scope (§3.2 of the issue-triage
-    // record), here rather than in the group's master switch, plus 「设置与数据」
+    // record), here rather than in the group's master switch, plus notification summary's own
+    // block (its own switch and scope, §5 of its record), plus 「设置与数据」
     // (export/import) which moved out of 「实例」 into 通用 because what it writes is
     // the whole configuration file, not instances (maintainer's ruling, 2026-10-06).
-    expect(blocks).toHaveLength(14);
+    expect(blocks).toHaveLength(15);
   });
 
   it('keeps export/import in 通用 and out of 实例', async () => {

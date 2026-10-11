@@ -69,6 +69,8 @@ export function settingsSurfaceFixture(overrides: Partial<SettingsSurfaceSnapsho
     prDescriptionPromptScope: 'ask',
     issueTriage: false,
     issueTriagePromptScope: 'ask',
+    notificationSummary: false,
+    notificationSummaryPromptScope: 'ask',
     sources: settingSources(),
     ...overrides,
   };

@@ -17,6 +17,17 @@ const router = useRouter();
 const statusFilter = ref<'unread' | 'read' | 'all'>('unread');
 const typeFilter = ref<'all' | 'issue' | 'pull' | 'repository'>('all');
 
+/**
+ * Whether `forgejoToolkit.notificationSummary` is on, as the host last reported it.
+ *
+ * `=== true` rather than a bare read, deliberately: the shared message type
+ * documents the field as optional, and a host older than it sends nothing — a
+ * missing value treated as "on" would offer the action whose only outcome would be
+ * the run's own refusal (`docs/design/notification-summary.md` §6). The run reads
+ * the setting itself on the host, so this only decides whether the action appears.
+ */
+const notificationSummaryEnabled = computed(() => state.notificationSummary?.value === true);
+
 const instances = computed(() => state.instances.value);
 const loading = computed(() => state.loading);
 const errors = computed(() => state.errors);
@@ -244,6 +255,60 @@ function openNotification(event: Event, notification: ForgejoNotification, insta
   }
 }
 
+/**
+ * What one notification's "summarize the discussion" action would summarise, or
+ * `undefined` when the row does not name a summarisable entity.
+ *
+ * The same coordinates `openNotification` derives — `repository.full_name` split
+ * into owner/repo with the URL's own path as the fallback, and the number from the
+ * last segment of `subject.html_url` — plus one rule of its own: only the **issue /
+ * pull** subject types are offered at all. A repository, commit or release
+ * notification has no discussion to summarise, so the action must not appear on it
+ * (`docs/design/notification-summary.md` §8), and a row whose coordinates cannot be
+ * derived gets no action rather than one that would post a broken request.
+ */
+function summaryTarget(
+  notification: ForgejoNotification,
+): { type: 'issue' | 'pull'; owner: string; repo: string; index: number } | undefined {
+  const type = notification.subject?.type?.toLowerCase();
+  if (type !== 'issue' && type !== 'pullrequest' && type !== 'pull') {
+    return undefined;
+  }
+  const htmlUrl = notification.subject?.html_url;
+  if (!htmlUrl) {
+    return undefined;
+  }
+  const ownerRepo = notification.repository?.full_name
+    ? {
+        owner: notification.repository.full_name.split('/')[0],
+        repo: notification.repository.full_name.split('/')[1],
+      }
+    : parseOwnerRepo(htmlUrl);
+  if (!ownerRepo?.owner || !ownerRepo.repo) {
+    return undefined;
+  }
+  const index = extractIndex(htmlUrl);
+  if (index === undefined) {
+    return undefined;
+  }
+  return { type: type === 'issue' ? 'issue' : 'pull', owner: ownerRepo.owner, repo: ownerRepo.repo, index };
+}
+
+/**
+ * Asks the host to summarise this notification's discussion.
+ *
+ * Nothing is read or sent from here: the message carries the coordinates and the
+ * subject type, and the host asks the consent question, picks the model, reads the
+ * timeline and opens (or re-renders) the panel (§4, §5).
+ */
+function requestNotificationSummary(notification: ForgejoNotification, instanceId: string) {
+  const target = summaryTarget(notification);
+  if (!target) {
+    return;
+  }
+  state.summarizeNotification(instanceId, target.owner, target.repo, target.index, target.type);
+}
+
 function markAsRead(event: Event, instanceId: string, notification: ForgejoNotification) {
   event.stopPropagation();
   if (notification.id === undefined) {
@@ -439,6 +504,18 @@ onUnmounted(() => {
               {{ notificationMeta(notification) }}
             </span>
             <span slot="actions" class="notification-actions">
+              <!--
+                The AI action comes first: it is the only one that starts a run, and
+                it is the row's new affordance. It is hidden for every other subject
+                type, and while the feature is off — the run refuses on the host
+                regardless, so this is an affordance and never the gate.
+              -->
+              <IconActionButton
+                v-if="notificationSummaryEnabled && summaryTarget(notification)"
+                name="sparkle"
+                :label="t('notificationSummary.action')"
+                @click.stop.prevent="requestNotificationSummary(notification, instance.id)"
+              />
               <IconActionButton
                 v-if="notification.unread"
                 name="check"

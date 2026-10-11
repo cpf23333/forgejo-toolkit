@@ -129,6 +129,28 @@ export const MOCK_EMPTY_REPO = 'empty-repo';
 export const MOCK_LABEL_FREE_REPO = 'another-repo';
 
 /**
+ * A repository whose **timeline is empty**: `/issues/{index}/timeline` answers an empty
+ * page for it while every other repository keeps answering with `mockTimelineComment`.
+ *
+ * `another-repo` for the reason {@link MOCK_LABEL_FREE_REPO} gives — it is already an
+ * entry in the mock repository list, so a walkthrough reaches it like any other
+ * repository and nothing about that list changes — and the two states do not collide:
+ * one is about a repository that declares no label (walked from the issue page), the
+ * other about a discussion nobody has replied to (walked from the notification list).
+ *
+ * It exists so the notification summary's **"there is nothing to summarize"** arm is
+ * reachable in a real run (`docs/design/notification-summary.md` §7). That reading is
+ * keyed on the **timeline**, not on the first post: the mocked issue keeps its body, so
+ * the walk sees the panel say there is nothing to summarise even though the post has
+ * text — which is the rule the run documents and tests. Without this fixture every
+ * repository would answer with a comment and that arm could only be shown in a unit
+ * test. The notification that makes it reachable is `mockNotifications`' row for this
+ * repository (`src/test/mocks/data/notifications.ts`), because the action lives on a
+ * notification row.
+ */
+export const MOCK_EMPTY_TIMELINE_REPO = 'another-repo';
+
+/**
  * The repository whose **edit endpoints fail**: saving an issue or a pull request in it
  * answers {@link MOCK_EDIT_FAILURE_MESSAGE} with a 500 instead of 200.
  *
@@ -562,8 +584,11 @@ export const handlers = [
     }),
   ),
 
-  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) =>
-    json(paginate(request, [mockTimelineComment])),
+  // One empty timeline, for the one repository the notification summary's
+  // "nothing to summarize" arm is walked through against (see
+  // `MOCK_EMPTY_TIMELINE_REPO`); every other repository keeps its comment.
+  http.get('*://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request, params }) =>
+    json(paginate(request, String(params.repo) === MOCK_EMPTY_TIMELINE_REPO ? [] : [mockTimelineComment])),
   ),
 
   http.get('*://*/api/v1/repos/:owner/:repo/pulls/:index/commits', ({ request }) =>

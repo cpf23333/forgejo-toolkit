@@ -265,6 +265,32 @@
           "title": "%config.issueTriagePromptScope.title%",
           "description": "%config.issueTriagePromptScope.description%"
         },
+        "forgejoToolkit.notificationSummary": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "title": "%config.notificationSummary.title%",
+          "description": "%config.notificationSummary.description%"
+        },
+        "forgejoToolkit.notificationSummaryPromptScope": {
+          "type": "string",
+          "default": "ask",
+          "scope": "machine",
+          "enum": [
+            "ask",
+            "body-only",
+            "body-and-comments",
+            "body-comments-and-events"
+          ],
+          "enumDescriptions": [
+            "%config.notificationSummaryPromptScope.enumDescriptions.ask%",
+            "%config.notificationSummaryPromptScope.enumDescriptions.bodyOnly%",
+            "%config.notificationSummaryPromptScope.enumDescriptions.bodyAndComments%",
+            "%config.notificationSummaryPromptScope.enumDescriptions.bodyCommentsAndEvents%"
+          ],
+          "title": "%config.notificationSummaryPromptScope.title%",
+          "description": "%config.notificationSummaryPromptScope.description%"
+        },
         "forgejoToolkit.aiProviders": {
           "type": "array",
           "default": [],

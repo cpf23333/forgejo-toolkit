@@ -22,6 +22,7 @@ import {
   AI_TRANSPORT_CHOICES,
   ISSUE_TRIAGE_PROMPT_SCOPES,
   PR_DESCRIPTION_PROMPT_SCOPES,
+  NOTIFICATION_SUMMARY_PROMPT_SCOPES,
   stripUserinfo,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { inspectAiProviderBaseUrl } from '@cpf23333-forgejo-toolkit/shared/ai/providerPolicy';
@@ -1234,6 +1235,8 @@ const promptScope = ref<SettingsSurfaceSnapshot['aiPreReviewPromptScope']>('ask'
  */
 const prDescriptionEnabled = ref(false);
 const prDescriptionPromptScope = ref<SettingsSurfaceSnapshot['prDescriptionPromptScope']>('ask');
+const notificationSummaryEnabled = ref(false);
+const notificationSummaryPromptScope = ref<SettingsSurfaceSnapshot['notificationSummaryPromptScope']>('ask');
 
 /**
  * Issue triage's own switch and stored scope, with the same fallback rule as the
@@ -1282,6 +1285,11 @@ const PR_DESCRIPTION_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.prDescriptionPromptScope',
 ];
 
+const NOTIFICATION_SUMMARY_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
+  'forgejoToolkit.notificationSummary',
+  'forgejoToolkit.notificationSummaryPromptScope',
+];
+
 const ISSUE_TRIAGE_SURFACE_KEYS: readonly SettingsSurfaceWritableKey[] = [
   'forgejoToolkit.issueTriage',
   'forgejoToolkit.issueTriagePromptScope',
@@ -1326,6 +1334,8 @@ watch(
     promptScope.value = snapshot.aiPreReviewPromptScope;
     prDescriptionEnabled.value = snapshot.prDescription;
     prDescriptionPromptScope.value = snapshot.prDescriptionPromptScope;
+    notificationSummaryEnabled.value = snapshot.notificationSummary;
+    notificationSummaryPromptScope.value = snapshot.notificationSummaryPromptScope;
     issueTriageEnabled.value = snapshot.issueTriage;
     issueTriagePromptScope.value = snapshot.issueTriagePromptScope;
   },
@@ -1409,6 +1419,8 @@ const preReviewSurfaceStatus = computed(() =>
 const prDescriptionSurfaceStatus = computed(() =>
   surfaceStatusIn(['forgejoToolkit.prDescription', 'forgejoToolkit.prDescriptionPromptScope']),
 );
+
+const notificationSummarySurfaceStatus = computed(() => surfaceStatusIn([...NOTIFICATION_SUMMARY_SURFACE_KEYS]));
 
 const issueTriageSurfaceStatus = computed(() =>
   surfaceStatusIn(['forgejoToolkit.issueTriage', 'forgejoToolkit.issueTriagePromptScope']),
@@ -1533,10 +1545,30 @@ function handlePrDescriptionEnabledChange(event: Event): void {
  * and writes with — so the page cannot offer a value the host would refuse, and
  * cannot offer the pre-review's values, which mean something else here.
  */
+function handleNotificationSummaryEnabledChange(event: Event): void {
+  notificationSummaryEnabled.value = (event.target as HTMLInputElement).checked;
+  void saveSettingsSurfaceValue('forgejoToolkit.notificationSummary', notificationSummaryEnabled.value);
+}
+
+/**
+ * The scope the reader picked in the dropdown. The answer is the host's to record (the page
+ * writes the setting and the run reads it), so this only mirrors it for the control.
+ */
+function handleNotificationSummaryScopeChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as SettingsSurfaceSnapshot['notificationSummaryPromptScope'];
+  notificationSummaryPromptScope.value = value;
+  void saveSettingsSurfaceValue('forgejoToolkit.notificationSummaryPromptScope', value);
+}
+
 function handlePrDescriptionScopeChange(event: Event): void {
   const value = (event.target as HTMLSelectElement).value as SettingsSurfaceSnapshot['prDescriptionPromptScope'];
   prDescriptionPromptScope.value = value;
   void saveSettingsSurfaceValue('forgejoToolkit.prDescriptionPromptScope', value);
+}
+
+/** The page's own wording for one notification-summary scope, per the shared enumeration. */
+function notificationSummaryScopeLabel(scope: SettingsSurfaceSnapshot['notificationSummaryPromptScope']): string {
+  return t(`settings.notificationSummary.scopeOption.${scope}`);
 }
 
 /** The page's own wording for one PR-description scope, per the shared enumeration. */
@@ -4284,6 +4316,57 @@ defineExpose({
                 aria-live="polite"
               >
                 {{ issueTriageSurfaceStatus.message }}
+              </div>
+            </section>
+            <!--
+        The notification summary. Its own switch and scope beside the other three features
+        (`docs/design/notification-summary.md` §5, §6): the action lives on the notifications
+        list, and the scope dropdown is where a reader who declined the modal finds the answer
+        they gave. The action sends **someone else’s prose**, so the switch defaults to off.
+      -->
+            <section class="setting-section">
+              <h2>{{ t('settings.notificationSummary.title') }}</h2>
+              <p class="description">{{ t('settings.notificationSummary.description') }}</p>
+
+              <div class="form-row">
+                <vscode-checkbox
+                  id="notification-summary-enabled"
+                  :checked="notificationSummaryEnabled"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SUMMARY_SURFACE_KEYS)"
+                  @change="handleNotificationSummaryEnabledChange"
+                >
+                  {{ t('settings.notificationSummary.enabled') }}
+                </vscode-checkbox>
+                <p class="field-description">{{ t('settings.notificationSummary.enabledDefault') }}</p>
+                <p v-if="!notificationSummaryEnabled" class="field-description">
+                  {{ t('settings.notificationSummary.disabledHint') }}
+                </p>
+              </div>
+
+              <div class="form-row">
+                <label for="notification-summary-scope">{{ t('settings.notificationSummary.scope') }}</label>
+                <vscode-single-select
+                  id="notification-summary-scope"
+                  :value="notificationSummaryPromptScope"
+                  :label="t('settings.notificationSummary.scope')"
+                  :disabled="!settingsSurfaceReady || surfaceBusy(NOTIFICATION_SUMMARY_SURFACE_KEYS)"
+                  @change="handleNotificationSummaryScopeChange"
+                >
+                  <vscode-option v-for="scope in NOTIFICATION_SUMMARY_PROMPT_SCOPES" :key="scope" :value="scope">
+                    {{ notificationSummaryScopeLabel(scope) }}
+                  </vscode-option>
+                </vscode-single-select>
+                <p class="field-description">{{ t('settings.notificationSummary.scopeDescription') }}</p>
+                <p class="field-description">{{ t('settings.notificationSummary.scopeDefault') }}</p>
+              </div>
+
+              <div
+                v-if="notificationSummarySurfaceStatus"
+                :class="['status', notificationSummarySurfaceStatus.type]"
+                role="status"
+                aria-live="polite"
+              >
+                {{ notificationSummarySurfaceStatus.message }}
               </div>
             </section>
 

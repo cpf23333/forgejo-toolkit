@@ -261,6 +261,7 @@ describe('useAppState', () => {
       'prDescription',
       'prDescriptionCreateForm',
       'issueTriage',
+      'notificationSummary',
       'issueTriageLabelsAvailable',
       'minSupportedServerVersion',
       'worktrees',
@@ -299,6 +300,9 @@ describe('useAppState', () => {
         prDescription: true,
         prDescriptionCreateForm: true,
         issueTriage: true,
+        // On, not off: the switch's default is off, so this is the value a dropped
+        // assignment cannot fake — the rule the whole fixture follows.
+        notificationSummary: true,
         // `false` and not `true`: this ref reads `!== false`, so it starts truthy — the
         // one value that would survive a dropped assignment is the one not used here.
         issueTriageLabelsAvailable: false,

@@ -110,6 +110,15 @@ const SURFACES: Surface[] = [
     elements: ['vscode-button', 'vscode-checkbox'],
   },
   {
+    // The read-only discussion summary. It renders prose and two buttons, so it
+    // registers nothing but the button — no editor, no checkbox, no tree.
+    name: 'notification summary panel',
+    html: 'notificationSummary.html',
+    entry: 'src/entries/notificationSummary.ts',
+    root: 'src/NotificationSummaryPanel.vue',
+    elements: ['vscode-button'],
+  },
+  {
     // The settings page, which is an editor-area tab of its own since §9.3. It
     // renders the page plus the import preview it shows in place, so it registers
     // the page's controls and the icon `ModalDialog` draws over them.
@@ -133,6 +142,7 @@ const PANEL_ROOTS = [
   'src/OnboardingPanel.vue',
   'src/PullReviewCommentPanel.vue',
   'src/AiPreReviewPanel.vue',
+  'src/NotificationSummaryPanel.vue',
   'src/SettingsPanel.vue',
 ];
 

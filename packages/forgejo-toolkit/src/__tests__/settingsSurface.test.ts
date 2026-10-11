@@ -198,6 +198,8 @@ describe('the settings page surface: reading', () => {
       prDescriptionPromptScope: 'ask',
       issueTriage: false,
       issueTriagePromptScope: 'ask',
+      notificationSummary: false,
+      notificationSummaryPromptScope: 'ask',
       sources: Object.fromEntries(SETTINGS_SURFACE_WRITABLE_KEYS.map((key) => [key, 'default'])),
     });
   });

@@ -2,10 +2,13 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import type { AiPreReviewPanelPayload } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type {
+  AiPreReviewPanelPayload,
+  NotificationSummaryPanelPayload,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export interface WebviewContentOptions {
-  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
+  panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings' | 'notificationSummary';
   locale?: 'en' | 'zh';
   /** URLs of the configured Forgejo instances; their origins are added to CSP img-src. */
   instanceUrls?: string[];
@@ -37,6 +40,14 @@ export interface WebviewContentOptions {
    * *run* sends, not what this document can offer.
    */
   aiPreReview?: AiPreReviewPanelPayload & { canOpenPullRequest?: boolean };
+  /**
+   * The notification-summary panel's payload: the answer or the reason there is none, with
+   * the three facts its header must show (the model, the scope tier actually used, whether
+   * anything was truncated). Injected like the pre-review panel's so the first paint needs
+   * no round trip; a re-render for another notification arrives as
+   * `notificationSummaryPanelPayload`.
+   */
+  notificationSummary?: NotificationSummaryPanelPayload;
 }
 
 /**
@@ -90,6 +101,7 @@ export const WEBVIEW_HTML_FILES = {
   pullReviewComment: 'pullReviewComment.html',
   aiPreReview: 'aiPreReview.html',
   settings: 'settings.html',
+  notificationSummary: 'notificationSummary.html',
 } as const;
 
 /** The HTML document `getWebviewContent` renders for a surface. */
@@ -120,17 +132,19 @@ export function getWebviewContent(
   let html = fs.readFileSync(htmlPath, 'utf8');
 
   const config: {
-    panelMode?: 'onboarding' | 'pullReviewComment' | 'aiPreReview' | 'settings';
+    panelMode?: WebviewContentOptions['panelMode'];
     locale?: 'en' | 'zh';
     vscodeVersion: string;
     pullReviewComment?: WebviewContentOptions['pullReviewComment'];
     aiPreReview?: WebviewContentOptions['aiPreReview'];
+    notificationSummary?: WebviewContentOptions['notificationSummary'];
   } = {
     panelMode: options?.panelMode,
     locale: options?.locale,
     vscodeVersion: vscode.version,
     pullReviewComment: options?.pullReviewComment,
     aiPreReview: options?.aiPreReview,
+    notificationSummary: options?.notificationSummary,
   };
   // Escape `<` so a `</script>` inside a value (e.g. a weird file path) cannot
   // terminate the script block early.

@@ -777,12 +777,14 @@ describe('MCP tool handlers with MSW', () => {
 
     // Forgejo filters with `updated_unix <= before` (`UpdatedBeforeUnix` builds a
     // `Lte`), so the boundary row 101 is *not* behind the cursor: it comes back,
-    // and a caller that concatenated the pages would duplicate it.
-    expect(secondPage.items.map((notification) => notification.id)).toEqual([101, 102, 103]);
+    // and a caller that concatenated the pages would duplicate it. Every status is
+    // asked for here, so the read repository notification (103) and the empty-timeline
+    // repository's issue notification (104) are both in the page.
+    expect(secondPage.items.map((notification) => notification.id)).toEqual([101, 102, 103, 104]);
     expect(secondPage.items[0].id).toBe(firstPage.items[0].id);
     // Following the documented recipe therefore means skipping the row already
     // held; what is left is the rest of the page.
-    expect(secondPage.items.slice(1).map((notification) => notification.id)).toEqual([102, 103]);
+    expect(secondPage.items.slice(1).map((notification) => notification.id)).toEqual([102, 103, 104]);
   });
 
   it('forwards the notification cursor to the client instead of dropping it', async () => {

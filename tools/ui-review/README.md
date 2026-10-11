@@ -1513,6 +1513,23 @@ Two harness limits worth knowing before planning a flow:
   and answer the error box by hand — its OK button has no row to click and no
   distinctive title, and it does accept `{TAB}`-then-`~`. `fileDialog.ps1 -Cancel`
   (Escape, `WM_CLOSE` fallback) and `-RowIndex` still work on the picker itself.
+- **A dev host that dies before it writes a single log line leaves an _empty_ log
+  directory, which reads as "nothing happened" rather than as "it started and died".**
+  Measured 2026-10-11 on a machine that could not keep a window alive: eight launches —
+  the harness's own detached spawn, the same launch held in a long-lived session, the
+  `code` CLI without `--extensionDevelopmentPath`, `Code.exe` started directly as a
+  child with `WaitForExit`, and a fresh profile with `--disable-gpu` and again with the
+  default extensions dir and no flags at all — each created `profile/logs/<stamp>/` and
+  left it with **zero files**, while the window lived only ~30-40 s. The surviving traces
+  are the target list and the exit code, not the logs: `/json/list` goes from one target
+  to none and that target never carries a `workbench` URL (its type, title and url came
+  back empty), and the process exits with code **1**. `CDP ready` therefore proves only
+  that `/json/version` answered — not that a workbench exists. When a launch looks like it
+  "did nothing": read the profile log directory (empty is itself the finding), poll
+  `/json/list` for a `workbench` URL before driving anything, and keep the exit code of
+  the process you started. A plain detached `node` process survived 72 s+ in the same
+  session, so an empty log plus a vanished target is about the host, not about the
+  environment reaping detached processes.
 - Beware the classic `Edit` with
   control id 1148: it is a hidden legacy proxy — `SetWindowText` writes to it and
   reading it back confirms the text, while the box on screen stays empty, so Open
