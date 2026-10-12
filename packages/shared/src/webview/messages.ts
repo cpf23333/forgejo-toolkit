@@ -1197,6 +1197,13 @@ export type HostToWebviewMessage =
   // `openRepoDetail` / `openIssueDetail` state calls handle them.
   | { command: 'openRepositoryDetail'; instanceId: string; owner: string; repo: string }
   | { command: 'openIssueDetail'; instanceId: string; owner: string; repo: string; index: number }
+  // The settings page's own two, for its contributed context-menu items: the page is
+  // an editor-area panel, so "edit this saved instance" / "edit this endpoint" can only
+  // be the host asking the page to open the editor it already owns. Each carries the id
+  // the row published, and the page looks the entity up in its own snapshot — a stale or
+  // forged id opens nothing rather than an editor for the wrong entry.
+  | { command: 'settingsEditInstance'; id: string }
+  | { command: 'settingsEditProvider'; id: string }
   | {
       command: 'startWorkResult';
       instanceId: string;

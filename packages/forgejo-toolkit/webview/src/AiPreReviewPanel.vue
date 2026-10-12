@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { postMessage } from './composables/vscode';
 import { PR_REVIEW_MAX_COMMENT_LENGTH } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { contextMenuAttribute, contextMenuFieldAttribute } from './utils/contextMenu';
 import type { AiPreReviewPanelCandidate, AiPreReviewPanelConfig } from './types/config';
 
 /**
@@ -43,6 +44,16 @@ import type { AiPreReviewPanelCandidate, AiPreReviewPanelConfig } from './types/
 const { t } = useI18n();
 
 const payload = ref<AiPreReviewPanelConfig | undefined>(window.__FORGEJO_TOOLKIT_CONFIG__?.aiPreReview);
+/**
+ * This panel's own identity, injected by the host (`aiPreReviewPanelId`).
+ *
+ * Every card publishes it, so a contributed item names the panel it came from: two
+ * pre-review panels can be open at once (one per run), and the host routes by this id
+ * rather than to the newest panel (`src/aiPreReviewPanelRegistry.ts`). An absent value
+ * is a host older than the field: the marker then omits the key and the host refuses the
+ * item, which is the same fail-closed reading the other optional flags use.
+ */
+const panelId = window.__FORGEJO_TOOLKIT_CONFIG__?.aiPreReviewPanelId;
 const checked = ref<number[]>([]);
 /** Set once the run has answered, so the actions are replaced by the outcome. */
 const result = ref<{ created: number; failure?: string } | undefined>(undefined);
@@ -304,7 +315,18 @@ onUnmounted(() => {
     </header>
 
     <section v-if="candidates.length > 0" class="cards">
-      <article v-for="candidate in candidates" :key="candidate.index" class="card">
+      <article
+        v-for="candidate in candidates"
+        :key="candidate.index"
+        class="card"
+        :data-vscode-context="
+          contextMenuAttribute({
+            webviewSection: 'preReviewSuggestion',
+            forgejoPanelId: panelId,
+            forgejoSuggestionIndex: candidate.index,
+          })
+        "
+      >
         <div class="card-head">
           <vscode-checkbox
             :checked="isChecked(candidate.index)"
@@ -340,6 +362,7 @@ onUnmounted(() => {
           :value="bodyOf(candidate)"
           :maxlength="maxBodyLength"
           :aria-label="t('aiPreReview.bodyLabel', { anchor: anchorOf(candidate) })"
+          :data-vscode-context="contextMenuFieldAttribute()"
           @input="setBody(candidate.index, ($event.target as HTMLTextAreaElement).value)"
         ></textarea>
         <p v-if="bodyIsBlank(candidate)" class="warning">{{ t('aiPreReview.bodyEmpty') }}</p>

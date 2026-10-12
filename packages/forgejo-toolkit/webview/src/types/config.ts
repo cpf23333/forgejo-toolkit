@@ -34,6 +34,12 @@ export interface ForgejoToolkitWebviewConfig {
   pullReviewComment?: PullReviewCommentContext;
   aiPreReview?: AiPreReviewPanelConfig;
   /**
+   * The pre-review panel's own identity, injected per panel: its suggestion cards
+   * publish it so a contributed item reaches the panel that was right-clicked rather
+   * than the newest one (src/aiPreReviewPanelRegistry.ts).
+   */
+  aiPreReviewPanelId?: string;
+  /**
    * The notification-summary panel's payload, injected the way `aiPreReview` is so
    * the first paint shows the answer without a round trip. A re-render for another
    * notification arrives as `notificationSummaryPanelPayload` instead (the panel

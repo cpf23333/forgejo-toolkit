@@ -846,6 +846,19 @@ function createAppState() {
    */
   const settingsRefreshTick = ref<number>(0);
   /**
+   * The settings page's pending "open the editor for this saved instance / endpoint"
+   * request, from its contributed context-menu items.
+   *
+   * The page's editors are its own local state (which instance is being edited, and
+   * whether the endpoint editor is open), so the host cannot open one directly: it
+   * asks, and the page answers by looking the id up in the snapshot it is rendering —
+   * a stale or forged id finds nothing and opens nothing. `token` makes every request a
+   * new value, so asking twice for the same id fires the page's watcher twice; a bare id
+   * would be equal the second time and the second request would look like a no-op.
+   */
+  const settingsEditRequest = ref<{ kind: 'instance' | 'provider'; id: string; token: number } | undefined>(undefined);
+  let settingsEditRequestToken = 0;
+  /**
    * Whether `forgejoToolkit.aiPreReview` is on, as the host last reported it.
    *
    * It exists for exactly one affordance: the pull request detail page's
@@ -1518,6 +1531,12 @@ function createAppState() {
         // affordance follows `forgejoToolkit.notificationSummary`, and the run reads
         // the setting itself on the host.
         notificationSummary.value = message.notificationSummary === true;
+        break;
+      case 'settingsEditInstance':
+        settingsEditRequest.value = { kind: 'instance', id: message.id, token: ++settingsEditRequestToken };
+        break;
+      case 'settingsEditProvider':
+        settingsEditRequest.value = { kind: 'provider', id: message.id, token: ++settingsEditRequestToken };
         break;
       case 'repositories':
         handleRepositories(
@@ -7545,6 +7564,7 @@ function createAppState() {
     errors,
     debug,
     settingsRefreshTick,
+    settingsEditRequest,
     aiPreReview,
     prDescription,
     prDescriptionCreateForm,

@@ -129,5 +129,14 @@
   "command.openPullRequestRow.title": "打开 Pull Request",
   "command.copyRowReference.title": "复制引用",
   "command.openRowInBrowser.title": "在浏览器中打开",
-  "command.markNotificationRowRead.title": "标为已读"
+  "command.markNotificationRowRead.title": "标为已读",
+  "command.editInstanceRow.title": "编辑实例",
+  "command.removeInstanceRow.title": "移除实例",
+  "command.copyInstanceAddress.title": "复制实例地址",
+  "command.testProviderRow.title": "测试连接",
+  "command.editProviderRow.title": "编辑端点",
+  "command.copyProviderAddress.title": "复制端点地址",
+  "command.copyPreReviewSuggestion.title": "复制建议评论",
+  "command.openPreReviewSuggestionDiff.title": "在 Diff 中打开",
+  "command.copyRunLogSelection.title": "复制"
 }

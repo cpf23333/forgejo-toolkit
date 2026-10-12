@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { logSelectionAttribute } from '../utils/contextMenu';
 import {
   useAppState,
   actionRunKey,
@@ -229,9 +230,64 @@ watch(
   { deep: true },
 );
 
+onMounted(() => {
+  // One document-level listener for this view's life: the selection can start inside any
+  // of the expanded job logs, and the handler decides which one it belongs to.
+  document.addEventListener('selectionchange', trackLogSelection);
+});
+
 onUnmounted(() => {
   stopPolling();
+  document.removeEventListener('selectionchange', trackLogSelection);
 });
+
+/**
+ * The job log the current selection is in, and the text it holds.
+ *
+ * The log's `data-vscode-context` marker is bound from these two: VS Code reads the
+ * element's attribute when the menu opens, so the attribute has to be kept in step with
+ * the selection, and it must be **absent** when there is none — a marker without a
+ * selection would let the policy through and open an empty menu, because VS Code
+ * contributes nothing of its own to a `<pre>` (`utils/contextMenu.ts` says why the item
+ * exists at all).
+ */
+const logSelectionJobId = ref<number | undefined>(undefined);
+const logSelectionText = ref('');
+
+/**
+ * Re-reads the document selection and attributes it to one job log, if any.
+ *
+ * A selection elsewhere on the page (a comment, an issue body) clears both: the marker
+ * belongs to this run's log only, and the other surfaces keep the policy's own
+ * behaviour.
+ */
+function trackLogSelection() {
+  const selection = window.getSelection();
+  const text = selection?.toString() ?? '';
+  if (text.trim() === '' || selection === null || selection.rangeCount === 0) {
+    logSelectionJobId.value = undefined;
+    logSelectionText.value = '';
+    return;
+  }
+  const node = selection.anchorNode;
+  const element = node instanceof Element ? node : (node?.parentElement ?? null);
+  for (const [jobId, log] of jobLogElements.value.entries()) {
+    if (element !== null && log.contains(element)) {
+      logSelectionJobId.value = jobId;
+      logSelectionText.value = text;
+      return;
+    }
+  }
+  logSelectionJobId.value = undefined;
+  logSelectionText.value = '';
+}
+
+/** The marker one job log publishes, or `undefined` when the selection is not in it. */
+function jobLogContext(jobId: number | undefined): string | undefined {
+  return jobId !== undefined && jobId === logSelectionJobId.value
+    ? logSelectionAttribute(logSelectionText.value)
+    : undefined;
+}
 
 function loadExpandedJobLogs(force = false) {
   for (const job of jobs.value) {
@@ -548,6 +604,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
               v-else-if="jobLog(job.id)"
               :ref="(el) => setJobLogElement(el as HTMLPreElement, job.id)"
               class="job-log"
+              :data-vscode-context="jobLogContext(job.id)"
               @scroll="onJobLogScroll(job.id, $event)"
               >{{ jobLog(job.id) }}</pre>
             <div v-else class="empty-state">{{ t('dashboard.actionRun.noLogs') }}</div>

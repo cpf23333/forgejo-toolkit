@@ -41,6 +41,16 @@ export interface WebviewContentOptions {
    */
   aiPreReview?: AiPreReviewPanelPayload & { canOpenPullRequest?: boolean };
   /**
+   * The AI pre-review panel's **own** identity, for its suggestion cards' contributed
+   * context-menu markers.
+   *
+   * It is separate from the payload above because it belongs to the panel rather than to
+   * the run: the run's payload is shared, while this id is minted per panel and is what
+   * the registry is keyed by (a marker carrying it routes an item to the panel that was
+   * right-clicked, not to the newest one).
+   */
+  aiPreReviewPanelId?: string;
+  /**
    * The notification-summary panel's payload: the answer or the reason there is none, with
    * the three facts its header must show (the model, the scope tier actually used, whether
    * anything was truncated). Injected like the pre-review panel's so the first paint needs
@@ -137,6 +147,7 @@ export function getWebviewContent(
     vscodeVersion: string;
     pullReviewComment?: WebviewContentOptions['pullReviewComment'];
     aiPreReview?: WebviewContentOptions['aiPreReview'];
+    aiPreReviewPanelId?: WebviewContentOptions['aiPreReviewPanelId'];
     notificationSummary?: WebviewContentOptions['notificationSummary'];
   } = {
     panelMode: options?.panelMode,
@@ -144,6 +155,7 @@ export function getWebviewContent(
     vscodeVersion: vscode.version,
     pullReviewComment: options?.pullReviewComment,
     aiPreReview: options?.aiPreReview,
+    aiPreReviewPanelId: options?.aiPreReviewPanelId,
     notificationSummary: options?.notificationSummary,
   };
   // Escape `<` so a `</script>` inside a value (e.g. a weird file path) cannot

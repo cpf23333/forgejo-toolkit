@@ -32,7 +32,13 @@
  * inventory in `TODO.md`'s 「P3 Webview 右键菜单的 VS Code 原生项（本次只做了抑制）」 entry.
  */
 
-import { contextMenuSectionOf } from './contextMenu';
+import {
+  CONTEXT_MENU_LOG_TEXT_KEY,
+  CONTEXT_MENU_SECTION_KEY,
+  contextMenuSectionCarrierOf,
+  contextMenuSectionOf,
+  VSCODE_CONTEXT_ATTRIBUTE,
+} from './contextMenu';
 
 /** Text controls whose own editing commands the browser's menu serves. */
 const TEXT_CONTROL_SELECTOR = 'input, textarea';
@@ -92,18 +98,79 @@ export function allowsNativeContextMenu(target: EventTarget | null, selectionTex
  * browser's menu, and capturing means an inner handler that stops propagation
  * cannot leave the wrong menu standing; it never stops propagation itself, so a
  * component that opens its own menu on the same event still sees it.
+ *
+ * Capturing is also what makes this the last place able to fix a stale log marker: it
+ * runs **before** VS Code's own listener reads the element's `data-vscode-context`
+ * (see {@link withdrawStaleLogMarker}).
  */
 export function installNativeContextMenuPolicy(win: Window): () => void {
   const onContextMenu = (event: MouseEvent): void => {
     const [deepest] = event.composedPath();
+    const target = deepest ?? event.target;
     const selectedText = win.getSelection()?.toString() ?? '';
-    if (!allowsNativeContextMenu(deepest ?? event.target, selectedText)) {
+    // Before anything else, take away a log marker whose text is not this click's
+    // selection. Doing it here rather than in the component is what makes the invariant
+    // hold: the component writes the marker on `selectionchange`, so a selection that
+    // grew since then is still described by the old attribute when the menu opens.
+    withdrawStaleLogMarker(target, selectedText);
+    if (!allowsNativeContextMenu(target, selectedText)) {
       event.preventDefault();
     }
   };
 
   win.addEventListener('contextmenu', onContextMenu, { capture: true });
   return () => win.removeEventListener('contextmenu', onContextMenu, { capture: true });
+}
+
+/**
+ * Removes a job log's marker when the text it carries is not the selection at this
+ * moment, and reports whether it did.
+ *
+ * The race this closes: the marker holds the selection **as of the last
+ * `selectionchange`**, and VS Code builds a menu's context keys from the attributes in
+ * the DOM. A reader who selects a million characters of a longer log, grows the
+ * selection to a million and a half and right-clicks in the same breath would otherwise
+ * be offered our Copy item and get the stale million-character prefix — the one outcome
+ * whose whole point was to be impossible. With the marker gone, VS Code reads no run-log
+ * fact, our item is not offered for that click, and the live non-empty selection keeps
+ * the event allowed, so the platform's own Copy takes the **whole** selection instead.
+ *
+ * The component re-publishes on the next `selectionchange`, so the next attempt has its
+ * marker again. Nothing here decides policy: it only withdraws a fact that is no longer
+ * true, and the section lookup then behaves as if the log had never been marked.
+ */
+export function withdrawStaleLogMarker(target: EventTarget | null, liveSelectionText: string): boolean {
+  const element = elementOf(target);
+  if (element === null) {
+    return false;
+  }
+  const carrier = contextMenuSectionCarrierOf(element);
+  if (carrier === null) {
+    return false;
+  }
+  const raw = carrier.getAttribute(VSCODE_CONTEXT_ATTRIBUTE);
+  if (raw === null) {
+    return false;
+  }
+  let marker: unknown;
+  try {
+    marker = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  if (typeof marker !== 'object' || marker === null) {
+    return false;
+  }
+  const fields = marker as Record<string, unknown>;
+  if (fields[CONTEXT_MENU_SECTION_KEY] !== 'runLog') {
+    return false;
+  }
+  const carried = typeof fields[CONTEXT_MENU_LOG_TEXT_KEY] === 'string' ? fields[CONTEXT_MENU_LOG_TEXT_KEY] : '';
+  if (carried === liveSelectionText) {
+    return false;
+  }
+  carrier.removeAttribute(VSCODE_CONTEXT_ATTRIBUTE);
+  return true;
 }
 
 /**

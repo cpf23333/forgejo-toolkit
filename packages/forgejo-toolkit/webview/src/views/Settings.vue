@@ -8,6 +8,7 @@ import TokenScopeList from '../components/TokenScopeList.vue';
 import ImportPreview from './ImportPreview.vue';
 import { DEFAULT_SETTINGS_GROUP, SETTINGS_GROUPS, WIDE_NAV_MIN_WIDTH, type SettingsGroupId } from './settingsGroups';
 import type { ForgejoInstance } from '../types/instance';
+import { contextMenuAttribute } from '../utils/contextMenu';
 import type { Locale } from '../i18n';
 import type {
   AiPreReviewChatModelOption,
@@ -1672,6 +1673,37 @@ watch(
   () => state.settingsRefreshTick.value,
   () => {
     reloadSettingsPage();
+  },
+);
+
+/**
+ * Answers the host's "open the editor for this saved instance / endpoint" request,
+ * which is what the settings rows' contributed context-menu items do.
+ *
+ * The lookup is by id against the snapshot this page is rendering, so a request that
+ * names something the page no longer has (a stale item, a forged argument) opens
+ * nothing at all — never an editor for a different entry. The `token` is why the watch
+ * fires for a repeated request.
+ */
+watch(
+  // `?.` because this page is mounted against a mocked state in tests and a host older
+  // than the field sends nothing at all: neither may throw while the page renders.
+  () => state.settingsEditRequest?.value,
+  (request) => {
+    if (request === undefined) {
+      return;
+    }
+    if (request.kind === 'instance') {
+      const instance = state.instances.value.find((entry) => entry.id === request.id);
+      if (instance) {
+        openEditor(instance);
+      }
+      return;
+    }
+    const entry = providerEntries.value.find((candidate) => candidate.id === request.id);
+    if (entry) {
+      openProviderEditor(entry);
+    }
   },
 );
 
@@ -4586,7 +4618,14 @@ defineExpose({
                 </div>
 
                 <ul v-if="providerEntries.length > 0" class="saved-list">
-                  <li v-for="entry in providerEntries" :key="entry.id" class="saved-item">
+                  <li
+                    v-for="entry in providerEntries"
+                    :key="entry.id"
+                    class="saved-item"
+                    :data-vscode-context="
+                      contextMenuAttribute({ webviewSection: 'settingsEndpointRow', forgejoProviderId: entry.id })
+                    "
+                  >
                     <div class="saved-info">
                       <div class="saved-name">{{ entry.name }}</div>
                       <div class="saved-url">{{ entry.address }}</div>
@@ -4851,7 +4890,14 @@ defineExpose({
               <!-- The Save outcome lands here, where the editor closed back to. -->
               <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
               <ul v-if="state.instances.value.length > 0" class="saved-list">
-                <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
+                <li
+                  v-for="instance in state.instances.value"
+                  :key="instance.id"
+                  class="saved-item"
+                  :data-vscode-context="
+                    contextMenuAttribute({ webviewSection: 'settingsInstanceRow', forgejoInstanceId: instance.id })
+                  "
+                >
                   <div class="saved-info">
                     <div class="saved-name">{{ instance.name }}</div>
                     <div class="saved-url">{{ instance.url }}</div>

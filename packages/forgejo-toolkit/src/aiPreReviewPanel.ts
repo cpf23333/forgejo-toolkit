@@ -5,6 +5,7 @@ import { resolveLocale } from './utils/resolveLocale';
 import { buildForgejoPrDiffUri } from './webview/diffUri';
 import { isSafeRepoPath } from './webview/repoIdentity';
 import { getWebviewContent } from './webview/content';
+import { registerAiPreReviewPanel, unregisterAiPreReviewPanel } from './aiPreReviewPanelRegistry';
 import { PR_REVIEW_MAX_COMMENT_LENGTH } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type {
   AiPreReviewPanelCandidate,
@@ -63,6 +64,21 @@ import type {
  * is already reading buys nothing. The next run opens the panel in the new
  * language.
  */
+/**
+ * Mints one panel's identity.
+ *
+ * A counter for the whole extension-host session: the id only has to be unique among the
+ * panels open at the same time (the registry holds exactly those), and a counter makes it
+ * deterministic — a test can mint two panels and know they differ without reading anything
+ * back. It carries no user data and names no entity, so nothing about an instance, a
+ * repository or an answer can be inferred from it.
+ */
+let nextPanelId = 0;
+function mintPanelId(): string {
+  nextPanelId += 1;
+  return `ai-pre-review-${nextPanelId}`;
+}
+
 export class AiPreReviewPanel implements vscode.Disposable {
   public static readonly viewType = 'forgejoToolkitAiPreReview';
 
@@ -99,19 +115,29 @@ export class AiPreReviewPanel implements vscode.Disposable {
         retainContextWhenHidden: true,
       },
     );
-    return new AiPreReviewPanel(panel, extensionUri, payload, host);
+    return new AiPreReviewPanel(panel, extensionUri, payload, mintPanelId(), host);
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     private readonly _extensionUri: vscode.Uri,
     private readonly _payload: AiPreReviewPanelPayload,
+    /**
+     * This panel's own identity, minted in `createOrShow`.
+     *
+     * It is what the suggestion cards publish in their markers and what the registry is
+     * keyed by, so a contributed item reaches **this** panel rather than the newest one
+     * (`aiPreReviewPanelRegistry.ts` states why that matters). It is also injected into
+     * the panel's own document, which is where the cards read it from.
+     */
+    public readonly panelId: string,
     private readonly _host?: AiPreReviewPanelNavigation,
   ) {
     this._panel = panel;
     this._decision = new Promise<AiPreReviewPanelDecision>((resolve) => {
       this._settleDecision = resolve;
     });
+    registerAiPreReviewPanel(this.panelId, this);
     this._update();
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     this._panel.webview.onDidReceiveMessage((message) => void this._handleMessage(message), null, this._disposables);
@@ -150,11 +176,48 @@ export class AiPreReviewPanel implements vscode.Disposable {
     this._post({ command: 'aiPreReviewPanelRejected', reason });
   }
 
+  /**
+   * Opens the diff at one card's anchor, for that card's contributed context-menu item.
+   *
+   * It is the **same path** the card's own "open the diff at this line" link uses
+   * (`_openDiff`, reached from the `aiPreReviewPanelOpenDiff` message): one
+   * implementation of the anchor rules — the sha presence, the safe path, the renamed
+   * file's base path and the per-side reveal — so the menu item cannot drift from the
+   * link. The index comes from the caller's own payload lookup, never from the marker.
+   */
+  public async openSuggestionDiff(index: unknown): Promise<void> {
+    await this._openDiff(index);
+  }
+
+  /**
+   * Copies one card's body, from **this panel's own payload**.
+   *
+   * The text is what the model proposed, held by the host since the run was built; the
+   * context-menu marker carries only an index, so a forged marker can name a card this
+   * panel has (or none) but can never supply the text that reaches the clipboard.
+   * Returns `false` for an index this panel does not offer, so the caller can say so.
+   */
+  public async copySuggestionBody(index: unknown): Promise<boolean> {
+    const candidate =
+      typeof index === 'number' && Number.isInteger(index)
+        ? this._payload.candidates.find((entry) => entry.index === index)
+        : undefined;
+    if (!candidate) {
+      logger.debug(`AI pre-review panel: no candidate is at index ${String(index)}; nothing was copied`);
+      return false;
+    }
+    await vscode.env.clipboard.writeText(candidate.body);
+    return true;
+  }
+
   public dispose(): void {
     if (this._disposed) {
       return;
     }
     this._disposed = true;
+    // The registry holds exactly the open panels: leaving it here is what keeps a
+    // closed tab from being reachable by its id (`aiPreReviewPanelRegistry.ts`).
+    unregisterAiPreReviewPanel(this.panelId);
     this._answer({ kind: 'cancel' });
     while (this._disposables.length > 0) {
       this._disposables.pop()?.dispose();
@@ -313,6 +376,10 @@ export class AiPreReviewPanel implements vscode.Disposable {
       panelMode: 'aiPreReview',
       locale,
       aiPreReview: { ...this._payload, canOpenPullRequest: this._host !== undefined },
+      // The panel's own identity, for the suggestion cards' context-menu markers; it is
+      // not part of the run's payload because it belongs to the *panel*, not to the run
+      // (a payload describes what a run sends).
+      aiPreReviewPanelId: this.panelId,
     });
   }
 

@@ -1438,41 +1438,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof id !== 'string') {
           return;
         }
-        const instance = this._findInstance(id);
-        if (!instance) {
-          return;
-        }
-        // The webview tracks no pending state for this command, so a declined
-        // confirmation needs no reply: the instance list simply stays as is.
-        if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
-          return;
-        }
-        // The checkouts deliberately stay on disk (they may hold uncommitted
-        // work) and nothing points at them afterwards, so the notice below names
-        // them: the lazy sweep only reclaims one whose source clone is gone, so
-        // a checkout backed by an ordinary clone would otherwise be stranded
-        // with no way to find it.
-        const { removed: removedWorktrees, strandedCheckouts } = await this._config.removeInstance(id);
-        if (removedWorktrees > 0) {
-          // The checkouts are still on disk (they may hold uncommitted work);
-          // say so, and where they are, instead of letting the user believe they
-          // were deleted or lose track of them.
-          void vscode.window.showInformationMessage(
-            vscode.l10n.t(
-              'Removed instance {0} along with its {1} worktree record(s). Their checkouts stay on disk at {2}; nothing tracks them any more, so delete them yourself once they hold no work you still need.',
-              instance.name,
-              removedWorktrees,
-              strandedCheckouts.join(', '),
-            ),
-          );
-        }
-        this._sendInstances();
-        // Removing an instance forgets its worktree records (their checkouts
-        // stay on disk). The Settings list renders the last `worktreesList`
-        // reply, so without this it keeps showing rows whose records are gone:
-        // deleting one would reach the removal path with nothing behind it.
-        this._sendWorktrees();
-        this._detectAndSendLinkedRepository();
+        await this.removeInstanceById(id);
         return;
       }
       case 'exportInstances': {
@@ -5482,6 +5448,72 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     } else {
       void vscode.commands.executeCommand('forgejoToolkitView.focus');
     }
+  }
+
+  /**
+   * Removes one configured instance, with the same **host-side** confirmation the
+   * settings page's own Remove button goes through.
+   *
+   * It is the one implementation, shared by the page's button and the contributed
+   * context-menu item (`src/commands/webviewContextMenu.ts`): the modal is popped here,
+   * by the host, so a menu item cannot remove an instance without it and the surface
+   * never grows a second, differently-worded prompt. A declined confirmation is a
+   * no-op, exactly as the page's own path treats it.
+   */
+  public async removeInstanceById(id: string): Promise<void> {
+    const instance = this._findInstance(id);
+    if (!instance) {
+      return;
+    }
+    // The webview tracks no pending state for this command, so a declined
+    // confirmation needs no reply: the instance list simply stays as is.
+    if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
+      return;
+    }
+    // The checkouts deliberately stay on disk (they may hold uncommitted
+    // work) and nothing points at them afterwards, so the notice below names
+    // them: the lazy sweep only reclaims one whose source clone is gone, so
+    // a checkout backed by an ordinary clone would otherwise be stranded
+    // with no way to find it.
+    const { removed: removedWorktrees, strandedCheckouts } = await this._config.removeInstance(id);
+    if (removedWorktrees > 0) {
+      // The checkouts are still on disk (they may hold uncommitted work);
+      // say so, and where they are, instead of letting the user believe they
+      // were deleted or lose track of them.
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t(
+          'Removed instance {0} along with its {1} worktree record(s). Their checkouts stay on disk at {2}; nothing tracks them any more, so delete them yourself once they hold no work you still need.',
+          instance.name,
+          removedWorktrees,
+          strandedCheckouts.join(', '),
+        ),
+      );
+    }
+    this._sendInstances();
+    // Removing an instance forgets its worktree records (their checkouts
+    // stay on disk). The Settings list renders the last `worktreesList`
+    // reply, so without this it keeps showing rows whose records are gone:
+    // deleting one would reach the removal path with nothing behind it.
+    this._sendWorktrees();
+    this._detectAndSendLinkedRepository();
+  }
+
+  /**
+   * The settings page's own two messages, for its contributed context-menu items.
+   *
+   * The page is an editor-area panel, so "edit this saved instance / endpoint" is the
+   * host asking the page to open the editor it already owns; the page looks the id up in
+   * its own snapshot, so a stale or forged id opens nothing rather than the wrong
+   * editor. The panel queues the request until the page has spoken to it at least once
+   * (see `notifyEditRequest`), which is what keeps a freshly created panel from losing
+   * the request before its webview has mounted.
+   */
+  public openSettingsEditorFor(message: {
+    command: 'settingsEditInstance' | 'settingsEditProvider';
+    id: string;
+  }): void {
+    this.openSettings();
+    SettingsWebviewPanel.currentPanel?.notifyEditRequest(message);
   }
 
   public openCreatePullRequest(payload: { instanceId: string; owner: string; repo: string; head: string }) {

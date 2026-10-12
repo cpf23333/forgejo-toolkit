@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { allowsNativeContextMenu, installNativeContextMenuPolicy } from '../nativeContextMenu';
-import { contextMenuAttribute, contextMenuSectionOf } from '../contextMenu';
+import {
+  contextMenuAttribute,
+  contextMenuFieldAttribute,
+  contextMenuSectionOf,
+  logSelectionAttribute,
+} from '../contextMenu';
 
 /**
  * The policy's third exception: one of **our own rows**, recognised by its
@@ -196,5 +201,213 @@ describe('the policy on a marked row', () => {
     const selectable = container.querySelector('.selectable')!;
     select(selectable);
     expect(allowsNativeContextMenu(selectable, 'select me')).toBe(true);
+  });
+
+  it('keeps the platform editing menu on a field inside a marked element, while the element keeps ours', () => {
+    // The rule, pinned with a synthetic field: a marker hides VS Code's Cut / Copy /
+    // Paste and the key travels with it, so a field inside a marked element would lose its
+    // editing menu. The field's own deeper marker sets the key back — and because VS Code
+    // resolves each key from the clicked element outwards with the nearest value winning,
+    // the section still applies to the field, so our items stay too. The one shipped
+    // surface with that shape is the AI pre-review card (the test below); no settings row
+    // embeds a field, which is why this one is synthetic.
+    const container = mount(
+      `<div class="instance-row" data-vscode-context='${contextMenuAttribute({
+        webviewSection: 'notificationRow',
+        forgejoInstanceId: 'inst-1',
+        forgejoNotificationId: 11,
+      })}'>` +
+        '<span class="row-label">demo-user@forgejo.example.com</span>' +
+        `<input class="row-field" value="demo-user" data-vscode-context='${contextMenuFieldAttribute()}' />` +
+        '</div>',
+    );
+    const row = container.querySelector('.instance-row')!;
+    const label = container.querySelector('.row-label')!;
+    const field = container.querySelector('.row-field')!;
+
+    /**
+     * VS Code's own accumulation: the walk goes from the clicked element outwards, and
+     * each key keeps the value from the marker **nearest** the target (its listener does
+     * `context = { ...parsed, ...context }`, so the value already in hand wins).
+     */
+    const accumulated = (target: Element): Record<string, unknown> => {
+      const context: Record<string, unknown> = {};
+      for (let node: Element | null = target; node !== null; node = node.parentElement) {
+        const raw = node.getAttribute('data-vscode-context');
+        if (raw === null) {
+          continue;
+        }
+        for (const [key, value] of Object.entries(JSON.parse(raw) as Record<string, unknown>)) {
+          if (!(key in context)) {
+            context[key] = value;
+          }
+        }
+      }
+      return context;
+    };
+
+    // The row itself: ours only, no platform entries.
+    expect(accumulated(label)).toMatchObject({ preventDefaultContextMenuItems: true });
+    // The field: the platform entries come back, and the row's section is still in scope,
+    // so the row's items remain offered beside them.
+    expect(accumulated(field)).toMatchObject({
+      preventDefaultContextMenuItems: false,
+      webviewSection: 'notificationRow',
+    });
+
+    // And the policy agrees the event must reach VS Code for all three.
+    expect(allowsNativeContextMenu(row, '')).toBe(true);
+    expect(allowsNativeContextMenu(label, '')).toBe(true);
+    expect(allowsNativeContextMenu(field, '')).toBe(true);
+    expect(contextMenuSectionOf(field)).toBe('notificationRow');
+
+    const uninstall = installNativeContextMenuPolicy(window);
+    try {
+      expect(contextMenuOn(field).defaultPrevented).toBe(false);
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('keeps the editing menu on a suggestion card’s own editor, while the card keeps its items', () => {
+    // The second surface with a field inside a marked row: the AI pre-review card's body
+    // editor. Same shape as the settings case above — the card's marker hides VS Code's
+    // three entries, the textarea's own marker brings them back, and the card's section
+    // (with its panel id) stays in scope so "Copy Suggested Comment" and "Open in Diff"
+    // still apply to the field's tree.
+    const container = mount(
+      `<article class="card" data-vscode-context='${contextMenuAttribute({
+        webviewSection: 'preReviewSuggestion',
+        forgejoPanelId: 'ai-pre-review-1',
+        forgejoSuggestionIndex: 0,
+      })}'>` +
+        '<span class="anchor">src/index.ts:2</span>' +
+        `<textarea class="body-input" data-vscode-context='${contextMenuFieldAttribute()}'>body</textarea>` +
+        '</article>',
+    );
+    const card = container.querySelector('.card')!;
+    const anchor = container.querySelector('.anchor')!;
+    const editor = container.querySelector('.body-input')!;
+
+    /** VS Code's own accumulation: nearest value of each key wins (`pre/index.html`). */
+    const accumulated = (target: Element): Record<string, unknown> => {
+      const context: Record<string, unknown> = {};
+      for (let node: Element | null = target; node !== null; node = node.parentElement) {
+        const raw = node.getAttribute('data-vscode-context');
+        if (raw === null) {
+          continue;
+        }
+        for (const [key, value] of Object.entries(JSON.parse(raw) as Record<string, unknown>)) {
+          if (!(key in context)) {
+            context[key] = value;
+          }
+        }
+      }
+      return context;
+    };
+
+    expect(accumulated(anchor)).toMatchObject({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'preReviewSuggestion',
+      forgejoPanelId: 'ai-pre-review-1',
+      forgejoSuggestionIndex: 0,
+    });
+    expect(accumulated(editor)).toMatchObject({
+      preventDefaultContextMenuItems: false,
+      webviewSection: 'preReviewSuggestion',
+      forgejoPanelId: 'ai-pre-review-1',
+      forgejoSuggestionIndex: 0,
+    });
+
+    expect(allowsNativeContextMenu(card, '')).toBe(true);
+    expect(allowsNativeContextMenu(editor, '')).toBe(true);
+    expect(contextMenuSectionOf(editor)).toBe('preReviewSuggestion');
+
+    const uninstall = installNativeContextMenuPolicy(window);
+    try {
+      expect(contextMenuOn(editor).defaultPrevented).toBe(false);
+    } finally {
+      uninstall();
+    }
+  });
+});
+
+describe('the job log’s marker at click time', () => {
+  /**
+   * The race the policy closes: the marker is written on `selectionchange`, so a
+   * selection that grew afterwards is still described by the attribute in the DOM — and
+   * VS Code builds the menu's context keys from that attribute. The capture-phase
+   * listener runs before VS Code reads them, so it can take the stale fact away.
+   */
+  function logCarrier(carriedText: string): HTMLElement {
+    const container = mount(
+      `<pre class="job-log" data-vscode-context='${logSelectionAttribute(carriedText)}'>aaaa bbbb cccc dddd</pre>`,
+    );
+    return container.querySelector('.job-log') as HTMLElement;
+  }
+
+  it('withdraws a marker whose text is not the live selection, so the item cannot be offered', () => {
+    const log = logCarrier('aaaa bbbb');
+    expect(contextMenuSectionOf(log)).toBe('runLog');
+
+    // The reader grew the selection between the marker and the click.
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(log);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const live = selection.toString();
+    expect(live).not.toBe('aaaa bbbb');
+
+    const uninstall = installNativeContextMenuPolicy(window);
+    try {
+      const event = contextMenuOn(log);
+      // The marker is gone, so VS Code reads no run-log fact …
+      expect(log.hasAttribute('data-vscode-context')).toBe(false);
+      expect(contextMenuSectionOf(log)).toBeUndefined();
+      // … and the live selection keeps the event allowed, so the platform's own Copy is
+      // what the reader gets — for the whole selection.
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('keeps a marker that matches the live selection, so the item is offered and copies exactly', () => {
+    const log = logCarrier('aaaa bbbb cccc dddd');
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(log);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const live = selection.toString();
+
+    const uninstall = installNativeContextMenuPolicy(window);
+    try {
+      const event = contextMenuOn(log);
+      expect(event.defaultPrevented).toBe(false);
+      // Unchanged, so the carried text is still the selection and the item is offered.
+      expect(contextMenuSectionOf(log)).toBe('runLog');
+      const marker = JSON.parse(log.getAttribute('data-vscode-context')!) as Record<string, unknown>;
+      expect(marker.forgejoLogText).toBe(live);
+      expect(marker.forgejoLogSelection).toBe(true);
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('withdraws the marker and still suppresses the menu when there is no selection left', () => {
+    // A collapsed selection with a stale marker: the fact goes, and with no selection the
+    // policy suppresses as it always did — no empty menu either way.
+    const log = logCarrier('aaaa bbbb');
+    window.getSelection()?.removeAllRanges();
+
+    const uninstall = installNativeContextMenuPolicy(window);
+    try {
+      expect(contextMenuOn(log).defaultPrevented).toBe(true);
+      expect(log.hasAttribute('data-vscode-context')).toBe(false);
+    } finally {
+      uninstall();
+    }
   });
 });

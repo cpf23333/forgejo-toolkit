@@ -537,5 +537,7 @@
   "The summary could not be produced: {0}. Nothing was written.": "The summary could not be produced: {0}. Nothing was written.",
   "Discussion summary: {0}/{1}#{2}": "Discussion summary: {0}/{1}#{2}",
   "The summary was cancelled before the model was called: the discussion had already been read, and nothing was written.": "The summary was cancelled before the model was called: the discussion had already been read, and nothing was written.",
-  "The summary was cancelled while the chat model was answering: nothing was written.": "The summary was cancelled while the chat model was answering: nothing was written."
+  "The summary was cancelled while the chat model was answering: nothing was written.": "The summary was cancelled while the chat model was answering: nothing was written.",
+  "That AI pre-review panel is no longer open, so nothing was done. Open a pre-review and try again from its own card.": "That AI pre-review panel is no longer open, so nothing was done. Open a pre-review and try again from its own card.",
+  "That log selection could not be copied. Select the text you want and press Copy again.": "That log selection could not be copied. Select the text you want and press Copy again."
 }

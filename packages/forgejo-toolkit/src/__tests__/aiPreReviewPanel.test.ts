@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as vscode from 'vscode';
 import { AiPreReviewPanel, selectPanelEntries } from '../aiPreReviewPanel';
+import { findAiPreReviewPanel, registeredAiPreReviewPanelCount } from '../aiPreReviewPanelRegistry';
 import { PR_REVIEW_MAX_COMMENT_LENGTH } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type {
   AiPreReviewPanelCandidate,
@@ -159,6 +160,63 @@ describe('AiPreReviewPanel.createOrShow', () => {
     expect(webview.webview.html.length).toBeGreaterThan(0);
     // Nothing is answered until the user answers.
     expect(await answered(panel)).toBe(false);
+  });
+});
+
+describe('the panel registry', () => {
+  /**
+   * The registry is what the contributed context-menu items route through, and the panel
+   * is **not** a singleton: each run opens its own. These tests use the real
+   * `createOrShow`, so they pin that the class joins and leaves the registry itself —
+   * a "whichever panel is current" reference has nothing to do with this shape.
+   */
+  afterEach(() => {
+    for (const panel of openPanels) {
+      panel.dispose();
+    }
+    openPanels.length = 0;
+  });
+  const openPanels: AiPreReviewPanel[] = [];
+
+  it('registers each panel under its own id, and a second creation leaves the first', () => {
+    const first = openPanel().panel;
+    const second = openPanel().panel;
+    openPanels.push(first, second);
+
+    expect(first.panelId).not.toBe(second.panelId);
+    expect(findAiPreReviewPanel(first.panelId)).toBe(first);
+    expect(findAiPreReviewPanel(second.panelId)).toBe(second);
+    expect(registeredAiPreReviewPanelCount()).toBeGreaterThanOrEqual(2);
+  });
+
+  it('leaves the registry on dispose, and does not leak when disposed twice', () => {
+    const panel = openPanel().panel;
+    const id = panel.panelId;
+    expect(findAiPreReviewPanel(id)).toBe(panel);
+
+    panel.dispose();
+    expect(findAiPreReviewPanel(id)).toBeUndefined();
+
+    panel.dispose();
+    expect(findAiPreReviewPanel(id)).toBeUndefined();
+  });
+
+  it('answers an unknown or stale id with nothing', () => {
+    expect(findAiPreReviewPanel('panel-that-never-existed')).toBeUndefined();
+    expect(findAiPreReviewPanel(undefined)).toBeUndefined();
+    expect(findAiPreReviewPanel(42)).toBeUndefined();
+  });
+
+  it('copies a card body from its own payload, and refuses an index it does not offer', async () => {
+    const { panel } = openPanel();
+    openPanels.push(panel);
+
+    await expect(panel.copySuggestionBody(1)).resolves.toBe(true);
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith('Second.');
+
+    await expect(panel.copySuggestionBody(9)).resolves.toBe(false);
+    await expect(panel.copySuggestionBody('0')).resolves.toBe(false);
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledTimes(1);
   });
 });
 

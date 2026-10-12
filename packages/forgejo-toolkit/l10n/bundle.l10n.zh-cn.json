@@ -537,5 +537,7 @@
   "The summary could not be produced: {0}. Nothing was written.": "没有生成摘要：{0}。没有写入任何内容。",
   "Discussion summary: {0}/{1}#{2}": "讨论摘要：{0}/{1}#{2}",
   "The summary was cancelled before the model was called: the discussion had already been read, and nothing was written.": "摘要在调用模型之前被取消：讨论已经读过了，没有写入任何内容。",
-  "The summary was cancelled while the chat model was answering: nothing was written.": "摘要在聊天模型作答时被取消：没有写入任何内容。"
+  "The summary was cancelled while the chat model was answering: nothing was written.": "摘要在聊天模型作答时被取消：没有写入任何内容。",
+  "That AI pre-review panel is no longer open, so nothing was done. Open a pre-review and try again from its own card.": "那个 AI 预评审面板已经不在打开状态，因此没有执行任何操作。请先打开一次预评审，再从它自己的卡片上重试。",
+  "That log selection could not be copied. Select the text you want and press Copy again.": "那段日志选区没能复制。请重新选中要复制的文本，再按一次复制。"
 }

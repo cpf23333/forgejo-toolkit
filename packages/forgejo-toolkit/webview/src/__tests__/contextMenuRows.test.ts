@@ -52,21 +52,55 @@ describe('context-menu row bindings', () => {
     expect(pulls).toContain("webviewSection: 'pullRequestRow'");
   });
 
+  it('binds a marker on the settings page’s two row types', () => {
+    const settings = sourceOf('views/Settings.vue');
+    // The instance row and the endpoint row, each naming the entity the page can look up.
+    expect(settings).toContain("webviewSection: 'settingsInstanceRow'");
+    expect(settings).toContain('forgejoInstanceId: instance.id');
+    expect(settings).toContain("webviewSection: 'settingsEndpointRow'");
+    expect(settings).toContain('forgejoProviderId: entry.id');
+    expect(settings).toContain('contextMenuAttribute(');
+  });
+
+  it('binds a marker on the pre-review suggestion cards, and the field marker on their editors', () => {
+    const panel = sourceOf('AiPreReviewPanel.vue');
+    // The card keeps the panel's items, and the textarea inside it keeps the platform's
+    // cut/copy/paste: a card whose editor lost them would be un-editable by mouse.
+    expect(panel).toContain("webviewSection: 'preReviewSuggestion'");
+    expect(panel).toContain('forgejoPanelId: panelId');
+    expect(panel).toContain('forgejoSuggestionIndex: candidate.index');
+    expect(panel).toContain(':data-vscode-context="contextMenuFieldAttribute()"');
+  });
+
+  it('binds the log marker on the job log and listens for the selection it publishes', () => {
+    const view = sourceOf('views/ActionRunDetail.vue');
+    // The marker is bound from the tracked selection and is absent (undefined) when the
+    // selection is not in that log, which is what keeps a selection-less log suppressed.
+    expect(view).toContain(':data-vscode-context="jobLogContext(job.id)"');
+    expect(view).toContain('logSelectionAttribute(logSelectionText.value)');
+    expect(view).toContain("document.addEventListener('selectionchange', trackLogSelection)");
+    expect(view).toContain("document.removeEventListener('selectionchange', trackLogSelection)");
+  });
+
   it('publishes every section this batch contributes, and no more', () => {
     const all = [
       sourceOf('views/Notifications.vue'),
       sourceOf('components/DashboardInstanceItem.vue'),
       sourceOf('views/RepoIssues.vue'),
       sourceOf('views/RepoPullRequests.vue'),
+      sourceOf('views/Settings.vue'),
+      sourceOf('AiPreReviewPanel.vue'),
     ].join('\n');
 
-    // Each of the four sections is written by at least one row, and the union of the
-    // `webviewSection` literals used across those rows is exactly the list the policy
-    // (and the manifest's `when` clauses) know about.
-    for (const section of CONTEXT_MENU_SECTIONS) {
+    // Each section the views spell themselves is written by at least one of them, and
+    // the union of their `webviewSection` literals is exactly that list. `runLog` is
+    // published by `logSelectionAttribute` (asserted in `utils/__tests__/contextMenu.test.ts`)
+    // rather than written in a template, so it is outside both halves of this scan.
+    const templateSections = CONTEXT_MENU_SECTIONS.filter((section) => section !== 'runLog');
+    for (const section of templateSections) {
       expect(all, `no row publishes ${section}`).toContain(`webviewSection: '${section}'`);
     }
     const used = [...all.matchAll(/webviewSection: '([a-zA-Z]+)'/g)].map((match) => match[1]);
-    expect([...new Set(used)].sort()).toEqual([...CONTEXT_MENU_SECTIONS].sort());
+    expect([...new Set(used)].sort()).toEqual([...templateSections].sort());
   });
 });

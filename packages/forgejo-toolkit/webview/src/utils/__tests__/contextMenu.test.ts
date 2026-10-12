@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CONTEXT_MENU_LOG_SELECTION_MAX_CHARS,
+  CONTEXT_MENU_PLATFORM_ITEMS_KEY,
   CONTEXT_MENU_SECTION_KEY,
   CONTEXT_MENU_SECTIONS,
   contextMenuAttribute,
+  contextMenuFieldAttribute,
   contextMenuSectionOf,
+  logSelectionAttribute,
 } from '../contextMenu';
 
 /**
@@ -165,7 +169,81 @@ describe('contextMenuSectionOf', () => {
     page.remove();
   });
 
-  it('publishes exactly the four row families of this batch', () => {
-    expect([...CONTEXT_MENU_SECTIONS]).toEqual(['repositoryRow', 'pullRequestRow', 'issueRow', 'notificationRow']);
+  it('publishes the shipped sections, and no more', () => {
+    expect([...CONTEXT_MENU_SECTIONS]).toEqual([
+      'repositoryRow',
+      'pullRequestRow',
+      'issueRow',
+      'notificationRow',
+      'settingsInstanceRow',
+      'settingsEndpointRow',
+      'preReviewSuggestion',
+      'runLog',
+    ]);
+  });
+});
+
+describe('contextMenuFieldAttribute', () => {
+  it('sets the platform key back to false and declares nothing else', () => {
+    // Exactly one key: a `webviewSection` here would take the row's section away from
+    // the field's own tree, and the row's items are meant to keep applying to it.
+    expect(JSON.parse(contextMenuFieldAttribute())).toEqual({ [CONTEXT_MENU_PLATFORM_ITEMS_KEY]: false });
+  });
+
+  it('still leaves the field inside the row’s section', () => {
+    const row = document.createElement('div');
+    row.setAttribute(
+      'data-vscode-context',
+      contextMenuAttribute({
+        webviewSection: 'notificationRow',
+        forgejoInstanceId: 'inst-1',
+        forgejoNotificationId: 11,
+      }),
+    );
+    const field = document.createElement('input');
+    field.setAttribute('data-vscode-context', contextMenuFieldAttribute());
+    row.append(field);
+    document.body.append(row);
+
+    // A marker that declares no section does not decide: the walk continues outward, so
+    // the policy still recognises the row and the menu opens at all.
+    expect(contextMenuSectionOf(field)).toBe('notificationRow');
+    row.remove();
+  });
+});
+
+describe('logSelectionAttribute', () => {
+  it('publishes nothing when there is nothing selected', () => {
+    // No marker means the policy keeps suppressing and the log shows no menu at all,
+    // which is the behaviour it had before the Copy item existed: VS Code contributes
+    // nothing of its own to a `<pre>`, so a marker here would open an empty menu.
+    expect(logSelectionAttribute('')).toBeUndefined();
+    expect(logSelectionAttribute('   \n  ')).toBeUndefined();
+  });
+
+  it('publishes the section, the selection fact and the selected text', () => {
+    const marker = JSON.parse(logSelectionAttribute('line one\nline two')!) as Record<string, unknown>;
+    expect(marker).toMatchObject({
+      webviewSection: 'runLog',
+      forgejoLogSelection: true,
+      forgejoLogText: 'line one\nline two',
+    });
+    // Kept for consistency with the shared writer: it only hides entries VS Code adds
+    // itself, and on a `<pre>` it adds none.
+    expect(marker.preventDefaultContextMenuItems).toBe(true);
+  });
+
+  it('carries a selection at the boundary whole, and publishes nothing over it', () => {
+    // At the bound the whole selection travels …
+    const atBoundary = 'y'.repeat(CONTEXT_MENU_LOG_SELECTION_MAX_CHARS);
+    const marker = JSON.parse(logSelectionAttribute(atBoundary)!) as Record<string, unknown>;
+    expect(marker.forgejoLogText).toBe(atBoundary);
+    expect(String(marker.forgejoLogText).length).toBe(CONTEXT_MENU_LOG_SELECTION_MAX_CHARS);
+
+    // … and one character over it publishes no marker at all, so the Copy item is not
+    // offered: nothing is ever put on the clipboard partially and without a word, and the
+    // reader keeps the status quo (no menu; the keyboard copy still takes the selection).
+    expect(logSelectionAttribute('y'.repeat(CONTEXT_MENU_LOG_SELECTION_MAX_CHARS + 1))).toBeUndefined();
+    expect(logSelectionAttribute('y'.repeat(CONTEXT_MENU_LOG_SELECTION_MAX_CHARS + 50_000))).toBeUndefined();
   });
 });

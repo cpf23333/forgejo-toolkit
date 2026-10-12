@@ -315,5 +315,5 @@ export function registerCommands(
   // request, issue and notification rows' own menus. Each one re-validates the
   // `data-vscode-context` object VS Code forwards as its argument, because that
   // object comes from the webview (`docs/architecture/README.md`).
-  context.subscriptions.push(...registerWebviewContextMenuCommands(viewProvider));
+  context.subscriptions.push(...registerWebviewContextMenuCommands(viewProvider, context.secrets));
 }

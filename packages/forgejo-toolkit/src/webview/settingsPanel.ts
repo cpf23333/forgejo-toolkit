@@ -67,6 +67,12 @@ export class SettingsWebviewPanel {
    * rejects — the same guard, for the same reason, as the onboarding panel's.
    */
   private _disposed = false;
+  /**
+   * An edit request that arrived before the page could hear it, and whether the page
+   * has spoken to the host yet (the two halves of `notifyEditRequest`'s queue).
+   */
+  private _pendingEditRequest: { command: 'settingsEditInstance' | 'settingsEditProvider'; id: string } | undefined;
+  private _pageIsLive = false;
 
   public static createOrShow(extensionUri: vscode.Uri, host: SettingsPanelHost): SettingsWebviewPanel {
     const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
@@ -126,6 +132,32 @@ export class SettingsWebviewPanel {
     SettingsWebviewPanel.currentPanel?.refresh();
   }
 
+  /**
+   * Asks the page to open the editor for one saved instance or one AI endpoint
+   * (`settingsEditInstance` / `settingsEditProvider`), the two contributed
+   * context-menu items this page owns.
+   *
+   * The request is **queued until the page has spoken to the host once**: a panel that
+   * was just created has set its HTML but its document has not mounted yet, and a
+   * message posted into it then is lost — which is exactly the case an item pressed
+   * right after `openSettings()` creates. The first message from the page is the proof
+   * that its listener is live, and it is where the queue is flushed.
+   */
+  public notifyEditRequest(request: { command: 'settingsEditInstance' | 'settingsEditProvider'; id: string }): void {
+    this._pendingEditRequest = request;
+    this._flushPendingEditRequest();
+  }
+
+  /** Sends the queued edit request once the page is known to be listening. */
+  private _flushPendingEditRequest(): void {
+    if (this._pendingEditRequest === undefined || !this._pageIsLive) {
+      return;
+    }
+    const request = this._pendingEditRequest;
+    this._pendingEditRequest = undefined;
+    this._reply(request);
+  }
+
   private constructor(
     panel: vscode.WebviewPanel,
     private readonly _extensionUri: vscode.Uri,
@@ -148,6 +180,10 @@ export class SettingsWebviewPanel {
 
     this._panel.webview.onDidReceiveMessage(
       (message) => {
+        // The page is alive from its first message onwards: this is where a queued
+        // edit request is flushed (see `notifyEditRequest`).
+        this._pageIsLive = true;
+        this._flushPendingEditRequest();
         void this._host.dispatchSettingsMessage(message, (reply) => this._reply(reply));
       },
       undefined,

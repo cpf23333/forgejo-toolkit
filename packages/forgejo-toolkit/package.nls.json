@@ -129,5 +129,14 @@
   "command.openPullRequestRow.title": "Open Pull Request",
   "command.copyRowReference.title": "Copy Reference",
   "command.openRowInBrowser.title": "Open in Browser",
-  "command.markNotificationRowRead.title": "Mark as Read"
+  "command.markNotificationRowRead.title": "Mark as Read",
+  "command.editInstanceRow.title": "Edit Instance",
+  "command.removeInstanceRow.title": "Remove Instance",
+  "command.copyInstanceAddress.title": "Copy Instance Address",
+  "command.testProviderRow.title": "Test Connection",
+  "command.editProviderRow.title": "Edit Endpoint",
+  "command.copyProviderAddress.title": "Copy Endpoint Address",
+  "command.copyPreReviewSuggestion.title": "Copy Suggested Comment",
+  "command.openPreReviewSuggestionDiff.title": "Open in Diff",
+  "command.copyRunLogSelection.title": "Copy"
 }

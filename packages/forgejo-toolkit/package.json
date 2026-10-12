@@ -631,6 +631,51 @@
         "command": "forgejoToolkit.markNotificationRowRead",
         "title": "%command.markNotificationRowRead.title%",
         "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.editInstanceRow",
+        "title": "%command.editInstanceRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.removeInstanceRow",
+        "title": "%command.removeInstanceRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyInstanceAddress",
+        "title": "%command.copyInstanceAddress.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.testProviderRow",
+        "title": "%command.testProviderRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.editProviderRow",
+        "title": "%command.editProviderRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyProviderAddress",
+        "title": "%command.copyProviderAddress.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyPreReviewSuggestion",
+        "title": "%command.copyPreReviewSuggestion.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.openPreReviewSuggestionDiff",
+        "title": "%command.openPreReviewSuggestionDiff.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyRunLogSelection",
+        "title": "%command.copyRunLogSelection.title%",
+        "category": "Forgejo Toolkit"
       }
     ],
     "viewsContainers": {
@@ -747,6 +792,51 @@
           "command": "forgejoToolkit.markNotificationRowRead",
           "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'notificationRow' && forgejoNotificationId > 0",
           "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.editInstanceRow",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsInstanceRow'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.copyInstanceAddress",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsInstanceRow'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.removeInstanceRow",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsInstanceRow'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.testProviderRow",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsEndpointRow'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.editProviderRow",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsEndpointRow'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.copyProviderAddress",
+          "when": "webviewId == 'forgejoToolkitSettings' && webviewSection == 'settingsEndpointRow'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.copyPreReviewSuggestion",
+          "when": "webviewId == 'forgejoToolkitAiPreReview' && webviewSection == 'preReviewSuggestion'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.openPreReviewSuggestionDiff",
+          "when": "webviewId == 'forgejoToolkitAiPreReview' && webviewSection == 'preReviewSuggestion'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.copyRunLogSelection",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'runLog' && forgejoLogSelection == true",
+          "group": "navigation@1"
         }
       ],
       "commandPalette": [
@@ -780,6 +870,42 @@
         },
         {
           "command": "forgejoToolkit.markNotificationRowRead",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.editInstanceRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyInstanceAddress",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.removeInstanceRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.testProviderRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.editProviderRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyProviderAddress",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyPreReviewSuggestion",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.openPreReviewSuggestionDiff",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyRunLogSelection",
           "when": "false"
         },
         {

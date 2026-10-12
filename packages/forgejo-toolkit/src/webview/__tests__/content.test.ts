@@ -147,6 +147,8 @@ describe('getWebviewContent', () => {
     const html = render({
       panelMode: 'aiPreReview',
       locale: 'zh',
+      // The panel's own identity, which its suggestion cards publish in their markers.
+      aiPreReviewPanelId: 'ai-pre-review-1',
       aiPreReview: {
         instanceId: 'inst-1',
         owner: 'demo-user',
@@ -181,9 +183,13 @@ describe('getWebviewContent', () => {
       panelMode?: string;
       locale?: string;
       aiPreReview?: { scope?: string; candidates?: { body?: string }[] };
+      aiPreReviewPanelId?: string;
     };
     expect(parsed.panelMode).toBe('aiPreReview');
     expect(parsed.locale).toBe('zh');
+    // The panel's own identity travels with the document, which is where its suggestion
+    // cards read it from for their context-menu markers.
+    expect(parsed.aiPreReviewPanelId).toBe('ai-pre-review-1');
     expect(parsed.aiPreReview?.scope).toBe('changed-files');
     expect(parsed.aiPreReview?.candidates?.[0]?.body).toContain('</script>');
   });
