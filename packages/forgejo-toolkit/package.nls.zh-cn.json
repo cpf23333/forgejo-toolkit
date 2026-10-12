@@ -122,5 +122,12 @@
   "walkthrough.publishOrCreatePr.description": "把本地仓库推送到实例，或从当前分支发起 Pull Request。",
   "mcpServerDefinitionProvider.instances.label": "Forgejo Toolkit 实例",
   "capabilities.untrustedWorkspaces.description": "Forgejo Toolkit 需要读取并缓存仓库状态（git worktree、扩展的缓存目录和实例配置），因此在受限模式下会被禁用，直到你信任该工作区。",
-  "capabilities.virtualWorkspaces.description": "Forgejo Toolkit 需要真实文件：它会创建 git worktree，并为仓库和 Pull Request 维护本地缓存目录。"
+  "capabilities.virtualWorkspaces.description": "Forgejo Toolkit 需要真实文件：它会创建 git worktree，并为仓库和 Pull Request 维护本地缓存目录。",
+  "command.openRepositoryRow.title": "打开仓库",
+  "command.copyRepositoryAddress.title": "复制仓库地址",
+  "command.openIssueRow.title": "打开 Issue",
+  "command.openPullRequestRow.title": "打开 Pull Request",
+  "command.copyRowReference.title": "复制引用",
+  "command.openRowInBrowser.title": "在浏览器中打开",
+  "command.markNotificationRowRead.title": "标为已读"
 }

@@ -21,6 +21,7 @@ import type { ForgejoIssue } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import { removePendingImageFromBody } from '../utils/pendingImageMarkdown';
+import { contextMenuAttribute, type ContextMenuContext } from '../utils/contextMenu';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -30,6 +31,22 @@ const instanceId = computed(() => String(route.params.instanceId));
 const owner = computed(() => String(route.params.owner));
 const repo = computed(() => String(route.params.repo));
 const stateParam = computed(() => String(route.params.state || 'open'));
+
+/**
+ * What one issue row publishes to VS Code's contributed context items.
+ *
+ * The list is one repository's, so the coordinates are the route's own; the number is
+ * the row's, which is what "Open Issue", "Copy Reference" and "Open in Browser" need.
+ */
+function issueContext(issue: ForgejoIssue): ContextMenuContext {
+  return {
+    webviewSection: 'issueRow',
+    forgejoInstanceId: instanceId.value,
+    forgejoOwner: owner.value,
+    forgejoRepo: repo.value,
+    forgejoIndex: issue.number,
+  };
+}
 const searchInput = ref('');
 const appliedQuery = ref('');
 const key = computed(() =>
@@ -568,7 +585,12 @@ async function handleCreateSubmit(data: {
     <div v-if="!hasIssues" class="empty-list">{{ t('dashboard.repoIssues.disabled') }}</div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="displayItems.length" class="item-list" :class="{ refreshing: loading }" :aria-busy="loading">
-      <div v-for="issue in displayItems" :key="issue.id" class="item-card">
+      <div
+        v-for="issue in displayItems"
+        :key="issue.id"
+        class="item-card"
+        :data-vscode-context="contextMenuAttribute(issueContext(issue))"
+      >
         <div class="item-title">
           <button type="button" class="link-button" @click="openIssue(issue)">
             #{{ issue.number }} {{ issue.title }}

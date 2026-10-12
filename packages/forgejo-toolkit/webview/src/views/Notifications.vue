@@ -8,6 +8,7 @@ import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 import IconActionButton from '../components/IconActionButton.vue';
 import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeRowActivation';
+import { contextMenuAttribute, type ContextMenuContext } from '../utils/contextMenu';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -309,6 +310,32 @@ function requestNotificationSummary(notification: ForgejoNotification, instanceI
   state.summarizeNotification(instanceId, target.owner, target.repo, target.index, target.type);
 }
 
+/**
+ * What one notification row publishes to VS Code's contributed context items.
+ *
+ * Every row carries its own id, so "Mark as Read" applies everywhere; the "Open
+ * Issue" / "Open Pull Request" items exist only for the rows whose subject type and
+ * coordinates are known, which is the same pair `summaryTarget` derives — the
+ * `forgejoSubjectType` key is what the manifest's `when` clauses test, so a
+ * repository or commit notification offers neither item rather than a broken one.
+ */
+function notificationContext(notification: ForgejoNotification, instanceId: string): ContextMenuContext {
+  const target = summaryTarget(notification);
+  return {
+    webviewSection: 'notificationRow',
+    forgejoInstanceId: instanceId,
+    ...(notification.id === undefined ? {} : { forgejoNotificationId: notification.id }),
+    ...(target === undefined
+      ? {}
+      : {
+          forgejoOwner: target.owner,
+          forgejoRepo: target.repo,
+          forgejoIndex: target.index,
+          forgejoSubjectType: target.type,
+        }),
+  };
+}
+
 function markAsRead(event: Event, instanceId: string, notification: ForgejoNotification) {
   event.stopPropagation();
   if (notification.id === undefined) {
@@ -493,6 +520,7 @@ onUnmounted(() => {
             v-for="notification in filteredList(instance.id)"
             :key="notification.id ?? notification.subject?.html_url"
             data-tree-row-action
+            :data-vscode-context="contextMenuAttribute(notificationContext(notification, instance.id))"
             @click.capture="openNotification($event, notification, instance.id)"
           >
             <span class="notification-title" :class="{ unread: notification.unread }">

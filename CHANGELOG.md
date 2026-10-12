@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scope may be sent (`body-only`, `body-and-comments` or `body-comments-and-events`)
   and remembers your answer in `forgejoToolkit.notificationSummaryPromptScope`. Until
   you answer, nothing is read, no model is called and no setting is written.
+- **Right-click a row for the actions that belong to it.** Repository, pull-request, issue and
+  notification rows in the sidebar now offer their own VS Code-native items — open the repository,
+  pull request or issue, copy its address or number, open it in the browser, and mark a notification
+  as read — in place of the editor's cut/copy/paste menu, which had nothing to act on there. Fields
+  and selected text still keep that menu.
 
 ## [0.2.1] - 2026-10-07
 

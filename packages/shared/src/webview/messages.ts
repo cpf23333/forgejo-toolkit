@@ -1189,6 +1189,14 @@ export type HostToWebviewMessage =
   | { command: 'openCreatePullRequest'; instanceId: string; owner: string; repo: string; head: string }
   | { command: 'openNewIssue'; instanceId: string; owner: string; repo: string; title?: string; body?: string }
   | { command: 'openPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
+  // The two navigation messages the contributed `webview/context` items need
+  // (`docs/architecture/README.md`, the Webview UI section): the item runs in the
+  // extension host, so the host has to ask the sidebar to open the entity. They
+  // mirror `openPullRequestDetail` above, which is what the pre-review panel's
+  // "open the pull request" action already uses, and the webview's own
+  // `openRepoDetail` / `openIssueDetail` state calls handle them.
+  | { command: 'openRepositoryDetail'; instanceId: string; owner: string; repo: string }
+  | { command: 'openIssueDetail'; instanceId: string; owner: string; repo: string; index: number }
   | {
       command: 'startWorkResult';
       instanceId: string;

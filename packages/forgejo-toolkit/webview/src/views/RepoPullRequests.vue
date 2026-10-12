@@ -20,6 +20,7 @@ import type { ForgejoPullRequest } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import { removePendingImageFromBody } from '../utils/pendingImageMarkdown';
+import { contextMenuAttribute, type ContextMenuContext } from '../utils/contextMenu';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -29,6 +30,23 @@ const instanceId = computed(() => String(route.params.instanceId));
 const owner = computed(() => String(route.params.owner));
 const repo = computed(() => String(route.params.repo));
 const stateParam = computed(() => String(route.params.state || 'open'));
+
+/**
+ * What one pull-request row publishes to VS Code's contributed context items.
+ *
+ * The same four keys the issue list publishes, with this row's own number; the
+ * `webviewSection` value is what selects "Open Pull Request" over "Open Issue" in the
+ * manifest's `when` clauses.
+ */
+function pullRequestContext(pr: ForgejoPullRequest): ContextMenuContext {
+  return {
+    webviewSection: 'pullRequestRow',
+    forgejoInstanceId: instanceId.value,
+    forgejoOwner: owner.value,
+    forgejoRepo: repo.value,
+    forgejoIndex: pr.number,
+  };
+}
 const searchInput = ref('');
 const appliedQuery = ref('');
 const key = computed(() =>
@@ -598,7 +616,12 @@ async function handleCreateSubmit(data: {
     <div v-if="!hasPullRequests" class="empty-list">{{ t('dashboard.repoPullRequests.disabled') }}</div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="displayItems.length" class="item-list" :class="{ refreshing: loading }" :aria-busy="loading">
-      <div v-for="pr in displayItems" :key="pr.id" class="item-card">
+      <div
+        v-for="pr in displayItems"
+        :key="pr.id"
+        class="item-card"
+        :data-vscode-context="contextMenuAttribute(pullRequestContext(pr))"
+      >
         <div class="item-title">
           <button type="button" class="link-button" @click="openPullRequest(pr)">
             #{{ pr.number }} {{ pr.title }}

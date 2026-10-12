@@ -5511,6 +5511,55 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._postOrQueue({ command: 'openPullRequestDetail', ...payload });
   }
 
+  /**
+   * The same two steps for the repository and issue rows' "open" items.
+   *
+   * A `webview/context` command runs in the extension host while the reader may be
+   * looking at any editor, so — exactly like the pre-review panel's button above —
+   * the view is revealed first and the sidebar then routes the entity itself. The
+   * sidebar's `openRepoDetail` / `openIssueDetail` are the same calls its own row
+   * clicks make, so a menu item and a click land on the same page.
+   */
+  public revealRepositoryDetail(payload: { instanceId: string; owner: string; repo: string }) {
+    this._revealView();
+    this._postOrQueue({ command: 'openRepositoryDetail', ...payload });
+  }
+
+  public revealIssueDetail(payload: { instanceId: string; owner: string; repo: string; index: number }) {
+    this._revealView();
+    this._postOrQueue({ command: 'openIssueDetail', ...payload });
+  }
+
+  /**
+   * The configured instance's functional base URL, without credentials and without a
+   * trailing slash, for a URL this extension builds itself (a clone address, a
+   * browser link).
+   *
+   * It is the **stored** URL with its userinfo stripped, not the display value: the
+   * display value keeps the credential mask (`https://***@host/`), which neither git
+   * nor a browser can use. `undefined` when no instance has that id — the caller then
+   * does nothing rather than inventing an address.
+   */
+  public instanceBaseUrl(instanceId: string): string | undefined {
+    const instance = this._findInstance(instanceId);
+    if (!instance) {
+      return undefined;
+    }
+    const base = stripUrlUserinfo(instance.url).replace(/\/+$/, '');
+    return base === '' ? undefined : base;
+  }
+
+  /** Marks one notification read through the same path the list's own action uses. */
+  public async markNotificationRead(instanceId: string, id: number): Promise<boolean> {
+    const instance = this._findInstance(instanceId);
+    if (!instance) {
+      return false;
+    }
+    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+    await client.markNotificationRead(id);
+    return true;
+  }
+
   /** Lets the dashboard reload a PR detail after a review was submitted from the comment panel. */
   public notifyPullRequestReviewSubmitted(payload: { instanceId: string; owner: string; repo: string; index: number }) {
     this._postOrQueue({ command: 'pullRequestReviewSubmitted', ...payload });

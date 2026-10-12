@@ -140,12 +140,17 @@ type VscodeTreeItemProps = Pick<
  * (RepoFileBrowser.onTreeSelect), plus the marker `utils/treeRowActivation`
  * looks for to tell a row that has a primary action of its own (the dashboard
  * and global search rows) from one that only nests a control.
+ *
+ * `dataVscodeContext` is the odd one out: it is not read by this extension at all
+ * but by VS Code, which turns it into the context keys and the command argument of
+ * the contributed `webview/context` items (`utils/contextMenu.ts`).
  */
 type VscodeTreeItemDataProps = {
   dataFilePath?: string;
   dataType?: string;
   dataSize?: number;
   dataTreeRowAction?: boolean | string;
+  dataVscodeContext?: string;
 };
 
 declare module 'vue' {

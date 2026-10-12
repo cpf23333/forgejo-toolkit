@@ -596,6 +596,41 @@
         "title": "%command.copyPollingDiagnostics.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(copy)"
+      },
+      {
+        "command": "forgejoToolkit.openRepositoryRow",
+        "title": "%command.openRepositoryRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyRepositoryAddress",
+        "title": "%command.copyRepositoryAddress.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.openIssueRow",
+        "title": "%command.openIssueRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.openPullRequestRow",
+        "title": "%command.openPullRequestRow.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.copyRowReference",
+        "title": "%command.copyRowReference.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.openRowInBrowser",
+        "title": "%command.openRowInBrowser.title%",
+        "category": "Forgejo Toolkit"
+      },
+      {
+        "command": "forgejoToolkit.markNotificationRowRead",
+        "title": "%command.markNotificationRowRead.title%",
+        "category": "Forgejo Toolkit"
       }
     ],
     "viewsContainers": {
@@ -652,9 +687,99 @@
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "forgejoToolkit.openRepositoryRow",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'repositoryRow'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.copyRepositoryAddress",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'repositoryRow'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.refreshInstances",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'repositoryRow'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.openPullRequestRow",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'pullRequestRow'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.copyRowReference",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'pullRequestRow'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.openRowInBrowser",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'pullRequestRow'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.openIssueRow",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'issueRow'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.copyRowReference",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'issueRow'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.openRowInBrowser",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'issueRow'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forgejoToolkit.openIssueRow",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'notificationRow' && forgejoSubjectType == 'issue'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.openPullRequestRow",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'notificationRow' && forgejoSubjectType == 'pull'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.markNotificationRowRead",
+          "when": "webviewId == 'forgejoToolkitView' && webviewSection == 'notificationRow' && forgejoNotificationId > 0",
+          "group": "navigation@2"
+        }
+      ],
       "commandPalette": [
         {
           "command": "forgejoToolkit.deletePullReviewComment",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.openRepositoryRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyRepositoryAddress",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.openIssueRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.openPullRequestRow",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.copyRowReference",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.openRowInBrowser",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.markNotificationRowRead",
           "when": "false"
         },
         {

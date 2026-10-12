@@ -122,5 +122,12 @@
   "walkthrough.publishOrCreatePr.description": "Push a local repository to your instance, or start a pull request from the current branch.",
   "mcpServerDefinitionProvider.instances.label": "Forgejo Toolkit Instances",
   "capabilities.untrustedWorkspaces.description": "Forgejo Toolkit reads and caches repository state (git worktrees, the extension's cache directory and instance configuration), so it is disabled in Restricted Mode until you trust the workspace.",
-  "capabilities.virtualWorkspaces.description": "Forgejo Toolkit needs real files: it creates git worktrees and maintains a local cache directory for repositories and pull requests."
+  "capabilities.virtualWorkspaces.description": "Forgejo Toolkit needs real files: it creates git worktrees and maintains a local cache directory for repositories and pull requests.",
+  "command.openRepositoryRow.title": "Open Repository",
+  "command.copyRepositoryAddress.title": "Copy Repository Address",
+  "command.openIssueRow.title": "Open Issue",
+  "command.openPullRequestRow.title": "Open Pull Request",
+  "command.copyRowReference.title": "Copy Reference",
+  "command.openRowInBrowser.title": "Open in Browser",
+  "command.markNotificationRowRead.title": "Mark as Read"
 }

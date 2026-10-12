@@ -1473,6 +1473,16 @@ function createAppState() {
       case 'openPullRequestDetail':
         openPullRequestDetail(message.instanceId, message.owner, message.repo, message.index);
         break;
+      // The contributed `webview/context` items run in the extension host, so the
+      // repository and issue rows' "open" items arrive the same way the pull-request
+      // one above does — routing through the same state calls the rows' own clicks
+      // make, so a menu item and a click land on the same page.
+      case 'openRepositoryDetail':
+        openRepoDetail(message.instanceId, message.owner, message.repo);
+        break;
+      case 'openIssueDetail':
+        openIssueDetail(message.instanceId, message.owner, message.repo, message.index);
+        break;
       case 'setLocale':
         void setLocale(message.locale);
         break;

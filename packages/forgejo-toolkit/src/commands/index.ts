@@ -13,6 +13,7 @@ import {
   type CreateIssueFromCommentArgs,
 } from '../editor/todoCommentCodeAction';
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
+import { registerWebviewContextMenuCommands } from './webviewContextMenu';
 import { registerAiPreReviewCommand } from '../aiPreReview';
 import { registerPrDescriptionCommand } from '../prDescription';
 import { registerIssueTriage } from '../issueTriage';
@@ -309,4 +310,10 @@ export function registerCommands(
   // two requests and renders its own report, and it is never called from any
   // automatic path (`docs/design/ai-model-transport.md` §7.2, §8.7).
   registerAiTestProviderCommand(context);
+
+  // And the contributed `webview/context` items, which are the repository, pull
+  // request, issue and notification rows' own menus. Each one re-validates the
+  // `data-vscode-context` object VS Code forwards as its argument, because that
+  // object comes from the webview (`docs/architecture/README.md`).
+  context.subscriptions.push(...registerWebviewContextMenuCommands(viewProvider));
 }

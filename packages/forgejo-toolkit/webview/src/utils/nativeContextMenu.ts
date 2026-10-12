@@ -6,27 +6,33 @@
  * pull request, an issue, a notification, a saved instance) none of the three
  * items applies to the block under the cursor, so the menu covers the row and
  * offers nothing to do with it. The default is therefore to suppress the menu,
- * and exactly two kinds of target keep it:
+ * and three kinds of target keep it:
  *
  * 1. a text control or an editing host — an `input`, a `textarea` (including the
  *    ones inside a `vscode-textfield` / `vscode-textarea` shadow root) or a
  *    `contenteditable` element. The menu's Cut / Copy / Paste belongs to a
  *    control rather than to a row; a checkbox or a range input rides along,
  *    because the menu there is harmless and second-guessing the platform over a
- *    field the user can operate buys nothing; and
- * 2. a non-empty text selection, where copying is what the right click is for.
+ *    field the user can operate buys nothing;
+ * 2. a non-empty text selection, where copying is what the right click is for; and
+ * 3. one of **our own rows**, recognised by its `data-vscode-context` marker
+ *    (`utils/contextMenu.ts`).
  *
- * Everything else is suppressed. Suppression is the interim behaviour, not the
- * end state: these rows are meant to carry VS Code-native items later, which are
- * contributed through `contributes.menus` under `webview/context` and pointed at
- * the item under the cursor with `data-vscode-context`. Those items have to be
- * **added**, because the menu being suppressed here is the wrong menu rather
- * than a menu that is missing something. The two exceptions above are what such
- * items must not break — and an element that carries `data-vscode-context` is
- * where the predicate will have to start allowing the menu again. The shipped
- * policy is recorded in `docs/architecture/README.md`, the deferred inventory in
- * `TODO.md`'s 「P3 Webview 右键菜单的 VS Code 原生项（本次只做了抑制）」 entry.
+ * The third is how the contributed items arrive. VS Code's injected listener opens
+ * the menu only when nothing has called `preventDefault()`, and the items it opens
+ * are `contributes.menus` entries under `webview/context`; so for a marked element
+ * the policy has to **stop preventing the event**, and the marker then also carries
+ * `preventDefaultContextMenuItems: true`, which is VS Code's own key for hiding the
+ * three platform entries that would otherwise join them. The two halves are one
+ * condition, not two options: preventing the event here shows no menu at all, and
+ * omitting the key brings the platform's Cut / Copy / Paste back.
+ *
+ * Everything else is suppressed, and both exceptions above still hold for it. The
+ * shipped policy is recorded in `docs/architecture/README.md`, the deferred
+ * inventory in `TODO.md`'s 「P3 Webview 右键菜单的 VS Code 原生项（本次只做了抑制）」 entry.
  */
+
+import { contextMenuSectionOf } from './contextMenu';
 
 /** Text controls whose own editing commands the browser's menu serves. */
 const TEXT_CONTROL_SELECTOR = 'input, textarea';
@@ -68,6 +74,11 @@ export function allowsNativeContextMenu(target: EventTarget | null, selectionTex
   const element = elementOf(target);
   if (element === null) {
     return false;
+  }
+
+  // One of our rows: the contributed items need the event to reach VS Code at all.
+  if (contextMenuSectionOf(element) !== undefined) {
+    return true;
   }
 
   return element.closest(EDITABLE_TARGET_SELECTOR) !== null || hasEditableAncestor(element);

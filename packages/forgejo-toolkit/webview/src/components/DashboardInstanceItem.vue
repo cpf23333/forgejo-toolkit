@@ -7,6 +7,7 @@ import type { ForgejoInstance } from '../types/instance';
 import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
 import { functionalInstanceBase } from '../utils/instanceUrl';
+import { contextMenuAttribute } from '../utils/contextMenu';
 
 const props = defineProps<{
   instance: ForgejoInstance;
@@ -214,6 +215,52 @@ function cloneUrl(repo: ForgejoRepository): string {
   return base ? `${base}/${repo.full_name}.git` : '';
 }
 
+/**
+ * The `data-vscode-context` values for this instance's three row types.
+ *
+ * Each one carries what the contributed items need (the instance, the repository and —
+ * for a list row — the number), and the section key decides which items VS Code
+ * offers. A list row whose `html_url` names no repository gets **no attribute**: the
+ * host would refuse such an argument anyway, and an item that can only no-op is worse
+ * than no item.
+ */
+function repositoryRowContext(repo: ForgejoRepository): string {
+  return contextMenuAttribute({
+    webviewSection: 'repositoryRow',
+    forgejoInstanceId: instanceId.value,
+    forgejoOwner: repo.owner.login,
+    forgejoRepo: repo.name,
+  });
+}
+
+function issueRowContext(issue: ForgejoIssue): string | undefined {
+  const ownerRepo = issue.repository?.full_name
+    ? { owner: issue.repository.full_name.split('/')[0], repo: issue.repository.full_name.split('/')[1] }
+    : parseOwnerRepo(issue.html_url);
+  return ownerRepo === undefined
+    ? undefined
+    : contextMenuAttribute({
+        webviewSection: 'issueRow',
+        forgejoInstanceId: instanceId.value,
+        forgejoOwner: ownerRepo.owner,
+        forgejoRepo: ownerRepo.repo,
+        forgejoIndex: issue.number,
+      });
+}
+
+function pullRequestRowContext(pr: ForgejoPullRequest): string | undefined {
+  const ownerRepo = parseOwnerRepo(pr.html_url);
+  return ownerRepo === undefined
+    ? undefined
+    : contextMenuAttribute({
+        webviewSection: 'pullRequestRow',
+        forgejoInstanceId: instanceId.value,
+        forgejoOwner: ownerRepo.owner,
+        forgejoRepo: ownerRepo.repo,
+        forgejoIndex: pr.number,
+      });
+}
+
 function formatError(key: string): string {
   return t('dashboard.error', { message: errors.value.get(key) ?? '' });
 }
@@ -309,6 +356,7 @@ function displayedList(): unknown[] | undefined {
             v-for="repo in ownerRepos"
             :key="repo.id"
             data-tree-row-action
+            :data-vscode-context="repositoryRowContext(repo)"
             @click.capture="openRepo($event, repo)"
           >
             <span class="tree-repo-name">{{ repo.name }}</span>
@@ -354,6 +402,7 @@ function displayedList(): unknown[] | undefined {
           v-for="issue in myIssues"
           :key="issue.id"
           data-tree-row-action
+          :data-vscode-context="issueRowContext(issue)"
           @click.capture="openIssue($event, issue)"
         >
           #{{ issue.number }} {{ issue.title }}
@@ -391,6 +440,7 @@ function displayedList(): unknown[] | undefined {
           v-for="pr in myPullRequests"
           :key="pr.id"
           data-tree-row-action
+          :data-vscode-context="pullRequestRowContext(pr)"
           @click.capture="openPullRequest($event, pr)"
         >
           #{{ pr.number }} {{ pr.title }}
