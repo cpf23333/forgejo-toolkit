@@ -183,14 +183,22 @@ function readLedger() {
     long.length === 0,
   );
 
-  // The entry-level budget. Measured before it was chosen: on 2026-10-07 the longest
-  // 已完成 entry is 333 characters (line 100, the PR-description entry folded over its
-  // wrapped lines); the next ones are 248, 211 and 210. 350 is therefore the smallest
-  // round number above the content the file actually holds, so the guard is green
-  // today and bounds the next growth — an entry budget of 250 would already fail this
-  // file, and trimming an entry is a content change rather than a guard. Raise the
-  // number only with a measurement in the same change.
-  const ENTRY_CHAR_BUDGET = 350;
+  // The entry-level budget, and **why it exists**: to stop one 已完成 entry growing, not
+  // to police a particular sentence. It is measured with this file's own algorithm —
+  // top-level `- ` items with their wrapped continuation lines folded in, nested `- `
+  // items counted separately — and re-measured whenever it moves:
+  //
+  //   2026-10-07: 111 entries; one entry at 333 characters (the PR-description entry)
+  //               was the reason the bound was 350, because a bound has to admit the
+  //               content the file actually holds. The record owner then rewrote that
+  //               entry (now 240) on the maintainer's decision, so the section's longest
+  //               is 248 and exactly one entry had been over 250.
+  //   2026-10-07: tightened to 250 as the maintainer asked, after that trim landed and
+  //               after re-measuring: 111 entries, 0 over 250, longest 248.
+  //
+  // Raise or lower it only with a measurement in the same change, taken with the
+  // algorithm below: a bound the file cannot satisfy is a red tree, not a stricter rule.
+  const ENTRY_CHAR_BUDGET = 250;
   const entries = [];
   let current;
   done.rows.slice(1).forEach((row, index) => {

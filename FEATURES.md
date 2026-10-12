@@ -97,8 +97,7 @@
 - AI 预评审的三条变体都未被承诺；见 `docs/design/ai-prereview.md` §13。
 - 回复 PR 行级评审评论：在 diff 编辑器里用线程自带的回复框回答，回复立即成为 PR 时间线里的**普通评论**公开可见，不必提交评审或选结论。见 `docs/design/pr-comment-replies.md`。
 - 回复在它的线程里可见（含窗口重载之后）：回显每次渲染都从该 PR 的时间线重新推导，所以网页端 / 手机写出的回复也会一并出现在线程里，带时间线标记。见 `docs/design/pr-comment-replies.md` §3。
-- PR 描述生成（draft-only）：创建 PR 表单与已存在 PR 的编辑弹窗里都有「生成描述」按钮，由聊天模型按表单手里的那次比较起草一段**可编辑**草稿填进描述框；描述框已有内容时先按一次确认再替换，失败时正文保持原样，扩展**从不**创建、编辑或提交 Pull Request。默认关闭（`forgejoToolkit.prDescription`）。
-  范围由本功能自己的设置决定（默认先问一次）：只发 Commit 与变更文件表、加变更文件正文、或加该 PR 自己的整段 diff（最后一档只在编辑弹窗里提供）；模型走同一个选择点，失败不回退、不换模型。见 `docs/design/ai-pr-description.md` §3 与 §3.1。
+- PR 描述生成（draft-only）：在 PR 表单或 PR 编辑弹窗里点「生成描述」，模型按这次比较起草一段**可编辑**草稿填进描述框；描述框已有内容时先按一次确认再替换，失败时正文保持原样，扩展**从不**创建、编辑或提交 Pull Request。默认关闭（`forgejoToolkit.prDescription`），要发什么材料由本功能自己的设置决定（默认先问一次，档位见记录）。见 `docs/design/ai-pr-description.md` §3。
 
 ### 富文本编辑器与附件
 
