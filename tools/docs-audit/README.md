@@ -72,9 +72,19 @@ noise.
 ## Running it
 
 ```bash
-node tools/docs-audit/check.mjs
+node tools/docs-audit/check.mjs [--root <dir>] [--record]
 node --test "tools/docs-audit/**/*.test.mjs"
 ```
+
+`--root` audits another tree instead of this repository, which is how `check.test.mjs`
+exercises the checker against fixture trees; the default is unchanged, so CI's invocation
+is too. A `--root` with no value, or a path that is not a directory, fails with one sentence
+and a non-zero exit rather than auditing this repository or ending in a stack trace.
+`--record` is accepted because the two audits share one interface — this audit keeps
+no recorded artifact, so the flag has no effect. The body lives in
+`export function runAudit({ root, record })`, which returns the lines it would print and the
+failures behind them, so both halves are testable; the script only prints and exits when it
+is executed directly.
 
 CI currently runs only `check.mjs`; adding the test command to the workflow is a
 separate change.

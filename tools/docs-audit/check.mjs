@@ -27,346 +27,412 @@
 // The pure half of rules 3 and 4 lives in `rules.mjs`, covered by
 // `rules.test.mjs` (`node --test "tools/docs-audit/**/*.test.mjs"`).
 //
-// Usage: node tools/docs-audit/check.mjs
+// Usage: node tools/docs-audit/check.mjs [--root <dir>] [--record]
+//   --root    audit another tree (the fixture tests use this); default is this repository
+//   --record  accepted because the two audits share one interface; this audit records
+//             nothing, so the flag has no effect
 // Exit code 1 when a rule is violated, like the api and tracking audits.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { comparePairStructure, headingsOfLines, namesTitleIn, titlesOfLines } from './rules.mjs';
 
-const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-// Vendored content, build output, and scratch data are not ours to police.
-const skipDirs = new Set([
-  'node_modules',
-  '.git',
-  'out',
-  'dist',
-  'shots',
-  'profile',
-  '.impeccable',
-  'extensions',
-  'coverage',
-]);
-const failures = [];
-const notes = [];
+const defaultRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
-const rel = (path) => relative(root, path).split(sep).join('/');
+/**
+ * Runs every documentation check against one root and returns what a caller needs: the
+ * lines the checker would print, and the failures behind them.
+ *
+ * `root` defaults to this repository, so CI's invocation is unchanged; `--root <dir>`
+ * overrides it, which is what the fixture trees in `check.test.mjs` use. `record` is part
+ * of the interface the two audits share — `node tools/<tool>-audit/check.mjs [--root
+ * <dir>] [--record]` — and this audit keeps no recorded artifact, so the flag is accepted
+ * and has no effect.
+ */
+export function runAudit({ root = defaultRoot, record = false } = {}) {
+  void record;
+  // Vendored content, build output, and scratch data are not ours to police.
+  const skipDirs = new Set([
+    'node_modules',
+    '.git',
+    'out',
+    'dist',
+    'shots',
+    'profile',
+    '.impeccable',
+    'extensions',
+    'coverage',
+  ]);
+  const failures = [];
+  const notes = [];
 
-function walk(dir, found = []) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith('.') && entry.name !== '.forgejo' && entry.name !== '.changeset') continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (skipDirs.has(entry.name)) continue;
-      walk(full, found);
-      continue;
-    }
-    if (entry.name.endsWith('.md')) found.push(full);
-  }
-  return found;
-}
+  const rel = (path) => relative(root, path).split(sep).join('/');
 
-const files = walk(root);
-
-// Every source file a document may cite, so a citation like `client.ts` or
-// `mcp/server.ts` can be resolved against the package it belongs to rather than
-// reported as missing.
-const sourceExtensions = /\.(ts|tsx|js|mjs|cjs|json|vue|ya?ml|md)$/;
-const sources = [];
-(function walkSources(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (
-        skipDirs.has(entry.name) ||
-        (entry.name.startsWith('.') && entry.name !== '.forgejo' && entry.name !== '.changeset')
-      ) {
+  function walk(dir, found = []) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') && entry.name !== '.forgejo' && entry.name !== '.changeset') continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (skipDirs.has(entry.name)) continue;
+        walk(full, found);
         continue;
       }
-      walkSources(join(dir, entry.name));
-      continue;
+      if (entry.name.endsWith('.md')) found.push(full);
     }
-    if (sourceExtensions.test(entry.name)) sources.push(join(dir, entry.name));
+    return found;
   }
-})(root);
 
-const lineCache = new Map();
-const lines = (path) => {
-  if (!lineCache.has(path)) lineCache.set(path, readFileSync(path, 'utf8').split(/\r?\n/));
-  return lineCache.get(path);
-};
+  const files = walk(root);
 
-/** Resolve a cited repository path, optionally using a line number to disambiguate. */
-function resolvePath(cited, from, lineNumber) {
-  const normalized = cited.split(sep).join('/');
-  const candidates = new Set();
-  for (const candidate of [join(root, cited), join(dirname(from), cited)]) {
-    try {
-      if (statSync(candidate).isFile() || statSync(candidate).isDirectory()) candidates.add(candidate);
-    } catch {
-      /* keep looking */
+  // Every source file a document may cite, so a citation like `client.ts` or
+  // `mcp/server.ts` can be resolved against the package it belongs to rather than
+  // reported as missing.
+  const sourceExtensions = /\.(ts|tsx|js|mjs|cjs|json|vue|ya?ml|md)$/;
+  const sources = [];
+  (function walkSources(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (
+          skipDirs.has(entry.name) ||
+          (entry.name.startsWith('.') && entry.name !== '.forgejo' && entry.name !== '.changeset')
+        ) {
+          continue;
+        }
+        walkSources(join(dir, entry.name));
+        continue;
+      }
+      if (sourceExtensions.test(entry.name)) sources.push(join(dir, entry.name));
     }
-  }
-  for (const source of sources) {
-    const relativePath = rel(source);
-    if (relativePath === normalized || relativePath.endsWith(`/${normalized}`)) candidates.add(source);
-  }
-  const list = [...candidates];
-  if (list.length <= 1) return list[0];
-  // Several files end with the same suffix (`client.ts`, `package.json`): the
-  // one whose length covers the cited line is the intended target.
-  if (lineNumber !== undefined) {
-    const fitting = list.filter((candidate) => {
+  })(root);
+
+  const lineCache = new Map();
+  const fileLines = (path) => {
+    if (!lineCache.has(path)) lineCache.set(path, readFileSync(path, 'utf8').split(/\r?\n/));
+    return lineCache.get(path);
+  };
+
+  /** Resolve a cited repository path, optionally using a line number to disambiguate. */
+  function resolvePath(cited, from, lineNumber) {
+    const normalized = cited.split(sep).join('/');
+    const candidates = new Set();
+    for (const candidate of [join(root, cited), join(dirname(from), cited)]) {
       try {
-        return lines(candidate).length >= lineNumber;
+        if (statSync(candidate).isFile() || statSync(candidate).isDirectory()) candidates.add(candidate);
       } catch {
-        return false;
+        /* keep looking */
       }
-    });
-    if (fitting.length === 1) return fitting[0];
-    if (fitting.length > 1) return fitting.sort((a, b) => rel(a).length - rel(b).length)[0];
+    }
+    for (const source of sources) {
+      const relativePath = rel(source);
+      if (relativePath === normalized || relativePath.endsWith(`/${normalized}`)) candidates.add(source);
+    }
+    const list = [...candidates];
+    if (list.length <= 1) return list[0];
+    // Several files end with the same suffix (`client.ts`, `package.json`): the
+    // one whose length covers the cited line is the intended target.
+    if (lineNumber !== undefined) {
+      const fitting = list.filter((candidate) => {
+        try {
+          return fileLines(candidate).length >= lineNumber;
+        } catch {
+          return false;
+        }
+      });
+      if (fitting.length === 1) return fitting[0];
+      if (fitting.length > 1) return fitting.sort((a, b) => rel(a).length - rel(b).length)[0];
+    }
+    return list.sort((a, b) => rel(a).length - rel(b).length)[0];
   }
-  return list.sort((a, b) => rel(a).length - rel(b).length)[0];
-}
 
-/** GitHub-style heading anchor. */
-const slug = (heading) =>
-  heading
-    .toLowerCase()
-    .replace(/[`*_~[\]()]/g, '')
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .trim()
-    .replace(/\s+/g, '-');
+  /** GitHub-style heading anchor. */
+  const slug = (heading) =>
+    heading
+      .toLowerCase()
+      .replace(/[`*_~[\]()]/g, '')
+      .replace(/[^\p{L}\p{N}\s-]/gu, '')
+      .trim()
+      .replace(/\s+/g, '-');
 
-/**
- * Whether a 「name」 citation resolves against a document's headings and list
- * entry titles. The rule itself — no length limit, and an explicit trailing
- * ellipsis meaning a prefix match — lives in `rules.mjs`, together with the
- * title collection it resolves against (`titlesOfLines`).
- */
-const namesTitle = (path, rawName) => namesTitleIn(titlesOfLines(lines(path)), rawName);
+  /**
+   * Whether a 「name」 citation resolves against a document's headings and list
+   * entry titles. The rule itself — no length limit, and an explicit trailing
+   * ellipsis meaning a prefix match — lives in `rules.mjs`, together with the
+   * title collection it resolves against (`titlesOfLines`).
+   */
+  const namesTitle = (path, rawName) => namesTitleIn(titlesOfLines(fileLines(path)), rawName);
 
-/**
- * Path prefixes that belong to another repository. Several documents cite the
- * Forgejo server source (`routers/`, `services/`, …) as evidence for API
- * semantics; those are not files in this working tree and are not resolved.
- */
-const externalPrefixes = [
-  'release-notes-published/',
-  'routers/',
-  'models/',
-  'services/',
-  'modules/',
-  'options/',
-  'templates/',
-];
+  /**
+   * Path prefixes that belong to another repository. Several documents cite the
+   * Forgejo server source (`routers/`, `services/`, …) as evidence for API
+   * semantics; those are not files in this working tree and are not resolved.
+   */
+  const externalPrefixes = [
+    'release-notes-published/',
+    'routers/',
+    'models/',
+    'services/',
+    'modules/',
+    'options/',
+    'templates/',
+  ];
 
-/** Headings in document order (`# Install dependencies` in a shell block is not one). */
-const headingsOf = (path) => headingsOfLines(lines(path));
+  /** Headings in document order (`# Install dependencies` in a shell block is not one). */
+  const headingsOf = (path) => headingsOfLines(fileLines(path));
 
-console.log(`auditing ${files.length} markdown files\n`);
+  // The `auditing …` header is the first entry of the returned `lines`, so a caller sees
+  // exactly what the script prints.
 
-for (const file of files) {
-  const text = lines(file);
-  const self = rel(file);
+  for (const file of files) {
+    const text = fileLines(file);
+    const self = rel(file);
 
-  // 1. Cited files and line ranges.
-  const citation = /([\w@][\w./@-]*\.(?:ts|tsx|js|mjs|cjs|json|vue|ya?ml|md)):(\d+)(?:-(\d+))?/g;
-  text.forEach((line, index) => {
-    for (const match of line.matchAll(citation)) {
-      const [, cited, startText, endText] = match;
-      const start = Number(startText);
-      // A markdown target is cited by its heading, never by a line number: the
-      // line numbers of documents move whenever a paragraph is added, and a
-      // citation that still resolves while pointing at the wrong paragraph is
-      // exactly the failure this repository has already hit twice.
-      if (cited.endsWith('.md') && !externalPrefixes.some((prefix) => cited.startsWith(prefix))) {
-        failures.push(`${self}:${index + 1} cites a markdown line number (use the heading): ${cited}:${startText}`);
-        continue;
-      }
-      const target = resolvePath(cited, file, start);
-      if (!target) {
-        // A path from another repository is expected in these documents; a path
-        // that should be ours but is not is worth seeing, so it is reported as
-        // a note rather than silence (the hard failure is reserved for a
-        // citation whose line range no longer fits the file it names).
-        if (!externalPrefixes.some((prefix) => cited.startsWith(prefix))) {
-          notes.push(`${self}:${index + 1} cites an unresolved path: ${cited}`);
-        }
-        continue;
-      }
-      if (statSync(target).isDirectory()) continue;
-      const count = lines(target).length;
-      const end = endText ? Number(endText) : start;
-      if (start < 1 || end < start || end > count) {
-        failures.push(
-          `${self}:${index + 1} cites ${cited}:${startText}${endText ? `-${endText}` : ''} but ${rel(target)} has ${count} lines`,
-        );
-      }
-    }
-  });
-
-  // 2. Markdown links to repository files (and their anchors).
-  const link = /\]\(([^)\s]+)\)/g;
-  text.forEach((line, index) => {
-    for (const match of line.matchAll(link)) {
-      const target = match[1];
-      // URLs, in-page anchors, editor `command:` URIs, API path examples and
-      // placeholder paths are not repository files.
-      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#') || target.startsWith('/')) continue;
-      if (target.includes('{')) continue;
-      const [pathPart, anchor] = target.split('#');
-      const resolved = resolvePath(decodeURI(pathPart.replace(/\/+$/, '')), file);
-      if (!resolved) {
-        failures.push(`${self}:${index + 1} links to a missing file: ${target}`);
-        continue;
-      }
-      if (anchor && resolved.endsWith('.md')) {
-        const slugs = new Set(headingsOf(resolved).map((heading) => slug(heading.text.replace(/^#+\s*/, ''))));
-        if (!slugs.has(anchor.toLowerCase())) {
-          failures.push(`${self}:${index + 1} links to a missing anchor: ${target}`);
-        }
-      }
-    }
-  });
-
-  // 3. `X.md` 的「heading」/「entry title」 references.
-  const named = /`([\w./@-]+\.md)`\s*的「([^」]+)」/g;
-  text.forEach((line, index) => {
-    for (const match of line.matchAll(named)) {
-      const [, cited, rawName] = match;
-      const target = resolvePath(cited, file);
-      if (!target || statSync(target).isDirectory()) continue; // rule 1 reports a missing file
-      if (!namesTitle(target, rawName)) {
-        failures.push(`${self}:${index + 1} names a heading that ${cited} does not have: 「${rawName}」`);
-      }
-    }
-  });
-
-  // 3b. `「Y」一节 / 「Y」条目 / 「Y」小节`: Y belongs to the most recent backticked
-  // `*.md` named in the same paragraph. A blank line ends a prose paragraph and a
-  // table row is its own context, so a heading quoted far from any file name is
-  // not checked. Only title-shaped names are checked: an arrow, an equation or a
-  // list inside the quotes is prose, not a heading. Length is deliberately *not*
-  // a filter: a long name must resolve like a short one, because the 40-character
-  // cap that used to sit here is exactly what let a dangling reference to a
-  // removed tracking entry survive unnoticed.
-  const sectionRef = /「([^」]+)」\s*(?:一节|条目|小节)|`([\w./@-]+\.md)`/g;
-  const notATitle = /[→≤=、;]/;
-  // The citation and its suffix may wrap over several lines, so the search runs
-  // over the paragraph's text and maps a hit back to the line it starts on.
-  const paragraphs = [];
-  {
-    let current;
-    let fenced = false;
+    // 1. Cited files and line ranges.
+    const citation = /([\w@][\w./@-]*\.(?:ts|tsx|js|mjs|cjs|json|vue|ya?ml|md)):(\d+)(?:-(\d+))?/g;
     text.forEach((line, index) => {
-      const trimmed = line.trim();
-      if (/^(```|~~~)/.test(trimmed) || fenced) {
-        if (/^(```|~~~)/.test(trimmed)) fenced = !fenced;
-        current = undefined;
-        return;
+      for (const match of line.matchAll(citation)) {
+        const [, cited, startText, endText] = match;
+        const start = Number(startText);
+        // A markdown target is cited by its heading, never by a line number: the
+        // line numbers of documents move whenever a paragraph is added, and a
+        // citation that still resolves while pointing at the wrong paragraph is
+        // exactly the failure this repository has already hit twice.
+        if (cited.endsWith('.md') && !externalPrefixes.some((prefix) => cited.startsWith(prefix))) {
+          failures.push(`${self}:${index + 1} cites a markdown line number (use the heading): ${cited}:${startText}`);
+          continue;
+        }
+        const target = resolvePath(cited, file, start);
+        if (!target) {
+          // A path from another repository is expected in these documents; a path
+          // that should be ours but is not is worth seeing, so it is reported as
+          // a note rather than silence (the hard failure is reserved for a
+          // citation whose line range no longer fits the file it names).
+          if (!externalPrefixes.some((prefix) => cited.startsWith(prefix))) {
+            notes.push(`${self}:${index + 1} cites an unresolved path: ${cited}`);
+          }
+          continue;
+        }
+        if (statSync(target).isDirectory()) continue;
+        const count = fileLines(target).length;
+        const end = endText ? Number(endText) : start;
+        if (start < 1 || end < start || end > count) {
+          failures.push(
+            `${self}:${index + 1} cites ${cited}:${startText}${endText ? `-${endText}` : ''} but ${rel(target)} has ${count} lines`,
+          );
+        }
       }
-      if (!trimmed) {
-        current = undefined;
-        return;
-      }
-      // A table row is its own context: a reference in one row must not borrow a
-      // file name from another row of the same table.
-      if (trimmed.startsWith('|')) {
-        paragraphs.push([{ line: index + 1, text: line }]);
-        current = undefined;
-        return;
-      }
-      if (!current) {
-        current = [];
-        paragraphs.push(current);
-      }
-      current.push({ line: index + 1, text: line });
     });
-  }
-  for (const paragraph of paragraphs) {
-    const starts = [];
-    let joined = '';
-    for (const row of paragraph) {
-      starts.push(joined.length);
-      joined += `${row.text}\n`;
+
+    // 2. Markdown links to repository files (and their anchors).
+    const link = /\]\(([^)\s]+)\)/g;
+    text.forEach((line, index) => {
+      for (const match of line.matchAll(link)) {
+        const target = match[1];
+        // URLs, in-page anchors, editor `command:` URIs, API path examples and
+        // placeholder paths are not repository files.
+        if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#') || target.startsWith('/')) continue;
+        if (target.includes('{')) continue;
+        const [pathPart, anchor] = target.split('#');
+        const resolved = resolvePath(decodeURI(pathPart.replace(/\/+$/, '')), file);
+        if (!resolved) {
+          failures.push(`${self}:${index + 1} links to a missing file: ${target}`);
+          continue;
+        }
+        if (anchor && resolved.endsWith('.md')) {
+          const slugs = new Set(headingsOf(resolved).map((heading) => slug(heading.text.replace(/^#+\s*/, ''))));
+          if (!slugs.has(anchor.toLowerCase())) {
+            failures.push(`${self}:${index + 1} links to a missing anchor: ${target}`);
+          }
+        }
+      }
+    });
+
+    // 3. `X.md` 的「heading」/「entry title」 references.
+    const named = /`([\w./@-]+\.md)`\s*的「([^」]+)」/g;
+    text.forEach((line, index) => {
+      for (const match of line.matchAll(named)) {
+        const [, cited, rawName] = match;
+        const target = resolvePath(cited, file);
+        if (!target || statSync(target).isDirectory()) continue; // rule 1 reports a missing file
+        if (!namesTitle(target, rawName)) {
+          failures.push(`${self}:${index + 1} names a heading that ${cited} does not have: 「${rawName}」`);
+        }
+      }
+    });
+
+    // 3b. `「Y」一节 / 「Y」条目 / 「Y」小节`: Y belongs to the most recent backticked
+    // `*.md` named in the same paragraph. A blank line ends a prose paragraph and a
+    // table row is its own context, so a heading quoted far from any file name is
+    // not checked. Only title-shaped names are checked: an arrow, an equation or a
+    // list inside the quotes is prose, not a heading. Length is deliberately *not*
+    // a filter: a long name must resolve like a short one, because the 40-character
+    // cap that used to sit here is exactly what let a dangling reference to a
+    // removed tracking entry survive unnoticed.
+    const sectionRef = /「([^」]+)」\s*(?:一节|条目|小节)|`([\w./@-]+\.md)`/g;
+    const notATitle = /[→≤=、;]/;
+    // The citation and its suffix may wrap over several lines, so the search runs
+    // over the paragraph's text and maps a hit back to the line it starts on.
+    const paragraphs = [];
+    {
+      let current;
+      let fenced = false;
+      text.forEach((line, index) => {
+        const trimmed = line.trim();
+        if (/^(```|~~~)/.test(trimmed) || fenced) {
+          if (/^(```|~~~)/.test(trimmed)) fenced = !fenced;
+          current = undefined;
+          return;
+        }
+        if (!trimmed) {
+          current = undefined;
+          return;
+        }
+        // A table row is its own context: a reference in one row must not borrow a
+        // file name from another row of the same table.
+        if (trimmed.startsWith('|')) {
+          paragraphs.push([{ line: index + 1, text: line }]);
+          current = undefined;
+          return;
+        }
+        if (!current) {
+          current = [];
+          paragraphs.push(current);
+        }
+        current.push({ line: index + 1, text: line });
+      });
     }
-    const lineAt = (offset) => {
-      let found = paragraph[0].line;
-      for (let index = 0; index < starts.length && starts[index] <= offset; index += 1) {
-        found = paragraph[index].line;
+    for (const paragraph of paragraphs) {
+      const starts = [];
+      let joined = '';
+      for (const row of paragraph) {
+        starts.push(joined.length);
+        joined += `${row.text}\n`;
       }
-      return found;
-    };
-    let contextFile;
-    for (const match of joined.matchAll(sectionRef)) {
-      const [, rawName, cited] = match;
-      if (cited) {
-        contextFile = cited;
-        continue;
+      const lineAt = (offset) => {
+        let found = paragraph[0].line;
+        for (let index = 0; index < starts.length && starts[index] <= offset; index += 1) {
+          found = paragraph[index].line;
+        }
+        return found;
+      };
+      let contextFile;
+      for (const match of joined.matchAll(sectionRef)) {
+        const [, rawName, cited] = match;
+        if (cited) {
+          contextFile = cited;
+          continue;
+        }
+        if (!contextFile || notATitle.test(rawName)) continue;
+        const target = resolvePath(contextFile, file);
+        // The name may belong to another repository, or to no file at all: rule 1
+        // already reports a citation that does not resolve.
+        if (!target || !target.endsWith('.md') || statSync(target).isDirectory()) continue;
+        // A name the citing document itself has is a self-reference — the
+        // paragraph merely named another file before it — not a citation of it.
+        if (!namesTitle(target, rawName) && !namesTitle(file, rawName)) {
+          failures.push(
+            `${self}:${lineAt(match.index)} names a heading that ${contextFile} does not have: 「${rawName}」`,
+          );
+        }
       }
-      if (!contextFile || notATitle.test(rawName)) continue;
-      const target = resolvePath(contextFile, file);
-      // The name may belong to another repository, or to no file at all: rule 1
-      // already reports a citation that does not resolve.
-      if (!target || !target.endsWith('.md') || statSync(target).isDirectory()) continue;
-      // A name the citing document itself has is a self-reference — the
-      // paragraph merely named another file before it — not a citation of it.
-      if (!namesTitle(target, rawName) && !namesTitle(file, rawName)) {
-        failures.push(
-          `${self}:${lineAt(match.index)} names a heading that ${contextFile} does not have: 「${rawName}」`,
-        );
+    }
+
+    // 4. Paired language file structure (foo.md <-> foo.zh.md), compared in order.
+    const zhMatch = /^(.*)\.zh\.md$/.exec(self);
+    if (zhMatch) {
+      const counterpart = join(root, `${zhMatch[1]}.md`);
+      try {
+        const compare = comparePairStructure(rel(counterpart), self, fileLines(counterpart), text);
+        for (const finding of compare) failures.push(finding);
+        notes.push(`paired: ${rel(counterpart)} <-> ${self}`);
+      } catch {
+        failures.push(`${self} has no English counterpart (${rel(counterpart)} is missing)`);
       }
+    }
+
+    // 5. Duplicate headings among siblings and heading-level jumps. A changelog
+    // repeats `### Added` under every release on purpose, so it is exempt, and
+    // two different parents may each group their content under the same subtitle.
+    const own = headingsOf(file);
+    const seen = new Map();
+    const repeatsAllowed = /CHANGELOG\.md$/.test(file);
+    const parents = [];
+    for (const heading of own) {
+      const level = heading.text.match(/^#+/)[0].length;
+      const title = heading.text.replace(/^#+\s*/, '').trim();
+      parents.length = level;
+      const parentKey = parents.slice(0, level - 1).join(' / ');
+      const key = `${parentKey} :: ${title}`;
+      if (seen.has(key) && !repeatsAllowed) {
+        failures.push(`${self}:${heading.line} repeats the heading from line ${seen.get(key)}: ${heading.text}`);
+      } else if (!seen.has(key)) {
+        seen.set(key, heading.line);
+      }
+      parents[level - 1] = title;
+    }
+    let previous = 0;
+    for (const heading of own) {
+      const level = heading.text.match(/^#+/)[0].length;
+      if (previous !== 0 && level > previous + 1) {
+        failures.push(`${self}:${heading.line} jumps from h${previous} to h${level}: ${heading.text}`);
+      }
+      previous = level;
     }
   }
 
-  // 4. Paired language file structure (foo.md <-> foo.zh.md), compared in order.
-  const zhMatch = /^(.*)\.zh\.md$/.exec(self);
-  if (zhMatch) {
-    const counterpart = join(root, `${zhMatch[1]}.md`);
-    try {
-      const compare = comparePairStructure(rel(counterpart), self, lines(counterpart), text);
-      for (const finding of compare) failures.push(finding);
-      notes.push(`paired: ${rel(counterpart)} <-> ${self}`);
-    } catch {
-      failures.push(`${self} has no English counterpart (${rel(counterpart)} is missing)`);
-    }
-  }
-
-  // 5. Duplicate headings among siblings and heading-level jumps. A changelog
-  // repeats `### Added` under every release on purpose, so it is exempt, and
-  // two different parents may each group their content under the same subtitle.
-  const own = headingsOf(file);
-  const seen = new Map();
-  const repeatsAllowed = /CHANGELOG\.md$/.test(file);
-  const parents = [];
-  for (const heading of own) {
-    const level = heading.text.match(/^#+/)[0].length;
-    const title = heading.text.replace(/^#+\s*/, '').trim();
-    parents.length = level;
-    const parentKey = parents.slice(0, level - 1).join(' / ');
-    const key = `${parentKey} :: ${title}`;
-    if (seen.has(key) && !repeatsAllowed) {
-      failures.push(`${self}:${heading.line} repeats the heading from line ${seen.get(key)}: ${heading.text}`);
-    } else if (!seen.has(key)) {
-      seen.set(key, heading.line);
-    }
-    parents[level - 1] = title;
-  }
-  let previous = 0;
-  for (const heading of own) {
-    const level = heading.text.match(/^#+/)[0].length;
-    if (previous !== 0 && level > previous + 1) {
-      failures.push(`${self}:${heading.line} jumps from h${previous} to h${level}: ${heading.text}`);
-    }
-    previous = level;
-  }
+  // Today's printed order, preserved: the header and its blank line, every note in the
+  // order it was collected, then every failure.
+  const lines = [
+    `auditing ${files.length} markdown files`,
+    '',
+    ...notes.map((note) => `note ${note}`),
+    ...failures.map((failure) => `FAIL ${failure}`),
+  ];
+  return { failures, lines };
 }
 
-for (const note of notes) console.log(`note ${note}`);
-for (const failure of failures) console.log(`FAIL ${failure}`);
-console.log(
-  failures.length === 0 ? '\ndocumentation: 0 violations' : `\ndocumentation: ${failures.length} violation(s)`,
-);
-process.exit(failures.length === 0 ? 0 : 1);
+// --- Entry point ---------------------------------------------------------------------
+// Only when this file is executed directly. Importing it — which `check.test.mjs` does to
+// exercise the checker against fixture trees — must neither run the audit nor exit the
+// process.
+const invokedDirectly = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+/**
+ * Reads the `--root` value, and refuses the two ways it can be wrong: no value at all
+ * (which used to audit this repository instead, silently) and a path that is not a
+ * directory (which used to end in a raw `ENOENT` stack). Both are reported as a sentence
+ * and exit non-zero rather than guessing.
+ */
+function rootArgument(args) {
+  const flag = args.indexOf('--root');
+  if (flag === -1) return { root: undefined, error: undefined };
+  const value = args[flag + 1];
+  if (value === undefined || value.startsWith('--')) {
+    return {
+      root: undefined,
+      error: '--root needs a directory: node tools/docs-audit/check.mjs [--root <dir>] [--record]',
+    };
+  }
+  try {
+    if (statSync(value).isDirectory()) return { root: value, error: undefined };
+  } catch {
+    /* the sentence below covers every way statSync can fail */
+  }
+  return { root: undefined, error: `--root is not a directory: ${value}` };
+}
+
+if (invokedDirectly) {
+  const args = process.argv.slice(2);
+  const { root, error } = rootArgument(args);
+  if (error !== undefined) {
+    console.error(error);
+    process.exit(1);
+  }
+  const { failures, lines } = runAudit({ root, record: args.includes('--record') });
+  for (const line of lines) console.log(line);
+  console.log(
+    failures.length === 0 ? '\ndocumentation: 0 violations' : `\ndocumentation: ${failures.length} violation(s)`,
+  );
+  process.exit(failures.length === 0 ? 0 : 1);
+}
