@@ -37,6 +37,7 @@ import {
   mockUser,
   mockActionRun,
   mockActionRunJob,
+  mockActionRunTestJob,
   mockActionArtifact,
   mockPullReview,
   mockPullReviewComment,
@@ -850,14 +851,27 @@ describe('MCP tool handlers with MSW', () => {
       repo: 'demo-repo',
       runId: 42,
     })) as (typeof mockActionRunJob)[];
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].name).toBe(mockActionRunJob.name);
+    // The fixture run has two jobs, so a caller sees both in the order the API reports.
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map((job) => job.name)).toEqual([mockActionRunJob.name, mockActionRunTestJob.name]);
   });
 
   it('get_action_job_log returns the raw log text', async () => {
     const handlers = createHandlers();
     const log = await handlers.get_action_job_log({ owner: 'demo-user', repo: 'demo-repo', jobId: 101 });
     expect(log).toBe('build log output');
+  });
+
+  it('get_action_job_log answers for the job that was asked for', async () => {
+    // Two jobs, two logs: the tool must not answer the second job with the first's text.
+    const handlers = createHandlers();
+    const log = await handlers.get_action_job_log({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      jobId: mockActionRunTestJob.id,
+    });
+    expect(log).toContain('test log output');
+    expect(log).not.toContain('build log output');
   });
 
   /**
@@ -904,9 +918,9 @@ describe('MCP tool handlers with MSW', () => {
   });
 
   it('get_ci_failure_summary reports no failures when every job passed', async () => {
-    // The shared fixture's single job is a success, so the real client reaches
-    // the handler through MSW and the tool must answer "nothing failed" without
-    // reading any log.
+    // Both of the fixture run's jobs are successes, so the real client reaches the
+    // handler through MSW and the tool must answer "nothing failed" without reading any
+    // log.
     const handlers = createHandlers();
     const summary = (await handlers.get_ci_failure_summary({
       owner: 'demo-user',
@@ -916,7 +930,7 @@ describe('MCP tool handlers with MSW', () => {
 
     expect(summary.failedJobCount).toBe(0);
     expect(summary.failures).toEqual([]);
-    expect(summary.passedJobCount).toBe(1);
+    expect(summary.passedJobCount).toBe(2);
     expect(summary.passedJobs).toBeUndefined();
   });
 

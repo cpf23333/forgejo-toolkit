@@ -75,6 +75,51 @@ export const mockActionRunJob = {
   runs_on: ['ubuntu-latest'],
 } satisfies ActionRunJob;
 
+/**
+ * The run's **second** job, so a run's page carries two logs at once.
+ *
+ * A single-job run cannot exercise anything that has to tell one log from another — the
+ * job list renders one row, one log is ever fetched, and a rule about *which* log a
+ * selection belongs to has nothing to be wrong about. This job exists for that reason and
+ * is otherwise ordinary: a second name, its own task and runner, and its own log text
+ * below. It is deliberately a different `id` and a different `task_id` so a fixture
+ * consumer that confuses the two is visible rather than coincidentally right.
+ */
+export const mockActionRunTestJob = {
+  id: 102,
+  run_id: ACTION_RUN_BASE_ID,
+  name: 'test',
+  status: 'success',
+  attempt: 1,
+  task_id: 8,
+  runs_on: ['ubuntu-latest'],
+} satisfies ActionRunJob;
+
+/**
+ * Both of `mockActionRun`'s jobs, in the order the API reports them.
+ *
+ * The first entry is {@link mockActionRunJob}, so assertions written against the original
+ * single-job fixture keep pointing at the same job.
+ */
+export const mockActionRunJobs: ActionRunJob[] = [mockActionRunJob, mockActionRunTestJob];
+
+/**
+ * One job log per job id, so each `<pre>` on the run page has its own text.
+ *
+ * The first entry is the original `build log output`, so existing assertions about the
+ * first job's log are untouched; the second is a plausible test-job log whose lines differ
+ * from the build job's in every line, which is what makes a mixed-up log visible.
+ */
+export const mockActionRunJobLogs: Record<number, string> = {
+  [mockActionRunJob.id]: 'build log output',
+  [mockActionRunTestJob.id]: [
+    'test log output',
+    '  ✓ src/actions/jobLog.test.ts (3 tests)',
+    '  ✓ src/actions/runDetail.test.ts (5 tests)',
+    'Tests  8 passed (8)',
+  ].join('\n'),
+};
+
 export const mockActionArtifact = {
   id: 7,
   name: 'build-artifact',

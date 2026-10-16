@@ -59,6 +59,7 @@ import {
   mockReadmeContent,
   mockActionRun,
   mockActionRunJob,
+  mockActionRunTestJob,
   mockActionArtifact,
   mockReleaseAttachment,
   mockLabel,
@@ -1807,8 +1808,10 @@ describe('ForgejoClient with MSW', () => {
     it('fetches action run jobs', async () => {
       const client = createClient();
       const jobs = await client.getActionRunJobs('demo-user', 'demo-repo', 42);
-      expect(jobs).toHaveLength(1);
-      expect(jobs[0].id).toBe(mockActionRunJob.id);
+      // One run with two jobs, so the run detail page has two logs to tell apart.
+      expect(jobs).toHaveLength(2);
+      expect(jobs.map((job) => job.id)).toEqual([mockActionRunJob.id, mockActionRunTestJob.id]);
+      expect(jobs.map((job) => job.name)).toEqual(['build', 'test']);
     });
 
     it('fetches action run artifacts', async () => {
@@ -1822,6 +1825,15 @@ describe('ForgejoClient with MSW', () => {
       const client = createClient();
       const log = await client.getActionJobLog('demo-user', 'demo-repo', 101);
       expect(log).toContain('build log output');
+    });
+
+    it('fetches a second job’s log, which is its own', async () => {
+      // The point of the second job: two logs coexist, and each endpoint answer names
+      // the job it belongs to rather than one shared text.
+      const client = createClient();
+      const log = await client.getActionJobLog('demo-user', 'demo-repo', mockActionRunTestJob.id);
+      expect(log).toContain('test log output');
+      expect(log).not.toContain('build log output');
     });
 
     it('dispatches a workflow', async () => {
@@ -4032,7 +4044,9 @@ describe('ForgejoClient with MSW', () => {
     it('does not log raw bodies of text responses', async () => {
       const messages: string[] = [];
       const client = createDebugClient(messages);
-      await client.getActionJobLog('demo-user', 'demo-repo', 1);
+      // The fixture job whose log the assertion below looks for: an id no fixture declares
+      // would fetch a different text and make the check pass for the wrong reason.
+      await client.getActionJobLog('demo-user', 'demo-repo', mockActionRunJob.id);
       expect(messages.some((m) => m.includes('build log output'))).toBe(false);
       expect(messages.some((m) => m.includes('<text> (not logged)'))).toBe(true);
     });

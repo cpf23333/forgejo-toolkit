@@ -216,7 +216,15 @@ export function readRowTarget(value: unknown): RowTarget | undefined {
       //    that reason, and a refusal says so rather than doing nothing (see
       //    `warnAboutRefusedLogMarker`).
       // 2. The webview publishes nothing over the bound, so it never copies a partial
-      //    selection; this bound only refuses a forged claim larger than one.
+      //    selection; this bound only refuses a marker that claims more. **The menu path
+      //    cannot reach that refusal any more**: the policy withdraws a log marker whose
+      //    carried text is not the live selection before VS Code reads the context keys
+      //    (`withdrawStaleLogMarker`), and a marker over the bound never equals the live
+      //    selection at click time — so it is withdrawn first and the item is not offered.
+      //    This branch is therefore **defence in depth**, kept because a forged argument
+      //    must never put invalid text on the clipboard and because a direct command
+      //    invocation does not go through the menu at all; the palette hides the command,
+      //    so that route is an explicit invocation rather than an accident.
       if (argument.forgejoLogSelection !== true) {
         return undefined;
       }

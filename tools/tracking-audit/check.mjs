@@ -42,6 +42,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  DONE_SECTION_CHAR_BUDGET,
+  ENTRY_CHAR_BUDGET,
+  entriesOverBudget,
+  sectionCharTotal,
+  sectionEntries,
+} from './rules.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const failures = [];
@@ -183,50 +190,23 @@ function readLedger() {
     long.length === 0,
   );
 
-  // The entry-level budget, and **why it exists**: to stop one 已完成 entry growing, not
-  // to police a particular sentence. It is measured with this file's own algorithm —
-  // top-level `- ` items with their wrapped continuation lines folded in, nested `- `
-  // items counted separately — and re-measured whenever it moves:
-  //
-  //   2026-10-07: 111 entries; one entry at 333 characters (the PR-description entry)
-  //               was the reason the bound was 350, because a bound has to admit the
-  //               content the file actually holds. The record owner then rewrote that
-  //               entry (now 240) on the maintainer's decision, so the section's longest
-  //               is 248 and exactly one entry had been over 250.
-  //   2026-10-07: tightened to 250 as the maintainer asked, after that trim landed and
-  //               after re-measuring: 111 entries, 0 over 250, longest 248.
-  //
-  // Raise or lower it only with a measurement in the same change, taken with the
-  // algorithm below: a bound the file cannot satisfy is a red tree, not a stricter rule.
-  const ENTRY_CHAR_BUDGET = 250;
-  const entries = [];
-  let current;
-  done.rows.slice(1).forEach((row, index) => {
-    if (/^- /.test(row)) {
-      if (current) entries.push(current);
-      current = { line: done.start + index + 2, text: row };
-      return;
-    }
-    if (!current) return;
-    const trimmed = row.trim();
-    // A blank line or a nested `- ` item ends this entry: sub-items are their own
-    // items, and folding them in would make the parent's size depend on how its
-    // children were written.
-    if (trimmed === '' || /^- /.test(trimmed)) {
-      entries.push(current);
-      current = undefined;
-      return;
-    }
-    current.text += ` ${trimmed}`;
-  });
-  if (current) entries.push(current);
-  const oversized = entries
-    .map((entry) => ({ line: entry.line, chars: entry.text.replace(/\s+/g, ' ').trim().length }))
-    .filter((entry) => entry.chars > ENTRY_CHAR_BUDGET);
+  // The two size bounds and the counting they are measured with live in `rules.mjs`, next
+  // to their own measured justification, so the audit's test file can exercise the **real**
+  // numbers at their boundaries instead of copies of them. One bound catches an entry
+  // bloating into a design note; the other catches the section fattening one reasonable
+  // entry at a time. `未完成` is exempt from both, as it carries the context of open work.
+  const entries = sectionEntries(done.rows.slice(1), done.start + 2);
+  const oversized = entriesOverBudget(entries, ENTRY_CHAR_BUDGET);
   check(
     `FEATURES.md 已完成 entries stay within ${ENTRY_CHAR_BUDGET} chars`,
     oversized.map((entry) => `line ${entry.line} (${entry.chars} chars)`).join(', '),
     oversized.length === 0,
+  );
+  const doneTotal = sectionCharTotal(entries);
+  check(
+    `FEATURES.md 已完成 stays within ${DONE_SECTION_CHAR_BUDGET} characters`,
+    `the section holds ${doneTotal} characters`,
+    doneTotal <= DONE_SECTION_CHAR_BUDGET,
   );
 
   check('FEATURES.md carries a role header', 'none in the first 8 lines', roleHeader(text) !== undefined);

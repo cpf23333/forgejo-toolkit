@@ -19,7 +19,8 @@ import {
   mockReadmeContent,
   mockIndexTsContent,
   mockActionRuns,
-  mockActionRunJob,
+  mockActionRunJobLogs,
+  mockActionRunJobs,
   mockActionArtifact,
   mockDispatchWorkflowRun,
   mockDispatchedActionRun,
@@ -929,7 +930,7 @@ export const handlers = [
   // generated client only tolerates `{ jobs }` for older servers). The job's
   // `run_id` follows the run that was asked for, so the fixture stays one run.
   http.get('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', ({ params }) =>
-    json([{ ...mockActionRunJob, run_id: Number(params.run_id) }]),
+    json(mockActionRunJobs.map((job) => ({ ...job, run_id: Number(params.run_id) }))),
   ),
 
   http.get('*://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request, params }) => {
@@ -941,7 +942,13 @@ export const handlers = [
 
   http.get(
     '*://*/api/v1/repos/:owner/:repo/actions/jobs/:job_id/logs',
-    () => new HttpResponse('build log output', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
+    // Each job answers with its own text: the fixture run has two jobs, and a shared
+    // answer could not tell them apart.
+    ({ params }) =>
+      new HttpResponse(mockActionRunJobLogs[Number(params.job_id)] ?? 'unknown job log', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      }),
   ),
 
   http.post('*://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches', () =>
